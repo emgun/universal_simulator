@@ -4,7 +4,7 @@ include: defaults
 data:
   task: burgers1d
   split: train
-  root: ${oc.env:PDEBENCH_ROOT,data/pdebench}
+  root: data/pdebench  # Override with PDEBENCH_ROOT env var if needed
   patch_size: 1
   shard_limit: null
 

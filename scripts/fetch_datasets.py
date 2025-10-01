@@ -60,6 +60,18 @@ def fetch_artifact(
 
 
 def copy_splits(source: Path, target_root: Path, entries: dict) -> None:
+    import tarfile
+    
+    # Check if source contains a tarball to extract first
+    tarballs = list(source.glob("*.tar.gz")) + list(source.glob("*.tar"))
+    if tarballs:
+        print(f"Found tarball: {tarballs[0]}, extracting...")
+        with tarfile.open(tarballs[0], "r:*") as tar:
+            tar.extractall(target_root)
+        print(f"Extracted to {target_root}")
+        return
+    
+    # Otherwise copy individual files
     for split_key in ("train_split", "val_split", "test_split"):
         split_file = entries.get(split_key)
         if not split_file:
