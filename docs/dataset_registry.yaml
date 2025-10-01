@@ -3,7 +3,7 @@
 
 datasets:
   burgers1d_subset_v1:
-    artifact: emgun-morpheus-space/universal-simulator/burgers1d-subset:v1
+    artifact: emgun-morpheus-space/universal-simulator/burgers1d-subset:v0
     kind: grid
     train_split: burgers1d_train.h5
     val_split: burgers1d_val.h5
