@@ -20,6 +20,11 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 import yaml
 
+try:
+    import wandb
+except ImportError:
+    wandb = None
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 from ups.core.latent_state import LatentState
@@ -209,6 +214,17 @@ def train_operator(cfg: dict) -> None:
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     torch.save(operator.state_dict(), checkpoint_dir / "operator.pt")
     print("Saved operator checkpoint.")
+    
+    # Send W&B alert
+    if wandb is not None and wandb.run is not None:
+        try:
+            wandb.alert(
+                title="✅ Operator Training Complete",
+                text=f"Final loss: {best_loss:.6f} | Ready for diffusion stage",
+                level=wandb.AlertLevel.INFO
+            )
+        except Exception:
+            pass
 
 
 def train_diffusion(cfg: dict) -> None:
@@ -271,6 +287,17 @@ def train_diffusion(cfg: dict) -> None:
     logger.close()
     torch.save(diff.state_dict(), checkpoint_dir / "diffusion_residual.pt")
     print("Saved diffusion residual checkpoint.")
+    
+    # Send W&B alert
+    if wandb is not None and wandb.run is not None:
+        try:
+            wandb.alert(
+                title="✅ Diffusion Residual Training Complete",
+                text=f"Final loss: {best_loss:.6f} | Ready for consistency distillation",
+                level=wandb.AlertLevel.INFO
+            )
+        except Exception:
+            pass
 
 
 def train_consistency(cfg: dict) -> None:
@@ -339,6 +366,17 @@ def train_consistency(cfg: dict) -> None:
     logger.close()
     torch.save(diff.state_dict(), checkpoint_dir / "diffusion_residual.pt")
     print("Updated diffusion residual via consistency distillation.")
+    
+    # Send W&B alert
+    if wandb is not None and wandb.run is not None:
+        try:
+            wandb.alert(
+                title="✅ Consistency Distillation Complete",
+                text=f"Final loss: {best_loss:.6f} | Ready for steady prior training",
+                level=wandb.AlertLevel.INFO
+            )
+        except Exception:
+            pass
 
 
 def train_steady_prior(cfg: dict) -> None:
@@ -387,6 +425,17 @@ def train_steady_prior(cfg: dict) -> None:
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     torch.save(prior.state_dict(), checkpoint_dir / "steady_prior.pt")
     print("Saved steady prior checkpoint.")
+    
+    # Send W&B alert
+    if wandb is not None and wandb.run is not None:
+        try:
+            wandb.alert(
+                title="🎉 All Training Stages Complete!",
+                text=f"Steady prior final loss: {best_loss:.6f} | Full pipeline ready for evaluation",
+                level=wandb.AlertLevel.SUCCESS
+            )
+        except Exception:
+            pass
 
 
 def main() -> None:
