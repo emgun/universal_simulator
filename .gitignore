@@ -12,8 +12,8 @@ build/
 .venv/
 venv/
 
-# Data/Artifacts
-data/
+# Data/Artifacts (not Python packages!)
+/data/
 export/
 reports/
 wandb/
