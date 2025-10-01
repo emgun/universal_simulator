@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Envs
+.env
+.venv/
+venv/
+
+# Data/Artifacts
+data/
+export/
+reports/
+wandb/
+mlruns/
+artifacts/
+checkpoints/
+
+# IDE
+.idea/
+.vscode/
+

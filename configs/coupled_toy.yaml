@@ -1,0 +1,12 @@
+operator:
+  latent_dim: 16
+  pdet:
+    input_dim: 16
+    hidden_dim: 32
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 2
+rollout:
+  steps: 10
+  dt: 0.1
+  correct_every: 2

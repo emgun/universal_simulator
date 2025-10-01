@@ -1,0 +1,70 @@
+# Dataset registry mapping logical names to artifact metadata and loader defaults.
+# Replace placeholder artifact IDs with actual versions once published.
+
+datasets:
+  burgers1d_subset_v1:
+    artifact: emgun-morpheus-space/universal-simulator/burgers1d-subset:v1
+    kind: grid
+    train_split: burgers1d_train.h5
+    val_split: burgers1d_val.h5
+    test_split: burgers1d_test.h5
+    metadata:
+      description: 20-trajectory Burgers 1D subset (ν sweep)
+      parameters: [nu]
+      resolution: [201, 1024]
+      normalisation: per-file z-score
+  burgers1d_full_v1:
+    artifact: <entity>/<project>/burgers1d-full:v1
+    kind: grid
+    train_split: burgers1d_train.h5
+    val_split: burgers1d_val.h5
+    test_split: burgers1d_test.h5
+    metadata:
+      description: Full PDEBench Burgers 1D train/val/test
+      parameters: [nu]
+      resolution: [201, 1024]
+      normalisation: global statistics
+  advection1d_subset_v1:
+    artifact: <entity>/<project>/advection1d-subset:v1
+    kind: grid
+    train_split: advection1d_train.h5
+    val_split: advection1d_val.h5
+    test_split: advection1d_test.h5
+    metadata:
+      description: 1D advection trajectories across velocity range
+      parameters: [velocity]
+      resolution: [201, 1024]
+      normalisation: per-file z-score
+  navier_stokes2d_subset_v1:
+    artifact: <entity>/<project>/navier-stokes2d-subset:v1
+    kind: grid
+    train_split: navier_stokes2d_train.h5
+    val_split: navier_stokes2d_val.h5
+    test_split: navier_stokes2d_test.h5
+    metadata:
+      description: 2D Navier–Stokes subset (Reynolds sweep)
+      parameters: [reynolds]
+      resolution: [T, H, W, C]
+      normalisation: global statistics
+  darcy2d_mesh_subset_v1:
+    artifact: <entity>/<project>/darcy2d-mesh-subset:v1
+    kind: mesh
+    train_split: darcy2d_train.zarr
+    val_split: darcy2d_val.zarr
+    test_split: darcy2d_test.zarr
+    metadata:
+      description: Darcy flow meshes with precomputed cotan Laplacians
+      parameters: [permeability]
+      resolution: variable
+      normalisation: unit scaling
+  particles_advect_subset_v1:
+    artifact: <entity>/<project>/particles-advect-subset:v1
+    kind: particles
+    train_split: particles_advect_train.zarr
+    val_split: particles_advect_val.zarr
+    test_split: particles_advect_test.zarr
+    metadata:
+      description: Particle advection/interaction dataset with neighbor caches
+      parameters: [radius]
+      resolution: variable
+      normalisation: unit scaling

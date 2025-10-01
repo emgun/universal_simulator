@@ -1,0 +1,16 @@
+run:
+  mode: steady
+  steps: 8
+operator:
+  latent_dim: 32
+  pdet:
+    input_dim: 32
+    hidden_dim: 64
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 2
+models:
+  steady_prior_checkpoint: checkpoints/steady_latest.ckpt
+outputs:
+  save_dir: export/steady/
+  save_states: true

@@ -1,0 +1,68 @@
+# Quick test config for pipeline validation (minimal epochs)
+seed: 17
+precision: bf16
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  shard_limit: null
+
+latent:
+  dim: 128
+  tokens: 64
+
+operator:
+  pdet:
+    input_dim: 128
+    hidden_dim: 256
+    depths: [1, 1, 1]
+    group_size: 64
+    num_heads: 4
+
+training:
+  batch_size: 4  # Small batch for quick test
+  dt: 0.1
+  patience: 10
+  log_path: reports/test_training_log.jsonl
+  amp: false  # Disable AMP for CPU testing
+  grad_clip: 1.0
+
+optimizer:
+  name: adamw
+  lr: 3.0e-4
+  weight_decay: 0.01
+
+stages:
+  operator:
+    epochs: 2
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.01
+  diff_residual:
+    epochs: 2
+    optimizer:
+      name: adam
+      lr: 1.0e-4
+      weight_decay: 0.0
+  consistency_distill:
+    epochs: 2
+    optimizer:
+      name: adam
+      lr: 5.0e-5
+  steady_prior:
+    epochs: 2
+    optimizer:
+      name: adam
+      lr: 5.0e-5
+
+checkpoint:
+  dir: checkpoints/test/
+
+logging:
+  backend: stdout
+  level: INFO
+  wandb:
+    enabled: false

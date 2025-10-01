@@ -1,0 +1,22 @@
+seed: 17
+precision: bf16
+latent:
+  dim: 32
+  tokens: 64
+data:
+  kind: grid
+  path: data/poc_trio.zarr
+  group: diffusion2d
+  patch_size: 4
+training:
+  batch_size: 8
+  dt: 0.1
+  patience: 1
+  log_path: reports/training_log.jsonl
+logging:
+  backend: stdout
+  level: INFO
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: default

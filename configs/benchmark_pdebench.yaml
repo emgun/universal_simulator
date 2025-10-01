@@ -1,0 +1,4 @@
+suite:
+  task: burgers1d
+  split: test
+  out: reports/pdebench_metrics.json
