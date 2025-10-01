@@ -309,23 +309,26 @@ def train_consistency(cfg: dict) -> None:
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
         operator.load_state_dict(torch.load(op_path, map_location="cpu"))
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-    operator.to(device)
+    operator.eval()
+    
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
         diff.load_state_dict(torch.load(diff_path, map_location="cpu"))
-    diff.to(device)
+    
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
     scheduler = _create_scheduler(optimizer, cfg, "consistency_distill")
     patience = _get_patience(cfg, "consistency_distill")
     logger = TrainingLogger(cfg, stage="consistency_distill")
     dt = cfg.get("training", {}).get("dt", 0.1)
-
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    diff.to(device)
+    operator.to(device)
     dt_tensor = torch.tensor(dt, device=device)
 
     def teacher_fn(state: LatentState, tau: torch.Tensor) -> LatentState:
