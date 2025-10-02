@@ -286,16 +286,28 @@ def main() -> None:
     outputs = _write_outputs(report, output_prefix, cfg, details)
 
     session = init_monitoring_session(cfg, component="evaluation", file_path=args.log_path)
-    session.log({"stage": "evaluation", "event": "config", "config": cfg})
-    session.log({"stage": "evaluation", "metrics": report.metrics, "extra": report.extra, "outputs": {k: str(v) for k, v in outputs.items()}})
+    
+    # Log metrics with eval/ prefix for better organization
+    eval_metrics = {
+        f"eval/{k}": v for k, v in report.metrics.items()
+    }
+    session.log(eval_metrics)
+    
+    # Log extra info
+    if report.extra:
+        eval_extra = {f"eval/{k}": v for k, v in report.extra.items()}
+        session.log(eval_extra)
+    
+    # Log images with eval/ prefix
     if "plot_mse" in outputs:
-        session.log_image("evaluation_mse_hist", outputs["plot_mse"])
+        session.log_image("eval/mse_histogram", outputs["plot_mse"])
     if "plot_mae" in outputs:
-        session.log_image("evaluation_mae_hist", outputs["plot_mae"])
+        session.log_image("eval/mae_histogram", outputs["plot_mae"])
     if "plot_latent_heatmap" in outputs:
-        session.log_image("evaluation_latent_heatmap", outputs["plot_latent_heatmap"])
+        session.log_image("eval/latent_heatmap", outputs["plot_latent_heatmap"])
     if "plot_latent_spectrum" in outputs:
-        session.log_image("evaluation_latent_spectrum", outputs["plot_latent_spectrum"])
+        session.log_image("eval/latent_spectrum", outputs["plot_latent_spectrum"])
+    
     session.finish()
 
     _print_report(report, outputs, args.print_json)
