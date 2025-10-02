@@ -292,13 +292,13 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
         operator.load_state_dict(torch.load(op_path, map_location=device))
-    operator.to(device)
+    _ensure_model_on_device(operator, device)
     operator.eval()
 
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("diff_residual", {})
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
-    diff.to(device)
+    _ensure_model_on_device(diff, device)
     
     optimizer = _create_optimizer(cfg, diff, "diff_residual")
     scheduler = _create_scheduler(optimizer, cfg, "diff_residual")
@@ -358,6 +358,19 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             pass
 
 
+def _ensure_model_on_device(model: nn.Module, device: torch.device) -> None:
+    """Aggressively ensure all model parameters and buffers are on the correct device."""
+    model.to(device)
+    # Force all parameters to device
+    for param in model.parameters():
+        param.data = param.data.to(device)
+        if param.grad is not None:
+            param.grad.data = param.grad.data.to(device)
+    # Force all buffers to device
+    for buffer in model.buffers():
+        buffer.data = buffer.data.to(device)
+
+
 def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
@@ -371,7 +384,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
         operator.load_state_dict(torch.load(op_path, map_location=device))
-    operator.to(device)
+    _ensure_model_on_device(operator, device)
     operator.eval()
     
     # Create diffusion model and load checkpoint directly to target device
@@ -381,7 +394,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
         diff.load_state_dict(torch.load(diff_path, map_location=device))
-    diff.to(device)
+    _ensure_model_on_device(diff, device)
     
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
