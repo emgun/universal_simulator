@@ -73,7 +73,7 @@ class LatentOperator(nn.Module):
         if not torch.is_tensor(dt):
             dt = torch.tensor(dt, device=z.device, dtype=z.dtype)
         else:
-            dt = dt.to(z.device)
+            dt = dt.to(device=z.device, dtype=z.dtype)
         dt_embed = self.time_embed(dt)
         if dt_embed.size(0) == 1 and z.size(0) > 1:
             dt_embed = dt_embed.expand(z.size(0), -1)

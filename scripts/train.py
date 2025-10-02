@@ -424,7 +424,13 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             z0, _, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
-            loss = distillation_loss(teacher_fn, student_fn, state, DistillationConfig(taus=[0.25, 0.5, 0.75]))
+            loss = distillation_loss(
+                teacher_fn,
+                student_fn,
+                state,
+                DistillationConfig(taus=[0.25, 0.5, 0.75]),
+                device=device,
+            )
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
