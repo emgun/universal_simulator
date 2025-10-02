@@ -72,8 +72,6 @@ class TrainingLogger:
         else:
             self.session = init_monitoring_session(cfg, component=f"training-{stage}", file_path=log_path)
             self.owns_run = True
-        
-        self.session.log({f"{self.stage}/stage_start": 1, "global_step": self.global_step})
 
     def log(
         self,
