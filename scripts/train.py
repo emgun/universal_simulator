@@ -82,6 +82,9 @@ class TrainingLogger:
         loss: float,
         optimizer: torch.optim.Optimizer,
         patience_counter: Optional[int] = None,
+        grad_norm: Optional[float] = None,
+        epoch_time: Optional[float] = None,
+        best_loss: Optional[float] = None,
     ) -> None:
         lr = optimizer.param_groups[0].get("lr") if optimizer.param_groups else None
         self.global_step += 1
@@ -91,11 +94,19 @@ class TrainingLogger:
             f"{self.stage}/loss": loss,
             f"{self.stage}/epoch": epoch,
             f"{self.stage}/lr": lr,
-            "stage": self.stage,
             "global_step": self.global_step,
         }
+        
+        # Add optional metrics
         if patience_counter is not None:
             entry[f"{self.stage}/epochs_since_improve"] = patience_counter
+        if grad_norm is not None:
+            entry[f"{self.stage}/grad_norm"] = grad_norm
+        if epoch_time is not None:
+            entry[f"{self.stage}/epoch_time_sec"] = epoch_time
+        if best_loss is not None:
+            entry[f"{self.stage}/best_loss"] = best_loss
+        
         self.session.log(entry)
 
     def close(self) -> None:
@@ -201,9 +212,14 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     best_loss = float("inf")
     best_state = copy.deepcopy(operator.state_dict())
     epochs_since_improve = 0
+    
+    import time
     for epoch in range(epochs):
+        epoch_start = time.time()
         epoch_loss = 0.0
+        total_grad_norm = 0.0
         batches = 0
+        
         for batch in loader:
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
@@ -213,11 +229,28 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             loss = F.mse_loss(next_state.z, target)
             optimizer.zero_grad()
             loss.backward()
+            
+            # Track gradient norm
+            grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf'))
+            total_grad_norm += grad_norm.item()
+            
             optimizer.step()
             epoch_loss += loss.item()
             batches += 1
+        
+        epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        logger.log(epoch=epoch, loss=mean_loss, optimizer=optimizer, patience_counter=epochs_since_improve)
+        mean_grad_norm = total_grad_norm / max(batches, 1)
+        
+        logger.log(
+            epoch=epoch,
+            loss=mean_loss,
+            optimizer=optimizer,
+            patience_counter=epochs_since_improve,
+            grad_norm=mean_grad_norm,
+            epoch_time=epoch_time,
+            best_loss=best_loss,
+        )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(operator.state_dict())
@@ -486,6 +519,19 @@ def train_all_stages(cfg: dict) -> None:
             wandb.define_metric("diffusion_residual/*", step_metric="global_step")
             wandb.define_metric("consistency_distill/*", step_metric="global_step")
             wandb.define_metric("steady_prior/*", step_metric="global_step")
+            
+            # Log system info
+            import torch
+            if torch.cuda.is_available():
+                gpu_info = {
+                    "gpu_name": torch.cuda.get_device_name(0),
+                    "gpu_count": torch.cuda.device_count(),
+                    "cuda_version": torch.version.cuda,
+                }
+                wandb.config.update(gpu_info)
+            
+            # Watch gradients and model parameters (optional, can be heavy)
+            # wandb.watch(models, log="all", log_freq=100)
     
     global_step = 0
     
@@ -517,8 +563,18 @@ def train_all_stages(cfg: dict) -> None:
     print("="*50)
     train_steady_prior(cfg, shared_run=shared_run, global_step=global_step)
     
-    # Finish the shared run
+    # Log final summary
     if shared_run:
+        # Load final checkpoints to get model sizes
+        checkpoint_dir = ensure_checkpoint_dir(cfg)
+        import os
+        summary = {
+            "summary/total_training_complete": 1,
+            "summary/operator_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator.pt") / 1e6 if (checkpoint_dir / "operator.pt").exists() else 0,
+            "summary/diffusion_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6 if (checkpoint_dir / "diffusion_residual.pt").exists() else 0,
+            "summary/steady_prior_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6 if (checkpoint_dir / "steady_prior.pt").exists() else 0,
+        }
+        shared_run.log(summary)
         shared_run.finish()
     
     print("\n" + "="*50)
