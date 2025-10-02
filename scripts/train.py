@@ -495,6 +495,11 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     torch.save(diff.state_dict(), checkpoint_dir / "diffusion_residual.pt")
     print("Updated diffusion residual via consistency distillation.")
     
+    # Clean up operator from memory
+    del operator
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
         try:
@@ -636,6 +641,11 @@ def train_all_stages(cfg: dict) -> None:
     # Update global step (rough estimate based on epochs)
     global_step += cfg.get("stages", {}).get("operator", {}).get("epochs", 10)
     
+    # Clear GPU cache between stages
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        print("✓ Cleared GPU cache")
+    
     # Stage 2: Diffusion Residual
     print("\n" + "="*50)
     print("STAGE 2/4: Training Diffusion Residual")
@@ -643,12 +653,22 @@ def train_all_stages(cfg: dict) -> None:
     train_diffusion(cfg, shared_run=shared_run, global_step=global_step)
     global_step += cfg.get("stages", {}).get("diff_residual", {}).get("epochs", 10)
     
+    # Clear GPU cache between stages
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        print("✓ Cleared GPU cache")
+    
     # Stage 3: Consistency Distillation
     print("\n" + "="*50)
     print("STAGE 3/4: Consistency Distillation")
     print("="*50)
     train_consistency(cfg, shared_run=shared_run, global_step=global_step)
     global_step += cfg.get("stages", {}).get("consistency_distill", {}).get("epochs", 10)
+    
+    # Clear GPU cache between stages
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        print("✓ Cleared GPU cache")
     
     # Stage 4: Steady Prior
     print("\n" + "="*50)
