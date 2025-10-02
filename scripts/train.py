@@ -392,7 +392,14 @@ def _ensure_model_on_device(model: nn.Module, device: torch.device) -> None:
 
 
 def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
-    loader = dataset_loader(cfg)
+    # Use smaller batch size for consistency stage to avoid OOM
+    # This stage needs both operator and diffusion models loaded
+    cfg_copy = copy.deepcopy(cfg)
+    original_batch_size = cfg_copy.get("training", {}).get("batch_size", 32)
+    consistency_batch_size = cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
+    cfg_copy.setdefault("training", {})["batch_size"] = consistency_batch_size
+    
+    loader = dataset_loader(cfg_copy)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     
     # Determine device FIRST
@@ -438,6 +445,9 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     best_state = copy.deepcopy(diff.state_dict())
     epochs_since_improve = 0
     
+    # Get micro-batch size for gradient accumulation
+    distill_micro = cfg.get("training", {}).get("distill_micro_batch")
+    
     import time
     for epoch in range(epochs):
         epoch_start = time.time()
@@ -447,24 +457,30 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         
         for batch in loader:
             z0, _, cond = unpack_batch(batch)
-            cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
-            loss = distillation_loss(
-                teacher_fn,
-                student_fn,
-                state,
-                DistillationConfig(taus=[0.25, 0.5, 0.75]),
-                device=device,
-            )
+            batch_size = z0.shape[0]
+            micro = distill_micro or batch_size
+            num_chunks = max(1, (batch_size + micro - 1) // micro)
             optimizer.zero_grad()
-            loss.backward()
-            
-            # Track gradient norm
-            grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf'))
+            batch_loss_value = 0.0
+            for start in range(0, batch_size, micro):
+                end = min(start + micro, batch_size)
+                chunk_weight = (end - start) / batch_size
+                z_chunk = z0[start:end].to(device)
+                chunk_cond = {k: v[start:end].to(device) for k, v in cond.items()}
+                state = LatentState(z=z_chunk, t=torch.tensor(0.0, device=device), cond=chunk_cond)
+                loss_chunk = distillation_loss(
+                    teacher_fn,
+                    student_fn,
+                    state,
+                    DistillationConfig(taus=[0.25, 0.5, 0.75]),
+                    device=device,
+                )
+                (loss_chunk * chunk_weight).backward()
+                batch_loss_value += loss_chunk.item() * chunk_weight
+            grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float("inf"))
             total_grad_norm += grad_norm.item()
-            
             optimizer.step()
-            epoch_loss += loss.item()
+            epoch_loss += batch_loss_value
             batches += 1
         
         epoch_time = time.time() - epoch_start

@@ -14,6 +14,7 @@ PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yam
 - `training.amp`: enable mixed precision (`true`) or disable (`false`).
 - `training.grad_clip`: adjust gradient clipping threshold (set to `null` to disable).
 - `training.dt`: timestep used in latent operator training.
+- `training.distill_micro_batch`: split consistency-distill batches into smaller chunks to reduce GPU memory.
 
 ## Latent space
 - `latent.dim`: embed dimension per token.
