@@ -4,7 +4,7 @@ include: defaults
 data:
   task: burgers1d
   split: val
-  root: ${oc.env:PDEBENCH_ROOT,data/pdebench}
+  root: data/pdebench
   patch_size: 1
 
 latent:
@@ -19,9 +19,9 @@ operator:
   pdet:
     input_dim: 128
     hidden_dim: 256
-    depths: [2, 2, 2]
-    group_size: 32
-    num_heads: 8
+    depths: [1, 1, 1]
+    group_size: 64
+    num_heads: 4
 
 logging:
   wandb:
