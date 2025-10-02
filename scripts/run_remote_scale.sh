@@ -23,10 +23,8 @@ export PDEBENCH_ROOT="$DATA_ROOT"
 export WANDB_PROJECT
 export WANDB_ENTITY
 
-PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yaml --stage operator
-PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yaml --stage diff_residual
-PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yaml --stage consistency_distill
-PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yaml --stage steady_prior
+# Run all training stages in a single W&B run for better chart visualization
+PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yaml --stage all
 
 PYTHONPATH=src python scripts/evaluate.py --config configs/eval_pdebench_scale.yaml --operator checkpoints/scale/operator.pt --diffusion checkpoints/scale/diffusion_residual.pt --output-prefix reports/pdebench_scale_eval --print-json
 PYTHONPATH=src python scripts/evaluate.py --config configs/eval_pdebench_scale_test.yaml --operator checkpoints/scale/operator.pt --diffusion checkpoints/scale/diffusion_residual.pt --output-prefix reports/pdebench_scale_eval_test --print-json

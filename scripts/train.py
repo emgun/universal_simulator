@@ -34,7 +34,7 @@ from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualCo
 from ups.training.consistency_distill import DistillationConfig, distillation_loss
 from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
-from ups.utils.monitoring import init_monitoring_session
+from ups.utils.monitoring import init_monitoring_session, MonitoringSession
 
 
 def load_config(path: str) -> dict:
@@ -59,12 +59,21 @@ def ensure_checkpoint_dir(cfg: dict) -> Path:
 
 
 class TrainingLogger:
-    def __init__(self, cfg: Dict[str, Dict], stage: str) -> None:
+    def __init__(self, cfg: Dict[str, Dict], stage: str, global_step: int = 0, shared_run=None) -> None:
         training_cfg = cfg.get("training", {})
         log_path = training_cfg.get("log_path", "reports/training_log.jsonl")
         self.stage = stage
-        self.session = init_monitoring_session(cfg, component=f"training-{stage}", file_path=log_path)
-        self.session.log({"stage": self.stage, "event": "config", "config": cfg})
+        self.global_step = global_step
+        
+        # Use shared run if provided, otherwise create new one
+        if shared_run is not None:
+            self.session = MonitoringSession(file_path=Path(log_path) if log_path else None, run=shared_run, component=f"training-{stage}")
+            self.owns_run = False
+        else:
+            self.session = init_monitoring_session(cfg, component=f"training-{stage}", file_path=log_path)
+            self.owns_run = True
+        
+        self.session.log({f"{self.stage}/stage_start": 1, "global_step": self.global_step})
 
     def log(
         self,
@@ -75,18 +84,27 @@ class TrainingLogger:
         patience_counter: Optional[int] = None,
     ) -> None:
         lr = optimizer.param_groups[0].get("lr") if optimizer.param_groups else None
+        self.global_step += 1
+        
+        # Log with stage-specific prefixes for better W&B charts
         entry = {
+            f"{self.stage}/loss": loss,
+            f"{self.stage}/epoch": epoch,
+            f"{self.stage}/lr": lr,
             "stage": self.stage,
-            "epoch": epoch,
-            "loss": loss,
-            "lr": lr,
+            "global_step": self.global_step,
         }
         if patience_counter is not None:
-            entry["epochs_since_improve"] = patience_counter
+            entry[f"{self.stage}/epochs_since_improve"] = patience_counter
         self.session.log(entry)
 
     def close(self) -> None:
-        self.session.finish()
+        # Only finish the run if we own it
+        if self.owns_run:
+            self.session.finish()
+    
+    def get_global_step(self) -> int:
+        return self.global_step
 
 
 def dataset_loader(cfg: dict) -> DataLoader:
@@ -165,7 +183,7 @@ def _should_stop(patience: Optional[int], epochs_since_improve: int) -> bool:
     return epochs_since_improve > patience
 
 
-def train_operator(cfg: dict) -> None:
+def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     operator = make_operator(cfg)
     train_cfg = cfg.get("training", {})
@@ -175,7 +193,7 @@ def train_operator(cfg: dict) -> None:
     optimizer = _create_optimizer(cfg, operator, "operator")
     scheduler = _create_scheduler(optimizer, cfg, "operator")
     patience = _get_patience(cfg, "operator")
-    logger = TrainingLogger(cfg, stage="operator")
+    logger = TrainingLogger(cfg, stage="operator", global_step=global_step, shared_run=shared_run)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     operator.to(device)
@@ -228,7 +246,7 @@ def train_operator(cfg: dict) -> None:
             pass
 
 
-def train_diffusion(cfg: dict) -> None:
+def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     operator = make_operator(cfg)
@@ -245,7 +263,7 @@ def train_diffusion(cfg: dict) -> None:
     patience = _get_patience(cfg, "diff_residual")
     dt = cfg.get("training", {}).get("dt", 0.1)
     epochs = stage_cfg.get("epochs", 1)
-    logger = TrainingLogger(cfg, stage="diffusion_residual")
+    logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, shared_run=shared_run)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     diff.to(device)
@@ -302,7 +320,7 @@ def train_diffusion(cfg: dict) -> None:
             pass
 
 
-def train_consistency(cfg: dict) -> None:
+def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     operator = make_operator(cfg)
@@ -322,7 +340,7 @@ def train_consistency(cfg: dict) -> None:
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
     scheduler = _create_scheduler(optimizer, cfg, "consistency_distill")
     patience = _get_patience(cfg, "consistency_distill")
-    logger = TrainingLogger(cfg, stage="consistency_distill")
+    logger = TrainingLogger(cfg, stage="consistency_distill", global_step=global_step, shared_run=shared_run)
     dt = cfg.get("training", {}).get("dt", 0.1)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -385,7 +403,7 @@ def train_consistency(cfg: dict) -> None:
             pass
 
 
-def train_steady_prior(cfg: dict) -> None:
+def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("steady_prior", {})
@@ -394,7 +412,7 @@ def train_steady_prior(cfg: dict) -> None:
     scheduler = _create_scheduler(optimizer, cfg, "steady_prior")
     patience = _get_patience(cfg, "steady_prior")
     epochs = stage_cfg.get("epochs", 1)
-    logger = TrainingLogger(cfg, stage="steady_prior")
+    logger = TrainingLogger(cfg, stage="steady_prior", global_step=global_step, shared_run=shared_run)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     prior.to(device)
@@ -445,19 +463,86 @@ def train_steady_prior(cfg: dict) -> None:
             pass
 
 
+def train_all_stages(cfg: dict) -> None:
+    """Run all training stages in sequence with shared W&B run for better charts."""
+    # Initialize W&B once for all stages
+    logging_cfg = cfg.get("logging", {})
+    wandb_cfg = logging_cfg.get("wandb", {})
+    shared_run = None
+    
+    if wandb_cfg.get("enabled") and wandb is not None:
+        shared_run = wandb.init(
+            project=wandb_cfg.get("project", "universal-simulator"),
+            name=wandb_cfg.get("run_name", "full-pipeline"),
+            config=cfg,
+            tags=wandb_cfg.get("tags", []) + ["full-pipeline"],
+            group=wandb_cfg.get("group"),
+            job_type="multi-stage-training",
+        )
+        # Define metric relationships for better charting
+        if shared_run:
+            wandb.define_metric("global_step")
+            wandb.define_metric("operator/*", step_metric="global_step")
+            wandb.define_metric("diffusion_residual/*", step_metric="global_step")
+            wandb.define_metric("consistency_distill/*", step_metric="global_step")
+            wandb.define_metric("steady_prior/*", step_metric="global_step")
+    
+    global_step = 0
+    
+    # Stage 1: Operator
+    print("\n" + "="*50)
+    print("STAGE 1/4: Training Operator")
+    print("="*50)
+    train_operator(cfg, shared_run=shared_run, global_step=global_step)
+    # Update global step (rough estimate based on epochs)
+    global_step += cfg.get("stages", {}).get("operator", {}).get("epochs", 10)
+    
+    # Stage 2: Diffusion Residual
+    print("\n" + "="*50)
+    print("STAGE 2/4: Training Diffusion Residual")
+    print("="*50)
+    train_diffusion(cfg, shared_run=shared_run, global_step=global_step)
+    global_step += cfg.get("stages", {}).get("diff_residual", {}).get("epochs", 10)
+    
+    # Stage 3: Consistency Distillation
+    print("\n" + "="*50)
+    print("STAGE 3/4: Consistency Distillation")
+    print("="*50)
+    train_consistency(cfg, shared_run=shared_run, global_step=global_step)
+    global_step += cfg.get("stages", {}).get("consistency_distill", {}).get("epochs", 10)
+    
+    # Stage 4: Steady Prior
+    print("\n" + "="*50)
+    print("STAGE 4/4: Training Steady Prior")
+    print("="*50)
+    train_steady_prior(cfg, shared_run=shared_run, global_step=global_step)
+    
+    # Finish the shared run
+    if shared_run:
+        shared_run.finish()
+    
+    print("\n" + "="*50)
+    print("✅ All training stages complete!")
+    print("="*50)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/train_multi_pde.yaml")
     parser.add_argument(
         "--stage",
-        choices=["operator", "diff_residual", "consistency_distill", "steady_prior"],
+        choices=["operator", "diff_residual", "consistency_distill", "steady_prior", "all"],
         required=True,
+        help="Training stage to run, or 'all' to run full pipeline"
     )
     args = parser.parse_args()
     cfg = load_config(args.config)
     set_seed(cfg)
     stage = args.stage
-    if stage == "operator":
+    
+    if stage == "all":
+        train_all_stages(cfg)
+    elif stage == "operator":
         train_operator(cfg)
     elif stage == "diff_residual":
         train_diffusion(cfg)
