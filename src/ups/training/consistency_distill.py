@@ -35,7 +35,8 @@ def distillation_loss(
     state = state.to(device)
     for tau_val in cfg.taus:
         tau = torch.tensor([tau_val], device=device)
-        teacher_state = teacher(state, tau)
+        with torch.no_grad():
+            teacher_state = teacher(state, tau)
         student_state = student(state, tau)
         loss = torch.nn.functional.mse_loss(student_state.z, teacher_state.z.detach())
         total = total + loss
@@ -43,4 +44,3 @@ def distillation_loss(
     if cfg.normalize and count > 0:
         total = total / count
     return cfg.weight * total
-
