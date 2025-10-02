@@ -282,25 +282,30 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
+    
+    # Determine device FIRST
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
+    # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
-        operator.load_state_dict(torch.load(op_path, map_location="cpu"))
+        operator.load_state_dict(torch.load(op_path, map_location=device))
+    operator.to(device)
     operator.eval()
 
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("diff_residual", {})
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
+    diff.to(device)
+    
     optimizer = _create_optimizer(cfg, diff, "diff_residual")
     scheduler = _create_scheduler(optimizer, cfg, "diff_residual")
     patience = _get_patience(cfg, "diff_residual")
     dt = cfg.get("training", {}).get("dt", 0.1)
     epochs = stage_cfg.get("epochs", 1)
     logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, shared_run=shared_run)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-    diff.to(device)
-    operator.to(device)
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
@@ -356,18 +361,27 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
+    
+    # Determine device FIRST
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
+    # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
-        operator.load_state_dict(torch.load(op_path, map_location="cpu"))
+        operator.load_state_dict(torch.load(op_path, map_location=device))
+    operator.to(device)
     operator.eval()
     
+    # Create diffusion model and load checkpoint directly to target device
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
-        diff.load_state_dict(torch.load(diff_path, map_location="cpu"))
+        diff.load_state_dict(torch.load(diff_path, map_location=device))
+    diff.to(device)
     
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
@@ -376,10 +390,6 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     logger = TrainingLogger(cfg, stage="consistency_distill", global_step=global_step, shared_run=shared_run)
     dt = cfg.get("training", {}).get("dt", 0.1)
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-    diff.to(device)
-    operator.to(device)
     dt_tensor = torch.tensor(dt, device=device)
 
     def teacher_fn(state: LatentState, tau: torch.Tensor) -> LatentState:
