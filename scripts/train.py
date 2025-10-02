@@ -310,9 +310,14 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
     epochs_since_improve = 0
+    
+    import time
     for epoch in range(epochs):
+        epoch_start = time.time()
         epoch_loss = 0.0
+        total_grad_norm = 0.0
         batches = 0
+        
         for batch in loader:
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
@@ -326,11 +331,28 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             loss = F.mse_loss(drift, residual_target)
             optimizer.zero_grad()
             loss.backward()
+            
+            # Track gradient norm
+            grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf'))
+            total_grad_norm += grad_norm.item()
+            
             optimizer.step()
             epoch_loss += loss.item()
             batches += 1
+        
+        epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        logger.log(epoch=epoch, loss=mean_loss, optimizer=optimizer, patience_counter=epochs_since_improve)
+        mean_grad_norm = total_grad_norm / max(batches, 1)
+        
+        logger.log(
+            epoch=epoch,
+            loss=mean_loss,
+            optimizer=optimizer,
+            patience_counter=epochs_since_improve,
+            grad_norm=mean_grad_norm,
+            epoch_time=epoch_time,
+            best_loss=best_loss,
+        )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(diff.state_dict())
@@ -417,9 +439,14 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
     epochs_since_improve = 0
+    
+    import time
     for epoch in range(epochs):
+        epoch_start = time.time()
         epoch_loss = 0.0
+        total_grad_norm = 0.0
         batches = 0
+        
         for batch in loader:
             z0, _, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
@@ -433,11 +460,28 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             )
             optimizer.zero_grad()
             loss.backward()
+            
+            # Track gradient norm
+            grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf'))
+            total_grad_norm += grad_norm.item()
+            
             optimizer.step()
             epoch_loss += loss.item()
             batches += 1
+        
+        epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        logger.log(epoch=epoch, loss=mean_loss, optimizer=optimizer, patience_counter=epochs_since_improve)
+        mean_grad_norm = total_grad_norm / max(batches, 1)
+        
+        logger.log(
+            epoch=epoch,
+            loss=mean_loss,
+            optimizer=optimizer,
+            patience_counter=epochs_since_improve,
+            grad_norm=mean_grad_norm,
+            epoch_time=epoch_time,
+            best_loss=best_loss,
+        )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(diff.state_dict())
@@ -481,9 +525,14 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
     best_loss = float("inf")
     best_state = copy.deepcopy(prior.state_dict())
     epochs_since_improve = 0
+    
+    import time
     for epoch in range(epochs):
+        epoch_start = time.time()
         epoch_loss = 0.0
+        total_grad_norm = 0.0
         batches = 0
+        
         for batch in loader:
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
@@ -492,11 +541,28 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
             loss = F.mse_loss(refined.z, z1.to(device))
             optimizer.zero_grad()
             loss.backward()
+            
+            # Track gradient norm
+            grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float('inf'))
+            total_grad_norm += grad_norm.item()
+            
             optimizer.step()
             epoch_loss += loss.item()
             batches += 1
+        
+        epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        logger.log(epoch=epoch, loss=mean_loss, optimizer=optimizer, patience_counter=epochs_since_improve)
+        mean_grad_norm = total_grad_norm / max(batches, 1)
+        
+        logger.log(
+            epoch=epoch,
+            loss=mean_loss,
+            optimizer=optimizer,
+            patience_counter=epochs_since_improve,
+            grad_norm=mean_grad_norm,
+            epoch_time=epoch_time,
+            best_loss=best_loss,
+        )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(prior.state_dict())
