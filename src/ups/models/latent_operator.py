@@ -70,10 +70,14 @@ class LatentOperator(nn.Module):
 
     def step(self, state: LatentState, dt: torch.Tensor) -> torch.Tensor:
         z = state.z
+        if not torch.is_tensor(dt):
+            dt = torch.tensor(dt, device=z.device, dtype=z.dtype)
+        else:
+            dt = dt.to(z.device)
         dt_embed = self.time_embed(dt)
         if dt_embed.size(0) == 1 and z.size(0) > 1:
             dt_embed = dt_embed.expand(z.size(0), -1)
-        time_feat = self.time_to_latent(dt_embed)[:, None, :]
+        time_feat = self.time_to_latent(dt_embed).to(z.device)[:, None, :]
         z = z + time_feat
         if self.conditioner is not None:
             z = self.apply_conditioning(z, state.cond)
