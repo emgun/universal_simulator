@@ -416,12 +416,12 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
-    best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
     # AMP + EMA setup
     use_amp = _amp_enabled(cfg)
     scaler = GradScaler(enabled=use_amp)
     ema_decay = _get_ema_decay(cfg, "diff_residual")
     ema_model = _init_ema(diff) if ema_decay else None
+    best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
     clip_val = _grad_clip_value(cfg, "diff_residual")
     epochs_since_improve = 0
     
