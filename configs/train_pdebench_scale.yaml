@@ -21,6 +21,11 @@ training:
   grad_clip: 1.0
   ema_decay: 0.999
   accum_steps: 4
+  num_workers: 8
+  pin_memory: true
+  prefetch_factor: 2
+  latent_cache_dir: data/latent_cache
+  latent_cache_dtype: float16
 
 optimizer:
   name: adamw
@@ -29,7 +34,7 @@ optimizer:
 
 stages:
   operator:
-    epochs: 40
+    epochs: 32
     optimizer:
       name: adamw
       lr: 2.5e-4
