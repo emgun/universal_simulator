@@ -397,7 +397,8 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
-        operator.load_state_dict(torch.load(op_path, map_location=device))
+        operator_state = torch.load(op_path, map_location="cpu")
+        operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
     operator.eval()
 
@@ -582,7 +583,8 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
-        operator.load_state_dict(torch.load(op_path, map_location=device))
+        operator_state = torch.load(op_path, map_location="cpu")
+        operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
     operator.eval()
     
@@ -592,7 +594,8 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
-        diff.load_state_dict(torch.load(diff_path, map_location=device))
+        diff_state = torch.load(diff_path, map_location="cpu")
+        diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
     
     epochs = stage_cfg.get("epochs", 1)

@@ -51,7 +51,7 @@ stages:
       lr: 7.5e-5
       weight_decay: 0.0
   consistency_distill:
-    epochs: 5
+    epochs: 3
     batch_size: 6  # reduced due to larger model footprint
     optimizer:
       name: adam
