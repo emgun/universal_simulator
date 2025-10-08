@@ -286,11 +286,15 @@ class GridLatentPairDataset(Dataset):
         if self.cache_dir:
             cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
             if cache_path.exists():
-                data = torch.load(cache_path, map_location="cpu")
-                latent_seq = data["latent"].float()
-                params_cpu = data.get("params")
-                bc_cpu = data.get("bc")
-                cache_hit = True
+                try:
+                    data = torch.load(cache_path, map_location="cpu")
+                except (RuntimeError, EOFError):  # corrupted file
+                    cache_path.unlink(missing_ok=True)
+                else:
+                    latent_seq = data["latent"].float()
+                    params_cpu = data.get("params")
+                    bc_cpu = data.get("bc")
+                    cache_hit = True
 
         if latent_seq is None:
             sample = self.base[idx]
@@ -315,14 +319,16 @@ class GridLatentPairDataset(Dataset):
             )
             if self.cache_dir and not cache_hit:
                 to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+                tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
                 torch.save(
                     {
                         "latent": to_store.cpu(),
                         "params": params_cpu,
                         "bc": bc_cpu,
                     },
-                    cache_path,
+                    tmp_path,
                 )
+                tmp_path.replace(cache_path)
 
         if latent_seq.shape[0] < 2:
             raise ValueError("Need at least two time steps to form latent pairs")
