@@ -9,6 +9,7 @@ from typing import Dict, Optional, Tuple
 import h5py
 import torch
 from torch.utils.data import Dataset
+import os
 
 
 @dataclass
@@ -60,31 +61,64 @@ class PDEBenchDataset(Dataset):
             self.bc = tensor_data.get("bc")
         else:
             if cfg.root is None:
-                raise ValueError("Either tensor_data or cfg.root must be provided")
+                # Allow environment override for convenience in remote runs
+                env_root = os.environ.get("PDEBENCH_ROOT")
+                if env_root:
+                    cfg.root = env_root
+                else:
+                    raise ValueError("Either tensor_data or cfg.root must be provided")
             spec = TASK_SPECS.get(cfg.task)
             if spec is None:
                 raise KeyError(f"Unknown PDEBench task '{cfg.task}'")
             base = Path(cfg.root)
             file_path = base / f"{cfg.task}_{cfg.split}.h5"
-            if not file_path.exists():
-                raise FileNotFoundError(file_path)
-            with h5py.File(file_path, "r") as f:
-                fields = torch.from_numpy(f[spec.field_key][...]).float()
-                if cfg.normalize:
-                    fields = _normalise_fields(fields)
-                self.fields = fields
-                if spec.target_key and spec.target_key in f:
-                    self.targets = torch.from_numpy(f[spec.target_key][...]).float()
-                else:
-                    self.targets = self.fields
-                if spec.param_keys:
-                    self.params = {key: torch.from_numpy(f[key][...]).float() for key in spec.param_keys if key in f}
-                else:
-                    self.params = None
-                if spec.bc_keys:
-                    self.bc = {key: torch.from_numpy(f[key][...]).float() for key in spec.bc_keys if key in f}
-                else:
-                    self.bc = None
+            shard_paths = []
+            if file_path.exists():
+                shard_paths = [file_path]
+            else:
+                shard_paths = sorted(base.glob(f"{cfg.task}_{cfg.split}_*.h5"))
+                if not shard_paths:
+                    raise FileNotFoundError(file_path)
+
+            fields_list = []
+            targets_list = []
+            params_accum = None
+            bc_accum = None
+
+            for path in shard_paths:
+                with h5py.File(path, "r") as f:
+                    f_fields = torch.from_numpy(f[spec.field_key][...]).float()
+                    if cfg.normalize:
+                        f_fields = _normalise_fields(f_fields)
+                    fields_list.append(f_fields)
+                    if spec.target_key and spec.target_key in f:
+                        targets_list.append(torch.from_numpy(f[spec.target_key][...]).float())
+                    else:
+                        targets_list.append(f_fields)
+                    # Parameter/BC aggregation (if present): concatenate along first axis
+                    if spec.param_keys:
+                        p = {key: torch.from_numpy(f[key][...]).float() for key in spec.param_keys if key in f}
+                        if p:
+                            if params_accum is None:
+                                params_accum = {k: v.clone() for k, v in p.items()}
+                            else:
+                                for k, v in p.items():
+                                    if k in params_accum:
+                                        params_accum[k] = torch.cat([params_accum[k], v], dim=0)
+                    if spec.bc_keys:
+                        b = {key: torch.from_numpy(f[key][...]).float() for key in spec.bc_keys if key in f}
+                        if b:
+                            if bc_accum is None:
+                                bc_accum = {k: v.clone() for k, v in b.items()}
+                            else:
+                                for k, v in b.items():
+                                    if k in bc_accum:
+                                        bc_accum[k] = torch.cat([bc_accum[k], v], dim=0)
+
+            self.fields = torch.cat(fields_list, dim=0)
+            self.targets = torch.cat(targets_list, dim=0)
+            self.params = params_accum
+            self.bc = bc_accum
         if self.fields.shape != self.targets.shape:
             raise ValueError("Fields and targets must share shape")
 

@@ -1,10 +1,21 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-"""Small helper to push local files/directories to Weights & Biases artifacts."""
+"""Minimal helper to push local files/directories to Weights & Biases artifacts.
+
+Pattern used:
+  import wandb
+  wandb.init(entity=..., project=...)
+  art = wandb.Artifact(name, type='dataset')
+  art.add_file(...) or art.add_dir(...)
+  wandb.log_artifact(art)
+
+Adds --cache-dir to steer W&B staging to a local directory.
+"""
 
 import argparse
 from pathlib import Path
+import os
 from typing import Iterable
 
 import wandb
@@ -19,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--entity", default=None, help="Optional W&B entity")
     parser.add_argument("--run-name", default=None, help="Override run name")
     parser.add_argument("--metadata", default=None, help="Optional JSON string metadata")
+    parser.add_argument("--cache-dir", default=None, help="Optional W&B cache/staging directory (sets WANDB_CACHE_DIR)")
     return parser.parse_args()
 
 
@@ -36,12 +48,12 @@ def main() -> None:
     args = parse_args()
     files = ensure_paths(args.paths)
 
-    run = wandb.init(
-        project=args.project,
-        entity=args.entity,
-        name=args.run_name or f"artifact-upload-{args.name}",
-        job_type="artifact-upload",
-    )
+    if args.cache_dir:
+        cache_dir = Path(args.cache_dir).expanduser().resolve()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["WANDB_CACHE_DIR"] = str(cache_dir)
+
+    run = wandb.init(project=args.project, entity=args.entity, name=args.run_name or f"artifact-upload-{args.name}")
     metadata = None
     if args.metadata:
         import json
@@ -50,7 +62,10 @@ def main() -> None:
 
     artifact = wandb.Artifact(args.name, type=args.type, metadata=metadata)
     for path in files:
-        artifact.add_file(str(path)) if path.is_file() else artifact.add_dir(str(path))
+        if path.is_file():
+            artifact.add_file(str(path))
+        else:
+            artifact.add_dir(str(path))
     wandb.log_artifact(artifact)
     run.finish()
 

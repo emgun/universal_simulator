@@ -37,6 +37,8 @@ Artifact Workflow (scaling)
 - Remote scale run: `WANDB_DATASETS="burgers1d_subset_v1" bash scripts/run_remote_scale.sh` (downloads datasets, runs staged training/eval).
 - Reproduce published checkpoints: `bash scripts/repro_pdebench.sh` with `DATASETS`, `CHECKPOINT`, and `DIFFUSION_CHECKPOINT` env vars pointing to W&B artifacts.
 - Common Hydra overrides for tuning large runs live in `configs/scale_overrides.md`.
+- Pull run metrics for offline review: `python scripts/fetch_wandb_metrics.py jz11ge11 --project universal-simulator --out reports/wandb_jz11ge11.csv`.
+- Launch remote training via Vast.ai: `python scripts/vast_launch.py launch --datasets burgers1d_subset_v1 --wandb-project universal-simulator --wandb-entity <entity>` (set your Vast API key with `python scripts/vast_launch.py set-key`).
 
 CI
 - GitHub Actions runs lint and unit tests on Python 3.10.

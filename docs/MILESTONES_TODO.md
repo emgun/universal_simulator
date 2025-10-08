@@ -354,3 +354,44 @@ Global conventions:
   - Add structured logging (JSON) capturing metrics per batch; integrate with W&B/MLflow.
   - Expand unit/integration tests: acceptance criteria (energy drift, BC enforcement, DA improvement).
   - (DoD) CI runs data-free checks + light integration; release candidate satisfies acceptance suite.
+
+---
+
+## Scaling Checklist (Artifact-Driven SOTA Push)
+
+### Phase 1 — Grid Sprint (Burgers + Advection)
+- [ ] Publish mid-size artifacts
+  - (Cmd) `python scripts/convert_pdebench_multimodal.py burgers1d --limit 5 --samples 200`
+  - (Cmd) `python scripts/upload_artifact.py burgers1d_mini_v1 dataset artifacts/burgers1d_mini_v1.tar.gz`
+  - Update `docs/dataset_registry.yaml` with new artifact ID & splits.
+- [ ] Train 128-dim model on Burgers subset
+  - (Cmd) `WANDB_DATASETS="burgers1d_mini_v1" bash scripts/run_remote_scale.sh`
+  - (DoD) Operator loss < baseline; W&B run logged with metrics & eval.
+- [ ] Train on Advection subset and combined mix
+  - (Cmd) `WANDB_DATASETS="advection1d_subset_v1" bash scripts/run_remote_scale.sh`
+  - (DoD) Mix config evaluated; metrics stored, decoded previews checked in.
+
+### Phase 2 — Multi-Viscosity + Navier–Stokes
+- [ ] Convert & upload `navier_stokes2d_subset_v1`
+- [ ] Launch scaled run with `latent.dim=256`, tokens 128, PDE-T depth [2,2,2]
+  - Override with `configs/scale_overrides.md` settings.
+- [ ] Evaluate multi-task performance; log per-task RMSE in W&B summary.
+- [ ] Sweep latent dim / depth (W&B sweep) to find sweet spot.
+
+### Phase 3 — Mesh & Particle Integration
+- [ ] Convert `darcy2d_mesh_subset_v1` (Zarr) and upload artifact
+- [ ] Convert `particles_advect_subset_v1` and upload artifact
+- [ ] Train grid+mesh+particle mix with adjusted encoders
+  - Ensure mesh/particle reconstruction tests pass.
+- [ ] Extend evaluation configs to generate mesh/particle visuals; confirm W&B assets present.
+
+### Phase 4 — Full PDEBench + Extensions
+- [ ] Plan full dataset storage (≈3.6 TiB) in object store; document access.
+- [ ] Stage full-grid training run with latent dim ≥384 and deep PDE-T
+- [ ] Introduce external datasets (e.g., climate) as new artifacts & configs
+- [ ] Compile SOTA benchmark report comparing against FNO/UNet/DiT baselines.
+
+### Continuous Ops
+- [ ] Maintain artifact registry (`docs/dataset_registry.yaml`) with version history
+- [ ] Keep bootstrap scripts ready for Vast.ai (`scripts/load_env.sh`, `run_remote_scale.sh`)
+- [ ] After each major run, download metrics via `scripts/fetch_wandb_metrics.py` and update reports.

@@ -34,7 +34,7 @@ class MonitoringSession:
     def log_image(self, key: str, image_path: Path) -> None:
         if self.run is not None and wandb is not None:  # pragma: no cover - optional
             try:
-                self.run.log({key: wandb.Image(str(image_path))})
+                self.run.log({key: wandb.Image(str(image_path))}, commit=False)
             except Exception:
                 pass
 

@@ -20,8 +20,8 @@ wandb/
 mlruns/
 artifacts/
 checkpoints/
+.vast/
 
 # IDE
 .idea/
 .vscode/
-

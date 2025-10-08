@@ -9,16 +9,18 @@ data:
   shard_limit: null
 
 latent:
-  dim: 128
-  tokens: 64
+  dim: 512
+  tokens: 128
 
 training:
-  batch_size: 32
+  batch_size: 16
   dt: 0.1
   patience: 4
   log_path: reports/pdebench_scale_training_log.jsonl
   amp: true
   grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 1
 
 optimizer:
   name: adamw
@@ -27,29 +29,29 @@ optimizer:
 
 stages:
   operator:
-    epochs: 30
+    epochs: 40
     optimizer:
       name: adamw
-      lr: 3.0e-4
-      weight_decay: 0.01
+      lr: 2.5e-4
+      weight_decay: 0.02
     scheduler:
       name: cosineannealinglr
-      t_max: 30
-      eta_min: 3.0e-5
+      t_max: 40
+      eta_min: 2.5e-5
   diff_residual:
-    epochs: 15
+    epochs: 20
     optimizer:
       name: adam
-      lr: 1.0e-4
+      lr: 7.5e-5
       weight_decay: 0.0
   consistency_distill:
-    epochs: 10
-    batch_size: 8  # Reduced from 32 to avoid OOM with both operator+diffusion loaded
+    epochs: 12
+    batch_size: 6  # reduced due to larger model footprint
     optimizer:
       name: adam
-      lr: 5.0e-5
+      lr: 4.0e-5
   steady_prior:
-    epochs: 20
+    epochs: 0
     optimizer:
       name: adam
       lr: 5.0e-5

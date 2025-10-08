@@ -18,6 +18,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler
 import yaml
 
 try:
@@ -175,7 +176,60 @@ def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: dict, stage: str):
         t_max = sched_cfg.get("t_max", 10)
         eta_min = sched_cfg.get("eta_min", 0.0)
         return lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=eta_min)
+    if name in {"reducelronplateau", "reducelr", "plateau"}:
+        mode = sched_cfg.get("mode", "min")
+        factor = sched_cfg.get("factor", 0.5)
+        patience = sched_cfg.get("patience", 3)
+        threshold = sched_cfg.get("threshold", 1e-3)
+        threshold_mode = sched_cfg.get("threshold_mode", "rel")
+        cooldown = sched_cfg.get("cooldown", 0)
+        min_lr = sched_cfg.get("min_lr", 0.0)
+        eps = sched_cfg.get("eps", 1e-8)
+        return lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=mode,
+            factor=factor,
+            patience=patience,
+            threshold=threshold,
+            threshold_mode=threshold_mode,
+            cooldown=cooldown,
+            min_lr=min_lr,
+            eps=eps,
+        )
     raise ValueError(f"Unsupported scheduler '{name}'")
+
+
+def _amp_enabled(cfg: Dict) -> bool:
+    return bool(cfg.get("training", {}).get("amp", False)) and torch.cuda.is_available()
+
+
+def _grad_clip_value(cfg: Dict, stage: str) -> Optional[float]:
+    # Stage-specific override takes precedence; fallback to training.grad_clip
+    stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
+    if "grad_clip" in stage_cfg:
+        return stage_cfg.get("grad_clip")
+    return cfg.get("training", {}).get("grad_clip")
+
+
+def _get_ema_decay(cfg: Dict, stage: str) -> Optional[float]:
+    stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
+    if "ema_decay" in stage_cfg:
+        return stage_cfg.get("ema_decay")
+    return cfg.get("training", {}).get("ema_decay")
+
+
+def _init_ema(model: nn.Module) -> nn.Module:
+    ema = copy.deepcopy(model)
+    for p in ema.parameters():
+        p.requires_grad_(False)
+    ema.eval()
+    return ema
+
+
+@torch.no_grad()
+def _update_ema(ema_model: nn.Module, model: nn.Module, decay: float) -> None:
+    for p_ema, p in zip(ema_model.parameters(), model.parameters()):
+        p_ema.mul_(decay).add_(p.data, alpha=1.0 - decay)
 
 
 def _get_patience(cfg: dict, stage: str) -> Optional[int]:
@@ -190,6 +244,15 @@ def _should_stop(patience: Optional[int], epochs_since_improve: int) -> bool:
     if patience is None:
         return False
     return epochs_since_improve > patience
+
+
+def _stage_epochs(cfg: dict, stage: str) -> int:
+    """Helper to read configured epochs for a stage; defaults to 0 when unset."""
+    try:
+        value = cfg.get("stages", {}).get(stage, {}).get("epochs", 0)
+        return int(value) if value is not None else 0
+    except Exception:
+        return 0
 
 
 def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
@@ -209,36 +272,68 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(operator.state_dict())
+    # AMP + EMA setup
+    use_amp = _amp_enabled(cfg)
+    scaler = GradScaler(enabled=use_amp)
+    ema_decay = _get_ema_decay(cfg, "operator")
+    ema_model = _init_ema(operator) if ema_decay else None
+    clip_val = _grad_clip_value(cfg, "operator")
     epochs_since_improve = 0
     
     import time
+    accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
         batches = 0
-        
-        for batch in loader:
+        grad_steps = 0
+        num_batches = len(loader)
+        optimizer.zero_grad(set_to_none=True)
+        for i, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
-            next_state = operator(state, dt_tensor)
-            loss = F.mse_loss(next_state.z, target)
-            optimizer.zero_grad()
-            loss.backward()
-            
-            # Track gradient norm
-            grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf'))
-            total_grad_norm += grad_norm.item()
-            
-            optimizer.step()
-            epoch_loss += loss.item()
+            try:
+                with autocast(enabled=use_amp):
+                    next_state = operator(state, dt_tensor)
+                    loss = F.mse_loss(next_state.z, target)
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    print("Warning: OOM encountered in operator step, skipping batch")
+                    continue
+                raise
+            loss_value = loss.detach().item()
+            if use_amp:
+                scaler.scale(loss / accum_steps).backward()
+            else:
+                (loss / accum_steps).backward()
+            do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
+            if do_step:
+                if use_amp:
+                    if clip_val is not None:
+                        scaler.unscale_(optimizer)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf') if clip_val is None else clip_val)
+                    total_grad_norm += float(grad_norm)
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf') if clip_val is None else clip_val)
+                    total_grad_norm += grad_norm.item()
+                    optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                grad_steps += 1
+                if ema_model is not None and ema_decay is not None:
+                    _update_ema(ema_model, operator, ema_decay)
+            epoch_loss += loss_value
             batches += 1
         
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        mean_grad_norm = total_grad_norm / max(batches, 1)
+        mean_grad_norm = total_grad_norm / max(grad_steps, 1)
         
         logger.log(
             epoch=epoch,
@@ -258,12 +353,25 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             if _should_stop(patience, epochs_since_improve):
                 break
         if scheduler is not None:
-            scheduler.step()
+            if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(mean_loss)
+            else:
+                scheduler.step()
     operator.load_state_dict(best_state)
     logger.close()
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    torch.save(operator.state_dict(), checkpoint_dir / "operator.pt")
-    print("Saved operator checkpoint.")
+    operator_path = checkpoint_dir / "operator.pt"
+    torch.save(operator.state_dict(), operator_path)
+    print(f"Saved operator checkpoint to {operator_path}")
+    if ema_model is not None:
+        operator_ema_path = checkpoint_dir / "operator_ema.pt"
+        torch.save(ema_model.state_dict(), operator_ema_path)
+        print(f"Saved operator EMA checkpoint to {operator_ema_path}")
+    
+    # Upload checkpoint to W&B
+    if wandb is not None and wandb.run is not None:
+        wandb.save(str(operator_path), base_path=str(checkpoint_dir.parent))
+        print(f"Uploaded operator checkpoint to W&B")
     
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
@@ -307,40 +415,80 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
+    # AMP + EMA setup
+    use_amp = _amp_enabled(cfg)
+    scaler = GradScaler(enabled=use_amp)
+    ema_decay = _get_ema_decay(cfg, "diff_residual")
+    ema_model = _init_ema(diff) if ema_decay else None
+    clip_val = _grad_clip_value(cfg, "diff_residual")
     epochs_since_improve = 0
     
     import time
+    accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
         batches = 0
-        
-        for batch in loader:
+        grad_steps = 0
+        optimizer.zero_grad(set_to_none=True)
+        num_batches = len(loader)
+        for i, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
-            with torch.no_grad():
-                predicted = operator(state, dt_tensor)
+            try:
+                with torch.no_grad():
+                    predicted = operator(state, dt_tensor)
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    print("Warning: OOM encountered in operator forward (teacher), skipping batch")
+                    continue
+                raise
             residual_target = target - predicted.z
             tau_tensor = torch.full((z0.size(0),), 0.5, device=device)
-            drift = diff(predicted, tau_tensor)
-            loss = F.mse_loss(drift, residual_target)
-            optimizer.zero_grad()
-            loss.backward()
-            
-            # Track gradient norm
-            grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf'))
-            total_grad_norm += grad_norm.item()
-            
-            optimizer.step()
+            try:
+                with autocast(enabled=use_amp):
+                    drift = diff(predicted, tau_tensor)
+                    loss = F.mse_loss(drift, residual_target)
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    print("Warning: OOM encountered in diffusion step, skipping batch")
+                    continue
+                raise
+            loss_value = loss.detach().item()
+            if use_amp:
+                scaler.scale(loss / accum_steps).backward()
+            else:
+                (loss / accum_steps).backward()
+            do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
+            if do_step:
+                if use_amp:
+                    if clip_val is not None:
+                        scaler.unscale_(optimizer)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                    total_grad_norm += float(grad_norm)
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                    total_grad_norm += grad_norm.item()
+                    optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                grad_steps += 1
+                if ema_model is not None and ema_decay is not None:
+                    _update_ema(ema_model, diff, ema_decay)
             epoch_loss += loss.item()
             batches += 1
         
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        mean_grad_norm = total_grad_norm / max(batches, 1)
+        mean_grad_norm = total_grad_norm / max(grad_steps, 1)
         
         logger.log(
             epoch=epoch,
@@ -360,11 +508,24 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             if _should_stop(patience, epochs_since_improve):
                 break
         if scheduler is not None:
-            scheduler.step()
+            if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(mean_loss)
+            else:
+                scheduler.step()
     diff.load_state_dict(best_state)
     logger.close()
-    torch.save(diff.state_dict(), checkpoint_dir / "diffusion_residual.pt")
-    print("Saved diffusion residual checkpoint.")
+    diffusion_path = checkpoint_dir / "diffusion_residual.pt"
+    torch.save(diff.state_dict(), diffusion_path)
+    print(f"Saved diffusion residual checkpoint to {diffusion_path}")
+    if ema_model is not None:
+        diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
+        torch.save(ema_model.state_dict(), diffusion_ema_path)
+        print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
+    
+    # Upload checkpoint to W&B
+    if wandb is not None and wandb.run is not None:
+        wandb.save(str(diffusion_path), base_path=str(checkpoint_dir.parent))
+        print(f"Uploaded diffusion checkpoint to W&B")
     
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
@@ -443,6 +604,11 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
+    use_amp = _amp_enabled(cfg)
+    scaler = GradScaler(enabled=use_amp)
+    ema_decay = _get_ema_decay(cfg, "consistency_distill")
+    ema_model = _init_ema(diff) if ema_decay else None
+    clip_val = _grad_clip_value(cfg, "consistency_distill")
     epochs_since_improve = 0
     
     # Get micro-batch size for gradient accumulation
@@ -460,7 +626,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             batch_size = z0.shape[0]
             micro = distill_micro or batch_size
             num_chunks = max(1, (batch_size + micro - 1) // micro)
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             batch_loss_value = 0.0
             for start in range(0, batch_size, micro):
                 end = min(start + micro, batch_size)
@@ -468,18 +634,40 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 z_chunk = z0[start:end].to(device)
                 chunk_cond = {k: v[start:end].to(device) for k, v in cond.items()}
                 state = LatentState(z=z_chunk, t=torch.tensor(0.0, device=device), cond=chunk_cond)
-                loss_chunk = distillation_loss(
-                    teacher_fn,
-                    student_fn,
-                    state,
-                    DistillationConfig(taus=[0.25, 0.5, 0.75]),
-                    device=device,
-                )
-                (loss_chunk * chunk_weight).backward()
+                try:
+                    with autocast(enabled=use_amp):
+                        loss_chunk = distillation_loss(
+                            teacher_fn,
+                            student_fn,
+                            state,
+                            DistillationConfig(taus=[0.25, 0.5, 0.75]),
+                            device=device,
+                        )
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower():
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        print("Warning: OOM in consistency distill chunk, skipping chunk")
+                        continue
+                    raise
+                if use_amp:
+                    scaler.scale(loss_chunk * chunk_weight).backward()
+                else:
+                    (loss_chunk * chunk_weight).backward()
                 batch_loss_value += loss_chunk.item() * chunk_weight
-            grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float("inf"))
-            total_grad_norm += grad_norm.item()
-            optimizer.step()
+            if use_amp:
+                if clip_val is not None:
+                    scaler.unscale_(optimizer)
+                grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                total_grad_norm += float(grad_norm)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                total_grad_norm += grad_norm.item()
+                optimizer.step()
+            if ema_model is not None and ema_decay is not None:
+                _update_ema(ema_model, diff, ema_decay)
             epoch_loss += batch_loss_value
             batches += 1
         
@@ -508,8 +696,18 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             scheduler.step()
     diff.load_state_dict(best_state)
     logger.close()
-    torch.save(diff.state_dict(), checkpoint_dir / "diffusion_residual.pt")
-    print("Updated diffusion residual via consistency distillation.")
+    diffusion_path = checkpoint_dir / "diffusion_residual.pt"
+    torch.save(diff.state_dict(), diffusion_path)
+    print(f"Updated diffusion residual via consistency distillation to {diffusion_path}")
+    if ema_model is not None:
+        diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
+        torch.save(ema_model.state_dict(), diffusion_ema_path)
+        print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
+    
+    # Upload updated checkpoint to W&B
+    if wandb is not None and wandb.run is not None:
+        wandb.save(str(diffusion_path), base_path=str(checkpoint_dir.parent))
+        print(f"Uploaded updated diffusion checkpoint to W&B")
     
     # Clean up operator from memory
     del operator
@@ -529,14 +727,20 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 
 
 def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None:
-    loader = dataset_loader(cfg)
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("steady_prior", {})
+    epochs = stage_cfg.get("epochs", 0)
+
+    # Early exit when disabled
+    if epochs <= 0:
+        print("Skipping steady_prior stage (epochs<=0)")
+        return
+
+    loader = dataset_loader(cfg)
     prior = SteadyPrior(SteadyPriorConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2, num_steps=4))
     optimizer = _create_optimizer(cfg, prior, "steady_prior")
     scheduler = _create_scheduler(optimizer, cfg, "steady_prior")
     patience = _get_patience(cfg, "steady_prior")
-    epochs = stage_cfg.get("epochs", 1)
     logger = TrainingLogger(cfg, stage="steady_prior", global_step=global_step, shared_run=shared_run)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -546,32 +750,35 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
     epochs_since_improve = 0
     
     import time
+    accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
         batches = 0
-        
-        for batch in loader:
+        grad_steps = 0
+        optimizer.zero_grad(set_to_none=True)
+        num_batches = len(loader)
+        for i, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             refined = prior(state)
             loss = F.mse_loss(refined.z, z1.to(device))
-            optimizer.zero_grad()
-            loss.backward()
-            
-            # Track gradient norm
-            grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float('inf'))
-            total_grad_norm += grad_norm.item()
-            
-            optimizer.step()
+            (loss / accum_steps).backward()
+            do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
+            if do_step:
+                grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float('inf'))
+                total_grad_norm += grad_norm.item()
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                grad_steps += 1
             epoch_loss += loss.item()
             batches += 1
         
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
-        mean_grad_norm = total_grad_norm / max(batches, 1)
+        mean_grad_norm = total_grad_norm / max(grad_steps, 1)
         
         logger.log(
             epoch=epoch,
@@ -591,12 +798,21 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
             if _should_stop(patience, epochs_since_improve):
                 break
         if scheduler is not None:
-            scheduler.step()
+            if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(mean_loss)
+            else:
+                scheduler.step()
     prior.load_state_dict(best_state)
     logger.close()
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    torch.save(prior.state_dict(), checkpoint_dir / "steady_prior.pt")
-    print("Saved steady prior checkpoint.")
+    prior_path = checkpoint_dir / "steady_prior.pt"
+    torch.save(prior.state_dict(), prior_path)
+    print(f"Saved steady prior checkpoint to {prior_path}")
+    
+    # Upload checkpoint to W&B
+    if wandb is not None and wandb.run is not None:
+        wandb.save(str(prior_path), base_path=str(checkpoint_dir.parent))
+        print(f"Uploaded steady prior checkpoint to W&B")
     
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
@@ -650,12 +866,17 @@ def train_all_stages(cfg: dict) -> None:
     global_step = 0
     
     # Stage 1: Operator
-    print("\n" + "="*50)
-    print("STAGE 1/4: Training Operator")
-    print("="*50)
-    train_operator(cfg, shared_run=shared_run, global_step=global_step)
-    # Update global step (rough estimate based on epochs)
-    global_step += cfg.get("stages", {}).get("operator", {}).get("epochs", 10)
+    op_epochs = _stage_epochs(cfg, "operator")
+    if op_epochs > 0:
+        print("\n" + "="*50)
+        print("STAGE 1/4: Training Operator")
+        print("="*50)
+        train_operator(cfg, shared_run=shared_run, global_step=global_step)
+        global_step += op_epochs
+    else:
+        print("\n" + "="*50)
+        print("STAGE 1/4: Skipping Operator (epochs<=0)")
+        print("="*50)
     
     # Clear GPU cache between stages
     if torch.cuda.is_available():
@@ -663,11 +884,17 @@ def train_all_stages(cfg: dict) -> None:
         print("✓ Cleared GPU cache")
     
     # Stage 2: Diffusion Residual
-    print("\n" + "="*50)
-    print("STAGE 2/4: Training Diffusion Residual")
-    print("="*50)
-    train_diffusion(cfg, shared_run=shared_run, global_step=global_step)
-    global_step += cfg.get("stages", {}).get("diff_residual", {}).get("epochs", 10)
+    diff_epochs = _stage_epochs(cfg, "diff_residual")
+    if diff_epochs > 0:
+        print("\n" + "="*50)
+        print("STAGE 2/4: Training Diffusion Residual")
+        print("="*50)
+        train_diffusion(cfg, shared_run=shared_run, global_step=global_step)
+        global_step += diff_epochs
+    else:
+        print("\n" + "="*50)
+        print("STAGE 2/4: Skipping Diffusion Residual (epochs<=0)")
+        print("="*50)
     
     # Clear GPU cache between stages
     if torch.cuda.is_available():
@@ -675,11 +902,17 @@ def train_all_stages(cfg: dict) -> None:
         print("✓ Cleared GPU cache")
     
     # Stage 3: Consistency Distillation
-    print("\n" + "="*50)
-    print("STAGE 3/4: Consistency Distillation")
-    print("="*50)
-    train_consistency(cfg, shared_run=shared_run, global_step=global_step)
-    global_step += cfg.get("stages", {}).get("consistency_distill", {}).get("epochs", 10)
+    distill_epochs = _stage_epochs(cfg, "consistency_distill")
+    if distill_epochs > 0:
+        print("\n" + "="*50)
+        print("STAGE 3/4: Consistency Distillation")
+        print("="*50)
+        train_consistency(cfg, shared_run=shared_run, global_step=global_step)
+        global_step += distill_epochs
+    else:
+        print("\n" + "="*50)
+        print("STAGE 3/4: Skipping Consistency Distillation (epochs<=0)")
+        print("="*50)
     
     # Clear GPU cache between stages
     if torch.cuda.is_available():
@@ -687,10 +920,16 @@ def train_all_stages(cfg: dict) -> None:
         print("✓ Cleared GPU cache")
     
     # Stage 4: Steady Prior
-    print("\n" + "="*50)
-    print("STAGE 4/4: Training Steady Prior")
-    print("="*50)
-    train_steady_prior(cfg, shared_run=shared_run, global_step=global_step)
+    steady_epochs = _stage_epochs(cfg, "steady_prior")
+    if steady_epochs > 0:
+        print("\n" + "="*50)
+        print("STAGE 4/4: Training Steady Prior")
+        print("="*50)
+        train_steady_prior(cfg, shared_run=shared_run, global_step=global_step)
+    else:
+        print("\n" + "="*50)
+        print("STAGE 4/4: Skipping Steady Prior (epochs<=0)")
+        print("="*50)
     
     # Log final summary
     if shared_run:

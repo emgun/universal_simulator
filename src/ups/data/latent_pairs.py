@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import torch
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import ConcatDataset
 
 from ups.data.datasets import GridZarrDataset, MeshZarrDataset, ParticleZarrDataset
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
@@ -414,13 +415,28 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     train_cfg = cfg.get("training", {})
     batch = train_cfg.get("batch_size", 16)
 
-    if data_cfg.get("task"):
-        dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
-            {**data_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
-        )
-        coords = make_grid_coords(grid_shape, torch.device("cpu"))
-        latent_dataset = GridLatentPairDataset(dataset, encoder, coords, grid_shape, field_name=field_name)
-        return DataLoader(latent_dataset, batch_size=batch, shuffle=True, collate_fn=collate_latent_pairs)
+    # Support single task or a list of tasks for multi-dataset mixing
+    tasks = data_cfg.get("task")
+    if tasks:
+        if isinstance(tasks, (list, tuple)):
+            datasets: List[Dataset] = []
+            for task_name in tasks:
+                ds_cfg = {**data_cfg, "task": task_name}
+                dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
+                    {**ds_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
+                )
+                coords = make_grid_coords(grid_shape, torch.device("cpu"))
+                latent_ds = GridLatentPairDataset(dataset, encoder, coords, grid_shape, field_name=field_name)
+                datasets.append(latent_ds)
+            mixed = ConcatDataset(datasets)
+            return DataLoader(mixed, batch_size=batch, shuffle=True, collate_fn=collate_latent_pairs)
+        else:
+            dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
+                {**data_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
+            )
+            coords = make_grid_coords(grid_shape, torch.device("cpu"))
+            latent_dataset = GridLatentPairDataset(dataset, encoder, coords, grid_shape, field_name=field_name)
+            return DataLoader(latent_dataset, batch_size=batch, shuffle=True, collate_fn=collate_latent_pairs)
 
     kind = data_cfg.get("kind")
     if kind == "grid":

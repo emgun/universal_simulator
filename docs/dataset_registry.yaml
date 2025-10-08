@@ -3,7 +3,7 @@
 
 datasets:
   burgers1d_subset_v1:
-    artifact: emgun-morpheus-space/universal-simulator/burgers1d-subset:v0
+    artifact: emgun-morpheus-space/universal-simulator/burgers1d_subset_local:v0
     kind: grid
     train_split: burgers1d_train.h5
     val_split: burgers1d_val.h5
@@ -30,6 +30,17 @@ datasets:
     train_split: advection1d_train.h5
     val_split: advection1d_val.h5
     test_split: advection1d_test.h5
+  advection1d_full_v1:
+    artifact: <entity>/<project>/advection1d-full:v1
+    kind: grid
+    train_split: advection1d_train.h5
+    val_split: advection1d_val.h5
+    test_split: advection1d_test.h5
+    metadata:
+      description: Full PDEBench Advection 1D train/val/test
+      parameters: [velocity]
+      resolution: [201, 1024]
+      normalisation: global statistics
     metadata:
       description: 1D advection trajectories across velocity range
       parameters: [velocity]

@@ -284,6 +284,16 @@ def main() -> None:
 
     output_prefix = Path(args.output_prefix)
     outputs = _write_outputs(report, output_prefix, cfg, details)
+    
+    # Upload all report files to W&B
+    try:
+        import wandb
+        if wandb.run is not None:
+            for output_type, output_path in outputs.items():
+                wandb.save(str(output_path), base_path=str(output_path.parent.parent))
+                print(f"Uploaded {output_type} report to W&B: {output_path.name}")
+    except Exception as e:
+        print(f"Note: Could not upload reports to W&B: {e}")
 
     session = init_monitoring_session(cfg, component="evaluation", file_path=args.log_path)
     
@@ -307,7 +317,15 @@ def main() -> None:
         session.log_image("eval/latent_heatmap", outputs["plot_latent_heatmap"])
     if "plot_latent_spectrum" in outputs:
         session.log_image("eval/latent_spectrum", outputs["plot_latent_spectrum"])
-    
+
+    if session.run is not None:
+        try:  # pragma: no cover
+            session.run.summary.update({f"eval/{k}": v for k, v in report.metrics.items()})
+            if report.extra:
+                session.run.summary.update({f"eval_extra/{k}": v for k, v in report.extra.items()})
+        except Exception:
+            pass
+
     session.finish()
 
     _print_report(report, outputs, args.print_json)
