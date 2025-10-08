@@ -24,7 +24,7 @@ training:
   num_workers: 8
   pin_memory: true
   prefetch_factor: 2
-  latent_cache_dir: data/latent_cache
+  latent_cache_dir: null
   latent_cache_dtype: float16
 
 optimizer:
