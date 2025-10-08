@@ -36,15 +36,23 @@ def ensure_onstart(
     workdir: str,
     repo_url: str,
     auto_shutdown: bool,
+    wandb_project: str | None,
+    wandb_entity: str | None,
+    wandb_api_key: str | None,
     b2_key_id: str | None,
     b2_app_key: str | None,
     b2_bucket: str | None,
     b2_prefix: str | None,
+    b2_s3_endpoint: str | None,
+    b2_s3_region: str | None,
 ) -> Path:
     ONSTART_DIR.mkdir(exist_ok=True)
     script_path = ONSTART_DIR / "onstart.sh"
     datasets_export = f"export WANDB_DATASETS=\"{datasets}\"" if datasets else "# WANDB_DATASETS optional"
-    fetch_cmd = "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh $WANDB_DATASETS\nfi"
+    wandb_project_export = f"export WANDB_PROJECT=\"{wandb_project}\"" if wandb_project else "# WANDB_PROJECT optional"
+    wandb_entity_export = f"export WANDB_ENTITY=\"{wandb_entity}\"" if wandb_entity else "# WANDB_ENTITY optional"
+    wandb_api_key_export = f"export WANDB_API_KEY=\"{wandb_api_key}\"" if wandb_api_key else "# WANDB_API_KEY optional"
+    fetch_cmd = "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi"
     overrides_cmd = f"bash scripts/run_remote_scale.sh {overrides}" if overrides else "bash scripts/run_remote_scale.sh"
     shutdown_cmd = "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi" if auto_shutdown else ""
     lines = [
@@ -71,7 +79,12 @@ def ensure_onstart(
         (f"export B2_APP_KEY=\"{b2_app_key}\"" if b2_app_key else "# B2_APP_KEY optional"),
         (f"export B2_BUCKET=\"{b2_bucket}\"" if b2_bucket else "# B2_BUCKET optional"),
         (f"export B2_PREFIX=\"{b2_prefix}\"" if b2_prefix else "# B2_PREFIX optional"),
-        "if [ -f scripts/load_env.sh ]; then",
+        (f"export B2_S3_ENDPOINT=\"{b2_s3_endpoint}\"" if b2_s3_endpoint else "# B2_S3_ENDPOINT optional"),
+        (f"export B2_S3_REGION=\"{b2_s3_region}\"" if b2_s3_region else "# B2_S3_REGION optional"),
+        wandb_project_export,
+        wandb_entity_export,
+        wandb_api_key_export,
+        "if [ -f scripts/load_env.sh ] && [ -f .env ]; then",
         "  bash scripts/load_env.sh || true",
         "fi",
         fetch_cmd,
@@ -103,10 +116,15 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.workdir,
         repo_url,
         args.auto_shutdown,
+        args.wandb_project,
+        args.wandb_entity,
+        args.wandb_api_key,
         args.b2_key_id,
         args.b2_app_key,
         args.b2_bucket,
         args.b2_prefix,
+        args.b2_s3_endpoint,
+        args.b2_s3_region,
     )
 
     env_parts = []
@@ -120,6 +138,14 @@ def cmd_launch(args: argparse.Namespace) -> None:
         env_parts.append(f"B2_KEY_ID={args.b2_key_id}")
     if args.b2_app_key:
         env_parts.append(f"B2_APP_KEY={args.b2_app_key}")
+    if args.b2_bucket:
+        env_parts.append(f"B2_BUCKET={args.b2_bucket}")
+    if args.b2_prefix:
+        env_parts.append(f"B2_PREFIX={args.b2_prefix}")
+    if args.b2_s3_endpoint:
+        env_parts.append(f"B2_S3_ENDPOINT={args.b2_s3_endpoint}")
+    if args.b2_s3_region:
+        env_parts.append(f"B2_S3_REGION={args.b2_s3_region}")
     env_str = ",".join(env_parts) if env_parts else None
 
     cmd = [
@@ -165,18 +191,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--image", default="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime", help="Docker image")
     p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
     p_launch.add_argument("--region", help="Region filter for launch instance")
-    p_launch.add_argument("--datasets", help="WANDB_DATASETS value to pass to training")
-    p_launch.add_argument("--wandb-project", help="WANDB project name")
-    p_launch.add_argument("--wandb-entity", help="WANDB entity name")
-    p_launch.add_argument("--wandb-api-key", help="WANDB API key")
+    p_launch.add_argument("--datasets", default=os.environ.get("WANDB_DATASETS"), help="WANDB_DATASETS value to pass to training")
+    p_launch.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT"), help="WANDB project name")
+    p_launch.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY"), help="WANDB entity name")
+    p_launch.add_argument("--wandb-api-key", default=os.environ.get("WANDB_API_KEY"), help="WANDB API key")
     p_launch.add_argument("--overrides", help="Additional Hydra overrides for run_remote_scale.sh")
     p_launch.add_argument("--repo-url", help="Git remote URL (defaults to origin)")
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_launch.add_argument("--auto-shutdown", action="store_true", help="Power off instance after training completes")
-    p_launch.add_argument("--b2-key-id", help="B2 application key ID for dataset fetch")
-    p_launch.add_argument("--b2-app-key", help="B2 application key secret for dataset fetch")
-    p_launch.add_argument("--b2-bucket", help="Override B2 bucket for dataset fetch")
-    p_launch.add_argument("--b2-prefix", help="Override B2 prefix for dataset fetch")
+    p_launch.add_argument("--b2-key-id", default=os.environ.get("B2_KEY_ID"), help="B2 application key ID for dataset fetch")
+    p_launch.add_argument("--b2-app-key", default=os.environ.get("B2_APP_KEY"), help="B2 application key secret for dataset fetch")
+    p_launch.add_argument("--b2-bucket", default=os.environ.get("B2_BUCKET"), help="Override B2 bucket for dataset fetch")
+    p_launch.add_argument("--b2-prefix", default=os.environ.get("B2_PREFIX"), help="Override B2 prefix for dataset fetch")
+    p_launch.add_argument("--b2-s3-endpoint", default=os.environ.get("B2_S3_ENDPOINT"), help="Override B2 S3 endpoint for dataset fetch")
+    p_launch.add_argument("--b2-s3-region", default=os.environ.get("B2_S3_REGION"), help="Override B2 S3 region for dataset fetch")
     p_launch.add_argument("--dry-run", action="store_true", help="Print commands without launching")
     p_launch.set_defaults(func=cmd_launch)
 
