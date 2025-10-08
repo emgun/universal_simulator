@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Reusable latent pair datasets for grid, mesh, and particle sources."""
 
+import io
 import os
 from pathlib import Path
 from dataclasses import dataclass
@@ -320,14 +321,15 @@ class GridLatentPairDataset(Dataset):
             if self.cache_dir and not cache_hit:
                 to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
                 tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
-                torch.save(
-                    {
-                        "latent": to_store.cpu(),
-                        "params": params_cpu,
-                        "bc": bc_cpu,
-                    },
-                    tmp_path,
-                )
+                tmp_path.unlink(missing_ok=True)
+                payload = {
+                    "latent": to_store.cpu(),
+                    "params": params_cpu,
+                    "bc": bc_cpu,
+                }
+                buffer = io.BytesIO()
+                torch.save(payload, buffer)
+                tmp_path.write_bytes(buffer.getvalue())
                 tmp_path.replace(cache_path)
 
         if latent_seq.shape[0] < 2:
