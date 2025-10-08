@@ -26,6 +26,7 @@ training:
   prefetch_factor: 2
   latent_cache_dir: null
   latent_cache_dtype: float16
+  checkpoint_interval: 1
 
 optimizer:
   name: adamw
@@ -44,13 +45,13 @@ stages:
       t_max: 40
       eta_min: 2.5e-5
   diff_residual:
-    epochs: 20
+    epochs: 3
     optimizer:
       name: adam
       lr: 7.5e-5
       weight_decay: 0.0
   consistency_distill:
-    epochs: 12
+    epochs: 8
     batch_size: 6  # reduced due to larger model footprint
     optimizer:
       name: adam

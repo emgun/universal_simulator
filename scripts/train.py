@@ -411,10 +411,12 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     patience = _get_patience(cfg, "diff_residual")
     dt = cfg.get("training", {}).get("dt", 0.1)
     epochs = stage_cfg.get("epochs", 1)
+    checkpoint_interval = int(cfg.get("training", {}).get("checkpoint_interval", 0) or 0)
     logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, shared_run=shared_run)
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
+    best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
     # AMP + EMA setup
     use_amp = _amp_enabled(cfg)
     scaler = GradScaler(enabled=use_amp)
@@ -502,6 +504,8 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(diff.state_dict())
+            if ema_model is not None:
+                best_ema_state = copy.deepcopy(ema_model.state_dict())
             epochs_since_improve = 0
         else:
             epochs_since_improve += 1
@@ -512,6 +516,13 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 scheduler.step(mean_loss)
             else:
                 scheduler.step()
+
+        if checkpoint_interval and (epoch + 1) % checkpoint_interval == 0:
+            epoch_ckpt = checkpoint_dir / f"diffusion_residual_epoch_{epoch + 1}.pt"
+            torch.save(diff.state_dict(), epoch_ckpt)
+            if ema_model is not None:
+                ema_epoch_ckpt = checkpoint_dir / f"diffusion_residual_ema_epoch_{epoch + 1}.pt"
+                torch.save(ema_model.state_dict(), ema_epoch_ckpt)
     diff.load_state_dict(best_state)
     logger.close()
     diffusion_path = checkpoint_dir / "diffusion_residual.pt"
@@ -519,7 +530,7 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     print(f"Saved diffusion residual checkpoint to {diffusion_path}")
     if ema_model is not None:
         diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
-        torch.save(ema_model.state_dict(), diffusion_ema_path)
+        torch.save(best_ema_state if best_ema_state is not None else ema_model.state_dict(), diffusion_ema_path)
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
     
     # Upload checkpoint to W&B
