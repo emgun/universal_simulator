@@ -21,7 +21,7 @@ training:
   grad_clip: 1.0
   ema_decay: 0.999
   accum_steps: 4
-  num_workers: 8
+  num_workers: 0
   pin_memory: true
   prefetch_factor: 2
   latent_cache_dir: null
