@@ -1,7 +1,10 @@
 include: train_pdebench_scale.yaml
 
 data:
-  # Quality mode may prefer no time subsampling
+  # Burgers-only quality run (override multi-task)
+  task: burgers1d
+  split: train
+  root: data/pdebench
   patch_size: 1
 
 latent:
@@ -29,4 +32,3 @@ stages:
     epochs: 5
   consistency_distill:
     epochs: 8
-
