@@ -28,6 +28,9 @@ training:
   latent_cache_dtype: float16
   time_stride: 2
   distill_micro_batch: 2
+  distill_num_taus: 3
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
   checkpoint_interval: 1
 
 optimizer:

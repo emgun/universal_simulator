@@ -44,6 +44,20 @@ from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
 from ups.utils.monitoring import init_monitoring_session, MonitoringSession
 
+# ---- Auxiliary training losses ----
+def _nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    mse = torch.mean((pred - target) ** 2)
+    denom = torch.mean(target ** 2) + eps
+    return torch.sqrt(mse / denom)
+
+def _spectral_energy_loss(pred: torch.Tensor, target: torch.Tensor, dim: int = 1, eps: float = 1e-8) -> torch.Tensor:
+    """Relative spectral energy difference along the given axis (default: token axis)."""
+    pred_fft = torch.fft.rfft(pred, dim=dim)
+    tgt_fft = torch.fft.rfft(target, dim=dim)
+    pred_energy = torch.mean(pred_fft.abs() ** 2)
+    tgt_energy = torch.mean(tgt_fft.abs() ** 2)
+    return torch.abs(pred_energy - tgt_energy) / (tgt_energy + eps)
+
 
 def load_config(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
@@ -289,6 +303,8 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     
     import time
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
+    lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
+    lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -305,7 +321,13 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             try:
                 with autocast(enabled=use_amp):
                     next_state = operator(state, dt_tensor)
-                    loss = F.mse_loss(next_state.z, target)
+                    base = F.mse_loss(next_state.z, target)
+                    extra = 0.0
+                    if lam_spec > 0.0:
+                        extra = extra + lam_spec * _spectral_energy_loss(next_state.z, target, dim=1)
+                    if lam_rel > 0.0:
+                        extra = extra + lam_rel * _nrmse(next_state.z, target)
+                    loss = base + extra
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
@@ -435,6 +457,8 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     
     import time
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
+    lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
+    lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -459,11 +483,18 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     continue
                 raise
             residual_target = target - predicted.z
-            tau_tensor = torch.full((z0.size(0),), 0.5, device=device)
+            # Sample per-sample tau in (0,1) to broaden supervision
+            tau_tensor = torch.rand(z0.size(0), device=device)
             try:
                 with autocast(enabled=use_amp):
                     drift = diff(predicted, tau_tensor)
-                    loss = F.mse_loss(drift, residual_target)
+                    base = F.mse_loss(drift, residual_target)
+                    extra = 0.0
+                    if lam_spec > 0.0:
+                        extra = extra + lam_spec * _spectral_energy_loss(drift, residual_target, dim=1)
+                    if lam_rel > 0.0:
+                        extra = extra + lam_rel * _nrmse(drift, residual_target)
+                    loss = base + extra
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
@@ -634,6 +665,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     
     # Get micro-batch size for gradient accumulation
     distill_micro = cfg.get("training", {}).get("distill_micro_batch")
+    num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
     
     import time
     for epoch in range(epochs):
@@ -657,11 +689,13 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 state = LatentState(z=z_chunk, t=torch.tensor(0.0, device=device), cond=chunk_cond)
                 try:
                     with autocast(enabled=use_amp):
+                        # Randomize taus each micro-batch for broader coverage
+                        taus = torch.rand(num_taus, device=device).tolist()
                         loss_chunk = distillation_loss(
                             teacher_fn,
                             student_fn,
                             state,
-                            DistillationConfig(taus=[0.25, 0.5, 0.75]),
+                            DistillationConfig(taus=taus),
                             device=device,
                         )
                 except RuntimeError as e:
