@@ -20,11 +20,18 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
 import yaml
+import torch.multiprocessing as mp
 
 try:
     import wandb
 except ImportError:
     wandb = None
+
+# Ensure CUDA + DataLoader workers use a safe start method
+try:
+    mp.set_start_method("spawn", force=True)
+except RuntimeError:
+    pass
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 

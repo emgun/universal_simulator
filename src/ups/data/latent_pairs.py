@@ -263,6 +263,7 @@ class GridLatentPairDataset(Dataset):
         device: torch.device | None = None,
         cache_dir: Optional[Path] = None,
         cache_dtype: Optional[torch.dtype] = torch.float16,
+        time_stride: int = 1,
     ) -> None:
         super().__init__()
         self.base = base
@@ -275,6 +276,7 @@ class GridLatentPairDataset(Dataset):
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dtype = cache_dtype
+        self.time_stride = max(1, int(time_stride))
 
     def __len__(self) -> int:
         return len(self.base)
@@ -331,6 +333,10 @@ class GridLatentPairDataset(Dataset):
                 torch.save(payload, buffer)
                 tmp_path.write_bytes(buffer.getvalue())
                 tmp_path.replace(cache_path)
+
+        # Optionally downsample the time dimension to accelerate epochs
+        if self.time_stride > 1:
+            latent_seq = latent_seq[:: self.time_stride]
 
         if latent_seq.shape[0] < 2:
             raise ValueError("Need at least two time steps to form latent pairs")
@@ -498,6 +504,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     cache_dtype_str = train_cfg.get("latent_cache_dtype", "float16") or None
     cache_dtype = getattr(torch, cache_dtype_str) if cache_dtype_str and hasattr(torch, cache_dtype_str) else None
     split_name = data_cfg.get("split", "train")
+    time_stride = int(train_cfg.get("time_stride", 1))
 
     loader_kwargs: Dict[str, Any] = {
         "batch_size": batch,
@@ -532,6 +539,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                     device=device,
                     cache_dir=ds_cache,
                     cache_dtype=cache_dtype,
+                    time_stride=time_stride,
                 )
                 datasets.append(latent_ds)
             mixed = ConcatDataset(datasets)
@@ -552,6 +560,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 device=device,
                 cache_dir=ds_cache,
                 cache_dtype=cache_dtype,
+                time_stride=time_stride,
             )
             return DataLoader(latent_dataset, **loader_kwargs)
 

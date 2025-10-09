@@ -1,0 +1,35 @@
+# Scale-ready evaluation config for PDEBench Advection1D (val/test splits).
+include: defaults
+
+data:
+  task: advection1d
+  split: val
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  batch_size: 32
+  dt: 0.1
+  num_workers: 0
+  pin_memory: false
+
+operator:
+  pdet:
+    input_dim: 512
+    hidden_dim: 1024
+    depths: [1, 1, 1]
+    group_size: 256
+    num_heads: 4
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: advection1d-eval-scale-${data.split}
+    group: burgers1d-scale
+    job_type: evaluation
+

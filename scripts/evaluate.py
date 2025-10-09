@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+import torch.multiprocessing as mp
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -23,6 +24,12 @@ from ups.eval.reports import MetricReport
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.utils.monitoring import init_monitoring_session
+
+# Use spawn to allow CUDA in DataLoader workers during evaluation
+try:
+    mp.set_start_method("spawn", force=True)
+except RuntimeError:
+    pass
 
 
 def load_config(path: str) -> Dict[str, Any]:
