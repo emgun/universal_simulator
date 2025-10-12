@@ -16,6 +16,15 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+try:  # Enable Flash/SDPA kernels when available (PyTorch ≥2.0)
+    from torch.backends.cuda import sdp_kernel
+
+    sdp_kernel.enable_math(True)
+    sdp_kernel.enable_flash(True)
+    sdp_kernel.enable_mem_efficient(True)
+except Exception:  # pragma: no cover - best-effort enablement
+    pass
+
 
 class RMSNorm(nn.Module):
     """Root Mean Square Layer Normalisation.
@@ -54,7 +63,11 @@ class ChannelSeparatedSelfAttention(nn.Module):
         self.dim = dim
         self.group_size = group_size
         self.groups = dim // group_size
+        if group_size % num_heads != 0:
+            raise ValueError("group_size must be divisible by num_heads for attention heads")
         self.num_heads = num_heads
+        self.head_dim = group_size // num_heads
+        self.dropout_p = 0.0
 
         self.q_proj = nn.Linear(group_size, group_size)
         self.k_proj = nn.Linear(group_size, group_size)
@@ -62,11 +75,6 @@ class ChannelSeparatedSelfAttention(nn.Module):
         self.out_proj = nn.Linear(group_size, group_size)
         self.q_norm = RMSNorm(group_size)
         self.k_norm = RMSNorm(group_size)
-        self.attn = nn.MultiheadAttention(
-            embed_dim=group_size,
-            num_heads=num_heads,
-            batch_first=True,
-        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C = x.shape
@@ -77,7 +85,20 @@ class ChannelSeparatedSelfAttention(nn.Module):
         k = self.k_proj(self.k_norm(x_groups))
         v = self.v_proj(x_groups)
 
-        attn_out, _ = self.attn(q, k, v)
+        B_groups = q.shape[0]
+        q = q.view(B_groups, T, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.view(B_groups, T, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.view(B_groups, T, self.num_heads, self.head_dim).transpose(1, 2)
+
+        attn_out = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            dropout_p=self.dropout_p if self.training else 0.0,
+            is_causal=False,
+        )
+        attn_out = attn_out.transpose(1, 2).contiguous().view(B_groups, T, self.group_size)
         attn_out = self.out_proj(attn_out)
 
         attn_out = attn_out.view(B, self.groups, T, self.group_size).permute(0, 2, 1, 3).contiguous()

@@ -224,6 +224,27 @@ def _amp_enabled(cfg: Dict) -> bool:
     return bool(cfg.get("training", {}).get("amp", False)) and torch.cuda.is_available()
 
 
+def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
+    """Optionally compile a model with torch.compile when enabled and available.
+
+    Controlled by training.compile bool. Falls back silently if unavailable.
+    """
+    try:
+        compile_enabled = bool(cfg.get("training", {}).get("compile", False))
+    except Exception:
+        compile_enabled = False
+    if not compile_enabled:
+        return model
+    try:
+        import torch
+
+        # Reduce overhead mode is a good default for training loops
+        compiled = torch.compile(model, mode="reduce-overhead", fullgraph=False)
+        return compiled
+    except Exception:
+        # If torch.compile is unavailable or fails, just return the original model
+        return model
+
 def _grad_clip_value(cfg: Dict, stage: str) -> Optional[float]:
     # Stage-specific override takes precedence; fallback to training.grad_clip
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
@@ -290,6 +311,7 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     operator.to(device)
+    operator = _maybe_compile(operator, cfg, "operator")
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(operator.state_dict())
@@ -429,12 +451,14 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         operator_state = torch.load(op_path, map_location="cpu")
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
+    operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
 
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("diff_residual", {})
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
     _ensure_model_on_device(diff, device)
+    diff = _maybe_compile(diff, cfg, "diffusion_residual")
     
     optimizer = _create_optimizer(cfg, diff, "diff_residual")
     scheduler = _create_scheduler(optimizer, cfg, "diff_residual")
@@ -624,6 +648,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         operator_state = torch.load(op_path, map_location="cpu")
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
+    operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
     
     # Create diffusion model and load checkpoint directly to target device
@@ -635,6 +660,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         diff_state = torch.load(diff_path, map_location="cpu")
         diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
+    diff = _maybe_compile(diff, cfg, "diffusion_residual")
     
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
@@ -645,14 +671,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     
     dt_tensor = torch.tensor(dt, device=device)
 
-    def teacher_fn(state: LatentState, tau: torch.Tensor) -> LatentState:
-        return operator(state, dt_tensor)
-
-    def student_fn(state: LatentState, tau: torch.Tensor) -> LatentState:
-        predicted = operator(state, dt_tensor)
-        tau_vec = tau.expand(predicted.z.size(0))
-        drift = diff(predicted, tau_vec)
-        return LatentState(z=predicted.z + drift, t=predicted.t, cond=predicted.cond)
+    # Teacher/student are inlined below to enable reuse and vectorized taus
 
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
@@ -678,7 +697,6 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             z0, _, cond = unpack_batch(batch)
             batch_size = z0.shape[0]
             micro = distill_micro or batch_size
-            num_chunks = max(1, (batch_size + micro - 1) // micro)
             optimizer.zero_grad(set_to_none=True)
             batch_loss_value = 0.0
             for start in range(0, batch_size, micro):
@@ -688,16 +706,28 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 chunk_cond = {k: v[start:end].to(device) for k, v in cond.items()}
                 state = LatentState(z=z_chunk, t=torch.tensor(0.0, device=device), cond=chunk_cond)
                 try:
+                    with torch.no_grad():
+                        teacher_state = operator(state, dt_tensor)
+                    Bc, T, D = teacher_state.z.shape
+                    z_tiled = (
+                        teacher_state.z.unsqueeze(1)
+                        .expand(Bc, num_taus, T, D)
+                        .reshape(Bc * num_taus, T, D)
+                        .contiguous()
+                    )
+                    cond_tiled = {
+                        k: v.repeat_interleave(num_taus, dim=0)
+                        for k, v in teacher_state.cond.items()
+                    }
+                    tau_flat = torch.rand(num_taus, device=device).repeat(Bc)
+                    tau_flat = tau_flat.to(z_tiled.dtype)
+                    tiled_state = LatentState(z=z_tiled, t=teacher_state.t, cond=cond_tiled)
                     with autocast(enabled=use_amp):
-                        # Randomize taus each micro-batch for broader coverage
-                        taus = torch.rand(num_taus, device=device).tolist()
-                        loss_chunk = distillation_loss(
-                            teacher_fn,
-                            student_fn,
-                            state,
-                            DistillationConfig(taus=taus),
-                            device=device,
-                        )
+                        drift = diff(tiled_state, tau_flat)
+                        z_tiled_cast = z_tiled.to(drift.dtype)
+                        student_z = z_tiled_cast + drift
+                        teacher_z = z_tiled_cast
+                        loss_chunk = torch.nn.functional.mse_loss(student_z, teacher_z)
                 except RuntimeError as e:
                     if "out of memory" in str(e).lower():
                         if torch.cuda.is_available():

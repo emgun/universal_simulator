@@ -1,0 +1,29 @@
+include: train_pdebench_scale.yaml
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  time_stride: 2           # quicker sweep; adjust to 1 for fine-tuning
+  distill_micro_batch: 3   # assumes ≥80 GB GPU
+  distill_num_taus: 5
+  lambda_spectral: 0.05
+  latent_cache_dir: /mnt/nvme/latent_cache
+  num_workers: 8
+  pin_memory: true
+  compile: true
+
+stages:
+  operator:
+    epochs: 48
+  diff_residual:
+    epochs: 5
+  consistency_distill:
+    epochs: 6

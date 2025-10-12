@@ -1,4 +1,4 @@
-include: train_pdebench_scale_quality.yaml
+include: train_burgers_quality_v2.yaml
 
 data:
   task: burgers1d
@@ -11,8 +11,9 @@ training:
   prefetch_factor: 2
   latent_cache_dir: /mnt/nvme/latent_cache_smoke
   time_stride: 4
+  distill_micro_batch: 1
   distill_num_taus: 3
-  lambda_spectral: 0.05
+  compile: true
 
 stages:
   operator:
@@ -21,4 +22,3 @@ stages:
     epochs: 1
   consistency_distill:
     epochs: 1
-

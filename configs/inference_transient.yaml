@@ -4,6 +4,7 @@ run:
   dt: 0.1
   correct_every: 2
   corrector_tau: 0.5
+  residual_threshold: 0.35
 operator:
   latent_dim: 32
   pdet:

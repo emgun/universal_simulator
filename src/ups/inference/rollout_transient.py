@@ -21,6 +21,7 @@ class RolloutConfig:
     dt: float
     correct_every: int = 1
     corrector_tau: float = 0.5
+    residual_threshold: Optional[float] = None
     device: torch.device | str = "cpu"
 
 
@@ -52,10 +53,13 @@ def rollout_transient(
         log.metrics.setdefault("residual_norm", []).append(residual_norm)
         should_correct = False
         if corrector is not None:
-            if (step + 1) % max(config.correct_every, 1) == 0:
-                should_correct = True
             if gate_fn is not None:
                 should_correct = gate_fn(state, predicted)
+            else:
+                if config.residual_threshold is not None and residual_norm > config.residual_threshold:
+                    should_correct = True
+                if (step + 1) % max(config.correct_every, 1) == 0:
+                    should_correct = True
         logger.info(f"step={step} residual_norm={residual_norm:.4f}")
         if should_correct and corrector is not None:
             logger.info(f"applying corrector at step {step}")
