@@ -3,6 +3,7 @@
 from .da_latent import EnKFConfig, latent_enkf
 from .control_safe import MPCConfig, safe_mpc
 from .rollout_transient import RolloutConfig, rollout_transient
+from .rollout_ttc import TTCConfig, ttc_rollout
 
 __all__ = [
     "EnKFConfig",
@@ -11,4 +12,6 @@ __all__ = [
     "safe_mpc",
     "RolloutConfig",
     "rollout_transient",
+    "TTCConfig",
+    "ttc_rollout",
 ]

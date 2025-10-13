@@ -13,6 +13,7 @@ import torch
 from ups.core.blocks_pdet import PDETransformerConfig
 from ups.core.latent_state import LatentState
 from ups.inference.rollout_transient import RolloutConfig, rollout_transient
+from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config, ttc_rollout
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 
@@ -46,8 +47,37 @@ def main() -> None:
     run_cfg = dict(cfg["run"])
     run_cfg.pop("mode", None)
     rollout_cfg = RolloutConfig(device="cpu", **run_cfg)
-    log = rollout_transient(initial_state=initial, operator=operator, corrector=corrector, config=rollout_cfg)
-    print(f"mode={args.mode} rollout steps: {len(log.states)} | corrections applied: {sum(log.corrections)}")
+    ttc_cfg = cfg.get("ttc")
+    if ttc_cfg and ttc_cfg.get("enabled"):
+        device = torch.device(rollout_cfg.device)
+        reward_model = build_reward_model_from_config(ttc_cfg, operator_cfg.latent_dim, device).to(device)
+        sampler_cfg = ttc_cfg.get("sampler", {})
+        tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
+        ttc_runtime = TTCConfig(
+            steps=rollout_cfg.steps,
+            dt=ttc_cfg.get("dt", rollout_cfg.dt),
+            candidates=ttc_cfg.get("candidates", 4),
+            tau_range=(float(tau_range[0]), float(tau_range[1])),
+            noise_std=float(sampler_cfg.get("noise_std", 0.0)),
+            residual_threshold=ttc_cfg.get("residual_threshold"),
+            device=device,
+        )
+        use_corrector = ttc_cfg.get("use_corrector", True)
+        rollout_log, step_logs = ttc_rollout(
+            initial_state=initial,
+            operator=operator,
+            reward_model=reward_model,
+            config=ttc_runtime,
+            corrector=corrector if use_corrector else None,
+        )
+        print(
+            f"mode={args.mode} TTC rollout steps: {len(rollout_log.states)} | best rewards per step: {[max(log.rewards) for log in step_logs]}"
+        )
+    else:
+        rollout_log = rollout_transient(initial_state=initial, operator=operator, corrector=corrector, config=rollout_cfg)
+        print(
+            f"mode={args.mode} rollout steps: {len(rollout_log.states)} | corrections applied: {sum(rollout_log.corrections)}"
+        )
 
 
 if __name__ == "__main__":

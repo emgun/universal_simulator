@@ -22,6 +22,25 @@ LatentState z_t --(K stochastic proposals)--> {ẑ_{t+1}^k}
    -> select best (or beam) => z_{t+1}
 ```
 
+## Status (Oct 12, 2025)
+- ✅ Implemented `src/ups/eval/reward_models.py` with analytical mass/momentum/energy scoring.
+- ✅ Added `src/ups/inference/rollout_ttc.py` (best-of-N + beam-search TTC, stochastic τ/latent noise, reusable builder).
+- ✅ Wired TTC into CLI/configs:
+  - `configs/inference_ttc.yaml`
+  - `scripts/evaluate.py` & `scripts/infer.py` auto-switch when `ttc.enabled=true`.
+- ✅ Unit coverage via `tests/unit/test_ttc.py` (mass reward monotonicity, best-of-N, beam lookahead).
+- ✅ Evaluation HTML/plots now include TTC reward tables + trajectories; per-step logs saved alongside reports.
+- ⏳ Next: learned PRM critic, richer TTC dashboards/metrics, beam-budget sweeps.
+
+## Implemented Interfaces
+- `RewardModel.score(prev_state, next_state, context)` base protocol.
+- `AnalyticalRewardModel` with configurable decoder grid, weights, negativity penalties.
+- `TTCConfig` fields: `steps`, `dt`, `candidates`, `beam_width`, `horizon`, `tau_range`, `noise_std`, `residual_threshold`, `device`.
+- `ttc_rollout(...) -> (RolloutLog, List[TTCStepLog])` supporting beam planning; logs per-step rewards/indices/total reward.
+- `build_reward_model_from_config(ttc_cfg, latent_dim, device)` helper (shared by eval/infer).
+- `evaluate_latent_operator(..., ttc_config, reward_model)` returns TTC step logs in report details.
+- CLI integration: `scripts/evaluate.py`, `scripts/infer.py`, and starter preset `configs/inference_ttc.yaml`.
+
 ## Components to Implement
 
 1) TTC Orchestrator (new)

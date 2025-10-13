@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import torch
 
@@ -13,6 +13,8 @@ from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
 from ups.eval.metrics import mae, mse, nrmse, relative_rrmse, spectral_energy_error
 from ups.eval.reports import MetricReport
+from ups.eval.reward_models import RewardModel
+from ups.inference.rollout_ttc import TTCConfig, ttc_rollout
 from ups.models.diffusion_residual import DiffusionResidual
 from ups.models.latent_operator import LatentOperator
 
@@ -46,6 +48,8 @@ def evaluate_latent_operator(
     tau: float = 0.5,
     device: str | torch.device = "cpu",
     return_details: bool = False,
+    ttc_config: Optional[TTCConfig] = None,
+    reward_model: Optional[RewardModel] = None,
 ) -> MetricReport | tuple[MetricReport, Dict[str, Any]]:
     """Evaluate a latent operator (optionally with diffusion corrector) on PDEBench data."""
 
@@ -66,20 +70,59 @@ def evaluate_latent_operator(
     sample_mse: list[torch.Tensor] = []
     sample_mae: list[torch.Tensor] = []
     preview: Dict[str, torch.Tensor] | None = None
+    ttc_step_logs: List[Dict[str, Any]] = []
 
     with torch.no_grad():
-        for batch in loader:
+        for batch_idx, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
 
-            predicted_state = operator(state, dt_tensor)
-            pred = predicted_state.z
-            if diffusion is not None:
-                tau_tensor = torch.full((pred.size(0),), tau, device=device)
-                drift = diffusion(predicted_state, tau_tensor)
-                pred = pred + drift
+            if ttc_config is not None and reward_model is not None:
+                ttc_cfg = TTCConfig(
+                    steps=1,
+                    dt=ttc_config.dt,
+                    candidates=ttc_config.candidates,
+                    beam_width=ttc_config.beam_width,
+                    horizon=ttc_config.horizon,
+                    tau_range=ttc_config.tau_range,
+                    noise_std=ttc_config.noise_std,
+                    residual_threshold=ttc_config.residual_threshold,
+                    max_evaluations=ttc_config.max_evaluations,
+                    early_stop_margin=ttc_config.early_stop_margin,
+                    gamma=ttc_config.gamma,
+                    device=device,
+                )
+                rollout_log, step_logs = ttc_rollout(
+                    initial_state=state,
+                    operator=operator,
+                    reward_model=reward_model,
+                    config=ttc_cfg,
+                    corrector=diffusion,
+                )
+                pred = rollout_log.states[-1].z
+                if return_details:
+                    ttc_step_logs.extend(
+                        [
+                            {
+                                "step": batch_idx,
+                                "rewards": sl.rewards,
+                                "totals": sl.totals,
+                                "chosen": sl.chosen_index,
+                                "beam_width": sl.beam_width,
+                                "horizon": sl.horizon,
+                            }
+                            for sl in step_logs
+                        ]
+                    )
+            else:
+                predicted_state = operator(state, dt_tensor)
+                pred = predicted_state.z
+                if diffusion is not None:
+                    tau_tensor = torch.full((pred.size(0),), tau, device=device)
+                    drift = diffusion(predicted_state, tau_tensor)
+                    pred = pred + drift
 
             diff = pred - target
             total_abs += diff.abs().sum().item()
@@ -95,6 +138,9 @@ def evaluate_latent_operator(
                         "predicted": pred.detach().cpu()[0].clone(),
                         "target": target.detach().cpu()[0].clone(),
                     }
+                if details:
+                    sample_mse[-1] = sample_mse[-1]
+                    extra_details = details
 
     if total_elements == 0:
         raise RuntimeError("Latent evaluation received an empty dataset")
@@ -110,6 +156,7 @@ def evaluate_latent_operator(
     extra = {
         "samples": total_elements,
         "tau": tau if diffusion is not None else None,
+        "ttc": bool(ttc_config and reward_model),
     }
     report = MetricReport(metrics=metrics, extra=extra)
     if not return_details:
@@ -125,8 +172,10 @@ def evaluate_latent_operator(
         details["per_sample_mse"] = []
         details["per_sample_mae"] = []
     if preview is not None:
-        details["preview_predicted"] = preview["predicted"].tolist()
-        details["preview_target"] = preview["target"].tolist()
+        details["preview_predicted"] = preview.get("predicted", torch.tensor([])).tolist()
+        details["preview_target"] = preview.get("target", torch.tensor([])).tolist()
+    if ttc_step_logs:
+        details["ttc_step_logs"] = ttc_step_logs
     return report, details
 
 

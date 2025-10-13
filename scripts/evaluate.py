@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ups.core.blocks_pdet import PDETransformerConfig
 from ups.eval.pdebench_runner import evaluate_latent_operator
 from ups.eval.reports import MetricReport
+from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.utils.monitoring import init_monitoring_session
@@ -61,8 +62,6 @@ def make_diffusion(cfg: Dict[str, Any]) -> DiffusionResidual:
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
     return DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
-
-
 def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], details: Dict[str, Any]) -> Dict[str, Path]:
     prefix.parent.mkdir(parents=True, exist_ok=True)
     paths: Dict[str, Path] = {}
@@ -89,6 +88,27 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
         fh.write(row + "\n")
     paths["csv"] = csv_path
 
+    ttc_logs = details.get("ttc_step_logs") if details else None
+    if ttc_logs:
+        logs_path = prefix.parent / f"{prefix.name}_ttc_step_logs.json"
+        logs_path.write_text(json.dumps(ttc_logs, indent=2), encoding="utf-8")
+        paths["ttc_logs"] = logs_path
+        steps = list(range(len(ttc_logs)))
+        best_totals = [max(entry["totals"]) if entry["totals"] else None for entry in ttc_logs]
+        chosen_totals = [entry["totals"][entry["chosen"]] if entry["totals"] else None for entry in ttc_logs]
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(steps, best_totals, label="Best total reward", marker="o")
+        ax.plot(steps, chosen_totals, label="Chosen total reward", marker="x")
+        ax.set_xlabel("TTC step")
+        ax.set_ylabel("Reward")
+        ax.set_title("TTC reward trajectory")
+        ax.legend()
+        fig.tight_layout()
+        reward_plot_path = prefix.parent / f"{prefix.name}_ttc_rewards.png"
+        fig.savefig(reward_plot_path, dpi=150)
+        plt.close(fig)
+        paths["plot_ttc_rewards"] = reward_plot_path
+
     html_path = prefix.with_suffix(".html")
     metrics_rows = "\n".join(
         f"        <tr><td>{key}</td><td>{value:.6g}</td></tr>" for key, value in report.metrics.items()
@@ -104,6 +124,13 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
         top = sorted(per_sample, key=lambda x: x[1], reverse=True)[:5]
         top_rows = "\n".join(
             f"        <tr><td>{idx}</td><td>{value:.6g}</td></tr>" for idx, value in top
+        )
+
+    ttc_rows = ""
+    if ttc_logs:
+        ttc_rows = "\n".join(
+            f"        <tr><td>{entry['step']}</td><td>{entry['chosen']}</td><td>{max(entry['totals']):.6g}</td><td>{entry['totals'][entry['chosen']]:.6g}</td></tr>"
+            for entry in ttc_logs
         )
 
     html = f"""
@@ -139,6 +166,13 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
       <thead><tr><th>Sample Index</th><th>MSE</th></tr></thead>
       <tbody>
 {top_rows or '        <tr><td colspan="2">(not collected)</td></tr>'}
+      </tbody>
+    </table>
+    <h2>TTC Step Summary</h2>
+    <table>
+      <thead><tr><th>Step</th><th>Chosen idx</th><th>Best total</th><th>Chosen total</th></tr></thead>
+      <tbody>
+{ttc_rows or '        <tr><td colspan="4">(not enabled)</td></tr>'}
       </tbody>
     </table>
   </body>
@@ -279,6 +313,29 @@ def main() -> None:
         diffusion_model = make_diffusion(cfg)
         diffusion_model.load_state_dict(torch.load(args.diffusion, map_location="cpu"))
 
+    reward_model = None
+    ttc_runtime_cfg = None
+    ttc_cfg = cfg.get("ttc")
+    if ttc_cfg and ttc_cfg.get("enabled"):
+        device = torch.device(args.device)
+        reward_model = build_reward_model_from_config(ttc_cfg, cfg.get("latent", {}).get("dim", 32), device).to(device)
+        sampler_cfg = ttc_cfg.get("sampler", {})
+        tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
+        ttc_runtime_cfg = TTCConfig(
+            steps=ttc_cfg.get("steps", 1),
+            dt=ttc_cfg.get("dt", cfg.get("training", {}).get("dt", 0.1)),
+            candidates=ttc_cfg.get("candidates", 4),
+            beam_width=ttc_cfg.get("beam_width", ttc_cfg.get("beam", 1)),
+            horizon=ttc_cfg.get("horizon", 1),
+            tau_range=(float(tau_range[0]), float(tau_range[1])),
+            noise_std=float(sampler_cfg.get("noise_std", 0.0)),
+            residual_threshold=ttc_cfg.get("residual_threshold"),
+            max_evaluations=ttc_cfg.get("max_evaluations"),
+            early_stop_margin=ttc_cfg.get("early_stop_margin"),
+            gamma=float(ttc_cfg.get("gamma", 1.0)),
+            device=device,
+        )
+
     result = evaluate_latent_operator(
         cfg,
         operator,
@@ -286,6 +343,8 @@ def main() -> None:
         tau=args.tau,
         device=args.device,
         return_details=True,
+        ttc_config=ttc_runtime_cfg,
+        reward_model=reward_model,
     )
     report, details = result  # type: ignore[misc]
 
