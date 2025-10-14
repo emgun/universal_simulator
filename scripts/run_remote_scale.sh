@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Be forgiving on unset variables to allow running without full env (e.g., smoke tests)
+set -eo pipefail
 
 # Remote launcher for scale-quality training + TTC evaluation on remote GPU instances.
 # Example:
@@ -9,11 +10,23 @@ set -euo pipefail
 #   WANDB_API_KEY=... \
 #   bash scripts/run_remote_scale.sh
 
-: "${WANDB_PROJECT:?Set WANDB_PROJECT}"
-: "${WANDB_ENTITY:=}"
-: "${WANDB_DATASETS:?Set WANDB_DATASETS (e.g. 'burgers1d_subset_v1')}"
+# Optional environment configuration (defaults when missing)
+WANDB_PROJECT="${WANDB_PROJECT:-}"
+WANDB_ENTITY="${WANDB_ENTITY:-}"
+WANDB_DATASETS="${WANDB_DATASETS:-}"
 
-TRAIN_CONFIG=${TRAIN_CONFIG:-configs/train_burgers_quality_fullstack.yaml}
+# Enable W&B online mode only if we have a project and login key
+if [ -n "${WANDB_API_KEY:-}" ]; then
+  # Non-interactive login; ignore errors in CI-like contexts
+  if command -v wandb >/dev/null 2>&1; then
+    wandb login --relogin "$WANDB_API_KEY" >/dev/null 2>&1 || true
+    wandb online >/dev/null 2>&1 || true
+  fi
+else
+  export WANDB_MODE="offline"
+fi
+
+TRAIN_CONFIG=${TRAIN_CONFIG:-configs/train_burgers_quality_v2.yaml}
 TRAIN_STAGE=${TRAIN_STAGE:-all}
 TRAIN_EXTRA_ARGS=${TRAIN_EXTRA_ARGS:-}
 EVAL_CONFIG=${EVAL_CONFIG:-configs/eval_pdebench_scale_ttc.yaml}
@@ -23,7 +36,12 @@ RESET_CACHE=${RESET_CACHE:-1}
 LATENT_CACHE_DIR=${LATENT_CACHE_DIR:-data/latent_cache}
 
 WORKDIR=${WORKDIR:-$PWD}
-DATA_ROOT=${DATA_ROOT:-$WORKDIR/data/pdebench}
+# Respect explicit PDEBENCH_ROOT when provided; otherwise default under workdir
+if [ -n "${PDEBENCH_ROOT:-}" ]; then
+  DATA_ROOT="$PDEBENCH_ROOT"
+else
+  DATA_ROOT=${DATA_ROOT:-$WORKDIR/data/pdebench}
+fi
 mkdir -p "$DATA_ROOT"
 
 # Preflight: ensure we have at least ~5GB free for hydration + caches
@@ -34,13 +52,18 @@ if [ "$AVAIL_GB" -lt "$REQUIRED_GB" ]; then
   exit 1
 fi
 
-IFS=', ' read -r -a DATASET_ARRAY <<< "$WANDB_DATASETS"
-# Prefer Backblaze B2 streaming if credentials are present; otherwise fall back to W&B artifacts
-if [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_BUCKET:-}" ]; then
-  echo "Using Backblaze B2 for dataset hydration via rclone streaming…"
-  CLEAN_OLD_SPLITS=1 scripts/fetch_datasets_b2.sh "${DATASET_ARRAY[@]}"
+# Hydration: if WANDB_DATASETS set, hydrate; otherwise skip and rely on existing files under DATA_ROOT
+if [ -n "$WANDB_DATASETS" ]; then
+  IFS=', ' read -r -a DATASET_ARRAY <<< "$WANDB_DATASETS"
+  # Prefer Backblaze B2 streaming if credentials are present; otherwise fall back to W&B artifacts
+  if [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_BUCKET:-}" ]; then
+    echo "Using Backblaze B2 for dataset hydration via rclone streaming…"
+    CLEAN_OLD_SPLITS=1 scripts/fetch_datasets_b2.sh "${DATASET_ARRAY[@]}"
+  else
+    PYTHONPATH=src python scripts/fetch_datasets.py "${DATASET_ARRAY[@]}" --root "$DATA_ROOT" --cache "$WORKDIR/artifacts/cache" --project "${WANDB_PROJECT}" ${WANDB_ENTITY:+--entity "$WANDB_ENTITY"}
+  fi
 else
-  PYTHONPATH=src python scripts/fetch_datasets.py "${DATASET_ARRAY[@]}" --root "$DATA_ROOT" --cache "$WORKDIR/artifacts/cache" --project "${WANDB_PROJECT}" ${WANDB_ENTITY:+--entity "$WANDB_ENTITY"}
+  echo "Skipping dataset hydration (WANDB_DATASETS unset); expecting datasets under $DATA_ROOT"
 fi
 
 export PDEBENCH_ROOT="$DATA_ROOT"
@@ -60,8 +83,104 @@ if [ "$RESET_CACHE" -eq 1 ]; then
   mkdir -p "$LATENT_CACHE_DIR" checkpoints/scale
 fi
 
-echo "Running training with config: $TRAIN_CONFIG (stage=$TRAIN_STAGE)"
-PYTHONPATH=src python scripts/train.py --config "$TRAIN_CONFIG" --stage "$TRAIN_STAGE" $TRAIN_EXTRA_ARGS
+# Sanitize TRAIN_CONFIG if it was accidentally concatenated with overrides
+if [ ! -f "$TRAIN_CONFIG" ] && [[ "$TRAIN_CONFIG" == *,* ]]; then
+  TRAIN_CONFIG="${TRAIN_CONFIG%%,*}"
+fi
+
+# Skip training if EVAL_ONLY=1
+if [ "${EVAL_ONLY:-0}" -eq 0 ]; then
+  if [ "${PRECOMPUTE_LATENT:-1}" -eq 1 ]; then
+    echo "Precomputing latent caches (train/val/test)…"
+    PYTHONPATH=src python scripts/precompute_latent_cache.py \
+      --config "${TRAIN_CONFIG}" \
+      --tasks burgers1d \
+      --splits train val test \
+      --root "${PDEBENCH_ROOT:-$DATA_ROOT}" \
+      --cache-dir "${LATENT_CACHE_DIR}" \
+      --device cuda \
+      --num-workers ${PRECOMPUTE_WORKERS:-0} \
+      --batch-size 4 || true
+  fi
+
+  echo "Running training with config: $TRAIN_CONFIG (stage=$TRAIN_STAGE)"
+  PYTHONPATH=src python scripts/train.py --config "$TRAIN_CONFIG" --stage "$TRAIN_STAGE" $TRAIN_EXTRA_ARGS
+
+  # Ensure scale checkpoint paths exist even when training wrote root-level files
+  mkdir -p checkpoints/scale
+  if [ ! -f checkpoints/scale/operator.pt ] && [ -f checkpoints/operator.pt ]; then
+    cp -f checkpoints/operator.pt checkpoints/scale/operator.pt
+  fi
+  if [ ! -f checkpoints/scale/operator_ema.pt ] && [ -f checkpoints/operator_ema.pt ]; then
+    cp -f checkpoints/operator_ema.pt checkpoints/scale/operator_ema.pt
+  fi
+  if [ ! -f checkpoints/scale/diffusion_residual.pt ] && [ -f checkpoints/diffusion_residual.pt ]; then
+    cp -f checkpoints/diffusion_residual.pt checkpoints/scale/diffusion_residual.pt
+  fi
+  if [ ! -f checkpoints/scale/diffusion_residual_ema.pt ] && [ -f checkpoints/diffusion_residual_ema.pt ]; then
+    cp -f checkpoints/diffusion_residual_ema.pt checkpoints/scale/diffusion_residual_ema.pt
+  fi
+else
+  echo "EVAL_ONLY mode: Skipping training, downloading checkpoints from W&B..."
+  mkdir -p checkpoints/scale
+
+  # Download most recent checkpoints from W&B
+  PYTHONPATH=src python -c "
+import wandb
+import sys
+import os
+api = wandb.Api()
+try:
+    # Try to find most recent training run with checkpoints
+    runs = api.runs('${WANDB_ENTITY}/${WANDB_PROJECT}',
+                    filters={'\$or': [
+                        {'tags': {'\$in': ['training', 'quality', 'burgers1d']}},
+                        {'jobType': 'training'}
+                    ]},
+                    order='-created_at')
+
+    checkpoint_dir = 'checkpoints/scale'
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    for run in runs[:10]:  # Check last 10 training runs
+        print(f'Checking run: {run.id} ({run.name})', file=sys.stderr)
+        files = [f.name for f in run.files()]
+
+        # Look for operator and diffusion checkpoints
+        has_operator = any('operator' in f and f.endswith('.pt') for f in files)
+        has_diffusion = any('diffusion_residual' in f and f.endswith('.pt') for f in files)
+
+        if has_operator and has_diffusion:
+            print(f'✓ Found checkpoints in run: {run.id} ({run.name})', file=sys.stderr)
+            downloaded = []
+            for f in run.files():
+                if f.name.endswith('.pt') and ('operator' in f.name or 'diffusion_residual' in f.name):
+                    # Handle nested paths - extract just the filename
+                    import os.path
+                    basename = os.path.basename(f.name)
+                    dest_path = os.path.join(checkpoint_dir, basename)
+                    print(f'  Downloading {f.name} -> {dest_path}', file=sys.stderr)
+                    f.download(root=checkpoint_dir, replace=True)
+                    # Move to correct location if downloaded to nested path
+                    src = os.path.join(checkpoint_dir, f.name)
+                    if src != dest_path and os.path.exists(src):
+                        os.rename(src, dest_path)
+                    downloaded.append(basename)
+            print(f'✓ Downloaded: {downloaded}', file=sys.stderr)
+            sys.exit(0)
+
+    print('⚠️  No recent runs found with checkpoints', file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f'Error downloading checkpoints: {e}', file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
+" || {
+    echo "Failed to download checkpoints from W&B. Exiting."
+    exit 1
+  }
+fi
 
 OP_CKPT=checkpoints/scale/operator_ema.pt
 [[ -f "$OP_CKPT" ]] || OP_CKPT=checkpoints/scale/operator.pt
