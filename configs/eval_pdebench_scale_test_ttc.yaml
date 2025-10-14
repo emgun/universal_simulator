@@ -1,0 +1,13 @@
+include: eval_pdebench_scale_ttc.yaml
+
+data:
+  split: test
+
+logging:
+  wandb:
+    run_name: burgers1d-eval-scale-ttc-${data.split}
+
+
+
+
+

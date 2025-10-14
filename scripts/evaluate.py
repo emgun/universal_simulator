@@ -33,9 +33,40 @@ except RuntimeError:
     pass
 
 
+def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to_strip: str = "_orig_mod.") -> None:
+    """Load a checkpoint while stripping an optional prefix from keys (e.g., from torch.compile()).
+
+    This makes loading robust across compiled/non-compiled training runs.
+    """
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    if isinstance(ckpt, dict) and "state_dict" in ckpt:
+        state_dict = ckpt["state_dict"]
+    elif isinstance(ckpt, dict):
+        state_dict = ckpt
+    else:
+        raise RuntimeError(f"Unsupported checkpoint format at {ckpt_path}: {type(ckpt)}")
+
+    if prefix_to_strip:
+        fixed = {}
+        for k, v in state_dict.items():
+            if k.startswith(prefix_to_strip):
+                fixed[k[len(prefix_to_strip) :]] = v
+            else:
+                fixed[k] = v
+        state_dict = fixed
+
+    model.load_state_dict(state_dict)
+
+
 def load_config(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as fh:
-        return yaml.safe_load(fh) or {}
+    """Load config with support for include directives."""
+    try:
+        from ups.utils.config_loader import load_config_with_includes
+        return load_config_with_includes(path)
+    except ImportError:
+        # Fallback to basic loading if config_loader not available
+        with open(path, "r", encoding="utf-8") as fh:
+            return yaml.safe_load(fh) or {}
 
 
 def make_operator(cfg: Dict[str, Any]) -> LatentOperator:
@@ -306,12 +337,12 @@ def main() -> None:
     cfg = load_config(args.config)
 
     operator = make_operator(cfg)
-    operator.load_state_dict(torch.load(args.operator, map_location="cpu"))
+    _load_state_dict_compat(operator, args.operator)
 
     diffusion_model = None
     if args.diffusion:
         diffusion_model = make_diffusion(cfg)
-        diffusion_model.load_state_dict(torch.load(args.diffusion, map_location="cpu"))
+        _load_state_dict_compat(diffusion_model, args.diffusion)
 
     reward_model = None
     ttc_runtime_cfg = None

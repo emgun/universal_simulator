@@ -102,8 +102,8 @@ def main():
     parser.add_argument("--operator-artifact", help="Operator artifact path (e.g., run-xxx-history:v0)")
     parser.add_argument("--diffusion-artifact", help="Diffusion artifact path (e.g., run-xxx-history:v0)")
     parser.add_argument("--consistency-artifact", help="Consistency/distill artifact path (e.g., run-xxx-history:v0)")
-    parser.add_argument("--operator-run", help="Operator run ID (alternative to artifact)")
-    parser.add_argument("--diffusion-run", help="Diffusion run ID (alternative to artifact)")
+    parser.add_argument("--operator-run", default="pru2jxc4", help="Operator run ID (default: pru2jxc4 - 512dim quality)")
+    parser.add_argument("--diffusion-run", default="pp0c2k31", help="Diffusion run ID (default: pp0c2k31 - diffusion residual)")
 
     args = parser.parse_args()
 
