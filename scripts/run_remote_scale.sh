@@ -124,60 +124,25 @@ else
   echo "EVAL_ONLY mode: Skipping training, downloading checkpoints from W&B..."
   mkdir -p checkpoints/scale
 
-  # Download most recent checkpoints from W&B
-  PYTHONPATH=src python -c "
-import wandb
-import sys
-import os
-api = wandb.Api()
-try:
-    # Try to find most recent training run with checkpoints
-    runs = api.runs('${WANDB_ENTITY}/${WANDB_PROJECT}',
-                    filters={'\$or': [
-                        {'tags': {'\$in': ['training', 'quality', 'burgers1d']}},
-                        {'jobType': 'training'}
-                    ]},
-                    order='-created_at')
+  # Download checkpoints from W&B artifacts
+  # Use explicit artifact paths if provided, otherwise try to auto-discover
+  OPERATOR_ARTIFACT="${OPERATOR_ARTIFACT:-run-mt7rckc8-history:v0}"
+  DIFFUSION_ARTIFACT="${DIFFUSION_ARTIFACT:-run-pp0c2k31-history:v0}"
+  CONSISTENCY_ARTIFACT="${CONSISTENCY_ARTIFACT:-run-n932efgl-history:v0}"
 
-    checkpoint_dir = 'checkpoints/scale'
-    os.makedirs(checkpoint_dir, exist_ok=True)
+  echo "Downloading checkpoints from W&B artifacts..."
+  echo "  Operator: ${OPERATOR_ARTIFACT}"
+  echo "  Diffusion: ${DIFFUSION_ARTIFACT}"
+  echo "  Consistency: ${CONSISTENCY_ARTIFACT}"
 
-    for run in runs[:10]:  # Check last 10 training runs
-        print(f'Checking run: {run.id} ({run.name})', file=sys.stderr)
-        files = [f.name for f in run.files()]
-
-        # Look for operator and diffusion checkpoints
-        has_operator = any('operator' in f and f.endswith('.pt') for f in files)
-        has_diffusion = any('diffusion_residual' in f and f.endswith('.pt') for f in files)
-
-        if has_operator and has_diffusion:
-            print(f'✓ Found checkpoints in run: {run.id} ({run.name})', file=sys.stderr)
-            downloaded = []
-            for f in run.files():
-                if f.name.endswith('.pt') and ('operator' in f.name or 'diffusion_residual' in f.name):
-                    # Handle nested paths - extract just the filename
-                    import os.path
-                    basename = os.path.basename(f.name)
-                    dest_path = os.path.join(checkpoint_dir, basename)
-                    print(f'  Downloading {f.name} -> {dest_path}', file=sys.stderr)
-                    f.download(root=checkpoint_dir, replace=True)
-                    # Move to correct location if downloaded to nested path
-                    src = os.path.join(checkpoint_dir, f.name)
-                    if src != dest_path and os.path.exists(src):
-                        os.rename(src, dest_path)
-                    downloaded.append(basename)
-            print(f'✓ Downloaded: {downloaded}', file=sys.stderr)
-            sys.exit(0)
-
-    print('⚠️  No recent runs found with checkpoints', file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'Error downloading checkpoints: {e}', file=sys.stderr)
-    import traceback
-    traceback.print_exc(file=sys.stderr)
-    sys.exit(1)
-" || {
-    echo "Failed to download checkpoints from W&B. Exiting."
+  PYTHONPATH=src python scripts/download_checkpoints_from_wandb.py \
+    --dest checkpoints/scale \
+    --entity "${WANDB_ENTITY}" \
+    --project "${WANDB_PROJECT}" \
+    --operator-artifact "${OPERATOR_ARTIFACT}" \
+    --diffusion-artifact "${DIFFUSION_ARTIFACT}" \
+    --consistency-artifact "${CONSISTENCY_ARTIFACT}" || {
+    echo "Failed to download checkpoints from W&B artifacts. Exiting."
     exit 1
   }
 fi
