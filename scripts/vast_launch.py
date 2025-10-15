@@ -68,6 +68,7 @@ def ensure_onstart(
         "command -v git >/dev/null 2>&1 || (apt-get update && apt-get install -y git)",
         "command -v pip >/dev/null 2>&1 || (apt-get update && apt-get install -y python3-pip)",
         "command -v rclone >/dev/null 2>&1 || (apt-get update && apt-get install -y rclone)",
+        "command -v gcc >/dev/null 2>&1 || (apt-get update && apt-get install -y build-essential)",
         "",
         f"mkdir -p {workdir}",
         f"cd {workdir}",
