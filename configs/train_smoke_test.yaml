@@ -21,8 +21,8 @@ training:
   distill_num_taus: 3  # Reduced for speed
   compile: false     # Disable for faster startup
   latent_cache_dir: data/latent_cache_smoke
-  num_workers: 4
-  pin_memory: true
+  num_workers: 0     # Disable multiprocessing to avoid device mismatch
+  pin_memory: false  # Disable with num_workers=0
 
 stages:
   operator:
