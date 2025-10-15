@@ -1,0 +1,81 @@
+# 32-dim Burgers1D TTC evaluation config (test split)
+# Test-Time Conditioning for improved inference quality
+
+seed: 17
+precision: bf16
+
+data:
+  task: burgers1d
+  split: test
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 32
+  tokens: 16
+
+training:
+  batch_size: 16
+  dt: 0.1
+  num_workers: 0
+  pin_memory: false
+
+operator:
+  pdet:
+    input_dim: 32
+    hidden_dim: 64
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 4
+
+# TTC (Test-Time Computation) settings
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+    weights:
+      mass: 1.0
+      energy: 0.1
+      penalty_negative: 0.5
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+  decoder:
+    latent_dim: 32       # Match 32-dim latent
+    query_dim: 2
+    hidden_dim: 64       # Scaled down for 32-dim
+    mlp_hidden_dim: 64   # Scaled down for 32-dim
+    num_layers: 2
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  backend: stdout
+  level: INFO
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: ttc-eval-burgers32-test
+    group: ttc-eval-32dim
+    job_type: evaluation
+    tags: [ttc, burgers1d, 32dim, test, pru2jxc4_baseline]
+
