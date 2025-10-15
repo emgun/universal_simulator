@@ -17,6 +17,16 @@ from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 
 
+def _extract_batch(batch):
+    unpacked = unpack_batch(batch)
+    if len(unpacked) == 4:
+        z0, z1, cond, future = unpacked
+    else:
+        z0, z1, cond = unpacked
+        future = None
+    return z0, z1, cond, future
+
+
 def test_dataset_loader_encodes_pdebench_grid(tmp_path):
     # Create a minimal Burgers 1D dump with shape (samples, time, spatial)
     data = torch.randn(2, 3, 4, dtype=torch.float32)
@@ -37,11 +47,12 @@ def test_dataset_loader_encodes_pdebench_grid(tmp_path):
 
     loader = train_script.dataset_loader(cfg)
     batch = next(iter(loader))
-    z0, z1, cond = unpack_batch(batch)
+    z0, z1, cond, future = _extract_batch(batch)
 
     assert z0.shape == (4, 4, 8)
     assert z1.shape == (4, 4, 8)
     assert cond == {}
+    assert future is None
     # LatentState constructor should accept the batch without shape errors
     train_script.LatentState(z=z0, t=torch.tensor(0.0))
 
@@ -116,12 +127,13 @@ def test_dataset_loader_grid_zarr(tmp_path):
 
     loader = train_script.dataset_loader(cfg)
     batch = next(iter(loader))
-    z0, z1, cond = unpack_batch(batch)
+    z0, z1, cond, future = _extract_batch(batch)
 
     assert z0.shape == (2, 4, 6)
     assert z1.shape == (2, 4, 6)
     assert "dt" in cond and "time" in cond
     assert cond["dt"].shape[0] == z0.shape[0]
+    assert future is None
 
 
 def _make_particle_zarr(tmp_path) -> str:
@@ -174,9 +186,36 @@ def test_dataset_loader_particle_zarr(tmp_path):
 
     loader = train_script.dataset_loader(cfg)
     batch = next(iter(loader))
-    z0, z1, cond = unpack_batch(batch)
+    z0, z1, cond, future = _extract_batch(batch)
 
     assert z0.shape[0] == 2
     assert z0.shape[1:] == (3, 8)
     assert "param_radius" in cond
     assert cond["param_radius"].shape[0] == z0.shape[0]
+    assert future is None
+
+
+def test_dataset_loader_rollout_horizon_future(tmp_path):
+    data = torch.randn(2, 6, 4, dtype=torch.float32)
+    file_path = tmp_path / "burgers1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 2, "dt": 0.1, "rollout_horizon": 3},
+        "latent": {"dim": 8, "tokens": 4},
+        "data": {
+            "task": "burgers1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+        },
+    }
+
+    loader = train_script.dataset_loader(cfg)
+    batch = next(iter(loader))
+    z0, z1, cond, future = _extract_batch(batch)
+
+    assert future is not None
+    assert future.shape[1] == 2  # horizon-1
+    assert future.shape[0] == z0.shape[0]

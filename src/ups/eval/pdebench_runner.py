@@ -67,14 +67,21 @@ def evaluate_latent_operator(
     total_abs = 0.0
     total_sq = 0.0
     total_elements = 0
+    total_target_sq = 0.0  # For normalized metrics (SOTA)
+    total_target_abs = 0.0  # For normalized metrics (SOTA)
     sample_mse: list[torch.Tensor] = []
     sample_mae: list[torch.Tensor] = []
+    sample_rel_l2: list[torch.Tensor] = []  # For SOTA comparison
     preview: Dict[str, torch.Tensor] | None = None
     ttc_step_logs: List[Dict[str, Any]] = []
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, _ = unpacked
+            else:
+                z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
@@ -128,19 +135,27 @@ def evaluate_latent_operator(
             total_abs += diff.abs().sum().item()
             total_sq += diff.pow(2).sum().item()
             total_elements += diff.numel()
+
+            # For normalized metrics (SOTA comparison)
+            total_target_sq += target.pow(2).sum().item()
+            total_target_abs += target.abs().sum().item()
+
             if return_details:
                 mse_batch = diff.pow(2).mean(dim=(1, 2))
                 mae_batch = diff.abs().mean(dim=(1, 2))
                 sample_mse.append(mse_batch.detach().cpu())
                 sample_mae.append(mae_batch.detach().cpu())
+
+                # Per-sample normalized metrics for SOTA comparison
+                target_norm_batch = target.pow(2).mean(dim=(1, 2)).sqrt()
+                rel_l2_batch = mse_batch.sqrt() / (target_norm_batch + 1e-8)
+                sample_rel_l2.append(rel_l2_batch.detach().cpu())
+
                 if preview is None:
                     preview = {
                         "predicted": pred.detach().cpu()[0].clone(),
                         "target": target.detach().cpu()[0].clone(),
                     }
-                if details:
-                    sample_mse[-1] = sample_mse[-1]
-                    extra_details = details
 
     if total_elements == 0:
         raise RuntimeError("Latent evaluation received an empty dataset")
@@ -148,10 +163,18 @@ def evaluate_latent_operator(
     mse_val = total_sq / total_elements
     mae_val = total_abs / total_elements
     rmse_val = math.sqrt(mse_val)
+
+    # Normalized metrics for SOTA comparison
+    target_rms = math.sqrt(total_target_sq / total_elements)
+    nrmse_val = rmse_val / (target_rms + 1e-8)  # Normalized RMSE
+    rel_l2_val = rmse_val / (target_rms + 1e-8)  # Relative L2 (same as nRMSE for element-wise)
+
     metrics = {
         "mse": mse_val,
         "mae": mae_val,
         "rmse": rmse_val,
+        "nrmse": nrmse_val,  # For SOTA comparison
+        "rel_l2": rel_l2_val,  # For SOTA comparison
     }
     extra = {
         "samples": total_elements,
@@ -166,11 +189,14 @@ def evaluate_latent_operator(
     if sample_mse:
         mse_tensor = torch.cat(sample_mse)
         mae_tensor = torch.cat(sample_mae)
+        rel_l2_tensor = torch.cat(sample_rel_l2)
         details["per_sample_mse"] = mse_tensor.tolist()
         details["per_sample_mae"] = mae_tensor.tolist()
+        details["per_sample_rel_l2"] = rel_l2_tensor.tolist()  # SOTA comparison
     else:
         details["per_sample_mse"] = []
         details["per_sample_mae"] = []
+        details["per_sample_rel_l2"] = []
     if preview is not None:
         details["preview_predicted"] = preview.get("predicted", torch.tensor([])).tolist()
         details["preview_target"] = preview.get("target", torch.tensor([])).tolist()
@@ -198,7 +224,11 @@ def evaluate_latent_model(
 
     with torch.no_grad():
         for batch in loader:
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, _ = unpacked
+            else:
+                z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
             pred = model(z0.to(device), cond_device)
             diff = pred - z1.to(device)

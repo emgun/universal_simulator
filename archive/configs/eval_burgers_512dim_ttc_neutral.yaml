@@ -1,0 +1,72 @@
+data:
+  task: burgers1d
+  split: val
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  batch_size: 32
+  dt: 0.1
+  num_workers: 0
+  pin_memory: false
+
+operator:
+  pdet:
+    input_dim: 512
+    hidden_dim: 1024
+    depths: [1, 1, 1]
+    group_size: 256
+    num_heads: 4
+
+diffusion:
+  latent_dim: 512
+  hidden_dim: 1024
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 1  # neutral TTC (no search)
+  beam_width: 1
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 1
+  sampler:
+    tau_range: [0.5, 0.5]
+    noise_std: 0.0
+  reward:
+    grid: [64, 64]
+    mass_field: u
+    momentum_field: []
+    energy_field: null
+    weights:
+      mass: 0.0  # neutralize reward influence
+      energy: 0.0
+      penalty_negative: 0.0
+  decoder:
+    latent_dim: 512
+    query_dim: 2
+    hidden_dim: 256
+    mlp_hidden_dim: 256
+    num_layers: 2
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0]
+    output_channels:
+      u: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: burgers1d-eval-512dim-ttc-neutral
+    group: burgers1d-quality
+    job_type: evaluation
+
+
+
+
+

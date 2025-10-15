@@ -146,7 +146,7 @@ fetch_file() {
     *.tar)
       rclone cat "$remote_path" | tar -x -C "$destination" ;;
     *)
-      rclone copy "$remote_path" "$destination" ;;
+      rclone copy --copy-links "$remote_path" "$destination" ;;
   esac
 }
 
@@ -161,7 +161,7 @@ fetch_directory() {
 
   echo "Copying directory ${pretty_path} -> ${destination}"
   mkdir -p "$destination"
-  rclone copy "$remote_path" "$destination" --create-empty-src-dirs
+  rclone copy --copy-links "$remote_path" "$destination" --create-empty-src-dirs
 }
 
 download_dataset() {

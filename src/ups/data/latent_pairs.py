@@ -247,6 +247,7 @@ class LatentPair:
     z0: torch.Tensor
     z1: torch.Tensor
     cond: Dict[str, torch.Tensor]
+    future: Optional[torch.Tensor] = None
 
 
 class GridLatentPairDataset(Dataset):
@@ -264,6 +265,7 @@ class GridLatentPairDataset(Dataset):
         cache_dir: Optional[Path] = None,
         cache_dtype: Optional[torch.dtype] = torch.float16,
         time_stride: int = 1,
+        rollout_horizon: int = 1,
     ) -> None:
         super().__init__()
         self.base = base
@@ -277,6 +279,7 @@ class GridLatentPairDataset(Dataset):
             self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dtype = cache_dtype
         self.time_stride = max(1, int(time_stride))
+        self.rollout_horizon = max(1, int(rollout_horizon))
 
     def __len__(self) -> int:
         return len(self.base)
@@ -338,42 +341,57 @@ class GridLatentPairDataset(Dataset):
         if self.time_stride > 1:
             latent_seq = latent_seq[:: self.time_stride]
 
-        if latent_seq.shape[0] < 2:
-            raise ValueError("Need at least two time steps to form latent pairs")
-        pair_len = latent_seq.shape[0] - 1
-        cond = prepare_conditioning(params_cpu, bc_cpu, pair_len)
-        return LatentPair(latent_seq[:-1], latent_seq[1:], cond)
+        if latent_seq.shape[0] <= self.rollout_horizon:
+            raise ValueError("Need more time steps than rollout horizon to form latent pairs")
+
+        base_len = latent_seq.shape[0] - self.rollout_horizon
+        z0 = latent_seq[:base_len]
+        targets = []
+        for step in range(1, self.rollout_horizon + 1):
+            targets.append(latent_seq[step : step + base_len])
+        target_stack = torch.stack(targets, dim=1)
+        z1 = target_stack[:, 0]
+        future = target_stack[:, 1:] if self.rollout_horizon > 1 else None
+        cond = prepare_conditioning(params_cpu, bc_cpu, base_len)
+        return LatentPair(z0, z1, cond, future=future)
 
 
 class GridZarrLatentPairDataset(Dataset):
     """Encode consecutive time steps from a GridZarrDataset into latent pairs."""
 
-    def __init__(self, base: GridZarrDataset, encoder: GridEncoder) -> None:
+    def __init__(self, base: GridZarrDataset, encoder: GridEncoder, rollout_horizon: int = 1) -> None:
         super().__init__()
         self.base = base
         self.encoder = encoder
         params = list(encoder.parameters())
         self.device = params[0].device if params else torch.device("cpu")
+        self.rollout_horizon = max(1, int(rollout_horizon))
 
     def __len__(self) -> int:
-        return max(len(self.base) - 1, 0)
+        return max(len(self.base) - self.rollout_horizon, 0)
 
     def __getitem__(self, idx: int) -> LatentPair:
         if idx < 0 or idx >= len(self):
             raise IndexError(idx)
-        sample0 = self.base[idx]
-        sample1 = self.base[idx + 1]
+        latents = []
+        samples = []
+        for step in range(self.rollout_horizon + 1):
+            sample = self.base[idx + step]
+            samples.append(sample)
+            latents.append(_encode_grid_sample(self.encoder, sample, self.device).squeeze(0))
 
-        latent0 = _encode_grid_sample(self.encoder, sample0, self.device).unsqueeze(0)
-        latent1 = _encode_grid_sample(self.encoder, sample1, self.device).unsqueeze(0)
+        latent_stack = torch.stack(latents, dim=0)
         cond = prepare_conditioning(
-            sample0.get("params"),
-            sample0.get("bc"),
+            samples[0].get("params"),
+            samples[0].get("bc"),
             1,
-            time=sample0.get("time"),
-            dt=sample0.get("dt"),
+            time=samples[0].get("time"),
+            dt=samples[0].get("dt"),
         )
-        return LatentPair(latent0, latent1, cond)
+        z0 = latent_stack[0].unsqueeze(0)
+        z1 = latent_stack[1].unsqueeze(0)
+        future = latent_stack[2:].unsqueeze(0) if self.rollout_horizon > 1 else None
+        return LatentPair(z0, z1, cond, future=future)
 
 
 def _graph_coords_at_time(
@@ -398,13 +416,20 @@ def _graph_coords_at_time(
 class GraphLatentPairDataset(Dataset):
     """Encode mesh or particle samples into latent time-step pairs."""
 
-    def __init__(self, base: Dataset, encoder: MeshParticleEncoder, kind: str = "mesh") -> None:
+    def __init__(
+        self,
+        base: Dataset,
+        encoder: MeshParticleEncoder,
+        kind: str = "mesh",
+        rollout_horizon: int = 1,
+    ) -> None:
         super().__init__()
         self.base = base
         self.encoder = encoder
         self.kind = kind
         params = list(encoder.parameters())
         self.device = params[0].device if params else torch.device("cpu")
+        self.rollout_horizon = max(1, int(rollout_horizon))
 
     def __len__(self) -> int:
         return len(self.base)
@@ -428,8 +453,8 @@ class GraphLatentPairDataset(Dataset):
                 raise ValueError("All fields must share the same time dimension")
             step_fields[name] = tensor.float().to(self.device, non_blocking=True)
 
-        if time_dim is None or time_dim < 2:
-            raise ValueError("Need at least two time steps to form latent pairs")
+        if time_dim is None or time_dim <= self.rollout_horizon:
+            raise ValueError("Need more time steps than rollout horizon to form latent pairs")
 
         latents: List[torch.Tensor] = []
         for step in range(time_dim):
@@ -444,27 +469,44 @@ class GraphLatentPairDataset(Dataset):
             latents.append(latent_step.squeeze(0).cpu())
 
         latent_seq = torch.stack(latents, dim=0)
+        base_len = time_dim - self.rollout_horizon
         cond = prepare_conditioning(
             sample.get("params"),
             sample.get("bc"),
-            time_dim - 1,
+            base_len,
             time=sample.get("time"),
             dt=sample.get("dt"),
         )
-        return LatentPair(latent_seq[:-1], latent_seq[1:], cond)
+        z0 = latent_seq[:base_len]
+        targets = []
+        for step in range(1, self.rollout_horizon + 1):
+            targets.append(latent_seq[step : step + base_len])
+        target_stack = torch.stack(targets, dim=1)
+        z1 = target_stack[:, 0]
+        future = target_stack[:, 1:] if self.rollout_horizon > 1 else None
+        return LatentPair(z0, z1, cond, future=future)
 
 
 def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
     z0_chunks = []
     z1_chunks = []
     cond_list = []
+    future_chunks: List[torch.Tensor] = []
+    future_available = True
     for item in batch_items:
         z0_chunks.append(item.z0)
         z1_chunks.append(item.z1)
         cond_list.append(item.cond)
+        if item.future is None:
+            future_available = False
+        else:
+            future_chunks.append(item.future)
     z0 = torch.cat(z0_chunks, dim=0)
     z1 = torch.cat(z1_chunks, dim=0)
     cond = collate_conditions(cond_list)
+    if future_available and future_chunks:
+        future = torch.cat(future_chunks, dim=0)
+        return z0, z1, cond, future
     return z0, z1, cond
 
 
@@ -505,6 +547,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     cache_dtype = getattr(torch, cache_dtype_str) if cache_dtype_str and hasattr(torch, cache_dtype_str) else None
     split_name = data_cfg.get("split", "train")
     time_stride = int(train_cfg.get("time_stride", 1))
+    rollout_horizon = max(1, int(train_cfg.get("rollout_horizon", 1)))
 
     loader_kwargs: Dict[str, Any] = {
         "batch_size": batch,
@@ -540,6 +583,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                     cache_dir=ds_cache,
                     cache_dtype=cache_dtype,
                     time_stride=time_stride,
+                    rollout_horizon=rollout_horizon,
                 )
                 datasets.append(latent_ds)
             mixed = ConcatDataset(datasets)
@@ -561,6 +605,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 cache_dir=ds_cache,
                 cache_dtype=cache_dtype,
                 time_stride=time_stride,
+                rollout_horizon=rollout_horizon,
             )
             return DataLoader(latent_dataset, **loader_kwargs)
 
@@ -578,7 +623,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
             field_channels=field_channels,
         )
         grid_encoder = GridEncoder(encoder_cfg).eval().to(device)
-        latent_dataset = GridZarrLatentPairDataset(dataset, grid_encoder)
+        latent_dataset = GridZarrLatentPairDataset(dataset, grid_encoder, rollout_horizon=rollout_horizon)
         return DataLoader(latent_dataset, **loader_kwargs)
 
     if kind in {"mesh", "particles"}:
@@ -608,17 +653,21 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
             use_coords=data_cfg.get("use_coords", True),
         )
         graph_encoder = MeshParticleEncoder(encoder_cfg).eval().to(device)
-        latent_dataset = GraphLatentPairDataset(base_dataset, graph_encoder, kind=kind)
+        latent_dataset = GraphLatentPairDataset(base_dataset, graph_encoder, kind=kind, rollout_horizon=rollout_horizon)
         return DataLoader(latent_dataset, **loader_kwargs)
 
     raise ValueError("Data configuration must specify either 'task' or 'kind'")
 
 
-def unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
-    if isinstance(batch, (list, tuple)) and len(batch) == 3 and isinstance(batch[2], dict):
-        z0, z1, cond = batch
-        return z0, z1, cond
-    if isinstance(batch, (list, tuple)) and len(batch) == 2:
-        z0, z1 = batch
-        return z0, z1, {}
+def unpack_batch(batch):
+    if isinstance(batch, (list, tuple)):
+        if len(batch) == 4 and isinstance(batch[2], dict):
+            z0, z1, cond, future = batch
+            return z0, z1, cond, future
+        if len(batch) == 3 and isinstance(batch[2], dict):
+            z0, z1, cond = batch
+            return z0, z1, cond
+        if len(batch) == 2:
+            z0, z1 = batch
+            return z0, z1, {}
     raise ValueError("Unexpected batch structure returned by DataLoader")

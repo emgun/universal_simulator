@@ -60,13 +60,14 @@ class PDEBenchDataset(Dataset):
             self.params = tensor_data.get("params")
             self.bc = tensor_data.get("bc")
         else:
-            if cfg.root is None:
-                # Allow environment override for convenience in remote runs
-                env_root = os.environ.get("PDEBENCH_ROOT")
-                if env_root:
-                    cfg.root = env_root
-                else:
-                    raise ValueError("Either tensor_data or cfg.root must be provided")
+            # Allow environment override for convenience in remote runs.
+            # If PDEBENCH_ROOT is set, it takes precedence over cfg.root to
+            # avoid brittle symlink requirements on remote instances.
+            env_root = os.environ.get("PDEBENCH_ROOT")
+            if env_root:
+                cfg.root = env_root
+            elif cfg.root is None:
+                raise ValueError("Either tensor_data or cfg.root must be provided")
             spec = TASK_SPECS.get(cfg.task)
             if spec is None:
                 raise KeyError(f"Unknown PDEBench task '{cfg.task}'")

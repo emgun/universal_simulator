@@ -3,6 +3,7 @@ from __future__ import annotations
 """Lightweight monitoring helpers with optional Weights & Biases hooks."""
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -60,15 +61,20 @@ def init_monitoring_session(
         run_name_cfg = wandb_cfg.get("run_name")
         run_name = f"{component}-{run_name_cfg}" if run_name_cfg else component
         tags = wandb_cfg.get("tags")
-        run = wandb.init(
-            project=wandb_cfg.get("project", "universal-simulator"),
-            name=run_name,
-            config=cfg,
-            reinit=True,
-            tags=tags,
-            group=wandb_cfg.get("group"),
-            job_type=wandb_cfg.get("job_type"),
-        )
+        try:
+            run = wandb.init(
+                project=wandb_cfg.get("project", "universal-simulator"),
+                name=run_name,
+                config=cfg,
+                reinit=True,
+                tags=tags,
+                group=wandb_cfg.get("group"),
+                job_type=wandb_cfg.get("job_type"),
+                mode=os.environ.get("WANDB_MODE"),
+            )
+        except Exception:
+            # Proceed without W&B when login or network is unavailable
+            run = None
 
     path = Path(file_path) if file_path else None
     return MonitoringSession(path, run, component)

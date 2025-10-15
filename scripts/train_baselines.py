@@ -103,7 +103,11 @@ def _evaluate_split(model: torch.nn.Module, cfg: Dict, split: str) -> Dict[str, 
     total = 0
     with torch.no_grad():
         for batch in loader:
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, _ = unpacked
+            else:
+                z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
             pred = model(z0.to(device), cond_device)
             diff = pred - z1.to(device)
@@ -158,7 +162,11 @@ def train_baseline(cfg: Dict, baseline_name: str) -> Path:
         epoch_loss = 0.0
         batches = 0
         for batch in loader:
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, _ = unpacked
+            else:
+                z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
             z0 = z0.to(device)
             target = z1.to(device)

@@ -25,3 +25,14 @@ checkpoints/
 # IDE
 .idea/
 .vscode/
+
+# Temp/debug files
+*.log
+.smoke_tmp/
+remote_consistency_run/
+VAST_INSTANCE_*.md
+eval_*.log
+launch*.log
+monitor.log
+fetch_*.log
+resume.log

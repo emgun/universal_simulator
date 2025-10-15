@@ -282,6 +282,19 @@ def _get_patience(cfg: dict, stage: str) -> Optional[int]:
     return training_cfg.get("patience")
 
 
+def _sample_tau(batch_size: int, device: torch.device, cfg: Dict) -> torch.Tensor:
+    dist_cfg = cfg.get("training", {}).get("tau_distribution")
+    if dist_cfg:
+        dist_type = str(dist_cfg.get("type", "")).lower()
+        if dist_type == "beta":
+            alpha = float(dist_cfg.get("alpha", 1.0))
+            beta = float(dist_cfg.get("beta", 1.0))
+            beta_dist = torch.distributions.Beta(alpha, beta)
+            samples = beta_dist.sample((batch_size,))
+            return samples.to(device=device)
+    return torch.rand(batch_size, device=device)
+
+
 def _should_stop(patience: Optional[int], epochs_since_improve: int) -> bool:
     if patience is None:
         return False
@@ -327,6 +340,7 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
+    lam_rollout = float(cfg.get("training", {}).get("lambda_rollout", 0.0) or 0.0)
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -336,7 +350,12 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         num_batches = len(loader)
         optimizer.zero_grad(set_to_none=True)
         for i, batch in enumerate(loader):
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, future = unpacked
+            else:
+                z0, z1, cond = unpacked
+                future = None
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
@@ -350,6 +369,17 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     if lam_rel > 0.0:
                         extra = extra + lam_rel * _nrmse(next_state.z, target)
                     loss = base + extra
+                    if lam_rollout > 0.0 and future is not None and future.numel() > 0:
+                        rollout_targets = future.to(device)
+                        rollout_state = next_state
+                        rollout_loss = 0.0
+                        steps = rollout_targets.shape[1]
+                        for step in range(steps):
+                            rollout_state = operator(rollout_state, dt_tensor)
+                            target_step = rollout_targets[:, step]
+                            rollout_loss = rollout_loss + F.mse_loss(rollout_state.z, target_step)
+                        rollout_loss = rollout_loss / max(steps, 1)
+                        loss = loss + lam_rollout * rollout_loss
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
@@ -492,7 +522,11 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         optimizer.zero_grad(set_to_none=True)
         num_batches = len(loader)
         for i, batch in enumerate(loader):
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, _ = unpacked
+            else:
+                z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
@@ -508,7 +542,7 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 raise
             residual_target = target - predicted.z
             # Sample per-sample tau in (0,1) to broaden supervision
-            tau_tensor = torch.rand(z0.size(0), device=device)
+            tau_tensor = _sample_tau(z0.size(0), device, cfg)
             try:
                 with autocast(enabled=use_amp):
                     drift = diff(predicted, tau_tensor)
@@ -694,7 +728,11 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         batches = 0
         
         for batch in loader:
-            z0, _, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, _, cond, _ = unpacked
+            else:
+                z0, _, cond = unpacked
             batch_size = z0.shape[0]
             micro = distill_micro or batch_size
             optimizer.zero_grad(set_to_none=True)
@@ -719,7 +757,8 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                         k: v.repeat_interleave(num_taus, dim=0)
                         for k, v in teacher_state.cond.items()
                     }
-                    tau_flat = torch.rand(num_taus, device=device).repeat(Bc)
+                    tau_seed = _sample_tau(num_taus, device, cfg)
+                    tau_flat = tau_seed.repeat(Bc)
                     tau_flat = tau_flat.to(z_tiled.dtype)
                     tiled_state = LatentState(z=z_tiled, t=teacher_state.t, cond=cond_tiled)
                     with autocast(enabled=use_amp):
@@ -845,7 +884,11 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
         optimizer.zero_grad(set_to_none=True)
         num_batches = len(loader)
         for i, batch in enumerate(loader):
-            z0, z1, cond = unpack_batch(batch)
+            unpacked = unpack_batch(batch)
+            if len(unpacked) == 4:
+                z0, z1, cond, _ = unpacked
+            else:
+                z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             refined = prior(state)
@@ -936,7 +979,6 @@ def train_all_stages(cfg: dict) -> None:
             wandb.define_metric("steady_prior/*", step_metric="global_step")
             
             # Log system info
-            import torch
             if torch.cuda.is_available():
                 gpu_info = {
                     "gpu_name": torch.cuda.get_device_name(0),

@@ -46,7 +46,7 @@ LatentState z_t --(K stochastic proposals)--> {ẑ_{t+1}^k}
 1) TTC Orchestrator (new)
 - File: `src/ups/inference/rollout_ttc.py`
 - API:
-  - `@dataclass TTCConfig { steps:int, dt:float, K:int=4, beam:int=1, horizon:int=1, device: str|torch.device="cpu", reward: dict, sampler: dict, budget: dict }`
+- `@dataclass TTCConfig { steps:int, dt:float, candidates:int=4, beam_width:int=1, horizon:int=1, device: str|torch.device="cpu", reward: dict, sampler: dict, budget: dict }`
   - `ttc_rollout(initial: LatentState, operator: LatentOperator, corrector: Optional[DiffusionResidual], decoder: Optional[AnyPointDecoder], cfg: TTCConfig, reward_model: RewardModel) -> RolloutLog`
   - Policies:
     - Best-of-N (beam=1, horizon=1)
@@ -81,7 +81,7 @@ LatentState z_t --(K stochastic proposals)--> {ẑ_{t+1}^k}
 4) Config & CLI
 - New: `configs/inference_ttc.yaml`
   - `operator, decoder, run` blocks; plus
-  - `ttc: {enabled, K, beam, horizon, dt, reward: {type: ARM|PRM, fields, weights, grid: [H,W]}, sampler: {tau, noise_std, dt_jitter}, budget: {max_prop: int, early_margin: float} }`
+- `ttc: {enabled, candidates, beam_width, horizon, dt, reward: {type: ARM|PRM, fields, weights, grid: [H,W]}, sampler: {tau, noise_std, dt_jitter}, budget: {max_prop: int, early_margin: float} }`
 - Update `scripts/infer.py` and `scripts/evaluate.py` to accept TTC config and print TTC metrics (rewards, choices).
 
 5) Logging & Metrics
@@ -94,7 +94,7 @@ M1 — MVP: ARM + Best-of-N (1–2 days)
 - Implement `AnalyticalRewardModel` with mass (generic scalar), bounds penalties.
 - Implement `ttc_rollout` (best-of-N only) and config parsing.
 - DoD:
-  - On Burgers1D and Advection1D subsets, TTC reduces rollout nRMSE ≥5% at K∈{4,8} with ≤2× inference time.
+- On Burgers1D and Advection1D subsets, TTC reduces rollout nRMSE ≥5% with candidates∈{4,8} and ≤2× inference time.
   - Unit tests for ARM shape/finite outputs and TTC selection correctness.
 
 M2 — Beam + Short-Horizon Scoring (2–3 days)
@@ -140,7 +140,7 @@ def ttc_rollout(initial, operator, corrector, decoder, cfg: TTCConfig, reward_mo
     state = initial.to(cfg.device)
     for t in range(cfg.steps):
         candidates = []
-        for k in range(cfg.K):
+        for k in range(cfg.candidates):
             proposal = operator(state, torch.tensor(cfg.dt, device=...))
             if corrector and cfg.sampler.get("use_corrector", True):
                 # stochastic corrector (random tau, noise)
@@ -155,7 +155,7 @@ def ttc_rollout(initial, operator, corrector, decoder, cfg: TTCConfig, reward_mo
 ## Data & Compute Considerations
 - Decoding cost: use coarse grid (e.g., 64×64), point subsampling, or task-specific fields.
 - Cache current u(t) decode when scoring u(t)→u(t+1).
-- Parallelize candidate scoring across K; torch.no_grad during TTC.
+- Parallelize candidate scoring across candidates; torch.no_grad during TTC.
 
 ## Testing Strategy
 - Unit tests:
@@ -190,7 +190,7 @@ operator:
 ttc:
   enabled: true
   dt: 0.1
-  K: 6
+  candidates: 6
   beam: 1
   horizon: 1
   reward:
@@ -214,6 +214,6 @@ ttc:
 
 ## Next Actions
 1) Implement M1 (ARM + Best-of-N), add config and minimal CLI support.
-2) Validate on Burgers/Advection subsets, log TTC metrics; iterate grid size / K.
+2) Validate on Burgers/Advection subsets, log TTC metrics; iterate grid size / candidates.
 3) Scope M2 beam horizon and profiling; proceed if budget-effective.
 4) Plan M3 PRM training data generation and losses.

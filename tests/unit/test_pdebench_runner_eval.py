@@ -40,6 +40,27 @@ def test_evaluate_latent_operator_runs(tmp_path):
     assert report.metrics["mse"] >= 0.0
 
 
+def test_evaluate_latent_operator_with_details(tmp_path):
+    _write_minimal_hdf5(tmp_path)
+    cfg = {
+        "training": {"batch_size": 2, "dt": 0.1},
+        "latent": {"dim": 8, "tokens": 4},
+        "data": {
+            "task": "burgers1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+        },
+    }
+
+    operator = train_script.make_operator(cfg)
+    report, details = evaluate_latent_operator(cfg, operator, return_details=True)
+
+    assert "mse" in report.metrics
+    assert "per_sample_mse" in details
+    assert isinstance(details["per_sample_mse"], list)
+
+
 def test_evaluate_cli_main(tmp_path, monkeypatch, capsys):
     _write_minimal_hdf5(tmp_path)
     cfg = {

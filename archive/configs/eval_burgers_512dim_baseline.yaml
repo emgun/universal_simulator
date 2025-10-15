@@ -1,0 +1,46 @@
+# Baseline evaluation config for 512-dim Burgers1D (NO TTC)
+# For use with operator.pt and diffusion_residual.pt checkpoints
+
+data:
+  task: burgers1d
+  split: val
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  batch_size: 32
+  dt: 0.1
+  num_workers: 0
+  pin_memory: false
+
+operator:
+  pdet:
+    input_dim: 512
+    hidden_dim: 1024
+    depths: [1, 1, 1]
+    group_size: 256
+    num_heads: 4
+
+diffusion:
+  latent_dim: 512
+  hidden_dim: 1024
+
+ttc:
+  enabled: false  # Disable TTC - conservation laws don't apply to Burgers1D
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: burgers1d-eval-512dim-baseline
+    group: burgers1d-quality
+    job_type: evaluation
+
+
+
+
+

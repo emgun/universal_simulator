@@ -45,6 +45,7 @@ def _instantiate_dataset(
     device: torch.device,
     cache_dir: Optional[Path],
     cache_dtype: Optional[torch.dtype],
+    rollout_horizon: int,
 ) -> GridLatentPairDataset:
     ds_cfg = {
         **data_cfg,
@@ -66,6 +67,7 @@ def _instantiate_dataset(
         device=device,
         cache_dir=ds_cache,
         cache_dtype=cache_dtype,
+        rollout_horizon=rollout_horizon,
     )
 
 
@@ -174,6 +176,7 @@ def main() -> None:
         device = torch.device("cpu")
 
     torch.set_grad_enabled(False)
+    rollout_horizon = max(1, int(cfg.get("training", {}).get("rollout_horizon", 1)))
 
     summary: Dict[str, Dict[str, float]] = {}
     start_time = time.time()
@@ -189,6 +192,7 @@ def main() -> None:
                 device=device,
                 cache_dir=cache_root,
                 cache_dtype=cache_dtype,
+                rollout_horizon=rollout_horizon,
             )
             total_samples = len(dataset)
             target_samples = total_samples if args.limit <= 0 else min(args.limit, total_samples)

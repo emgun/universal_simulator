@@ -182,12 +182,29 @@ class GridEncoder(nn.Module):
             coords = coords.unsqueeze(0)
         if coords.shape[0] != batch:
             raise ValueError("coords batch dimension mismatch")
-        coords = coords.view(batch, H, W, -1).permute(0, 3, 1, 2)
-        coords = self.pixel_unshuffle(coords)
-        freq = self.fourier_frequencies.view(1, -1, 1, 1)
+        coord_dim = coords.shape[-1]
+        if coord_dim == 0:
+            return torch.zeros(batch, 0, H // self.patch, W // self.patch, device=coords.device, dtype=coords.dtype)
+
+        if H % self.patch != 0 or W % self.patch != 0:
+            raise ValueError("Grid shape not divisible by patch size when computing Fourier features")
+
+        Hp = H // self.patch
+        Wp = W // self.patch
+        coords = coords.view(batch, H, W, coord_dim)
+        coords = coords.view(batch, Hp, self.patch, Wp, self.patch, coord_dim)
+        patch_centers = coords.mean(dim=(2, 4))  # (B, Hp, Wp, coord_dim)
+        patch_centers = patch_centers.permute(0, 3, 1, 2).contiguous()  # (B, coord_dim, Hp, Wp)
+
+        if self.fourier_frequencies.numel() == 0:
+            return torch.zeros(batch, 0, Hp, Wp, device=coords.device, dtype=coords.dtype)
+
+        centers = patch_centers.unsqueeze(2)  # (B, coord_dim, 1, Hp, Wp)
+        freq = self.fourier_frequencies.view(1, 1, -1, 1, 1)
         two_pi = 2.0 * torch.pi
-        sin_feat = torch.sin(two_pi * freq * coords)
-        cos_feat = torch.cos(two_pi * freq * coords)
+        angles = two_pi * centers * freq  # (B, coord_dim, F, Hp, Wp)
+        sin_feat = torch.sin(angles).reshape(batch, -1, Hp, Wp)
+        cos_feat = torch.cos(angles).reshape(batch, -1, Hp, Wp)
         return torch.cat([sin_feat, cos_feat], dim=1)
 
     def _adaptive_token_pool(self, tokens: torch.Tensor, target_len: int) -> torch.Tensor:

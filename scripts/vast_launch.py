@@ -53,7 +53,13 @@ def ensure_onstart(
     wandb_entity_export = f"export WANDB_ENTITY=\"{wandb_entity}\"" if wandb_entity else "# WANDB_ENTITY optional"
     wandb_api_key_export = f"export WANDB_API_KEY=\"{wandb_api_key}\"" if wandb_api_key else "# WANDB_API_KEY optional"
     fetch_cmd = "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi"
-    overrides_cmd = f"bash scripts/run_remote_scale.sh {overrides}" if overrides else "bash scripts/run_remote_scale.sh"
+    # If overrides provided (possibly comma-separated), convert commas to spaces so the shell sees
+    # multiple VAR=VALUE env assignments before the command.
+    if overrides:
+        safe_overrides = overrides.replace(",", " ")
+        overrides_cmd = f"env {safe_overrides} bash scripts/run_remote_scale.sh"
+    else:
+        overrides_cmd = "bash scripts/run_remote_scale.sh"
     shutdown_cmd = "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi" if auto_shutdown else ""
     lines = [
         "#!/bin/bash",
@@ -61,6 +67,7 @@ def ensure_onstart(
         "export DEBIAN_FRONTEND=noninteractive",
         "command -v git >/dev/null 2>&1 || (apt-get update && apt-get install -y git)",
         "command -v pip >/dev/null 2>&1 || (apt-get update && apt-get install -y python3-pip)",
+        "command -v rclone >/dev/null 2>&1 || (apt-get update && apt-get install -y rclone)",
         "",
         f"mkdir -p {workdir}",
         f"cd {workdir}",
@@ -84,6 +91,13 @@ def ensure_onstart(
         wandb_project_export,
         wandb_entity_export,
         wandb_api_key_export,
+        "# Load local .env if present (export all keys)",
+        "if [ -f .env ]; then",
+        "  set -a",
+        "  source .env",
+        "  set +a",
+        "fi",
+        "# Optional helper if user supplied a loader script",
         "if [ -f scripts/load_env.sh ] && [ -f .env ]; then",
         "  bash scripts/load_env.sh || true",
         "fi",
@@ -148,21 +162,34 @@ def cmd_launch(args: argparse.Namespace) -> None:
         env_parts.append(f"B2_S3_REGION={args.b2_s3_region}")
     env_str = ",".join(env_parts) if env_parts else None
 
-    cmd = [
-        "vastai",
-        "launch",
-        "instance",
-        "-g",
-        args.gpu,
-        "-n",
-        str(args.num_gpus),
-        "-i",
-        args.image,
-        "-d",
-        str(args.disk),
-    ]
-    if args.region:
-        cmd.extend(["-r", args.region])
+    # If an offer-id is provided, use it directly; otherwise filter by GPU/image/disk
+    if args.offer_id:
+        cmd = [
+            "vastai",
+            "create",
+            "instance",
+            str(args.offer_id),
+            "--image",
+            args.image,
+            "--disk",
+            str(args.disk),
+        ]
+    else:
+        cmd = [
+            "vastai",
+            "launch",
+            "instance",
+            "-g",
+            args.gpu,
+            "-n",
+            str(args.num_gpus),
+            "-i",
+            args.image,
+            "-d",
+            str(args.disk),
+        ]
+        if args.region:
+            cmd.extend(["-r", args.region])
     if env_str:
         cmd.extend(["--env", env_str])
     cmd.extend(["--ssh", "--onstart", str(onstart)])
@@ -186,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_search.set_defaults(func=cmd_search)
 
     p_launch = sub.add_parser("launch", help="Launch instance and run training on Vast")
+    p_launch.add_argument("--offer-id", help="Explicit Vast offer id to create instance from")
     p_launch.add_argument("--gpu", default="RTX_4090", help="GPU model (default RTX_4090)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
     p_launch.add_argument("--image", default="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime", help="Docker image")

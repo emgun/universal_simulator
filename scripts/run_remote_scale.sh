@@ -124,27 +124,45 @@ else
   echo "EVAL_ONLY mode: Skipping training, downloading checkpoints from W&B..."
   mkdir -p checkpoints/scale
 
-  # Download checkpoints from W&B artifacts
-  # Use explicit artifact paths if provided, otherwise try to auto-discover
-  OPERATOR_ARTIFACT="${OPERATOR_ARTIFACT:-run-mt7rckc8-history:v0}"
-  DIFFUSION_ARTIFACT="${DIFFUSION_ARTIFACT:-run-pp0c2k31-history:v0}"
-  CONSISTENCY_ARTIFACT="${CONSISTENCY_ARTIFACT:-run-n932efgl-history:v0}"
+  # Download checkpoints from W&B - prefer run IDs over artifacts
+  # Run IDs point to actual run files (more reliable)
+  # Artifacts are used as fallback
+  if [ -n "${OPERATOR_RUN:-}" ] || [ -n "${DIFFUSION_RUN:-}" ]; then
+    echo "Downloading checkpoints from W&B runs..."
+    echo "  Operator run: ${OPERATOR_RUN:-pru2jxc4}"
+    echo "  Diffusion run: ${DIFFUSION_RUN:-pp0c2k31}"
 
-  echo "Downloading checkpoints from W&B artifacts..."
-  echo "  Operator: ${OPERATOR_ARTIFACT}"
-  echo "  Diffusion: ${DIFFUSION_ARTIFACT}"
-  echo "  Consistency: ${CONSISTENCY_ARTIFACT}"
+    PYTHONPATH=src python scripts/download_checkpoints_from_wandb.py \
+      --dest checkpoints/scale \
+      --entity "${WANDB_ENTITY}" \
+      --project "${WANDB_PROJECT}" \
+      --operator-run "${OPERATOR_RUN:-pru2jxc4}" \
+      --diffusion-run "${DIFFUSION_RUN:-pp0c2k31}" || {
+      echo "Failed to download checkpoints from W&B runs. Exiting."
+      exit 1
+    }
+  else
+    # Fallback to artifacts
+    OPERATOR_ARTIFACT="${OPERATOR_ARTIFACT:-run-mt7rckc8-history:v0}"
+    DIFFUSION_ARTIFACT="${DIFFUSION_ARTIFACT:-run-pp0c2k31-history:v0}"
+    CONSISTENCY_ARTIFACT="${CONSISTENCY_ARTIFACT:-run-n932efgl-history:v0}"
 
-  PYTHONPATH=src python scripts/download_checkpoints_from_wandb.py \
-    --dest checkpoints/scale \
-    --entity "${WANDB_ENTITY}" \
-    --project "${WANDB_PROJECT}" \
-    --operator-artifact "${OPERATOR_ARTIFACT}" \
-    --diffusion-artifact "${DIFFUSION_ARTIFACT}" \
-    --consistency-artifact "${CONSISTENCY_ARTIFACT}" || {
-    echo "Failed to download checkpoints from W&B artifacts. Exiting."
-    exit 1
-  }
+    echo "Downloading checkpoints from W&B artifacts..."
+    echo "  Operator: ${OPERATOR_ARTIFACT}"
+    echo "  Diffusion: ${DIFFUSION_ARTIFACT}"
+    echo "  Consistency: ${CONSISTENCY_ARTIFACT}"
+
+    PYTHONPATH=src python scripts/download_checkpoints_from_wandb.py \
+      --dest checkpoints/scale \
+      --entity "${WANDB_ENTITY}" \
+      --project "${WANDB_PROJECT}" \
+      --operator-artifact "${OPERATOR_ARTIFACT}" \
+      --diffusion-artifact "${DIFFUSION_ARTIFACT}" \
+      --consistency-artifact "${CONSISTENCY_ARTIFACT}" || {
+      echo "Failed to download checkpoints from W&B artifacts. Exiting."
+      exit 1
+    }
+  fi
 fi
 
 OP_CKPT=checkpoints/scale/operator_ema.pt
