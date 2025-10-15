@@ -95,6 +95,7 @@ def evaluate_latent_operator(
                     horizon=ttc_config.horizon,
                     tau_range=ttc_config.tau_range,
                     noise_std=ttc_config.noise_std,
+                    noise_schedule=ttc_config.noise_schedule,
                     residual_threshold=ttc_config.residual_threshold,
                     max_evaluations=ttc_config.max_evaluations,
                     early_stop_margin=ttc_config.early_stop_margin,

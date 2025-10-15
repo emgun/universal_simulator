@@ -41,7 +41,9 @@ ttc:
   sampler:
     tau_range: [0.2, 0.8]
     noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
   reward:
+    analytical_weight: 1.0
     grid: [64, 64]
     mass_field: rho
     energy_field: e
@@ -50,6 +52,10 @@ ttc:
       mass: 1.0
       energy: 0.1
       penalty_negative: 0.5
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
   decoder:
     latent_dim: 512
     query_dim: 2

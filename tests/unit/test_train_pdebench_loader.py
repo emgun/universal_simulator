@@ -104,11 +104,12 @@ def _make_grid_zarr(tmp_path) -> str:
         [[0.0, 0.0], [0.5, 0.0], [0.0, 0.5], [0.5, 0.5]],
         dtype=np.float32,
     )
-    group.create_dataset("coords", data=coords, dtype="f4")
-    group.create_dataset("time", data=np.array([0.0, 0.1, 0.2], dtype=np.float32), dtype="f4")
+    group.create_dataset("coords", data=coords, shape=coords.shape, dtype="f4")
+    times = np.array([0.0, 0.1, 0.2], dtype=np.float32)
+    group.create_dataset("time", data=times, shape=times.shape, dtype="f4")
     fields = group.create_group("fields")
     data = np.random.randn(3, 2, 2, 1).astype(np.float32)
-    fields.create_dataset("u", data=data, dtype="f4")
+    fields.create_dataset("u", data=data, shape=data.shape, dtype="f4")
     return str(path)
 
 
@@ -147,8 +148,8 @@ def _make_particle_zarr(tmp_path) -> str:
 
     positions = np.random.randn(3, 5, 2).astype(np.float32)
     velocities = np.random.randn(3, 5, 2).astype(np.float32)
-    sample.create_dataset("positions", data=positions, dtype="f4")
-    sample.create_dataset("velocities", data=velocities, dtype="f4")
+    sample.create_dataset("positions", data=positions, shape=positions.shape, dtype="f4")
+    sample.create_dataset("velocities", data=velocities, shape=velocities.shape, dtype="f4")
 
     nbr = sample.create_group("neighbors")
     nbr.attrs["radius"] = 0.5
@@ -162,10 +163,12 @@ def _make_particle_zarr(tmp_path) -> str:
         for j in nbrs:
             if i != j:
                 edge_set.add(tuple(sorted((i, j))))
-    nbr.create_dataset("indices", data=np.array(indices, dtype=np.int32), dtype="i4")
-    nbr.create_dataset("indptr", data=np.array(indptr, dtype=np.int32), dtype="i4")
+    indices_arr = np.array(indices, dtype=np.int32)
+    nbr.create_dataset("indices", data=indices_arr, shape=indices_arr.shape, dtype="i4")
+    indptr_arr = np.array(indptr, dtype=np.int32)
+    nbr.create_dataset("indptr", data=indptr_arr, shape=indptr_arr.shape, dtype="i4")
     edges = np.array(sorted(edge_set), dtype=np.int32)
-    nbr.create_dataset("edges", data=edges, dtype="i4")
+    nbr.create_dataset("edges", data=edges, shape=edges.shape, dtype="i4")
     return str(path)
 
 

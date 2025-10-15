@@ -53,12 +53,16 @@ def main() -> None:
         reward_model = build_reward_model_from_config(ttc_cfg, operator_cfg.latent_dim, device).to(device)
         sampler_cfg = ttc_cfg.get("sampler", {})
         tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
+        noise_schedule = sampler_cfg.get("noise_schedule")
+        if noise_schedule is not None:
+            noise_schedule = [float(value) for value in noise_schedule]
         ttc_runtime = TTCConfig(
             steps=rollout_cfg.steps,
             dt=ttc_cfg.get("dt", rollout_cfg.dt),
             candidates=ttc_cfg.get("candidates", 4),
             tau_range=(float(tau_range[0]), float(tau_range[1])),
             noise_std=float(sampler_cfg.get("noise_std", 0.0)),
+            noise_schedule=noise_schedule,
             residual_threshold=ttc_cfg.get("residual_threshold"),
             device=device,
         )

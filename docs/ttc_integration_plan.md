@@ -35,7 +35,7 @@ LatentState z_t --(K stochastic proposals)--> {ẑ_{t+1}^k}
 ## Implemented Interfaces
 - `RewardModel.score(prev_state, next_state, context)` base protocol.
 - `AnalyticalRewardModel` with configurable decoder grid, weights, negativity penalties.
-- `TTCConfig` fields: `steps`, `dt`, `candidates`, `beam_width`, `horizon`, `tau_range`, `noise_std`, `residual_threshold`, `device`.
+- `TTCConfig` fields: `steps`, `dt`, `candidates`, `beam_width`, `horizon`, `tau_range`, `noise_std`, `noise_schedule`, `residual_threshold`, `device`.
 - `ttc_rollout(...) -> (RolloutLog, List[TTCStepLog])` supporting beam planning; logs per-step rewards/indices/total reward.
 - `build_reward_model_from_config(ttc_cfg, latent_dim, device)` helper (shared by eval/infer).
 - `evaluate_latent_operator(..., ttc_config, reward_model)` returns TTC step logs in report details.
@@ -81,7 +81,7 @@ LatentState z_t --(K stochastic proposals)--> {ẑ_{t+1}^k}
 4) Config & CLI
 - New: `configs/inference_ttc.yaml`
   - `operator, decoder, run` blocks; plus
-- `ttc: {enabled, candidates, beam_width, horizon, dt, reward: {type: ARM|PRM, fields, weights, grid: [H,W]}, sampler: {tau, noise_std, dt_jitter}, budget: {max_prop: int, early_margin: float} }`
+- `ttc: {enabled, candidates, beam_width, horizon, dt, reward: {analytical_weight, weights, grid: [H,W], critic: {weight, hidden_dim, dropout}}, sampler: {tau, noise_std, noise_schedule, dt_jitter}, budget: {max_prop: int, early_margin: float} }`
 - Update `scripts/infer.py` and `scripts/evaluate.py` to accept TTC config and print TTC metrics (rewards, choices).
 
 5) Logging & Metrics
