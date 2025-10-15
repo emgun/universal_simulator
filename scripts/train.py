@@ -252,8 +252,15 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
     try:
         import torch
 
-        # Reduce overhead mode is a good default for training loops
-        compiled = torch.compile(model, mode="reduce-overhead", fullgraph=False)
+        # Use different compile modes based on model type:
+        # - "default" for diffusion models (avoids CUDA graph issues with complex control flow)
+        # - "reduce-overhead" for operators (aggressive CUDA graph optimization)
+        if "diffusion" in name.lower():
+            compile_mode = "default"
+        else:
+            compile_mode = "reduce-overhead"
+        
+        compiled = torch.compile(model, mode=compile_mode, fullgraph=False)
         return compiled
     except Exception:
         # If torch.compile is unavailable or fails, just return the original model
