@@ -59,6 +59,15 @@ def _spectral_energy_loss(pred: torch.Tensor, target: torch.Tensor, dim: int = 1
     return torch.abs(pred_energy - tgt_energy) / (tgt_energy + eps)
 
 
+def _strip_compiled_prefix(state_dict: dict) -> dict:
+    """Strip _orig_mod. prefix from state dict keys (from torch.compile)."""
+    new_state_dict = {}
+    for key, value in state_dict.items():
+        new_key = key.replace("_orig_mod.", "") if key.startswith("_orig_mod.") else key
+        new_state_dict[new_key] = value
+    return new_state_dict
+
+
 def load_config(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
@@ -235,6 +244,11 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
         compile_enabled = False
     if not compile_enabled:
         return model
+    
+    # Skip compilation for teacher models (eval-only) to avoid CUDA graph issues
+    if "teacher" in name:
+        return model
+        
     try:
         import torch
 
@@ -479,6 +493,7 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
         operator_state = torch.load(op_path, map_location="cpu")
+        operator_state = _strip_compiled_prefix(operator_state)
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
     operator = _maybe_compile(operator, cfg, "operator_teacher")
@@ -680,6 +695,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     op_path = checkpoint_dir / "operator.pt"
     if op_path.exists():
         operator_state = torch.load(op_path, map_location="cpu")
+        operator_state = _strip_compiled_prefix(operator_state)
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
     operator = _maybe_compile(operator, cfg, "operator_teacher")
@@ -692,6 +708,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
         diff_state = torch.load(diff_path, map_location="cpu")
+        diff_state = _strip_compiled_prefix(diff_state)
         diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
