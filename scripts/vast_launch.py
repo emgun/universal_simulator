@@ -7,10 +7,15 @@ import argparse
 import os
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
-
+# Add parent directory to path for imports
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.onstart_template import OnstartConfig, generate_onstart_script
+
 ONSTART_DIR = REPO_ROOT / ".vast"
 
 
@@ -46,69 +51,52 @@ def ensure_onstart(
     b2_s3_endpoint: str | None,
     b2_s3_region: str | None,
 ) -> Path:
+    """Generate onstart script using the centralized template."""
     ONSTART_DIR.mkdir(exist_ok=True)
     script_path = ONSTART_DIR / "onstart.sh"
-    datasets_export = f"export WANDB_DATASETS=\"{datasets}\"" if datasets else "# WANDB_DATASETS optional"
-    wandb_project_export = f"export WANDB_PROJECT=\"{wandb_project}\"" if wandb_project else "# WANDB_PROJECT optional"
-    wandb_entity_export = f"export WANDB_ENTITY=\"{wandb_entity}\"" if wandb_entity else "# WANDB_ENTITY optional"
-    wandb_api_key_export = f"export WANDB_API_KEY=\"{wandb_api_key}\"" if wandb_api_key else "# WANDB_API_KEY optional"
-    fetch_cmd = "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi"
-    # If overrides provided (possibly comma-separated), convert commas to spaces so the shell sees
-    # multiple VAR=VALUE env assignments before the command.
+    
+    # Parse overrides to extract training config
+    train_config = None
+    train_stage = "all"
+    reset_cache = True
+    
     if overrides:
-        safe_overrides = overrides.replace(",", " ")
-        overrides_cmd = f"env {safe_overrides} bash scripts/run_remote_scale.sh"
-    else:
-        overrides_cmd = "bash scripts/run_remote_scale.sh"
-    shutdown_cmd = "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi" if auto_shutdown else ""
-    lines = [
-        "#!/bin/bash",
-        "set -euo pipefail",
-        "export DEBIAN_FRONTEND=noninteractive",
-        "command -v git >/dev/null 2>&1 || (apt-get update && apt-get install -y git)",
-        "command -v pip >/dev/null 2>&1 || (apt-get update && apt-get install -y python3-pip)",
-        "command -v rclone >/dev/null 2>&1 || (apt-get update && apt-get install -y rclone)",
-        "command -v gcc >/dev/null 2>&1 || (apt-get update && apt-get install -y build-essential)",
-        "",
-        f"mkdir -p {workdir}",
-        f"cd {workdir}",
-        "",
-        "if [ ! -d universal_simulator ]; then",
-        f"  git clone {repo_url} universal_simulator",
-        "fi",
-        "cd universal_simulator",
-        "git fetch origin",
-        "git checkout feature/sota_burgers_upgrades",
-        "git pull origin feature/sota_burgers_upgrades",
-        "",
-        "python3 -m pip install --upgrade pip",
-        "python3 -m pip install -e .[dev]",
-        "",
-        datasets_export,
-        (f"export B2_KEY_ID=\"{b2_key_id}\"" if b2_key_id else "# B2_KEY_ID optional"),
-        (f"export B2_APP_KEY=\"{b2_app_key}\"" if b2_app_key else "# B2_APP_KEY optional"),
-        (f"export B2_BUCKET=\"{b2_bucket}\"" if b2_bucket else "# B2_BUCKET optional"),
-        (f"export B2_PREFIX=\"{b2_prefix}\"" if b2_prefix else "# B2_PREFIX optional"),
-        (f"export B2_S3_ENDPOINT=\"{b2_s3_endpoint}\"" if b2_s3_endpoint else "# B2_S3_ENDPOINT optional"),
-        (f"export B2_S3_REGION=\"{b2_s3_region}\"" if b2_s3_region else "# B2_S3_REGION optional"),
-        wandb_project_export,
-        wandb_entity_export,
-        wandb_api_key_export,
-        "# Load local .env if present (export all keys)",
-        "if [ -f .env ]; then",
-        "  set -a",
-        "  source .env",
-        "  set +a",
-        "fi",
-        "# Optional helper if user supplied a loader script",
-        "if [ -f scripts/load_env.sh ] && [ -f .env ]; then",
-        "  bash scripts/load_env.sh || true",
-        "fi",
-        fetch_cmd,
-        f"{overrides_cmd}{shutdown_cmd}",
-    ]
-    script_path.write_text("\n".join(lines))
+        # Parse KEY=VALUE pairs from overrides
+        for pair in overrides.replace(",", " ").split():
+            if "=" in pair:
+                key, value = pair.split("=", 1)
+                if key == "TRAIN_CONFIG":
+                    train_config = value
+                elif key == "TRAIN_STAGE":
+                    train_stage = value
+                elif key == "RESET_CACHE":
+                    reset_cache = value == "1"
+    
+    # Build config using template
+    config = OnstartConfig(
+        repo_url=repo_url,
+        workdir=workdir,
+        train_config=train_config,
+        train_stage=train_stage,
+        reset_cache=reset_cache,
+        datasets=datasets,
+        b2_key_id=b2_key_id,
+        b2_app_key=b2_app_key,
+        b2_bucket=b2_bucket,
+        b2_prefix=b2_prefix,
+        b2_s3_endpoint=b2_s3_endpoint,
+        b2_s3_region=b2_s3_region,
+        wandb_project=wandb_project,
+        wandb_entity=wandb_entity,
+        wandb_api_key=wandb_api_key,
+        auto_shutdown=auto_shutdown,
+    )
+    
+    # Generate script from template
+    script_content = generate_onstart_script(config)
+    script_path.write_text(script_content)
     script_path.chmod(0o755)
+    
     return script_path
 
 
