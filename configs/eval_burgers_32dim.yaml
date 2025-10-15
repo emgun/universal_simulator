@@ -11,7 +11,7 @@ data:
 
 latent:
   dim: 32
-  tokens: 128
+  tokens: 16
 
 training:
   batch_size: 16
@@ -24,7 +24,7 @@ operator:
     input_dim: 32
     hidden_dim: 64
     depths: [1, 1, 1]
-    group_size: 16
+    group_size: 8
     num_heads: 4
 
 diffusion:
