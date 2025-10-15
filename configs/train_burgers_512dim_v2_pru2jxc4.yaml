@@ -1,0 +1,161 @@
+include: train_burgers_quality_v2.yaml
+
+# Configuration based on SUCCESSFUL pru2jxc4 run (0.002 loss!)
+# 
+# Key discovery: pru2jxc4 used CONSTANT LR of 1e-3 (no scheduler!)
+# This is HIGHER than the 3e-4 with cosine decay that failed.
+# 
+# The cosine scheduler was reducing LR too quickly, preventing proper convergence.
+# Constant LR allows continued exploration throughout training.
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  time_stride: 2  # Match pru2jxc4
+  batch_size: 12  # H200 optimized
+  
+  # PARALLEL LOADING (critical for pru2jxc4's success)
+  num_workers: 8                  # Match pru2jxc4
+  use_parallel_encoding: true     # Use our new parallel cache system
+  
+  latent_cache_dir: data/latent_cache
+  checkpoint_interval: 50
+  
+  # Distillation settings from pru2jxc4
+  distill_micro_batch: 3   # Match pru2jxc4 (was 4 in v1)
+  distill_num_taus: 5      # Match pru2jxc4
+  
+  # Additional pru2jxc4 settings
+  compile: true
+  pin_memory: true
+  
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+operator:
+  pdet:
+    input_dim: 512
+    hidden_dim: 1024
+    depths: [1, 1, 1]
+    group_size: 256
+    num_heads: 4
+
+diffusion:
+  latent_dim: 512
+  hidden_dim: 1024
+
+stages:
+  operator:
+    epochs: 15  # Match pru2jxc4 (not 6!)
+    
+    optimizer:
+      name: adamw
+      lr: 1.0e-3            # CONSTANT LR (higher than previous 3e-4!)
+      # Note: pru2jxc4 config didn't specify weight_decay in WandB
+      # Using base config default or omitting
+    
+    # NO SCHEDULER! Keep LR constant throughout training
+    # This is the key difference from failed runs
+    # Cosine decay was reducing LR too quickly
+
+  diff_residual:
+    epochs: 5  # Match pru2jxc4
+    grad_clip: 1.0
+    ema_decay: 0.999
+    
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 5
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 6  # Match pru2jxc4
+    batch_size: 6
+    
+    optimizer:
+      name: adamw
+      lr: 2.0e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 2.0e-6
+
+logging:
+  wandb:
+    enabled: true
+    run_name: burgers512-pru2jxc4-replica
+    tags: [512dim, pru2jxc4_config, constant_lr, quality]
+
+# EXPECTED PERFORMANCE (based on pru2jxc4):
+# ─────────────────────────────────────────────────────────────────────────────
+# Operator loss progression (15 epochs):
+#   Epoch  0: ~0.82
+#   Epoch  1: ~0.41
+#   Epoch  2: ~0.16  (better than failed run's final!)
+#   Epoch  3: ~0.05
+#   Epoch  4: ~0.01
+#   Epoch  5: ~0.006
+#   Epoch  6: ~0.003  (65× better than failed run!)
+#   Epoch 12: ~0.002  (100× better than failed run!)
+#
+# Training time: ~25-30 min on H200
+# Cost: ~$1.10-1.30 @ $2.59/hr
+#
+# KEY DIFFERENCES FROM FAILED RUN (l4cpbxen):
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. CONSTANT LR 1e-3 (not cosine 3e-4 → 3e-5)
+#    → Prevents premature LR decay
+#    → Allows continued exploration
+# 
+# 2. 15 epochs (not 6)
+#    → Full convergence
+#    → Continued refinement after initial convergence
+#
+# 3. num_workers: 8 (not 0)
+#    → Parallel loading
+#    → Better GPU utilization
+#
+# 4. distill_micro_batch: 3 (not 4)
+#    → Matches pru2jxc4 exactly
+#
+# CRITICAL INSIGHT:
+# ─────────────────────────────────────────────────────────────────────────────
+# The cosine annealing scheduler was the main culprit!
+# 
+# With cosine decay (3e-4 → 3e-5 over 6 epochs):
+#   • Epoch 3: LR already ~1.5e-4 (half of initial)
+#   • Epoch 6: LR down to 5e-5 (1/6 of initial)
+#   • Model couldn't escape suboptimal minima
+#
+# With constant LR (1e-3 for all 15 epochs):
+#   • Consistent optimization pressure
+#   • Better exploration of loss landscape
+#   • Smooth convergence to global minimum
+#
+# This explains why pru2jxc4 used a HIGHER LR (1e-3) than our failed
+# attempt (3e-4) - it didn't decay!
+
