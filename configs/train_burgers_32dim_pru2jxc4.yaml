@@ -1,0 +1,137 @@
+include: train_burgers_quality_v2.yaml
+
+# 32-dim baseline with pru2jxc4 training approach
+# 
+# This tests whether pru2jxc4's success was due to:
+# A) Constant LR + more epochs (training method)
+# B) 512-dim capacity (model size)
+# C) Both
+#
+# If 32-dim improves from 0.10 → 0.02-0.03 with this config:
+#   → Training method is key, dimension less critical
+# If 32-dim stays at ~0.10:
+#   → 512-dim capacity is essential
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 32        # Small dimension for baseline
+  tokens: 16     # Match 32-dim proportions
+
+training:
+  time_stride: 2
+  batch_size: 12  # Can use higher batch with smaller model
+  
+  # pru2jxc4 settings
+  num_workers: 8
+  use_parallel_encoding: true
+  
+  latent_cache_dir: data/latent_cache
+  checkpoint_interval: 50
+  
+  distill_micro_batch: 3
+  distill_num_taus: 5
+  
+  compile: true
+  pin_memory: true
+  
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+operator:
+  pdet:
+    input_dim: 32      # Match latent dim
+    hidden_dim: 64     # 2× latent dim
+    depths: [1, 1, 1]
+    group_size: 8      # Smaller for 32-dim
+    num_heads: 4
+
+diffusion:
+  latent_dim: 32
+  hidden_dim: 64
+
+stages:
+  operator:
+    epochs: 15  # Match pru2jxc4 (not 6!)
+    
+    optimizer:
+      name: adamw
+      lr: 1.0e-3            # CONSTANT LR (pru2jxc4's key insight)
+      # No scheduler! This is critical
+    
+    # NO SCHEDULER specified = constant LR
+
+  diff_residual:
+    epochs: 5
+    grad_clip: 1.0
+    ema_decay: 0.999
+    
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 5
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 6
+    batch_size: 6
+    
+    optimizer:
+      name: adamw
+      lr: 2.0e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 2.0e-6
+
+logging:
+  wandb:
+    enabled: true
+    run_name: burgers32-pru2jxc4-test
+    tags: [32dim, pru2jxc4_config, constant_lr, baseline_test]
+
+# EXPECTED OUTCOMES:
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Scenario A: Training method is key
+#   Previous 32-dim (rv86k4w1): 0.10 with cosine decay, 6 epochs
+#   This run: 0.02-0.04 with constant LR, 15 epochs
+#   → Proves constant LR + more epochs is the main factor
+#   → 512-dim gets extra boost from capacity, but not essential
+#
+# Scenario B: Dimension is key
+#   This run: ~0.10 (same as before)
+#   → Proves 32-dim is fundamentally limited
+#   → 512-dim's 0.002 is due to representational capacity
+#
+# Most likely: HYBRID (Scenario A + some of B)
+#   This run: 0.04-0.06 (moderate improvement)
+#   → Both factors matter
+#   → Constant LR helps, but 512-dim adds substantial capacity
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Training time: ~20 min on H200 (faster than 512-dim due to smaller model)
+# Cost: ~$0.85 @ $2.59/hr
+#
+# This establishes whether we need to test 128/256-dim or if 512-dim
+# is truly necessary for SOTA performance.
+
