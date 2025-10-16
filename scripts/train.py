@@ -978,6 +978,130 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
             pass
 
 
+def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline") -> dict:
+    """Run evaluation and return metrics. Mode can be 'baseline' or 'ttc'."""
+    from ups.eval.pdebench_runner import evaluate_latent_operator
+    from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load models
+    operator = make_operator(cfg)
+    op_path = checkpoint_dir / "operator.pt"
+    if op_path.exists():
+        operator_state = torch.load(op_path, map_location="cpu")
+        operator_state = _strip_compiled_prefix(operator_state)
+        operator.load_state_dict(operator_state)
+    operator = operator.to(device)
+    operator.eval()
+    
+    # Load diffusion if available
+    diffusion = None
+    diff_path = checkpoint_dir / "diffusion_residual.pt"
+    if diff_path.exists():
+        latent_dim = cfg.get("latent", {}).get("dim", 32)
+        hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
+        diffusion = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
+        diff_state = torch.load(diff_path, map_location="cpu")
+        diff_state = _strip_compiled_prefix(diff_state)
+        diffusion.load_state_dict(diff_state)
+        diffusion = diffusion.to(device)
+        diffusion.eval()
+    
+    # Setup TTC if requested
+    tau = cfg.get("training", {}).get("tau", 0.5)
+    ttc_cfg = None
+    reward_model = None
+    
+    if eval_mode == "ttc" and cfg.get("ttc", {}).get("enabled"):
+        ttc_cfg = TTCConfig.from_dict(cfg.get("ttc", {}))
+        reward_model = build_reward_model_from_config(cfg, device)
+    
+    # Change data split to test for evaluation
+    eval_cfg = copy.deepcopy(cfg)
+    eval_cfg["data"]["split"] = "test"
+    
+    # Run evaluation
+    print(f"\nRunning evaluation (mode: {eval_mode})...")
+    report, details = evaluate_latent_operator(
+        operator=operator,
+        diffusion=diffusion,
+        config=eval_cfg,
+        tau=tau,
+        device=device,
+        ttc_config=ttc_cfg,
+        reward_model=reward_model,
+    )
+    
+    # Add TTC flag to report
+    report.extra["ttc"] = (eval_mode == "ttc")
+    
+    return {"report": report, "details": details}
+
+
+def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dict = None) -> None:
+    """Log evaluation results and summary to WandB."""
+    if not shared_run or wandb is None:
+        return
+    
+    # Log baseline metrics
+    wandb.log({
+        "eval/baseline_mse": baseline_metrics["report"].metrics.get("mse"),
+        "eval/baseline_mae": baseline_metrics["report"].metrics.get("mae"),
+        "eval/baseline_rmse": baseline_metrics["report"].metrics.get("rmse"),
+        "eval/baseline_nrmse": baseline_metrics["report"].metrics.get("nrmse"),
+    })
+    
+    # Log TTC metrics if available
+    if ttc_metrics:
+        wandb.log({
+            "eval/ttc_mse": ttc_metrics["report"].metrics.get("mse"),
+            "eval/ttc_mae": ttc_metrics["report"].metrics.get("mae"),
+            "eval/ttc_rmse": ttc_metrics["report"].metrics.get("rmse"),
+            "eval/ttc_nrmse": ttc_metrics["report"].metrics.get("nrmse"),
+        })
+        
+        # Compute TTC improvement
+        baseline_nrmse = baseline_metrics["report"].metrics.get("nrmse", 1.0)
+        ttc_nrmse = ttc_metrics["report"].metrics.get("nrmse", 1.0)
+        improvement_pct = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
+        
+        wandb.log({
+            "eval/ttc_improvement_pct": improvement_pct,
+        })
+    
+    # Create summary table
+    summary_md = "## Evaluation Summary\n\n"
+    summary_md += "| Metric | Baseline | TTC | Improvement |\n"
+    summary_md += "|--------|----------|-----|-------------|\n"
+    
+    for metric_name in ["mse", "mae", "rmse", "nrmse"]:
+        baseline_val = baseline_metrics["report"].metrics.get(metric_name, 0)
+        if ttc_metrics:
+            ttc_val = ttc_metrics["report"].metrics.get(metric_name, 0)
+            improv = ((baseline_val - ttc_val) / baseline_val) * 100 if baseline_val > 0 else 0
+            summary_md += f"| {metric_name.upper()} | {baseline_val:.6f} | {ttc_val:.6f} | {improv:.1f}% |\n"
+        else:
+            summary_md += f"| {metric_name.upper()} | {baseline_val:.6f} | - | - |\n"
+    
+    # Log summary as artifact
+    wandb.summary["evaluation_summary"] = summary_md
+    
+    # Also log as table for better visualization
+    if ttc_metrics:
+        table = wandb.Table(
+            columns=["Metric", "Baseline", "TTC", "Improvement (%)"],
+            data=[
+                [metric.upper(), 
+                 baseline_metrics["report"].metrics.get(metric),
+                 ttc_metrics["report"].metrics.get(metric),
+                 ((baseline_metrics["report"].metrics.get(metric) - ttc_metrics["report"].metrics.get(metric)) / baseline_metrics["report"].metrics.get(metric)) * 100]
+                for metric in ["mse", "mae", "rmse", "nrmse"]
+            ]
+        )
+        wandb.log({"eval/metrics_comparison": table})
+
+
 def train_all_stages(cfg: dict) -> None:
     """Run all training stages in sequence with shared W&B run for better charts."""
     # Initialize W&B once for all stages
@@ -1001,6 +1125,7 @@ def train_all_stages(cfg: dict) -> None:
             wandb.define_metric("diffusion_residual/*", step_metric="global_step")
             wandb.define_metric("consistency_distill/*", step_metric="global_step")
             wandb.define_metric("steady_prior/*", step_metric="global_step")
+            wandb.define_metric("eval/*")  # Evaluation metrics
             
             # Log system info
             if torch.cuda.is_available():
@@ -1082,10 +1207,82 @@ def train_all_stages(cfg: dict) -> None:
         print("STAGE 4/4: Skipping Steady Prior (epochs<=0)")
         print("="*50)
     
+    # Stage 5: Evaluation (optional, controlled by config)
+    checkpoint_dir = ensure_checkpoint_dir(cfg)
+    run_eval = cfg.get("evaluation", {}).get("enabled", True)  # Default to True for convenience
+    
+    if run_eval:
+        print("\n" + "="*50)
+        print("STAGE 5/5: Evaluation on Test Set")
+        print("="*50)
+        
+        try:
+            # Run baseline evaluation
+            print("\n📊 Running baseline evaluation...")
+            baseline_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="baseline")
+            baseline_report = baseline_results["report"]
+            
+            print(f"Baseline Results:")
+            print(f"  MSE:   {baseline_report.metrics.get('mse', 0):.6f}")
+            print(f"  MAE:   {baseline_report.metrics.get('mae', 0):.6f}")
+            print(f"  RMSE:  {baseline_report.metrics.get('rmse', 0):.6f}")
+            print(f"  NRMSE: {baseline_report.metrics.get('nrmse', 0):.6f}")
+            
+            # Run TTC evaluation if configured
+            ttc_results = None
+            if cfg.get("ttc", {}).get("enabled", False):
+                print("\n📊 Running TTC evaluation...")
+                ttc_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="ttc")
+                ttc_report = ttc_results["report"]
+                
+                print(f"TTC Results:")
+                print(f"  MSE:   {ttc_report.metrics.get('mse', 0):.6f}")
+                print(f"  MAE:   {ttc_report.metrics.get('mae', 0):.6f}")
+                print(f"  RMSE:  {ttc_report.metrics.get('rmse', 0):.6f}")
+                print(f"  NRMSE: {ttc_report.metrics.get('nrmse', 0):.6f}")
+                
+                # Compute improvement
+                baseline_nrmse = baseline_report.metrics.get('nrmse', 1.0)
+                ttc_nrmse = ttc_report.metrics.get('nrmse', 1.0)
+                improvement = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
+                print(f"\n  TTC Improvement: {improvement:.1f}%")
+            
+            # Log to WandB
+            if shared_run:
+                _log_evaluation_summary(shared_run, baseline_results, ttc_results)
+                
+                # Save reports as artifacts
+                import os
+                report_dir = Path("reports")
+                report_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save baseline report
+                baseline_json = report_dir / "eval_baseline.json"
+                baseline_report.to_json(baseline_json)
+                artifact = wandb.Artifact(name=f"eval-baseline-{wandb.run.id}", type="evaluation")
+                artifact.add_file(str(baseline_json))
+                wandb.log_artifact(artifact)
+                
+                # Save TTC report if available
+                if ttc_results:
+                    ttc_json = report_dir / "eval_ttc.json"
+                    ttc_report.to_json(ttc_json)
+                    artifact = wandb.Artifact(name=f"eval-ttc-{wandb.run.id}", type="evaluation")
+                    artifact.add_file(str(ttc_json))
+                    wandb.log_artifact(artifact)
+                
+        except Exception as e:
+            print(f"\n⚠️  Evaluation failed: {e}")
+            if shared_run:
+                wandb.log({"eval/error": str(e)})
+    else:
+        print("\n" + "="*50)
+        print("STAGE 5/5: Skipping Evaluation (disabled in config)")
+        print("="*50)
+    
     # Log final summary
     if shared_run:
         # Load final checkpoints to get model sizes
-        checkpoint_dir = ensure_checkpoint_dir(cfg)
         import os
         summary = {
             "summary/total_training_complete": 1,
@@ -1094,6 +1291,13 @@ def train_all_stages(cfg: dict) -> None:
             "summary/steady_prior_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6 if (checkpoint_dir / "steady_prior.pt").exists() else 0,
         }
         shared_run.log(summary)
+        
+        # Generate final report summary
+        print("\n" + "="*50)
+        print("📝 WandB Summary Generated")
+        print("="*50)
+        print(f"View full results at: {wandb.run.url}")
+        
         shared_run.finish()
     
     print("\n" + "="*50)

@@ -103,11 +103,53 @@ stages:
       t_max: 6
       eta_min: 2.0e-6
 
+evaluation:
+  enabled: true  # Auto-run evaluation after training
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+    weights:
+      mass: 1.0
+      energy: 0.1
+      penalty_negative: 0.5
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+  decoder:
+    latent_dim: 32
+    query_dim: 2
+    hidden_dim: 64
+    mlp_hidden_dim: 64
+    num_layers: 2
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0]
+    output_channels:
+      rho: 1
+      e: 1
+
 logging:
   wandb:
     enabled: true
-    run_name: burgers32-pru2jxc4-test
-    tags: [32dim, pru2jxc4_config, constant_lr, baseline_test]
+    run_name: burgers32-pru2jxc4-unified
+    tags: [32dim, pru2jxc4_config, constant_lr, baseline_test, unified_pipeline]
 
 # EXPECTED OUTCOMES:
 # ─────────────────────────────────────────────────────────────────────────────
