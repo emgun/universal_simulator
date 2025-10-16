@@ -1,0 +1,105 @@
+# 32-dim v3: Option 1+2 Combined - Aggressive TTC + Extended Training + Rollout
+# Goal: Get NRMSE < 0.045
+
+include: train_burgers_32dim_v2_fixed.yaml
+
+# OVERRIDE: Add rollout loss AND extend training
+training:
+  rollout_horizon: 3          # Multi-step prediction training
+  lambda_rollout: 0.1         # Weight for rollout loss
+  
+stages:
+  operator:
+    epochs: 50                # ↑ from 25 (2× training for better convergence)
+    
+    optimizer:
+      name: adamw
+      lr: 1.0e-3              # Constant LR
+      weight_decay: 0.03
+      betas: [0.9, 0.999]
+
+  diff_residual:
+    epochs: 15                # ↑ from 8 (more diffusion training)
+    grad_clip: 1.0
+    ema_decay: 0.999
+    
+    optimizer:
+      name: adamw
+      lr: 5.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 15
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 10                # ↑ from 8
+    batch_size: 6
+    
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 10
+      eta_min: 2.0e-6
+
+# OVERRIDE: Aggressive TTC settings
+ttc:
+  enabled: true
+  steps: 3                    # ↑ from 1 (multi-step refinement)
+  candidates: 16              # ↑ from 8 (more diversity)
+  beam_width: 5               # ↑ from 3 (keep more hypotheses)
+  horizon: 3                  # ↑ from 2 (longer lookahead)
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 300        # ↑ from 150 (more optimization)
+  
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.015
+    noise_schedule: [0.03, 0.015, 0.005]
+  
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+    weights:
+      mass: 2.0               # ↑ from 1.2 (stricter conservation)
+      energy: 0.3             # ↑ from 0.15
+      penalty_negative: 1.0   # ↑ from 0.6 (stronger penalties)
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers32-v3-aggressive
+    tags: [32dim, v3_aggressive, option1_2, extended_training, aggressive_ttc]
+
+# EXPECTED:
+# ─────────────────────────────────────────────────────────────────────────────
+# Training time: ~70 min on H200
+#   Operator: 50 epochs × ~2.5s = ~2 min after compilation
+#   Diffusion: 15 epochs × ~7s = ~2 min
+#   Consistency: 10 epochs × ~5 min = ~50 min
+#   Evaluation: ~45-60 min (aggressive TTC is slower)
+#
+# Total: ~115 min, Cost: ~$5.10 @ $2.66/hr
+#
+# Expected NRMSE: 0.040-0.045
+#   - Better operator from 2× epochs + rollout loss
+#   - Aggressive TTC pushes inference optimization to the limit
+# ─────────────────────────────────────────────────────────────────────────────
+
