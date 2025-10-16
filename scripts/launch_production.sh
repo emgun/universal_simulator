@@ -30,29 +30,9 @@ echo ""
 vastai create instance $INSTANCE \
     --image "$IMAGE" \
     --disk 50 \
-    --env "WANDB_API_KEY=${WANDB_API_KEY}" \
-    --env "WANDB_PROJECT=${WANDB_PROJECT:-universal-simulator}" \
-    --env "WANDB_ENTITY=${WANDB_ENTITY}" \
-    --env "B2_KEY_ID=${B2_KEY_ID}" \
-    --env "B2_APP_KEY=${B2_APP_KEY}" \
-    --env "B2_BUCKET=${B2_BUCKET:-pdebench}" \
-    --env "B2_S3_ENDPOINT=${B2_S3_ENDPOINT}" \
-    --env "B2_S3_REGION=${B2_S3_REGION}" \
-    --onstart-cmd "
-        cd /app && \
-        export RCLONE_CONFIG_B2TRAIN_TYPE=s3 && \
-        export RCLONE_CONFIG_B2TRAIN_PROVIDER=Other && \
-        export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID=\$B2_KEY_ID && \
-        export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY=\$B2_APP_KEY && \
-        export RCLONE_CONFIG_B2TRAIN_ENDPOINT=\$B2_S3_ENDPOINT && \
-        export RCLONE_CONFIG_B2TRAIN_REGION=\$B2_S3_REGION && \
-        mkdir -p data/pdebench && \
-        echo '📦 Downloading training data...' && \
-        rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress && \
-        cd data/pdebench && ln -sf burgers1d_train_000.h5 burgers1d_train.h5 && cd ../.. && \
-        echo '🚀 Starting training...' && \
-        python scripts/train.py --config configs/${CONFIG}.yaml --stage all
-    "
+    --ssh \
+    --env "-e WANDB_API_KEY=${WANDB_API_KEY} -e WANDB_PROJECT=universal-simulator -e WANDB_ENTITY=${WANDB_ENTITY} -e B2_KEY_ID=${B2_KEY_ID} -e B2_APP_KEY=${B2_APP_KEY} -e B2_S3_ENDPOINT=${B2_S3_ENDPOINT} -e B2_S3_REGION=${B2_S3_REGION}" \
+    --onstart-cmd "mkdir -p ~/.config/rclone && echo '[B2TRAIN]' > ~/.config/rclone/rclone.conf && echo 'type = s3' >> ~/.config/rclone/rclone.conf && echo 'provider = Other' >> ~/.config/rclone/rclone.conf && echo \"access_key_id = \${B2_KEY_ID}\" >> ~/.config/rclone/rclone.conf && echo \"secret_access_key = \${B2_APP_KEY}\" >> ~/.config/rclone/rclone.conf && echo \"endpoint = \${B2_S3_ENDPOINT}\" >> ~/.config/rclone/rclone.conf && echo \"region = \${B2_S3_REGION}\" >> ~/.config/rclone/rclone.conf && cd /app && mkdir -p data/pdebench && rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ && ln -sf data/pdebench/burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && python scripts/train.py --config configs/${CONFIG}.yaml --stage all"
 
 echo ""
 echo "✅ Instance launched!"
