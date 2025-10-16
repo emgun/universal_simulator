@@ -178,6 +178,65 @@ Total: 2-4 minutes to start training
 
 ---
 
+## Local Development with Docker
+
+### Quick Start (Docker Compose)
+
+```bash
+# 1. Create .env file with credentials
+cat << 'EOF' > .env
+WANDB_API_KEY=your_key
+WANDB_PROJECT=universal-simulator
+WANDB_ENTITY=your_username
+B2_KEY_ID=your_id
+B2_APP_KEY=your_key
+B2_S3_ENDPOINT=s3.us-west-002.backblazeb2.com
+B2_S3_REGION=us-west-002
+EOF
+
+# 2. Start container
+docker-compose up -d
+
+# 3. Run training
+docker-compose exec universal_simulator python scripts/train.py --config configs/train_burgers_32dim.yaml --stage all
+
+# 4. View logs
+docker-compose logs -f
+```
+
+### Direct Docker Commands
+
+```bash
+# Build locally
+docker build -t universal-simulator:dev .
+
+# Run with GPU
+docker run --gpus all \
+  -v $(pwd)/checkpoints:/app/checkpoints \
+  -v $(pwd)/data:/app/data \
+  --env-file .env \
+  -it universal-simulator:dev bash
+```
+
+### Docker Image Architecture
+
+**Multi-stage build for optimization:**
+- **Base:** `pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime`
+- **Dependencies:** Pre-installed (torch, wandb, rclone, etc.)
+- **Code:** Baked in (~1.1MB)
+- **Final size:** ~2.5GB (compressed ~900MB)
+
+**Volume mounts:**
+- `/app/checkpoints` - Model checkpoints (persistent)
+- `/app/data` - Training data (persistent)  
+- `/app/configs` - Configuration files (can override)
+
+**Environment variables:**
+- Required: `WANDB_API_KEY`, `WANDB_PROJECT`, `WANDB_ENTITY`
+- Optional: `B2_*` for data download, `CUDA_VISIBLE_DEVICES` for GPU selection
+
+---
+
 ## Troubleshooting
 
 ### Image not found
@@ -236,6 +295,23 @@ cd /app
 ps aux | grep python
 tail -f logs/training.log
 ```
+
+### Parallel Cache Optimization (4-8× Faster)
+
+For production runs, enable parallel cache creation:
+
+```yaml
+# In your config (e.g., configs/train_burgers_32dim.yaml)
+training:
+  num_workers: 8              # Enable parallel loading
+  use_parallel_encoding: true # GPU encoding in main process
+  latent_cache_dir: data/latent_cache
+```
+
+**Impact:**
+- Cache creation: 4-8 min (vs 20-30 min with `num_workers: 0`)
+- Savings: ~$0.65-0.95 per run @ $2.59/hr
+- **See:** `docs/parallel_cache_optimization.md` for technical deep-dive
 
 ---
 
