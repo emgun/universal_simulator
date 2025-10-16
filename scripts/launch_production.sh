@@ -5,15 +5,23 @@
 #   ./scripts/launch_production.sh [config_name] [instance_id]
 #
 # Example:
-#   ./scripts/launch_production.sh train_burgers_32dim 12345678
+#   ./scripts/launch_production.sh train_burgers_32dim
+#
+# Requirements: B2 and WandB credentials in environment variables
+#   export B2_KEY_ID=...
+#   export B2_APP_KEY=...
+#   export B2_S3_ENDPOINT=...
+#   export B2_S3_REGION=...
+#   export WANDB_API_KEY=...
+#   export WANDB_ENTITY=...
 
 set -e
 
 CONFIG=${1:-train_burgers_32dim}
 INSTANCE=${2:-}
 
-# Docker image from GitHub Container Registry
-IMAGE="ghcr.io/emgun/universal_simulator:latest"
+# Docker image from GitHub Container Registry (public)
+IMAGE="ghcr.io/emgun/universal_simulator:feature-sota_burgers_upgrades"
 
 # Find best available instance if not specified
 if [ -z "$INSTANCE" ]; then
@@ -32,7 +40,7 @@ vastai create instance $INSTANCE \
     --disk 50 \
     --ssh \
     --env "-e WANDB_API_KEY=${WANDB_API_KEY} -e WANDB_PROJECT=universal-simulator -e WANDB_ENTITY=${WANDB_ENTITY} -e B2_KEY_ID=${B2_KEY_ID} -e B2_APP_KEY=${B2_APP_KEY} -e B2_S3_ENDPOINT=${B2_S3_ENDPOINT} -e B2_S3_REGION=${B2_S3_REGION}" \
-    --onstart-cmd "mkdir -p ~/.config/rclone && echo '[B2TRAIN]' > ~/.config/rclone/rclone.conf && echo 'type = s3' >> ~/.config/rclone/rclone.conf && echo 'provider = Other' >> ~/.config/rclone/rclone.conf && echo \"access_key_id = \${B2_KEY_ID}\" >> ~/.config/rclone/rclone.conf && echo \"secret_access_key = \${B2_APP_KEY}\" >> ~/.config/rclone/rclone.conf && echo \"endpoint = \${B2_S3_ENDPOINT}\" >> ~/.config/rclone/rclone.conf && echo \"region = \${B2_S3_REGION}\" >> ~/.config/rclone/rclone.conf && cd /app && mkdir -p data/pdebench && rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ && ln -sf data/pdebench/burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && python scripts/train.py --config configs/${CONFIG}.yaml --stage all"
+    --onstart-cmd "mkdir -p ~/.config/rclone && printf '[B2TRAIN]\ntype = s3\nprovider = Other\naccess_key_id = %s\nsecret_access_key = %s\nendpoint = %s\nregion = %s\n' \"\${B2_KEY_ID}\" \"\${B2_APP_KEY}\" \"\${B2_S3_ENDPOINT}\" \"\${B2_S3_REGION}\" > ~/.config/rclone/rclone.conf && cd /app && mkdir -p data/pdebench && rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ && ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && python scripts/train.py --config configs/${CONFIG}.yaml --stage all"
 
 echo ""
 echo "✅ Instance launched!"

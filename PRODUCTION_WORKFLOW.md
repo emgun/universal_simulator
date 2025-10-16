@@ -99,11 +99,46 @@ git push
 
 ## Production Run Commands
 
-### Quick Launch (Recommended)
+### Option 1: Docker Image (Faster when working)
 
 ```bash
-# Uses best available instance
+# Uses pre-built Docker image
 ./scripts/launch_production.sh train_burgers_32dim
+```
+
+**Pros:** Fast startup (~2 min) when Docker image pulls successfully  
+**Cons:** VastAI container issues can occur  
+**Best for:** Production runs when stable
+
+### Option 2: Git Clone (Most Reliable)
+
+```bash
+# Uses git clone + pip install (proven reliable)
+python scripts/vast_launch.py launch \
+  --overrides "TRAIN_CONFIG=configs/train_burgers_32dim.yaml TRAIN_STAGE=all" \
+  --b2-key-id "$B2_KEY_ID" \
+  --b2-app-key "$B2_APP_KEY" \
+  --b2-s3-endpoint "$B2_S3_ENDPOINT" \
+  --b2-s3-region "$B2_S3_REGION" \
+  --wandb-api-key "$WANDB_API_KEY" \
+  --wandb-entity "$WANDB_ENTITY" \
+  --auto-shutdown
+```
+
+**Pros:** Always works, no Docker dependencies  
+**Cons:** Slower startup (~7 min)  
+**Best for:** Reliability when Docker has issues
+
+### Environment Variables
+
+Both methods require these credentials:
+```bash
+export B2_KEY_ID=your_key
+export B2_APP_KEY=your_app_key  
+export B2_S3_ENDPOINT=s3.us-west-002.backblazeb2.com
+export B2_S3_REGION=us-west-002
+export WANDB_API_KEY=your_key
+export WANDB_ENTITY=your_entity
 ```
 
 ### Manual Launch

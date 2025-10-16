@@ -4,17 +4,34 @@
 
 ---
 
-## Production Training (Recommended - Fast & Bombproof)
+## Production Training
 
+**Prerequisites:** Set environment variables (one time):
 ```bash
-# One-command launch with pre-built Docker image
-./scripts/launch_production.sh train_burgers_32dim
-
-# That's it! Image pulls in ~2 min, training starts immediately
-# Total startup: 3-4 min (vs 7-12 min with manual setup)
+export B2_KEY_ID=your_key
+export B2_APP_KEY=your_app_key
+export B2_S3_ENDPOINT=s3.us-west-002.backblazeb2.com
+export B2_S3_REGION=us-west-002
+export WANDB_API_KEY=your_key
+export WANDB_ENTITY=your_entity
 ```
 
-**See:** `PRODUCTION_WORKFLOW.md` for complete production workflow guide.
+**Option A: Docker (faster, ~2-3 min startup)**
+```bash
+./scripts/launch_production.sh train_burgers_32dim
+```
+
+**Option B: Git clone (more reliable, ~7 min startup)**
+```bash
+python scripts/vast_launch.py launch \
+  --overrides "TRAIN_CONFIG=configs/train_burgers_32dim.yaml TRAIN_STAGE=all" \
+  --b2-key-id "$B2_KEY_ID" --b2-app-key "$B2_APP_KEY" \
+  --b2-s3-endpoint "$B2_S3_ENDPOINT" --b2-s3-region "$B2_S3_REGION" \
+  --wandb-api-key "$WANDB_API_KEY" --wandb-entity "$WANDB_ENTITY" \
+  --auto-shutdown
+```
+
+**See:** `PRODUCTION_WORKFLOW.md` for complete guide and troubleshooting.
 
 ---
 
