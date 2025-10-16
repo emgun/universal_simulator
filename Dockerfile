@@ -16,14 +16,16 @@ RUN apt-get update && apt-get install -y \
 # Copy dependency files
 COPY requirements.txt pyproject.toml ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -e .
+# Install Python dependencies (not editable yet, need src/)
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY src/ ./src/
 COPY configs/ ./configs/
 COPY scripts/ ./scripts/
+
+# Install package in editable mode (now that src/ exists)
+RUN pip install --no-cache-dir -e .
 
 # Create data directory
 RUN mkdir -p /app/data/pdebench
