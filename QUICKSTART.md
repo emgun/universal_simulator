@@ -4,22 +4,34 @@
 
 ---
 
-## For Immediate Production Use
+## Production Training (Recommended - Fast & Bombproof)
+
+```bash
+# One-command launch with pre-built Docker image
+./scripts/launch_production.sh train_burgers_32dim
+
+# That's it! Image pulls in ~2 min, training starts immediately
+# Total startup: 3-4 min (vs 7-12 min with manual setup)
+```
+
+**See:** `PRODUCTION_WORKFLOW.md` for complete production workflow guide.
+
+---
+
+## Manual Launch (Development/Testing)
 
 ```bash
 # 1. Validate config (5 seconds)
 python scripts/validate_config.py configs/train_burgers_32dim.yaml
 
-# 2. Check data (10 seconds)
+# 2. Check data (10 seconds)  
 python scripts/validate_data.py configs/train_burgers_32dim.yaml
 
 # 3. Estimate cost (10 seconds)
 python scripts/dry_run.py configs/train_burgers_32dim.yaml --estimate-only
 
-# 4. Launch training (~2 minutes)
-python scripts/vast_launch.py \
-    --config configs/train_burgers_32dim.yaml \
-    --auto-shutdown
+# 4. Launch training
+python scripts/train.py --config configs/train_burgers_32dim.yaml --stage all
 
 # Expected: ~25 min training, $1.25 cost, 0.09 NRMSE with TTC
 ```

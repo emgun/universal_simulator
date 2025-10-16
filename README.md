@@ -2,10 +2,25 @@
 
 Unified latent simulator with discretization-agnostic I/O, transformer core, few-step diffusion residual, steady-state latent prior, physics guards, multiphysics coupling, particles/contacts, DA, and safe control.
 
-Quickstart
-- Create env and install: `pip install -e .[dev]`
-- Prepare deterministic flags: `bash scripts/prepare_env.sh`
-- See milestone checklist: `MILESTONES_TODO.md`
+## Quick Start
+
+**Production Training (Recommended):**
+```bash
+# One-command launch with pre-built Docker image
+./scripts/launch_production.sh train_burgers_32dim
+```
+
+**Local Development:**
+```bash
+pip install -e .[dev]
+python scripts/train.py --config configs/train_burgers_32dim.yaml --stage all
+```
+
+**Documentation:**
+- **Production workflow:** `PRODUCTION_WORKFLOW.md` - Fast, bombproof training with Docker
+- **Quick start:** `QUICKSTART.md` - 5-minute getting started guide  
+- **Best practices:** `docs/production_playbook.md` - Comprehensive operational guide
+- **Operations:** `docs/runbook.md` - Step-by-step procedures
 
 Repository Structure (namespaced under `ups`)
 - `src/ups/core`: latent state, conditioning, PDE‑Transformer blocks
