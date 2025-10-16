@@ -252,11 +252,17 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
     try:
         import torch
 
-        # Use different compile modes based on model type:
+        # Use different compile modes based on model type and training config:
         # - "default" for diffusion models (avoids CUDA graph issues with complex control flow)
-        # - "reduce-overhead" for operators (aggressive CUDA graph optimization)
+        # - "default" for operators with rollout loss (multi-step prediction breaks CUDA graphs)
+        # - "reduce-overhead" for operators without rollout (aggressive CUDA graph optimization)
+        training_cfg = cfg.get("training", {})
+        has_rollout = training_cfg.get("rollout_horizon", 0) > 0 and training_cfg.get("lambda_rollout", 0) > 0
+        
         if "diffusion" in name.lower():
             compile_mode = "default"
+        elif "operator" in name.lower() and has_rollout:
+            compile_mode = "default"  # Rollout breaks CUDA graphs
         else:
             compile_mode = "reduce-overhead"
         
