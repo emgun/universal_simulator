@@ -1112,6 +1112,7 @@ def train_all_stages(cfg: dict) -> None:
     if wandb_cfg.get("enabled") and wandb is not None:
         shared_run = wandb.init(
             project=wandb_cfg.get("project", "universal-simulator"),
+            entity=wandb_cfg.get("entity"),
             name=wandb_cfg.get("run_name", "full-pipeline"),
             config=cfg,
             tags=wandb_cfg.get("tags", []) + ["full-pipeline"],

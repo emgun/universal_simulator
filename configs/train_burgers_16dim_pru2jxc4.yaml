@@ -150,6 +150,8 @@ ttc:
 logging:
   wandb:
     enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
     run_name: burgers16-pru2jxc4-phase1
     tags: [16dim, pru2jxc4_config, phase1_mapping, optimal_candidate, unified_pipeline]
 

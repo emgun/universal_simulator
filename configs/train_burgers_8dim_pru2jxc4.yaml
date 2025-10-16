@@ -144,6 +144,8 @@ ttc:
 logging:
   wandb:
     enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
     run_name: burgers8-pru2jxc4-phase1
     tags: [8dim, pru2jxc4_config, phase1_mapping, ultra_small]
 
