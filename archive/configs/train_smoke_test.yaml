@@ -1,0 +1,73 @@
+include: train_pdebench_scale.yaml
+
+# Smoke test config: Fast training with improved diffusion stability
+# Tests full pipeline: operator → diffusion → consistency distillation
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  shard_limit: 100  # Limit to 100 samples for smoke test
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  batch_size: 8      # Larger batch for stability
+  time_stride: 4     # Skip more timesteps for speed
+  distill_micro_batch: 4
+  distill_num_taus: 3  # Reduced for speed
+  compile: false     # Disable for faster startup
+  latent_cache_dir: data/latent_cache_smoke
+  num_workers: 0     # Disable multiprocessing to avoid device mismatch
+  pin_memory: false  # Disable with num_workers=0
+
+stages:
+  operator:
+    epochs: 6  # As requested
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.02
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 3.0e-5
+
+  diff_residual:
+    epochs: 3
+    optimizer:
+      name: adamw  # Changed from adam for better stability
+      lr: 3.0e-5   # Reduced from 7.5e-5 for stability
+      weight_decay: 0.01  # Added weight decay for regularization
+      betas: [0.9, 0.999]  # More stable momentum
+    scheduler:
+      name: cosineannealinglr  # Added scheduler for smooth LR decay
+      t_max: 3
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 2  # Reduced for smoke test
+    batch_size: 6
+    optimizer:
+      name: adamw  # Changed to adamw
+      lr: 2.0e-5   # Reduced for stability
+      weight_decay: 0.01
+    scheduler:
+      name: cosineannealinglr
+      t_max: 2
+      eta_min: 2.0e-6
+
+checkpoint:
+  dir: checkpoints/smoke_test/
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: smoke-test-full-pipeline-v3
+    group: smoke-tests-v3
+    job_type: training
+    tags: [smoke-test, burgers1d, stability-test, v3]

@@ -1,0 +1,72 @@
+# 32-dim v3: Extended Training with Rollout Loss
+# Goal: Get NRMSE < 0.045 through better operator training
+
+include: train_burgers_32dim_v2_fixed.yaml
+
+# OVERRIDE: Add rollout loss and extend training
+training:
+  rollout_horizon: 3          # Multi-step prediction training
+  lambda_rollout: 0.1         # Weight for rollout loss
+  
+stages:
+  operator:
+    epochs: 25                # Same as v2
+    
+    optimizer:
+      name: adamw
+      lr: 1.0e-3              # Same constant LR
+      weight_decay: 0.03
+      betas: [0.9, 0.999]
+
+  diff_residual:
+    epochs: 8                 # Same as v2
+    grad_clip: 1.0
+    ema_decay: 0.999
+    
+    optimizer:
+      name: adamw
+      lr: 5.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 8                 # Same as v2
+    batch_size: 6
+    
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-6
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers32-v3-rollout
+    tags: [32dim, v3_rollout, extended_training, multi_step]
+
+# EXPECTED:
+# ─────────────────────────────────────────────────────────────────────────────
+# Training time: ~60 min on H200 (same as v2)
+#   Operator: 25 epochs × ~2.5s = ~1 min after compilation
+#   Diffusion: 8 epochs × ~7s = ~1 min
+#   Consistency: 8 epochs × ~5 min = ~40 min
+#   Evaluation: ~15-20 min
+#
+# Cost: ~$2.00 @ $2.66/hr
+#
+# Expected NRMSE: 0.050-0.055 (rollout loss improves multi-step accuracy)
+# ─────────────────────────────────────────────────────────────────────────────
+

@@ -1,37 +1,28 @@
 # Archive Directory
 
-This directory contains deprecated scripts and configurations that are no longer actively used in the main pipeline but are preserved for reference.
+This directory contains deprecated files that have been superseded by newer implementations or are no longer part of the production workflow.
 
-## Contents
+## Structure
 
-### `configs/` - Deprecated Configuration Files
-- Old training iterations (v1, v2, smoke tests)
-- Temporary evaluation variants (fixed, neutral, baseline)
-- One-off experimental configs
+- `configs/` - Old training and evaluation configurations
+- `scripts/` - Deprecated scripts and utilities
+- `docs/` - Historical documentation and analyses
 
-### `scripts/` - Deprecated Scripts
-- One-off debugging scripts (remote_fix_and_run.sh, restart_*.sh)
-- Superseded launchers (launch_and_run_cheapest.sh)
-- Old versions (resume_from_wandb.sh replaced by v2)
+## Why Archive Instead of Delete?
 
-## Archival Criteria
+These files are preserved for:
+- Historical reference
+- Understanding past experiments
+- Recovering old configurations if needed
+- Audit trail of development decisions
 
-Files are archived when they:
-1. Are superseded by newer versions
-2. Were created for one-off debugging/testing
-3. Are no longer referenced in active pipelines
-4. Haven't been modified in recent commits
+## Migration Guide
 
-## Recovery
+See `/DEPRECATED.md` in the project root for details on:
+- What replaced each deprecated file
+- How to migrate to new approaches
+- When to use archived vs production files
 
-If you need a file from the archive:
-```bash
-cp archive/configs/FILENAME configs/
-# or
-cp archive/scripts/FILENAME scripts/
-```
+## Last Updated
 
-## Archive Date: October 14, 2025
-
-**Archived by:** Codebase cleanup initiative
-**Main pipeline:** scripts/run_remote_scale.sh with configs/train_burgers_quality_v3.yaml
+$(date +%Y-%m-%d)

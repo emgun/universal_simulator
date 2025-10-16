@@ -1,0 +1,44 @@
+# Evaluation config for 32-dim Burgers1D model
+
+seed: 17
+precision: bf16
+
+data:
+  task: burgers1d
+  split: test
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 32
+  tokens: 16
+
+training:
+  batch_size: 16
+  dt: 0.1
+  num_workers: 0
+  pin_memory: false
+
+operator:
+  pdet:
+    input_dim: 32
+    hidden_dim: 64
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 4
+
+diffusion:
+  latent_dim: 32
+  hidden_dim: 64
+
+logging:
+  backend: stdout
+  level: INFO
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: eval-burgers32-test
+    group: eval-32dim
+    job_type: evaluation
+    tags: [eval, burgers1d, 32dim, test]
+

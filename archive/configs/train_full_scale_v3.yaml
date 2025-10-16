@@ -1,0 +1,73 @@
+include: train_pdebench_scale.yaml
+
+# Full-scale training with improved diffusion stability (v3)
+# Based on successful smoke test with diffusion improvements
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 512
+  tokens: 128
+
+training:
+  batch_size: 8
+  time_stride: 2
+  distill_micro_batch: 4
+  distill_num_taus: 5
+  compile: true
+  latent_cache_dir: data/latent_cache
+  num_workers: 8
+  pin_memory: true
+  lambda_spectral: 0.05
+
+stages:
+  operator:
+    epochs: 6  # As requested and tested in smoke test
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.02
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 3.0e-5
+
+  diff_residual:
+    epochs: 5  # Full training epochs
+    optimizer:
+      name: adamw  # Changed from adam for stability
+      lr: 3.0e-5   # Reduced from 7.5e-5 for stability
+      weight_decay: 0.01  # Added regularization
+      betas: [0.9, 0.999]
+    scheduler:
+      name: cosineannealinglr  # Added for smooth LR decay
+      t_max: 5
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 6
+    batch_size: 6
+    optimizer:
+      name: adamw  # Changed to adamw
+      lr: 2.0e-5   # Reduced for stability
+      weight_decay: 0.01
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 2.0e-6
+
+checkpoint:
+  dir: checkpoints/full_scale_v3/
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: burgers1d-full-scale-v3
+    group: full-scale-v3
+    job_type: training
+    tags: [full-scale, burgers1d, v3, stable-diffusion, operator-6epochs]

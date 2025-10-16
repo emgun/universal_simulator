@@ -1,0 +1,119 @@
+# Docker build context exclusions
+# Reduces image size and build time
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Training artifacts (will be mounted as volumes)
+checkpoints/
+*.pt
+*.pth
+data/
+logs/
+wandb/
+reports/
+remote_*/
+artifacts/
+
+# Cache
+.cache/
+*.cache
+.pytest_cache/
+.mypy_cache/
+
+# Documentation (not needed in runtime)
+docs/
+*.md
+!README.md  # Keep README
+
+# Archive (historical files)
+archive/
+
+# Environment files (mounted at runtime)
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.backup
+
+# Test files
+tests/
+*.test
+
+# CI/CD
+.github/
+.circleci/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Vast.ai specific
+.vast/
+
+# Scripts that aren't needed in container
+scripts/cleanup_*.sh
+scripts/archive_*.sh
+
+# Large data files
+*.h5
+*.zarr
+*.tar.gz
+*.zip
+
+# Compiled binaries
+*.o
+*.a
+*.lib
+*.dll
+*.dylib
+*.exe
+

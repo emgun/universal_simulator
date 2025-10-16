@@ -1,0 +1,68 @@
+# Docker Compose for local testing with GPU support
+# Usage: docker-compose up --build
+
+version: '3.8'
+
+services:
+  universal-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: universal-simulator:latest
+    container_name: ups-train
+    
+    # GPU configuration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # Environment variables
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - WANDB_PROJECT=${WANDB_PROJECT:-universal-simulator}
+      - WANDB_ENTITY=${WANDB_ENTITY}
+      - B2_KEY_ID=${B2_KEY_ID}
+      - B2_APP_KEY=${B2_APP_KEY}
+      - B2_BUCKET=${B2_BUCKET:-pdebench}
+      - B2_S3_ENDPOINT=${B2_S3_ENDPOINT}
+      - B2_S3_REGION=${B2_S3_REGION}
+    
+    # Volume mounts for persistence
+    volumes:
+      - ./checkpoints:/workspace/checkpoints
+      - ./data:/workspace/data
+      - ./logs:/workspace/logs
+      - ./configs:/workspace/configs:ro  # Read-only configs
+      - ./.env:/workspace/.env:ro  # Environment file
+    
+    # Working directory
+    working_dir: /workspace
+    
+    # Keep container running for interactive use
+    tty: true
+    stdin_open: true
+    
+    # Command (override with docker-compose run)
+    command: /bin/bash
+    
+    # Network mode
+    network_mode: bridge
+    
+    # Restart policy
+    restart: unless-stopped
+
+# Optional: Add monitoring services
+# services:
+#   tensorboard:
+#     image: tensorflow/tensorflow:latest
+#     ports:
+#       - "6006:6006"
+#     volumes:
+#       - ./logs:/logs
+#     command: tensorboard --logdir=/logs --host=0.0.0.0
+

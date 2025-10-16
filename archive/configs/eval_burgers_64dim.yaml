@@ -1,0 +1,44 @@
+# Evaluation config for 64-dim Burgers1D model (no TTC)
+
+seed: 17
+precision: bf16
+
+data:
+  task: burgers1d
+  split: test
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 64
+  tokens: 32
+
+training:
+  batch_size: 16
+  dt: 0.1
+  num_workers: 0
+  pin_memory: false
+
+operator:
+  pdet:
+    input_dim: 64
+    hidden_dim: 128
+    depths: [1, 1, 1]
+    group_size: 16
+    num_heads: 4
+
+diffusion:
+  latent_dim: 64
+  hidden_dim: 128
+
+logging:
+  backend: stdout
+  level: INFO
+  wandb:
+    enabled: true
+    project: universal-simulator
+    run_name: eval-burgers64-test
+    group: eval-64dim
+    job_type: evaluation
+    tags: [eval, burgers1d, 64dim, test, pru2jxc4_baseline]
+

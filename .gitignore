@@ -36,3 +36,19 @@ launch*.log
 monitor.log
 fetch_*.log
 resume.log
+
+# Remote run artifacts (checkpoint files are too large for git)
+remote_artifacts/
+remote_run*/
+remote_consistency_run/
+
+# Additional data/temp directories
+smoke_tmp/
+*.tar.gz
+*.pt
+*.pth
+*.ckpt
+
+# Reports directory (generated files)
+reports/
+

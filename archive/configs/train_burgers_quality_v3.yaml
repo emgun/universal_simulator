@@ -1,0 +1,35 @@
+include: train_burgers_quality_v2.yaml
+
+training:
+  time_stride: 1
+  rollout_horizon: 3
+  lambda_rollout: 0.15
+  accum_steps: 6
+  batch_size: 4
+  distill_micro_batch: 2
+  distill_num_taus: 10
+  checkpoint_interval: 0
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+stages:
+  operator:
+    epochs: 6
+    scheduler:
+      t_max: 6
+      eta_min: 1.0e-4
+  diff_residual:
+    epochs: 5
+    grad_clip: 1.0
+    ema_decay: 0.999
+    optimizer:
+      lr: 5.0e-5
+  consistency_distill:
+    epochs: 8
+
+logging:
+  wandb:
+    run_name: burgers1d-train-quality-v3
+    tags: [quality, burgers1d, rollout]
