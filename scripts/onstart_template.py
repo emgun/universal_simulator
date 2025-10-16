@@ -178,7 +178,7 @@ def generate_onstart_script(config: OnstartConfig) -> str:
             "mkdir -p data/pdebench",
             "if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then",
             "  echo 'Downloading burgers1d_train_000.h5...'",
-            "  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ || {",
+            f'  rclone copy B2TRAIN:{config.b2_bucket or "ups-datasets"}/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ || {{',
             "    echo '⚠️ Training data download failed!'",
             "  }",
             "fi",
