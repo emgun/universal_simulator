@@ -514,7 +514,9 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("diff_residual", {})
-    diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
+    # Read hidden_dim from config, fallback to latent_dim * 2 for backward compatibility
+    hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
+    diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
     _ensure_model_on_device(diff, device)
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
     
@@ -717,7 +719,9 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     # Create diffusion model and load checkpoint directly to target device
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
-    diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
+    # Read hidden_dim from config, fallback to latent_dim * 2 for backward compatibility
+    hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
+    diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
         diff_state = torch.load(diff_path, map_location="cpu")
