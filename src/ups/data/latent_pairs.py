@@ -626,7 +626,11 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                             time_stride=time_stride,
                             rollout_horizon=rollout_horizon,
                         )
-                        return DataLoader(ram_dataset, **loader_kwargs)
+                        # Force num_workers=0 for RAM preload - data is already in main process
+                        ram_loader_kwargs = {**loader_kwargs, "num_workers": 0, "persistent_workers": False}
+                        if "prefetch_factor" in ram_loader_kwargs:
+                            del ram_loader_kwargs["prefetch_factor"]
+                        return DataLoader(ram_dataset, **ram_loader_kwargs)
                     else:
                         print(f"⚠️  Cache complete but insufficient RAM ({cache_size_mb:.1f}MB needed)")
                         print(f"    Falling back to disk-based loading (slower)")
