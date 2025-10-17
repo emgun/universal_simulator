@@ -146,12 +146,12 @@ stages:
 ttc:
   enabled: true
   steps: 1
-  candidates: 8
-  beam_width: 3
+  candidates: 4
+  beam_width: 2
   horizon: 1
   residual_threshold: 0.35
   gamma: 1.0
-  max_evaluations: 150
+  max_evaluations: 50
 
   sampler:
     tau_range: [0.15, 0.85]
