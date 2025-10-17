@@ -106,11 +106,14 @@ stages:
     
     optimizer:
       name: adamw
-      lr: 1.0e-3            # Constant LR (proven effective)
+      lr: 1.0e-3            # Starting LR (decays via scheduler)
       weight_decay: 0.03
       betas: [0.9, 0.999]
     
-    # No scheduler = constant LR throughout
+    scheduler:
+      name: cosineannealinglr
+      t_max: 40              # Inherited from base (longer than epochs)
+      eta_min: 2.5e-5        # Minimum LR
 
   diff_residual:
     epochs: 8
