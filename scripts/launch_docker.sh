@@ -1,48 +1,86 @@
 #!/bin/bash
-# Launch production training run on VastAI with pre-built Docker image
+# Launch training with pre-built Docker image (fastest method)
 # 
+# Prerequisites:
+#   - VastAI env-vars configured (run once): python scripts/vast_launch.py setup-env
+#   - Docker image built: https://github.com/emgun/universal_simulator/actions
+#
 # Usage:
-#   ./scripts/launch_production.sh [config_name] [instance_id]
+#   ./scripts/launch_docker.sh [config_name]
 #
 # Example:
-#   ./scripts/launch_production.sh train_burgers_32dim
+#   ./scripts/launch_docker.sh train_burgers_32dim
 #
-# Requirements: B2 and WandB credentials in environment variables
-#   export B2_KEY_ID=...
-#   export B2_APP_KEY=...
-#   export B2_S3_ENDPOINT=...
-#   export B2_S3_REGION=...
-#   export WANDB_API_KEY=...
-#   export WANDB_ENTITY=...
+# Benefits:
+#   - 1-2 min startup (vs 3-4 min git clone)
+#   - All code/deps pre-installed
+#   - VastAI's proven PyTorch/CUDA/Triton setup
 
 set -e
 
 CONFIG=${1:-train_burgers_32dim}
-INSTANCE=${2:-}
 
-# Docker image from GitHub Container Registry (public)
+# Docker image from GitHub Container Registry
+# Use branch-specific tag for latest build
 IMAGE="ghcr.io/emgun/universal_simulator:feature-sota_burgers_upgrades"
 
-# Find best available instance if not specified
-if [ -z "$INSTANCE" ]; then
-    echo "🔍 Finding best available RTX 4090 instance..."
-    INSTANCE=$(vastai search offers 'reliability > 0.98 num_gpus=1 gpu_name=RTX_4090 dph < 0.5' -o 'dph' --raw | jq -r '.[0].id')
-    echo "✅ Selected instance: $INSTANCE"
-fi
-
-echo "🚀 Launching training on instance $INSTANCE"
-echo "   Config: configs/${CONFIG}.yaml"
-echo "   Image: $IMAGE"
+echo "═══════════════════════════════════════════════════════════"
+echo "Docker Launch: ${CONFIG}.yaml"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+echo "Image: $IMAGE"
 echo ""
 
-vastai create instance $INSTANCE \
+# Find best available instance
+echo "🔍 Finding best RTX 4090 instance..."
+OFFER=$(vastai search offers 'reliability > 0.98 num_gpus=1 gpu_name=RTX_4090 dph < 0.5' -o 'dph' --raw | jq -r '.[0]')
+INSTANCE_ID=$(echo "$OFFER" | jq -r '.id')
+DPH=$(echo "$OFFER" | jq -r '.dph_total')
+
+echo "✅ Selected offer $INSTANCE_ID (\$$DPH/hr)"
+echo ""
+
+# Simple onstart: download data + run training
+# All code/deps already in image, VastAI env-vars injected automatically
+ONSTART_CMD="
+cd /app && \
+mkdir -p data/pdebench && \
+rclone copy --config <(echo '[B2TRAIN]
+type = s3
+provider = B2
+access_key_id = '\$B2_KEY_ID'
+secret_access_key = '\$B2_APP_KEY'
+endpoint = '\$B2_S3_ENDPOINT'
+region = '\$B2_S3_REGION'
+') B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ && \
+ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && \
+export TRAIN_CONFIG=configs/${CONFIG}.yaml && \
+export TRAIN_STAGE=all && \
+export RESET_CACHE=1 && \
+/venv/main/bin/python scripts/train.py --config configs/${CONFIG}.yaml --stage all
+"
+
+echo "🚀 Launching instance..."
+vastai create instance "$INSTANCE_ID" \
     --image "$IMAGE" \
-    --disk 50 \
+    --disk 64 \
     --ssh \
-    --env "-e WANDB_API_KEY=${WANDB_API_KEY} -e WANDB_PROJECT=universal-simulator -e WANDB_ENTITY=${WANDB_ENTITY} -e B2_KEY_ID=${B2_KEY_ID} -e B2_APP_KEY=${B2_APP_KEY} -e B2_S3_ENDPOINT=${B2_S3_ENDPOINT} -e B2_S3_REGION=${B2_S3_REGION}" \
-    --onstart-cmd "mkdir -p ~/.config/rclone && printf '[B2TRAIN]\ntype = s3\nprovider = Other\naccess_key_id = %s\nsecret_access_key = %s\nendpoint = %s\nregion = %s\n' \"\${B2_KEY_ID}\" \"\${B2_APP_KEY}\" \"\${B2_S3_ENDPOINT}\" \"\${B2_S3_REGION}\" > ~/.config/rclone/rclone.conf && cd /app && mkdir -p data/pdebench && rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ && ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && python scripts/train.py --config configs/${CONFIG}.yaml --stage all"
+    --onstart-cmd "$ONSTART_CMD"
 
 echo ""
-echo "✅ Instance launched!"
-echo "   Monitor: vastai show instance \$INSTANCE_ID"
-echo "   Logs: vastai logs \$INSTANCE_ID"
+echo "═══════════════════════════════════════════════════════════"
+echo "✅ Instance Launched!"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+echo "Monitor:"
+echo "  vastai show instance <ID>"
+echo "  vastai logs <ID>"
+echo ""
+echo "Timeline:"
+echo "  ~30 sec: Image pull (compressed ~300-500MB)"
+echo "  ~30 sec: Data download (1.57GB)"
+echo "  ~30 sec: Latent cache precompute"
+echo "  Then: Training begins"
+echo ""
+echo "Expected startup: 1-2 min to training (vs 3-4 min git clone)"
+echo ""

@@ -49,7 +49,28 @@ vastai show env-vars
 
 ## Launching Training
 
-### Standard Launch
+### Two Methods Available
+
+#### Method 1: Docker Image (⚡ Fastest - 1-2 min)
+**Best for:** Production runs, stable configs
+
+```bash
+./scripts/launch_docker.sh train_burgers_32dim
+```
+
+**Timeline:**
+- ~30 sec: Image pull (compressed ~300-500MB)
+- ~30 sec: Data download
+- ~30 sec: Latent cache
+- **Total: 1-2 min to training**
+
+**Pros:** Fastest, all code/deps pre-baked, consistent  
+**Cons:** Requires GitHub Actions build (5-8 min after code push)
+
+---
+
+#### Method 2: Git Clone (🔧 Most Flexible - 2-3 min)
+**Best for:** Development, code iteration
 
 ```bash
 python scripts/vast_launch.py launch \
@@ -57,7 +78,35 @@ python scripts/vast_launch.py launch \
   --auto-shutdown
 ```
 
-### Advanced Options
+**Timeline:**
+- ~30 sec: Instance + venv activation
+- ~30 sec: pip install
+- ~30 sec: Data download
+- ~30 sec: Latent cache
+- **Total: 2-3 min to training**
+
+**Pros:** Instant (no build wait), flexible, easy debugging  
+**Cons:** 1-2 min slower startup
+
+---
+
+### When to Use Which
+
+**Use Docker when:**
+- Running production evals
+- Need fastest startup
+- Testing stable configs
+- Parallel experiments
+
+**Use Git Clone when:**
+- Developing features
+- Debugging issues
+- Rapid code iteration
+- Config-only changes
+
+---
+
+### Advanced Launch Options (Git Clone)
 
 ```bash
 # Specific GPU type
