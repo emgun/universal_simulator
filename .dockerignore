@@ -67,6 +67,12 @@ docs/
 # Archive (historical files)
 archive/
 
+# Non-essential configs (only keep essential training configs)
+configs/inference_*.yaml
+configs/coupled_*.yaml
+configs/benchmark_*.yaml
+configs/scale_overrides.md
+
 # Environment files (mounted at runtime)
 .env
 .env.*
@@ -99,9 +105,20 @@ coverage.xml
 # Vast.ai specific
 .vast/
 
-# Scripts that aren't needed in container
+# Scripts that aren't needed in container (only copy train.py, evaluate.py, precompute)
 scripts/cleanup_*.sh
 scripts/archive_*.sh
+scripts/vast_*.py
+scripts/monitor_*.sh
+scripts/launch_*.sh
+scripts/fix_*.sh
+scripts/fetch_*.sh
+scripts/download_*.py
+scripts/run_training_pipeline.sh
+scripts/dry_run.py
+scripts/validate_*.py
+scripts/analyze_*.py
+scripts/compare_*.py
 
 # Large data files
 *.h5
