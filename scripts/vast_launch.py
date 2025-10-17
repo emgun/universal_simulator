@@ -110,7 +110,7 @@ fi
 # Download validation data
 if [ ! -f data/pdebench/burgers1d_val.h5 ]; then
   echo "📥 Downloading validation data..."
-  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_val.h5 data/pdebench/ --progress || echo "⚠️  Val data download failed"
+  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress || echo "⚠️  Val data download failed"
   echo "✅ Validation data downloaded"
 else
   echo "✅ Validation data already exists"
@@ -119,7 +119,7 @@ fi
 # Download test data for evaluation
 if [ ! -f data/pdebench/burgers1d_test.h5 ]; then
   echo "📥 Downloading test data..."
-  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_test.h5 data/pdebench/ --progress || echo "⚠️  Test data download failed, eval may not work"
+  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress || echo "⚠️  Test data download failed, eval may not work"
   echo "✅ Test data downloaded"
 else
   echo "✅ Test data already exists"
