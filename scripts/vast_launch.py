@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 import os
+import time
 import shlex
 import subprocess
 import sys
@@ -125,11 +126,33 @@ else
   echo "✅ Test data already exists"
 fi
 
-# Run training pipeline (VastAI env-vars already injected)
-export TRAIN_CONFIG="{config}"
-export TRAIN_STAGE="{stage}"
-export RESET_CACHE=1
-bash scripts/run_training_pipeline.sh
+# Ensure clean caches for each run
+rm -rf data/latent_cache checkpoints/scale || true
+mkdir -p data/latent_cache checkpoints/scale
+
+# Run fast-to-SOTA automation (VastAI env-vars already injected)
+export WANDB_MODE=online
+python scripts/run_fast_to_sota.py \
+  --train-config {config} \
+  --small-eval-config configs/small_eval_burgers.yaml \
+  --full-eval-config configs/full_eval_burgers.yaml \
+  --eval-device cuda \
+  --run-dir artifacts/runs \
+  --leaderboard-csv reports/leaderboard.csv \
+  --leaderboard-html reports/leaderboard.html \
+  --wandb-sync \
+  --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \
+  --wandb-entity "${{WANDB_ENTITY:-}}" \
+  --wandb-group fast-to-sota \
+  --wandb-tags vast \
+  --wandb-tags production \
+  --leaderboard-wandb \
+  --leaderboard-wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \
+  --leaderboard-wandb-entity "${{WANDB_ENTITY:-}}" \
+  --copy-checkpoints \
+  --strict-exit \
+  --tag environment=vast \
+  --tag launch_mode=auto
 """
 
     if auto_shutdown:
@@ -242,7 +265,16 @@ def cmd_launch(args: argparse.Namespace) -> None:
         print("\nGenerated onstart script:\n" + onstart_path.read_text())
         return
     
-    run(cmd)
+    attempts = max(1, int(getattr(args, "retries", 0)) + 1)
+    wait_s = max(0, int(getattr(args, "retry_wait", 20)))
+    for i in range(attempts):
+        rc = run(cmd, check=False)
+        if rc == 0:
+            return
+        if i < attempts - 1:
+            print(f"Launch failed (rc={rc}). Retrying in {wait_s}s… [{i+1}/{attempts-1}]")
+            time.sleep(wait_s)
+    raise SystemExit(rc)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -280,6 +312,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_launch.add_argument("--auto-shutdown", action="store_true", help="Auto-shutdown after completion")
     p_launch.add_argument("--dry-run", action="store_true", help="Print commands without launching")
+    p_launch.add_argument("--retries", type=int, default=0, help="Retries for failed launch attempts")
+    p_launch.add_argument("--retry-wait", type=int, default=20, help="Seconds to wait between retries")
     p_launch.set_defaults(func=cmd_launch)
 
     return parser

@@ -1,0 +1,45 @@
+name: fast_to_sota_burgers_proxy
+method: bayes
+metric:
+  name: small_eval/metric/nrmse
+  goal: minimize
+parameters:
+  operator_lr:
+    min: 0.0005
+    max: 0.0015
+  batch_size:
+    values: [8, 12, 16]
+  time_stride:
+    values: [2, 4]
+command:
+  - ${env.PYTHON:-python}
+  - scripts/run_fast_to_sota.py
+  - --train-config
+  - configs/train_burgers_32dim.yaml
+  - --small-eval-config
+  - configs/small_eval_burgers.yaml
+  - --full-eval-config
+  - configs/full_eval_burgers.yaml
+  - --eval-device
+  - cuda
+  - --config-override
+  - stages.operator.optimizer.lr={{operator_lr}}
+  - --config-override
+  - training.batch_size={{batch_size}}
+  - --config-override
+  - training.time_stride={{time_stride}}
+  - --skip-full-eval
+  - --wandb-sync
+  - --wandb-tags
+  - sweep
+  - --tag
+  - sweep=fast_to_sota
+  - --leaderboard-wandb
+  - --leaderboard-csv
+  - reports/sweep_leaderboard.csv
+  - --leaderboard-html
+  - reports/sweep_leaderboard.html
+early_terminate:
+  type: hyperband
+  min_iter: 1
+  s: 2

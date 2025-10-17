@@ -142,12 +142,18 @@ If passes → **new champion**; else **archive with notes**.
 - Two evaluators: **`eval_small`** (10–60 min) and **`eval_full`** (overnight) with **fixed seeds/splits**; both write to a **leaderboard**.
 - **Auto-promote:** if `eval_small` beats champion by ≥ Δ **and** physics gates pass, enqueue `eval_full`.
 - **Dashboards:** training curves, physics gaps, calibration, efficiency. **Red lines** for conservation/BC thresholds.
+- CLI helper: `scripts/run_fast_to_sota.py` wires validation → training → small/full eval → gating → leaderboard promotion. It writes a `summary.json`, logs gate decisions to W&B (`--wandb-sync`), mirrors leaderboard rows (`--leaderboard-wandb`), and pushes artifacts (metrics, HTML, checkpoints) as W&B artifacts.
+- The evaluator now records **conservation gap**, **boundary-condition violation**, and **negativity penalty** metrics (latent-space proxies) in every run; gate ratios compare them against the champion to prevent physics regressions.
+- After each run, the pipeline calls `scripts/analyze_run.py` and (when promoted) `scripts/compare_runs.py`; reports and raw history CSV land alongside the run artifacts and are attached to the orchestrator W&B run as artifacts.
+- Remote automation: `python scripts/vast_launch.py launch ...` now boots a VastAI instance that clones the repo, hydrates data, runs `run_fast_to_sota.py` on CUDA, syncs everything to W&B, and auto-shuts down when done. One command yields training + evaluations + promotion.
+- Sweeps: `wandb sweep sweeps/fast_to_sota_sweep.yaml` seeds a proxy sweep (small eval only). Attach an agent with `wandb agent <entity>/<project>/<sweep_id>` to explore optimizer schedules, then rerun winners with full eval/full promotion.
 
 ### Sweep engine
 - Start with **low-cardinality grids**, not blind BO:  
   `LR × {0.5, 1.0, 1.5}`, `warmup {3%, 6%}`, `EMA {0.999, 0.9995, 0.9999}`.  
 - Size **batch tokens** to saturate GPU; ensure no CPU dataloader bottlenecks.  
 - After a win, run a **small BO** around the winner ±20% for **12–24 trials**.
+- **W&B sweeps:** use `sweeps/fast_to_sota_sweep.yaml` as a template; it drives `scripts/run_fast_to_sota.py` with overrides (lr, batch size, time stride) and logs proxy metrics to W&B while updating `reports/sweep_leaderboard.*`. Promote the best runs with a production launch once gates pass.
 
 ### Repro & hygiene
 - **Seed everything**; log environment (driver/CUDA) in run metadata.  

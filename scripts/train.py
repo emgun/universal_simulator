@@ -1074,6 +1074,7 @@ def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dic
         "eval/baseline_mae": baseline_metrics["report"].metrics.get("mae"),
         "eval/baseline_rmse": baseline_metrics["report"].metrics.get("rmse"),
         "eval/baseline_nrmse": baseline_metrics["report"].metrics.get("nrmse"),
+        "eval/baseline_rel_l2": baseline_metrics["report"].metrics.get("rel_l2"),
     })
     
     # Log TTC metrics if available
@@ -1083,6 +1084,7 @@ def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dic
             "eval/ttc_mae": ttc_metrics["report"].metrics.get("mae"),
             "eval/ttc_rmse": ttc_metrics["report"].metrics.get("rmse"),
             "eval/ttc_nrmse": ttc_metrics["report"].metrics.get("nrmse"),
+            "eval/ttc_rel_l2": ttc_metrics["report"].metrics.get("rel_l2"),
         })
         
         # Compute TTC improvement
@@ -1099,7 +1101,7 @@ def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dic
     summary_md += "| Metric | Baseline | TTC | Improvement |\n"
     summary_md += "|--------|----------|-----|-------------|\n"
     
-    for metric_name in ["mse", "mae", "rmse", "nrmse"]:
+    for metric_name in ["mse", "mae", "rmse", "nrmse", "rel_l2"]:
         baseline_val = baseline_metrics["report"].metrics.get(metric_name, 0)
         if ttc_metrics:
             ttc_val = ttc_metrics["report"].metrics.get(metric_name, 0)
@@ -1113,15 +1115,25 @@ def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dic
     
     # Also log as table for better visualization
     if ttc_metrics:
+        table_rows = []
+        for metric in ["mse", "mae", "rmse", "nrmse", "rel_l2"]:
+            base_val = baseline_metrics["report"].metrics.get(metric)
+            ttc_val = ttc_metrics["report"].metrics.get(metric)
+            if base_val is None or ttc_val is None:
+                improvement_pct = None
+            elif base_val == 0:
+                improvement_pct = None
+            else:
+                improvement_pct = ((base_val - ttc_val) / base_val) * 100.0
+            table_rows.append([
+                metric.upper(),
+                base_val,
+                ttc_val,
+                improvement_pct,
+            ])
         table = wandb.Table(
             columns=["Metric", "Baseline", "TTC", "Improvement (%)"],
-            data=[
-                [metric.upper(), 
-                 baseline_metrics["report"].metrics.get(metric),
-                 ttc_metrics["report"].metrics.get(metric),
-                 ((baseline_metrics["report"].metrics.get(metric) - ttc_metrics["report"].metrics.get(metric)) / baseline_metrics["report"].metrics.get(metric)) * 100]
-                for metric in ["mse", "mae", "rmse", "nrmse"]
-            ]
+            data=table_rows,
         )
         wandb.log({"eval/metrics_comparison": table})
 

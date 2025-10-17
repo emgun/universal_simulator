@@ -4,8 +4,7 @@ Compare multiple WandB training runs side-by-side.
 
 Features:
 - Config diff highlighting
-- Loss curve comparison
-- Final metrics table
+- Loss/metric table including physics diagnostics
 - Identifies which changes improved/degraded performance
 
 Usage:
@@ -67,6 +66,14 @@ def extract_metrics(run: wandb.apis.public.Run) -> Dict:
         "eval_baseline_nrmse": summary.get("eval/baseline_nrmse"),
         "eval_ttc_nrmse": summary.get("eval/ttc_nrmse"),
         "eval_ttc_improvement": summary.get("eval/ttc_improvement_pct"),
+        "eval_conservation_gap": summary.get("eval/conservation_gap"),
+        "eval_bc_violation": summary.get("eval/bc_violation"),
+        "eval_negativity_penalty": summary.get("eval/negativity_penalty"),
+        "eval_baseline_rel_l2": summary.get("eval/baseline_rel_l2"),
+        "eval_ttc_rel_l2": summary.get("eval/ttc_rel_l2"),
+        "eval_ttc_conservation_gap": summary.get("eval/ttc_conservation_gap"),
+        "eval_ttc_bc_violation": summary.get("eval/ttc_bc_violation"),
+        "eval_ttc_negativity_penalty": summary.get("eval/ttc_negativity_penalty"),
     }
 
 
@@ -172,6 +179,14 @@ def compare_metrics(runs: List[wandb.apis.public.Run]) -> str:
         "eval_baseline_nrmse": "Eval Baseline NRMSE",
         "eval_ttc_nrmse": "Eval TTC NRMSE",
         "eval_ttc_improvement": "TTC Improvement %",
+        "eval_baseline_rel_l2": "Eval Baseline Rel L2",
+        "eval_ttc_rel_l2": "Eval TTC Rel L2",
+        "eval_conservation_gap": "Baseline Conservation Gap",
+        "eval_bc_violation": "Baseline BC Violation",
+        "eval_negativity_penalty": "Baseline Negativity Penalty",
+        "eval_ttc_conservation_gap": "TTC Conservation Gap",
+        "eval_ttc_bc_violation": "TTC BC Violation",
+        "eval_ttc_negativity_penalty": "TTC Negativity Penalty",
     }
     
     for key, display_name in metric_names.items():
@@ -352,4 +367,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

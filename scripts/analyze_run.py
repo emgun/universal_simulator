@@ -5,8 +5,10 @@ Analyze a WandB training run and generate a comprehensive report.
 Features:
 - Fetches training curves (loss, grad norms, learning rates)
 - Computes stage-by-stage timing breakdown
-- Analyzes final metrics and evaluation results
-- Generates markdown report with plots and recommendations
+- Summarizes GPU/system utilisation statistics
+- Analyzes final metrics (including physics diagnostics) and evaluation results
+- Optionally exports the full run history as CSV
+- Generates markdown report with recommendations
 
 Usage:
     python scripts/analyze_run.py <run_id>
@@ -31,6 +33,17 @@ except ImportError:
     sys.exit(1)
 
 
+STAGES = [
+    ("operator", "Operator"),
+    ("diffusion_residual", "Diffusion Residual"),
+    ("consistency_distill", "Consistency Distill"),
+    ("steady_prior", "Steady Prior"),
+]
+
+GPU_COLUMN_PREFIXES = ("system/gpu", "system.cpu", "system/memory", "system.cpu.", "system/gpu.", "gpu/")
+STAGE_LABEL_MAP = {key: label for key, label in STAGES}
+
+
 def parse_run_path(run_path: str) -> tuple[str, str, str]:
     """
     Parse run path into (entity, project, run_id).
@@ -53,7 +66,7 @@ def parse_run_path(run_path: str) -> tuple[str, str, str]:
 def fetch_run(entity: Optional[str], project: Optional[str], run_id: str) -> wandb.apis.public.Run:
     """Fetch W&B run object."""
     api = wandb.Api()
-    
+
     # Build run path
     if entity and project:
         path = f"{entity}/{project}/{run_id}"
@@ -72,77 +85,108 @@ def fetch_run(entity: Optional[str], project: Optional[str], run_id: str) -> wan
         sys.exit(1)
 
 
-def analyze_training_curves(run: wandb.apis.public.Run) -> Dict:
-    """Analyze training loss curves for each stage."""
-    history = run.scan_history()
-    df = pd.DataFrame(history)
-    
-    analysis = {}
-    
-    # Operator stage
-    if "operator/loss" in df.columns:
-        op_losses = df["operator/loss"].dropna()
-        if len(op_losses) > 0:
-            analysis["operator"] = {
-                "initial_loss": float(op_losses.iloc[0]),
-                "final_loss": float(op_losses.iloc[-1]),
-                "min_loss": float(op_losses.min()),
-                "reduction": float((op_losses.iloc[0] - op_losses.iloc[-1]) / op_losses.iloc[0] * 100),
-                "steps": len(op_losses),
-            }
-    
-    # Diffusion stage
-    if "diffusion_residual/loss" in df.columns:
-        diff_losses = df["diffusion_residual/loss"].dropna()
-        if len(diff_losses) > 0:
-            analysis["diffusion"] = {
-                "initial_loss": float(diff_losses.iloc[0]),
-                "final_loss": float(diff_losses.iloc[-1]),
-                "min_loss": float(diff_losses.min()),
-                "reduction": float((diff_losses.iloc[0] - diff_losses.iloc[-1]) / diff_losses.iloc[0] * 100),
-                "steps": len(diff_losses),
-            }
-    
-    # Consistency distillation
-    if "consistency_distill/loss" in df.columns:
-        cons_losses = df["consistency_distill/loss"].dropna()
-        if len(cons_losses) > 0:
-            analysis["consistency"] = {
-                "initial_loss": float(cons_losses.iloc[0]),
-                "final_loss": float(cons_losses.iloc[-1]),
-                "min_loss": float(cons_losses.min()),
-                "steps": len(cons_losses),
-            }
-    
+def load_history(run: wandb.apis.public.Run, max_rows: Optional[int]) -> pd.DataFrame:
+    """Load run history into a pandas DataFrame."""
+    try:
+        history = run.history(samples=max_rows, pandas=True)
+    except Exception as exc:
+        print(f"⚠️  Failed to fetch run history: {exc}")
+        return pd.DataFrame()
+
+    if history is None:
+        return pd.DataFrame()
+    if not isinstance(history, pd.DataFrame):
+        history = pd.DataFrame(history)
+
+    # Drop columns that are completely empty
+    history = history.dropna(axis=1, how="all")
+    return history
+
+
+def analyze_training_curves(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
+    """Analyze training loss curves for each stage using the history dataframe."""
+    analysis: Dict[str, Dict[str, float]] = {}
+
+    if df.empty:
+        return analysis
+
+    for stage_key, _label in STAGES:
+        loss_col = f"{stage_key}/loss"
+        if loss_col not in df.columns:
+            continue
+        losses = df[loss_col].dropna()
+        if losses.empty:
+            continue
+
+        stage_stats: Dict[str, float] = {
+            "initial_loss": float(losses.iloc[0]),
+            "final_loss": float(losses.iloc[-1]),
+            "min_loss": float(losses.min()),
+            "steps": int(len(losses)),
+        }
+        if losses.iloc[0] != 0:
+            stage_stats["reduction_pct"] = float((losses.iloc[0] - losses.iloc[-1]) / losses.iloc[0] * 100.0)
+
+        lr_col = f"{stage_key}/lr"
+        if lr_col in df.columns:
+            lrs = df[lr_col].dropna()
+            if not lrs.empty:
+                stage_stats["lr_initial"] = float(lrs.iloc[0])
+                stage_stats["lr_final"] = float(lrs.iloc[-1])
+                stage_stats["lr_min"] = float(lrs.min())
+
+        epoch_col = f"{stage_key}/epoch"
+        if epoch_col in df.columns:
+            epochs = df[epoch_col].dropna()
+            if not epochs.empty:
+                stage_stats["epochs_recorded"] = int(epochs.max()) + 1 if epochs.dtype.kind in "iu" else float(epochs.max())
+
+        time_col = f"{stage_key}/epoch_time_sec"
+        if time_col in df.columns:
+            times = df[time_col].dropna()
+            if not times.empty:
+                stage_stats["epoch_time_mean"] = float(times.mean())
+                stage_stats["epoch_time_max"] = float(times.max())
+
+        patience_col = f"{stage_key}/epochs_since_improve"
+        if patience_col in df.columns:
+            patience = df[patience_col].dropna()
+            if not patience.empty:
+                stage_stats["epochs_since_improve_last"] = float(patience.iloc[-1])
+
+        analysis[stage_key] = stage_stats
+
     return analysis
 
 
-def analyze_gradient_norms(run: wandb.apis.public.Run) -> Dict:
+def analyze_gradient_norms(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
     """Analyze gradient norms for convergence issues."""
-    history = run.scan_history()
-    df = pd.DataFrame(history)
-    
-    grad_analysis = {}
-    
-    for stage in ["operator", "diffusion_residual", "consistency_distill"]:
-        grad_col = f"{stage}/grad_norm"
-        if grad_col in df.columns:
-            grads = df[grad_col].dropna()
-            if len(grads) > 0:
-                grad_analysis[stage] = {
-                    "initial": float(grads.iloc[0]),
-                    "final": float(grads.iloc[-1]),
-                    "max": float(grads.max()),
-                    "mean": float(grads.mean()),
-                }
-    
+    grad_analysis: Dict[str, Dict[str, float]] = {}
+
+    if df.empty:
+        return grad_analysis
+
+    for stage_key, _label in STAGES:
+        grad_col = f"{stage_key}/grad_norm"
+        if grad_col not in df.columns:
+            continue
+        grads = df[grad_col].dropna()
+        if grads.empty:
+            continue
+        grad_analysis[stage_key] = {
+            "initial": float(grads.iloc[0]),
+            "final": float(grads.iloc[-1]),
+            "max": float(grads.max()),
+            "mean": float(grads.mean()),
+        }
+
     return grad_analysis
 
 
 def analyze_evaluation(run: wandb.apis.public.Run) -> Dict:
     """Extract evaluation metrics."""
     summary = run.summary
-    
+
     eval_metrics = {}
     
     # Baseline metrics
@@ -152,7 +196,10 @@ def analyze_evaluation(run: wandb.apis.public.Run) -> Dict:
             "mse": summary.get("eval/baseline_mse"),
             "mae": summary.get("eval/baseline_mae"),
             "rmse": summary.get("eval/baseline_rmse"),
+            "rel_l2": summary.get("eval/baseline_rel_l2"),
         }
+        for key in ("conservation_gap", "bc_violation", "negativity_penalty"):
+            eval_metrics["baseline"][key] = summary.get(f"eval/{key}")
     
     # TTC metrics
     if "eval/ttc_nrmse" in summary:
@@ -161,7 +208,10 @@ def analyze_evaluation(run: wandb.apis.public.Run) -> Dict:
             "mse": summary.get("eval/ttc_mse"),
             "mae": summary.get("eval/ttc_mae"),
             "rmse": summary.get("eval/ttc_rmse"),
+            "rel_l2": summary.get("eval/ttc_rel_l2"),
         }
+        for key in ("conservation_gap", "bc_violation", "negativity_penalty"):
+            eval_metrics["ttc"][key] = summary.get(f"eval/ttc_{key}")
         
         # Compute improvement
         if eval_metrics.get("baseline"):
@@ -172,6 +222,26 @@ def analyze_evaluation(run: wandb.apis.public.Run) -> Dict:
                 eval_metrics["ttc_improvement_pct"] = improvement
     
     return eval_metrics
+
+
+def analyze_gpu_metrics(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
+    """Summarize GPU/system metrics from history."""
+    gpu_stats: Dict[str, Dict[str, float]] = {}
+
+    if df.empty:
+        return gpu_stats
+
+    candidate_cols = [col for col in df.columns if col.startswith(GPU_COLUMN_PREFIXES)]
+    for col in candidate_cols:
+        series = df[col].dropna()
+        if series.empty:
+            continue
+        gpu_stats[col] = {
+            "mean": float(series.mean()),
+            "max": float(series.max()),
+            "min": float(series.min()),
+        }
+    return gpu_stats
 
 
 def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
@@ -207,22 +277,36 @@ def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
     
     if "curves" in analysis and analysis["curves"]:
         for stage, metrics in analysis["curves"].items():
-            lines.append(f"### {stage.title()} Stage\n")
+            stage_label = STAGE_LABEL_MAP.get(stage, stage.title())
+            lines.append(f"### {stage_label} Stage\n")
             lines.append(f"- **Initial Loss:** {metrics['initial_loss']:.6f}")
             lines.append(f"- **Final Loss:** {metrics['final_loss']:.6f}")
             lines.append(f"- **Min Loss:** {metrics['min_loss']:.6f}")
-            if "reduction" in metrics:
-                lines.append(f"- **Loss Reduction:** {metrics['reduction']:.1f}%")
-            lines.append(f"- **Training Steps:** {metrics['steps']}")
-            
+            if "reduction_pct" in metrics:
+                lines.append(f"- **Loss Reduction:** {metrics['reduction_pct']:.1f}%")
+            lines.append(f"- **Logged Steps:** {metrics['steps']}")
+            if "epochs_recorded" in metrics:
+                lines.append(f"- **Epochs Recorded:** {metrics['epochs_recorded']}")
+            if "lr_initial" in metrics and "lr_final" in metrics:
+                lines.append(f"- **LR (initial → final):** {metrics['lr_initial']:.6f} → {metrics['lr_final']:.6f}")
+            if "epoch_time_mean" in metrics:
+                lines.append(f"- **Mean Epoch Time:** {metrics['epoch_time_mean']:.2f}s")
+            if "epochs_since_improve_last" in metrics:
+                lines.append(f"- **Epochs Since Improve (last):** {metrics['epochs_since_improve_last']:.1f}")
+
             # Assess convergence
-            if metrics['final_loss'] < metrics['initial_loss'] * 0.1:
+            reduction = metrics.get("reduction_pct", 0.0)
+            final_loss = metrics.get("final_loss", 0.0)
+            initial_loss = metrics.get("initial_loss", 0.0)
+            if initial_loss > 0 and reduction >= 90:
+                lines.append("- **Status:** ✅ Excellent convergence")
+            elif reduction >= 50:
                 lines.append("- **Status:** ✅ Good convergence")
-            elif metrics['final_loss'] < metrics['initial_loss'] * 0.5:
+            elif reduction >= 20:
                 lines.append("- **Status:** ⚠️  Moderate convergence")
             else:
-                lines.append("- **Status:** ❌ Poor convergence")
-            
+                lines.append("- **Status:** ❌ Minimal loss reduction")
+
             lines.append("")
     else:
         lines.append("*No training curve data available*\n")
@@ -234,7 +318,8 @@ def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
         lines.append("## Gradient Norm Analysis\n")
         
         for stage, grad_metrics in analysis["gradients"].items():
-            lines.append(f"### {stage.title().replace('_', ' ')}\n")
+            stage_label = STAGE_LABEL_MAP.get(stage, stage.title().replace("_", " "))
+            lines.append(f"### {stage_label}\n")
             lines.append(f"- **Initial Grad Norm:** {grad_metrics['initial']:.4f}")
             lines.append(f"- **Final Grad Norm:** {grad_metrics['final']:.4f}")
             lines.append(f"- **Max Grad Norm:** {grad_metrics['max']:.4f}")
@@ -264,7 +349,7 @@ def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
                 if value is not None:
                     lines.append(f"- **{metric.upper()}:** {value:.6f}")
             lines.append("")
-        
+
         if "ttc" in eval_data:
             lines.append("### Test-Time Conditioning (TTC) Performance\n")
             for metric, value in eval_data["ttc"].items():
@@ -287,6 +372,12 @@ def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
             lines.append("")
         
         lines.append("---\n")
+
+    if "gpu" in analysis and analysis["gpu"]:
+        lines.append("## Hardware Metrics\n")
+        for key, stats in analysis["gpu"].items():
+            lines.append(f"- **{key}:** avg={stats['mean']:.2f}, max={stats['max']:.2f}, min={stats['min']:.2f}")
+        lines.append("\n---\n")
     
     # Recommendations
     lines.append("## Recommendations\n")
@@ -300,13 +391,13 @@ def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
             recommendations.append("- **Operator:** Consider increasing epochs or lowering LR for better convergence")
         elif op_loss < 0.0001:
             recommendations.append("- **Operator:** Excellent convergence! Consider this a good baseline")
-    
+
     # Analyze diffusion
-    if "curves" in analysis and "diffusion" in analysis["curves"]:
-        diff_loss = analysis["curves"]["diffusion"]["final_loss"]
+    if "curves" in analysis and "diffusion_residual" in analysis["curves"]:
+        diff_loss = analysis["curves"]["diffusion_residual"]["final_loss"]
         if diff_loss > 0.01:
             recommendations.append("- **Diffusion:** Loss is high - try reducing LR or increasing epochs")
-    
+
     # Analyze TTC
     if "evaluation" in analysis and "ttc_improvement_pct" in analysis["evaluation"]:
         improvement = analysis["evaluation"]["ttc_improvement_pct"]
@@ -318,7 +409,14 @@ def generate_report(run: wandb.apis.public.Run, analysis: Dict) -> str:
         for stage, grad_metrics in analysis["gradients"].items():
             if grad_metrics["max"] > 10.0:
                 recommendations.append(f"- **{stage.title()}:** High gradient norms - enable/reduce gradient clipping")
-    
+
+    if "evaluation" in analysis and "baseline" in analysis["evaluation"]:
+        base = analysis["evaluation"]["baseline"]
+        if base.get("conservation_gap") and base["conservation_gap"] > 1.0:
+            recommendations.append("- **Physics:** High conservation gap detected; consider enabling physics guards or residual correctors")
+        if base.get("bc_violation") and base["bc_violation"] > 0.5:
+            recommendations.append("- **Boundary Conditions:** Tighten boundary penalties or curriculum for harder regimes")
+
     if recommendations:
         lines.extend(recommendations)
     else:
@@ -336,6 +434,8 @@ def main():
     parser.add_argument("--entity", help="W&B entity (if not in run_path)")
     parser.add_argument("--project", default="universal-simulator", help="W&B project")
     parser.add_argument("--output", "-o", help="Output markdown file (default: print to stdout)")
+    parser.add_argument("--history-csv", help="Optional path to export raw history as CSV")
+    parser.add_argument("--max-rows", type=int, default=20000, help="Maximum number of history rows to retrieve")
     args = parser.parse_args()
     
     # Parse run path
@@ -352,21 +452,36 @@ def main():
     run = fetch_run(entity, project, run_id)
     print(f"✅ Found run: {run.name}")
     
+    # Load history once for analyses and potential export
+    print("📥 Downloading run history...")
+    history_df = load_history(run, args.max_rows)
+    if args.history_csv and not history_df.empty:
+        history_path = Path(args.history_csv)
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        history_df.to_csv(history_path, index=False)
+        print(f"   • Saved history to {history_path}")
+    elif history_df.empty:
+        print("⚠️  History is empty or unavailable")
+
     # Analyze
     print("📊 Analyzing training curves...")
-    curves = analyze_training_curves(run)
+    curves = analyze_training_curves(history_df)
     
     print("📈 Analyzing gradient norms...")
-    gradients = analyze_gradient_norms(run)
-    
+    gradients = analyze_gradient_norms(history_df)
+
     print("🎯 Analyzing evaluation results...")
     evaluation = analyze_evaluation(run)
-    
+
+    print("🖥️  Summarizing hardware metrics...")
+    gpu_metrics = analyze_gpu_metrics(history_df)
+
     # Compile analysis
     analysis = {
         "curves": curves,
         "gradients": gradients,
         "evaluation": evaluation,
+        "gpu": gpu_metrics,
     }
     
     # Generate report
@@ -387,4 +502,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

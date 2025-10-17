@@ -72,8 +72,16 @@ def evaluate_latent_operator(
     sample_mse: list[torch.Tensor] = []
     sample_mae: list[torch.Tensor] = []
     sample_rel_l2: list[torch.Tensor] = []  # For SOTA comparison
+    sample_conservation: list[torch.Tensor] = []
+    sample_bc_violation: list[torch.Tensor] = []
+    sample_negativity: list[torch.Tensor] = []
     preview: Dict[str, torch.Tensor] | None = None
     ttc_step_logs: List[Dict[str, Any]] = []
+
+    total_conservation_gap = 0.0
+    total_bc_violation = 0.0
+    total_negativity_penalty = 0.0
+    physics_samples = 0
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
@@ -158,6 +166,30 @@ def evaluate_latent_operator(
                         "target": target.detach().cpu()[0].clone(),
                     }
 
+            # Physics-style diagnostics computed in latent coordinates
+            flat_pred = pred.reshape(pred.size(0), -1)
+            flat_target = target.reshape(target.size(0), -1)
+            conservation_batch = (flat_pred.sum(dim=1) - flat_target.sum(dim=1)).abs()
+
+            if pred.size(1) >= 2:
+                bc_first = (pred[:, 0] - target[:, 0]).abs().mean(dim=1)
+                bc_last = (pred[:, -1] - target[:, -1]).abs().mean(dim=1)
+                bc_batch = 0.5 * (bc_first + bc_last)
+            else:
+                bc_batch = diff.abs().mean(dim=(1, 2))
+
+            negativity_batch = torch.relu(-pred).mean(dim=(1, 2))
+
+            total_conservation_gap += conservation_batch.sum().item()
+            total_bc_violation += bc_batch.sum().item()
+            total_negativity_penalty += negativity_batch.sum().item()
+            physics_samples += pred.size(0)
+
+            if return_details:
+                sample_conservation.append(conservation_batch.detach().cpu())
+                sample_bc_violation.append(bc_batch.detach().cpu())
+                sample_negativity.append(negativity_batch.detach().cpu())
+
     if total_elements == 0:
         raise RuntimeError("Latent evaluation received an empty dataset")
 
@@ -177,6 +209,10 @@ def evaluate_latent_operator(
         "nrmse": nrmse_val,  # For SOTA comparison
         "rel_l2": rel_l2_val,  # For SOTA comparison
     }
+    if physics_samples > 0:
+        metrics["conservation_gap"] = total_conservation_gap / physics_samples
+        metrics["bc_violation"] = total_bc_violation / physics_samples
+        metrics["negativity_penalty"] = total_negativity_penalty / physics_samples
     extra = {
         "samples": total_elements,
         "tau": tau if diffusion is not None else None,
@@ -194,10 +230,19 @@ def evaluate_latent_operator(
         details["per_sample_mse"] = mse_tensor.tolist()
         details["per_sample_mae"] = mae_tensor.tolist()
         details["per_sample_rel_l2"] = rel_l2_tensor.tolist()  # SOTA comparison
+        if sample_conservation:
+            details["per_sample_conservation_gap"] = torch.cat(sample_conservation).tolist()
+        if sample_bc_violation:
+            details["per_sample_bc_violation"] = torch.cat(sample_bc_violation).tolist()
+        if sample_negativity:
+            details["per_sample_negativity_penalty"] = torch.cat(sample_negativity).tolist()
     else:
         details["per_sample_mse"] = []
         details["per_sample_mae"] = []
         details["per_sample_rel_l2"] = []
+        details["per_sample_conservation_gap"] = []
+        details["per_sample_bc_violation"] = []
+        details["per_sample_negativity_penalty"] = []
     if preview is not None:
         details["preview_predicted"] = preview.get("predicted", torch.tensor([])).tolist()
         details["preview_target"] = preview.get("target", torch.tensor([])).tolist()

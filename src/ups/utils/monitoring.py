@@ -72,6 +72,21 @@ def init_monitoring_session(
                 job_type=wandb_cfg.get("job_type"),
                 mode=os.environ.get("WANDB_MODE"),
             )
+            run_info_path = os.environ.get("FAST_TO_SOTA_WANDB_INFO")
+            if run_info_path:
+                info_file = Path(run_info_path)
+                info_file.parent.mkdir(parents=True, exist_ok=True)
+                info = {
+                    "id": getattr(run, "id", None),
+                    "name": getattr(run, "name", None),
+                    "entity": getattr(run, "entity", None),
+                    "project": getattr(run, "project", None),
+                    "url": getattr(run, "url", None),
+                }
+                try:
+                    info_file.write_text(json.dumps(info, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
         except Exception:
             # Proceed without W&B when login or network is unavailable
             run = None
