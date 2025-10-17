@@ -87,6 +87,15 @@ git pull origin {branch}
 python3 -m pip install --upgrade pip
 python3 -m pip install -e .[dev]
 
+# Fix libcuda linking for torch.compile() / Triton
+echo "🔧 Fixing libcuda symlink for torch.compile()..."
+CUDA_LIB_DIR=$(find /usr/local -name "libcuda.so*" -type f 2>/dev/null | head -1 | xargs dirname)
+if [ -n "$CUDA_LIB_DIR" ] && [ ! -f /usr/lib/x86_64-linux-gnu/libcuda.so ]; then
+  ln -sf "$CUDA_LIB_DIR"/libcuda.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
+fi
+# Also ensure gcc can find CUDA libs
+export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+
 # Download training data using VastAI-injected B2 credentials
 echo "📥 Downloading training data..."
 export RCLONE_CONFIG_B2TRAIN_TYPE=s3
