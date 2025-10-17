@@ -132,7 +132,7 @@ stages:
       eta_min: 3.0e-6
 
   consistency_distill:
-    epochs: 0                 # DISABLED: Testing without distillation to avoid compile overhead
+    epochs: 8                 # ENABLED: Full pipeline with distillation
     batch_size: 12            # Optimized: 2× larger for better GPU saturation
     accum_steps: 2            # Simulate effective batch_size=24
     
