@@ -1038,7 +1038,7 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
             gamma=ttc_dict.get("gamma", 1.0),
             device=device,
         )
-        reward_model = build_reward_model_from_config(cfg, device)
+        reward_model = build_reward_model_from_config(ttc_dict, latent_dim, device)
     
     # Change data split to test for evaluation
     eval_cfg = copy.deepcopy(cfg)
