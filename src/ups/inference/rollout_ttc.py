@@ -37,14 +37,6 @@ class TTCConfig:
     early_stop_margin: Optional[float] = None
     gamma: float = 1.0
     device: torch.device | str = "cpu"
-    
-    @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "TTCConfig":
-        """Create TTCConfig from a dictionary."""
-        # Filter to only include fields that are in the dataclass
-        valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered = {k: v for k, v in config_dict.items() if k in valid_fields}
-        return cls(**filtered)
 
 
 @dataclass

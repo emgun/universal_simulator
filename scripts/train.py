@@ -1025,10 +1025,19 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
     
     if eval_mode == "ttc" and cfg.get("ttc", {}).get("enabled"):
         ttc_dict = cfg.get("ttc", {})
-        # Get dt from ttc config, fallback to training config
-        if "dt" not in ttc_dict:
-            ttc_dict = {**ttc_dict, "dt": cfg.get("training", {}).get("dt", 0.1)}
-        ttc_cfg = TTCConfig.from_dict(ttc_dict)
+        # Use direct constructor like other places in codebase (evaluate.py, pdebench_runner.py)
+        ttc_cfg = TTCConfig(
+            steps=ttc_dict.get("steps", 1),
+            dt=ttc_dict.get("dt", cfg.get("training", {}).get("dt", 0.1)),
+            candidates=ttc_dict.get("candidates", 4),
+            beam_width=ttc_dict.get("beam_width", 1),
+            horizon=ttc_dict.get("horizon", 1),
+            tau_range=tuple(ttc_dict.get("tau_range", [0.3, 0.7])) if "tau_range" in ttc_dict else (0.3, 0.7),
+            residual_threshold=ttc_dict.get("residual_threshold"),
+            max_evaluations=ttc_dict.get("max_evaluations"),
+            gamma=ttc_dict.get("gamma", 1.0),
+            device=device,
+        )
         reward_model = build_reward_model_from_config(cfg, device)
     
     # Change data split to test for evaluation
