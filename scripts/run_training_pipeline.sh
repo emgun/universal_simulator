@@ -1,39 +1,48 @@
 #!/usr/bin/env bash
-# Be forgiving on unset variables to allow running without full env (e.g., smoke tests)
+# Training pipeline orchestrator for VastAI instances
+# 
+# Handles:
+# - Test/val data download (training data downloaded by onstart.sh)
+# - Latent cache precomputation
+# - Multi-stage training (operator, diffusion, distillation)
+# - Evaluation (val + test)
+#
+# Environment variables (injected by VastAI or onstart.sh):
+#   TRAIN_CONFIG    - Training config path (e.g., configs/train_burgers_32dim.yaml)
+#   TRAIN_STAGE     - Training stage: all, operator, diffusion, distill
+#   WANDB_API_KEY   - WandB authentication
+#   WANDB_PROJECT   - WandB project name
+#   WANDB_ENTITY    - WandB entity/username
+#   B2_KEY_ID       - Backblaze B2 credentials (for test/val data)
+#   B2_APP_KEY
+#   B2_S3_ENDPOINT
+#   B2_S3_REGION
+
 set -eo pipefail
 
-# Remote launcher for scale-quality training + TTC evaluation on remote GPU instances.
-# Example:
-#   WANDB_PROJECT=universal-simulator \
-#   WANDB_ENTITY=myteam \
-#   WANDB_DATASETS="burgers1d_subset_v1" \
-#   WANDB_API_KEY=... \
-#   bash scripts/run_remote_scale.sh
+# WandB configuration (all from VastAI env-vars)
+WANDB_PROJECT="${WANDB_PROJECT:?Error: WANDB_PROJECT not set}"
+WANDB_ENTITY="${WANDB_ENTITY:?Error: WANDB_ENTITY not set}"
+WANDB_API_KEY="${WANDB_API_KEY:?Error: WANDB_API_KEY not set}"
+WANDB_DATASETS="${WANDB_DATASETS:-}"  # Optional
 
-# Optional environment configuration (defaults when missing)
-WANDB_PROJECT="${WANDB_PROJECT:-}"
-WANDB_ENTITY="${WANDB_ENTITY:-}"
-WANDB_DATASETS="${WANDB_DATASETS:-}"
-
-# Enable W&B online mode only if we have a project and login key
-if [ -n "${WANDB_API_KEY:-}" ]; then
-  # Non-interactive login; ignore errors in CI-like contexts
-  if command -v wandb >/dev/null 2>&1; then
-    wandb login --relogin "$WANDB_API_KEY" >/dev/null 2>&1 || true
-    wandb online >/dev/null 2>&1 || true
-  fi
-else
-  export WANDB_MODE="offline"
+# Login to WandB
+if command -v wandb >/dev/null 2>&1; then
+  wandb login --relogin "$WANDB_API_KEY" >/dev/null 2>&1 || true
+  wandb online >/dev/null 2>&1 || true
 fi
 
-TRAIN_CONFIG=${TRAIN_CONFIG:-configs/train_burgers_quality_v2.yaml}
-TRAIN_STAGE=${TRAIN_STAGE:-all}
-TRAIN_EXTRA_ARGS=${TRAIN_EXTRA_ARGS:-}
-EVAL_CONFIG=${EVAL_CONFIG:-configs/eval_pdebench_scale_ttc.yaml}
-EVAL_TEST_CONFIG=${EVAL_TEST_CONFIG:-configs/eval_pdebench_scale_test_ttc.yaml}
-FIX_LIBCUDA=${FIX_LIBCUDA:-1}
-RESET_CACHE=${RESET_CACHE:-1}
-LATENT_CACHE_DIR=${LATENT_CACHE_DIR:-data/latent_cache}
+# Training configuration (from onstart.sh)
+TRAIN_CONFIG="${TRAIN_CONFIG:?Error: TRAIN_CONFIG not set}"
+TRAIN_STAGE="${TRAIN_STAGE:-all}"  # Default to 'all' if not specified
+TRAIN_EXTRA_ARGS="${TRAIN_EXTRA_ARGS:-}"
+
+# System configuration (optional with sensible defaults)
+EVAL_CONFIG="${EVAL_CONFIG:-}"
+EVAL_TEST_CONFIG="${EVAL_TEST_CONFIG:-}"
+FIX_LIBCUDA="${FIX_LIBCUDA:-1}"
+RESET_CACHE="${RESET_CACHE:-1}"
+LATENT_CACHE_DIR="${LATENT_CACHE_DIR:-data/latent_cache}"
 
 WORKDIR=${WORKDIR:-$PWD}
 # Respect explicit PDEBENCH_ROOT when provided; otherwise default under workdir
@@ -52,18 +61,16 @@ if [ "$AVAIL_GB" -lt "$REQUIRED_GB" ]; then
   exit 1
 fi
 
-# Hydration: if WANDB_DATASETS set, hydrate; otherwise skip and rely on existing files under DATA_ROOT
+# Download test/val data if needed (training data already downloaded by onstart.sh)
+# Note: Most production runs only need training data, test/val are downloaded on-demand
 if [ -n "$WANDB_DATASETS" ]; then
+  echo "Downloading test/val datasets from B2..."
   IFS=', ' read -r -a DATASET_ARRAY <<< "$WANDB_DATASETS"
-  # Prefer Backblaze B2 streaming if credentials are present; otherwise fall back to W&B artifacts
-  if [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_BUCKET:-}" ]; then
-    echo "Using Backblaze B2 for dataset hydration via rclone streaming…"
-    CLEAN_OLD_SPLITS=1 scripts/fetch_datasets_b2.sh "${DATASET_ARRAY[@]}"
-  else
-    PYTHONPATH=src python scripts/fetch_datasets.py "${DATASET_ARRAY[@]}" --root "$DATA_ROOT" --cache "$WORKDIR/artifacts/cache" --project "${WANDB_PROJECT}" ${WANDB_ENTITY:+--entity "$WANDB_ENTITY"}
+  if [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_KEY_ID:-}" ]; then
+    CLEAN_OLD_SPLITS=1 scripts/fetch_datasets_b2.sh "${DATASET_ARRAY[@]}" 2>/dev/null || echo "⚠️  Test/val download failed (non-fatal)"
   fi
 else
-  echo "Skipping dataset hydration (WANDB_DATASETS unset); expecting datasets under $DATA_ROOT"
+  echo "Using existing data under $DATA_ROOT (WANDB_DATASETS unset)"
 fi
 
 export PDEBENCH_ROOT="$DATA_ROOT"
@@ -165,16 +172,23 @@ else
   fi
 fi
 
-OP_CKPT=checkpoints/scale/operator_ema.pt
-[[ -f "$OP_CKPT" ]] || OP_CKPT=checkpoints/scale/operator.pt
-DIFF_CKPT=checkpoints/scale/diffusion_residual_ema.pt
-[[ -f "$DIFF_CKPT" ]] || DIFF_CKPT=checkpoints/scale/diffusion_residual.pt
+# Run separate evaluation if configs provided (otherwise train.py handles eval)
+if [ -n "$EVAL_CONFIG" ] && [ -f "$EVAL_CONFIG" ]; then
+  OP_CKPT=checkpoints/scale/operator_ema.pt
+  [[ -f "$OP_CKPT" ]] || OP_CKPT=checkpoints/scale/operator.pt
+  DIFF_CKPT=checkpoints/scale/diffusion_residual_ema.pt
+  [[ -f "$DIFF_CKPT" ]] || DIFF_CKPT=checkpoints/scale/diffusion_residual.pt
 
-echo "Evaluating with config: $EVAL_CONFIG"
-PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval --print-json
+  echo "Running separate evaluation with config: $EVAL_CONFIG"
+  PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval --print-json
 
-echo "Evaluating (test split) with config: $EVAL_TEST_CONFIG"
-PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_TEST_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval_test --print-json
+  if [ -n "$EVAL_TEST_CONFIG" ] && [ -f "$EVAL_TEST_CONFIG" ]; then
+    echo "Running test evaluation with config: $EVAL_TEST_CONFIG"
+    PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_TEST_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval_test --print-json
+  fi
+else
+  echo "✅ Training complete! (Evaluation handled by train.py unified pipeline)"
+fi
 
 # Optional cleanup to reclaim space
 if [ "${CLEANUP_AFTER_RUN:-1}" -eq 1 ]; then

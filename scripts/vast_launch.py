@@ -87,6 +87,24 @@ git pull origin {branch}
 python3 -m pip install --upgrade pip
 python3 -m pip install -e .[dev]
 
+# Download training data using VastAI-injected B2 credentials
+echo "📥 Downloading training data..."
+export RCLONE_CONFIG_B2TRAIN_TYPE=s3
+export RCLONE_CONFIG_B2TRAIN_PROVIDER=B2
+export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="$B2_KEY_ID"
+export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY="$B2_APP_KEY"
+export RCLONE_CONFIG_B2TRAIN_ENDPOINT="$B2_S3_ENDPOINT"
+export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
+
+mkdir -p data/pdebench
+if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
+  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress || exit 1
+  ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5
+  echo "✅ Training data downloaded"
+else
+  echo "✅ Training data already exists"
+fi
+
 # Run training pipeline (VastAI env-vars already injected)
 export TRAIN_CONFIG="{config}"
 export TRAIN_STAGE="{stage}"
