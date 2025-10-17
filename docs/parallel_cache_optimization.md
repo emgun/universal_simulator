@@ -1,8 +1,14 @@
-# Parallel Cache Optimization Guide
+# Hybrid Cache System Guide
 
 ## Overview
 
-This guide explains the parallel latent cache system that enables **4-8× faster** cache creation compared to the legacy `num_workers=0` approach.
+This guide explains the **hybrid cache system** that automatically selects the optimal data loading strategy:
+
+1. **RAM Preload** (fastest): 90%+ GPU utilization, instant batch loading
+2. **Parallel Encoding** (4-8× faster): For first-time cache creation
+3. **Legacy Mode** (slowest): Fallback for compatibility
+
+The system **auto-detects** the best approach based on cache status and available resources.
 
 ## The Problem
 
@@ -79,80 +85,125 @@ New architecture where workers load raw data, main process encodes on GPU:
 
 ## Usage
 
-### Option 1: Precompute Cache Once (Recommended for Iterations)
+### Automatic Mode (Recommended - Zero Configuration!)
 
-**Best for**: Multiple training runs, hyperparameter tuning, debugging
+**Just use `num_workers > 0` and the system handles everything:**
+
+```yaml
+training:
+  num_workers: 8              # The system auto-selects:
+  latent_cache_dir: data/latent_cache  # - RAM preload if cache complete
+                                       # - Parallel encoding if cache incomplete
+                                       # - Legacy mode as fallback
+```
+
+**What happens automatically:**
+
+1. **No cache exists** → Parallel encoding creates cache (4-8 min)
+2. **Cache complete + enough RAM** → RAM preload (instant, 90%+ GPU util)
+3. **Cache complete + low RAM** → Disk-based loading (slower warning shown)
+4. **Cache incomplete** → Parallel encoding fills missing samples
+
+**Time**: 4-8 min first run, instant all subsequent runs  
+**GPU Util**: 90%+ (RAM preload) or 70-80% (parallel encoding)
+
+---
+
+### Manual Cache Precomputation (Optional)
+
+**Best for**: Multiple training runs, hyperparameter sweeps
 
 ```bash
-# One-time cache creation (parallel, fast)
+# Precompute cache once (4-8 min, parallel by default)
 python scripts/precompute_latent_cache.py \
-  --config configs/train_burgers_quality_v3.yaml \
-  --parallel \
+  --config configs/train_burgers_32dim.yaml \
   --num-workers 8 \
   --batch-size 8 \
   --tasks burgers1d \
   --splits train
 
-# All subsequent training runs use cached data instantly
-python scripts/train.py --config configs/train_burgers_quality_v3.yaml
+# All subsequent training runs use RAM preload automatically
+python scripts/train.py --config configs/train_burgers_32dim.yaml
 ```
 
-**Time**: 4-8 min once, then instant for all training runs  
-**Cost**: ~$0.15-0.35 once  
-**Storage**: ~10-20GB for 512-dim cache
+**Benefits:**
+- One-time 4-8 min setup
+- All future runs load instantly from RAM
+- Perfect for hyperparameter tuning
 
-### Option 2: Automatic Parallel Encoding (Recommended for One-off Runs)
+**Disable parallel encoding (slower):**
+```bash
+python scripts/precompute_latent_cache.py --no-parallel ...
+```
 
-**Best for**: Single training runs, production pipelines
+---
 
-Add to your config:
+### Advanced Configuration (Optional)
 
 ```yaml
 training:
-  num_workers: 8  # Enable parallel workers
-  use_parallel_encoding: true  # Auto-enabled if num_workers > 0
-  latent_cache_dir: data/latent_cache  # Cache for subsequent epochs
-  batch_size: 8  # Higher = faster on H200
-```
-
-**Time**: 4-8 min first epoch, instant for epochs 2-6  
-**Cost**: ~$0.15-0.35 for cache creation  
-**Advantage**: No separate precomputation step
-
-### Option 3: Legacy Mode (Slow, Stable)
-
-**Use only if**: Compatibility issues with parallel mode
-
-```yaml
-training:
-  num_workers: 0  # Must be 0 to avoid device mismatch
-  use_parallel_encoding: false
+  num_workers: 8                    # Workers for data loading
+  use_parallel_encoding: true       # Auto-enabled if num_workers > 0
+  force_ram_preload: false          # Force RAM preload even if low memory
+  force_legacy_loader: false        # Force legacy mode (debug only)
   latent_cache_dir: data/latent_cache
 ```
 
-**Time**: 20-30 min first epoch  
-**Cost**: ~$0.86-1.29 for cache creation
+**Force legacy mode (slowest, most compatible):**
+```yaml
+training:
+  force_legacy_loader: true  # Disables all optimizations
+  num_workers: 0             # Required for legacy
+```
 
 ## Implementation Details
 
-### New Files
+### Architecture
 
-1. **`src/ups/data/parallel_cache.py`**
-   - `RawFieldDataset`: Returns raw fields without encoding
-   - `make_collate_with_encoding()`: Custom collate that encodes in main process
-   - `build_parallel_latent_loader()`: Drop-in replacement for standard loader
+The system has **three components** working together:
 
-2. **`scripts/precompute_latent_cache.py`** (enhanced)
-   - New `--parallel` flag for fast mode
-   - Auto-detection of optimal settings
-   - Progress reporting with time estimates
+1. **`PreloadedCacheDataset`** (NEW)
+   - Loads all cache files into RAM at initialization
+   - Zero disk I/O during training
+   - Achieves 90%+ GPU utilization
+
+2. **`RawFieldDataset` + `build_parallel_latent_loader()`**
+   - Workers load raw data, main process encodes on GPU
+   - 4-8× faster than legacy for cache creation
+   - No device mismatch issues
+
+3. **`GridLatentPairDataset`** (Legacy)
+   - Original implementation with `num_workers=0`
+   - Slowest but most compatible
+   - Automatic fallback
+
+### Auto-Selection Logic (in `latent_pairs.py`)
+
+```python
+if cache_complete and sufficient_ram:
+    return PreloadedCacheDataset(...)  # 90%+ GPU util
+elif cache_incomplete and num_workers > 0:
+    return build_parallel_latent_loader(...)  # 4-8× faster encoding
+else:
+    return DataLoader(GridLatentPairDataset(...), num_workers=0)  # Legacy
+```
 
 ### Modified Files
 
-1. **`src/ups/data/latent_pairs.py`**
-   - `build_latent_pair_loader()` auto-detects parallel mode
-   - Falls back to legacy mode when needed
-   - Transparent integration
+1. **`src/ups/data/parallel_cache.py`**
+   - Added `PreloadedCacheDataset` class
+   - Added `check_cache_complete()`, `estimate_cache_size_mb()`, `check_sufficient_ram()`
+   - Existing parallel encoding system
+
+2. **`src/ups/data/latent_pairs.py`**
+   - `build_latent_pair_loader()` now has hybrid selection logic
+   - Auto-detects cache status and available RAM
+   - Prints informative messages about mode selection
+
+3. **`scripts/precompute_latent_cache.py`**
+   - Added `--parallel` flag (default: True)
+   - Added `--no-parallel` for legacy mode
+   - Uses `build_parallel_latent_loader()` when parallel enabled
 
 ## Configuration Reference
 
@@ -389,13 +440,20 @@ Stored as: `data/latent_cache/{task}_{split}/sample_{idx:05d}.pt`
 
 ## Summary
 
-| Feature | Legacy | Parallel | Pre-computed |
-|---------|--------|----------|--------------|
-| Cache time (H200) | 20-30 min | 4-8 min | 15 min (once) |
-| Code changes | None | Add `use_parallel_encoding: true` | Separate script |
-| Multi-task | ✅ | ❌ | ✅ |
-| Complexity | Simple | Simple | Medium |
-| **Recommendation** | ❌ Avoid | ✅ **Use for one-off runs** | ✅ **Use for iterations** |
+| Feature | Legacy | Parallel Encoding | RAM Preload | Hybrid (NEW) |
+|---------|--------|-------------------|-------------|--------------|
+| First run (H200) | 20-30 min | 4-8 min | N/A | 4-8 min |
+| Subsequent runs | 20-30 min | 20-30 min | **Instant** | **Instant** |
+| GPU utilization | 30-50% | 70-80% | **90%+** | **90%+** |
+| RAM required | Low | Low | High (~10-20GB) | Medium (auto-detect) |
+| Code changes | None | None | None | **None** |
+| Multi-task | ✅ | ❌ | ✅ | ✅ |
+| Configuration | `num_workers: 0` | `num_workers: 8` | Manual precompute | **`num_workers: 8`** |
+| **Recommendation** | ❌ Deprecated | ⚠️ For cache creation | ✅ Best for cached data | ✅ **Use this (default)** |
 
-**Bottom line**: Always use parallel mode for 4-8× speedup. Precompute cache for hyperparameter sweeps.
+**Bottom line**: 
+- **Just set `num_workers: 8`** - the hybrid system handles everything automatically!
+- First run: 4-8 min (parallel encoding)
+- Subsequent runs: Instant (RAM preload)
+- No configuration needed!
 

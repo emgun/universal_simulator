@@ -595,6 +595,57 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
             encoder = encoder.to(device)
             coords = make_grid_coords(grid_shape, device)
             ds_cache = cache_root / f"{tasks}_{split_name}" if cache_root and isinstance(tasks, str) else cache_root
+            
+            # HYBRID LOADER SELECTION
+            # Choose optimal loader based on cache status and resources
+            from ups.data.parallel_cache import (
+                PreloadedCacheDataset,
+                build_parallel_latent_loader,
+                check_cache_complete,
+                estimate_cache_size_mb,
+                check_sufficient_ram,
+            )
+            
+            use_parallel = train_cfg.get("use_parallel_encoding", num_workers > 0)
+            force_ram_preload = train_cfg.get("force_ram_preload", False)
+            force_legacy = train_cfg.get("force_legacy_loader", False)
+            
+            if ds_cache and not force_legacy:
+                is_complete, num_cached = check_cache_complete(ds_cache, len(dataset))
+                
+                if is_complete:
+                    # Cache is complete - try RAM preload
+                    cache_size_mb = estimate_cache_size_mb(ds_cache)
+                    has_ram = check_sufficient_ram(cache_size_mb)
+                    
+                    if has_ram or force_ram_preload:
+                        print(f"🚀 Using RAM preload ({cache_size_mb:.1f}MB cache)")
+                        ram_dataset = PreloadedCacheDataset(
+                            ds_cache,
+                            len(dataset),
+                            time_stride=time_stride,
+                            rollout_horizon=rollout_horizon,
+                        )
+                        return DataLoader(ram_dataset, **loader_kwargs)
+                    else:
+                        print(f"⚠️  Cache complete but insufficient RAM ({cache_size_mb:.1f}MB needed)")
+                        print(f"    Falling back to disk-based loading (slower)")
+                else:
+                    print(f"📊 Cache incomplete: {num_cached}/{len(dataset)} samples")
+                    if use_parallel and num_workers > 0:
+                        # Use parallel encoding for missing samples
+                        print(f"🔧 Using parallel encoding (num_workers={num_workers})")
+                        return build_parallel_latent_loader(
+                            dataset, encoder, coords, grid_shape, field_name,
+                            device, batch, num_workers, ds_cache, cache_dtype,
+                            time_stride, rollout_horizon, pin_memory, prefetch_factor,
+                        )
+            
+            # Fallback: Legacy GridLatentPairDataset
+            if num_workers > 0 and not use_parallel:
+                print(f"⚠️  Using num_workers={num_workers} without parallel encoding may cause device mismatch")
+                print(f"    Set training.use_parallel_encoding=true or training.num_workers=0")
+            
             latent_dataset = GridLatentPairDataset(
                 dataset,
                 encoder,
@@ -607,7 +658,11 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 time_stride=time_stride,
                 rollout_horizon=rollout_horizon,
             )
-            return DataLoader(latent_dataset, **loader_kwargs)
+            # Force num_workers=0 for legacy loader to avoid device mismatch
+            legacy_kwargs = {**loader_kwargs, "num_workers": 0, "persistent_workers": False}
+            if "prefetch_factor" in legacy_kwargs:
+                del legacy_kwargs["prefetch_factor"]
+            return DataLoader(latent_dataset, **legacy_kwargs)
 
     kind = data_cfg.get("kind")
     if kind == "grid":
