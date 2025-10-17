@@ -1024,7 +1024,11 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
     reward_model = None
     
     if eval_mode == "ttc" and cfg.get("ttc", {}).get("enabled"):
-        ttc_cfg = TTCConfig.from_dict(cfg.get("ttc", {}))
+        ttc_dict = cfg.get("ttc", {})
+        # Get dt from ttc config, fallback to training config
+        if "dt" not in ttc_dict:
+            ttc_dict = {**ttc_dict, "dt": cfg.get("training", {}).get("dt", 0.1)}
+        ttc_cfg = TTCConfig.from_dict(ttc_dict)
         reward_model = build_reward_model_from_config(cfg, device)
     
     # Change data split to test for evaluation
