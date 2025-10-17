@@ -83,18 +83,12 @@ git fetch origin
 git checkout {branch}
 git pull origin {branch}
 
-# Install Python dependencies
-python3 -m pip install --upgrade pip
-python3 -m pip install -e .[dev]
+# Use VastAI's preinstalled PyTorch venv (has proper CUDA/Triton setup)
+source /venv/main/bin/activate
 
-# Fix libcuda linking for torch.compile() / Triton
-echo "🔧 Fixing libcuda symlink for torch.compile()..."
-CUDA_LIB_DIR=$(find /usr/local -name "libcuda.so*" -type f 2>/dev/null | head -1 | xargs dirname)
-if [ -n "$CUDA_LIB_DIR" ] && [ ! -f /usr/lib/x86_64-linux-gnu/libcuda.so ]; then
-  ln -sf "$CUDA_LIB_DIR"/libcuda.so* /usr/lib/x86_64-linux-gnu/ 2>/dev/null || true
-fi
-# Also ensure gcc can find CUDA libs
-export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+# Install our additional dependencies (PyTorch already installed in venv)
+pip install --upgrade pip
+pip install -e .[dev]
 
 # Download training data using VastAI-injected B2 credentials
 echo "📥 Downloading training data..."
@@ -257,8 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--offer-id", help="Explicit offer ID to create from")
     p_launch.add_argument("--gpu", default="RTX_4090", help="GPU model (default: RTX_4090)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
-    p_launch.add_argument("--image", default="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime", 
-                         help="Docker image")
+    p_launch.add_argument("--image", default="vastai/pytorch", 
+                         help="Docker image (vastai/pytorch has PyTorch preinstalled with proper CUDA/Triton setup)")
     p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
     p_launch.add_argument("--region", help="Region filter")
     p_launch.add_argument("--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)")
