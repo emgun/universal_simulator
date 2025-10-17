@@ -24,7 +24,7 @@ import shlex
 import shutil
 import sys
 import subprocess
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
@@ -415,7 +415,7 @@ def main() -> None:
     small_eval_config = Path(args.small_eval_config).resolve() if args.small_eval_config else train_config
     full_eval_config = Path(args.full_eval_config).resolve() if args.full_eval_config else train_config
 
-    timestamp_dt = datetime.now(UTC)
+    timestamp_dt = datetime.now(timezone.utc)
     run_id = args.run_id or f"run_{timestamp_dt.strftime('%Y%m%d_%H%M%S')}"
     timestamp = timestamp_dt.isoformat(timespec="seconds")
     run_root = (ROOT / args.run_dir / run_id).resolve()
