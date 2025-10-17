@@ -102,7 +102,6 @@ export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
 mkdir -p data/pdebench
 if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress || exit 1
-  ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5
   echo "✅ Training data downloaded"
 else
   echo "✅ Training data already exists"
