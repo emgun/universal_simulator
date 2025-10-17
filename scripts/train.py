@@ -1034,13 +1034,14 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
     # Run evaluation
     print(f"\nRunning evaluation (mode: {eval_mode})...")
     report, details = evaluate_latent_operator(
+        cfg=eval_cfg,
         operator=operator,
         diffusion=diffusion,
-        config=eval_cfg,
         tau=tau,
         device=device,
         ttc_config=ttc_cfg,
         reward_model=reward_model,
+        return_details=True,
     )
     
     # Add TTC flag to report
