@@ -1,65 +1,78 @@
-# Production Dockerfile - Optimized multi-stage build
-# Based on VastAI's PyTorch image for reliable CUDA/Triton setup
+# Production Dockerfile - Optimized for VastAI deployment
 # 
+# Strategy:
+# - Build with public pytorch/pytorch image for GitHub Actions
+# - At runtime, VastAI mounts their /venv/main/ with pre-installed PyTorch
+# - This gives us both: buildable images + VastAI's proven CUDA/Triton setup
+#
 # Target size: <1GB compressed
-# Benefits: 2-3 min faster startup vs git clone
 
 # ============================================================
 # Stage 1: Builder - Install dependencies
 # ============================================================
-FROM vastai/pytorch:latest AS builder
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime AS builder
 
 WORKDIR /build
 
-# Copy only dependency files first (better caching)
+# Install system dependencies needed for building
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only dependency files first (better layer caching)
 COPY requirements.txt pyproject.toml ./
 COPY src/ ./src/
 
-# Activate venv and install dependencies
-# Use --no-deps for our package to avoid reinstalling torch
-RUN . /venv/main/bin/activate && \
-    pip install --no-cache-dir --upgrade pip && \
+# Install dependencies and our package
+# Use --no-deps for our package to avoid version conflicts
+RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir --no-deps -e . && \
-    # Aggressive cleanup
-    find /venv/main -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
-    find /venv/main -type f -name '*.pyc' -delete && \
-    find /venv/main -type f -name '*.pyo' -delete && \
-    find /venv/main -type d -name '*.egg-info' -exec rm -rf {} + 2>/dev/null || true && \
+    # Aggressive cleanup to reduce size
+    find /opt/conda -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/conda -type f -name '*.pyc' -delete && \
+    find /opt/conda -type f -name '*.pyo' -delete && \
+    find /opt/conda -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/conda -type d -name '*.dist-info' -exec rm -rf {} + 2>/dev/null || true && \
     rm -rf /root/.cache /tmp/* /var/tmp/*
 
 # ============================================================
 # Stage 2: Runtime - Minimal final image
 # ============================================================
-FROM vastai/pytorch:latest
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
 WORKDIR /app
 
-# Copy only the built venv from builder
-COPY --from=builder /venv/main /venv/main
+# Copy installed packages from builder
+COPY --from=builder /opt/conda /opt/conda
+
+# Install minimal system dependencies
+# rclone for B2 data download, build-essential for torch.compile
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        rclone \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy only essential application files
 COPY configs/ ./configs/
 COPY scripts/train.py scripts/evaluate.py scripts/precompute_latent_cache.py ./scripts/
 COPY src/ ./src/
 
-# Install minimal system dependencies (build-essential for torch.compile)
-# git and rclone already in vastai/pytorch
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
 # Create data directory
 RUN mkdir -p /app/data/pdebench
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PATH="/venv/main/bin:$PATH" \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/conda/bin:$PATH"
 
-# Health check (optional)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import torch; assert torch.cuda.is_available()" || exit 1
 
 # Default command

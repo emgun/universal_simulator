@@ -45,19 +45,22 @@ echo ""
 ONSTART_CMD="
 cd /app && \
 mkdir -p data/pdebench && \
-rclone copy --config <(echo '[B2TRAIN]
+echo '🔧 Configuring rclone...' && \
+mkdir -p ~/.config/rclone && \
+cat > ~/.config/rclone/rclone.conf << EOF
+[B2TRAIN]
 type = s3
 provider = B2
-access_key_id = '\$B2_KEY_ID'
-secret_access_key = '\$B2_APP_KEY'
-endpoint = '\$B2_S3_ENDPOINT'
-region = '\$B2_S3_REGION'
-') B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ && \
+access_key_id = \$B2_KEY_ID
+secret_access_key = \$B2_APP_KEY
+endpoint = \$B2_S3_ENDPOINT
+region = \$B2_S3_REGION
+EOF
+echo '📥 Downloading training data...' && \
+rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress && \
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && \
-export TRAIN_CONFIG=configs/${CONFIG}.yaml && \
-export TRAIN_STAGE=all && \
-export RESET_CACHE=1 && \
-/venv/main/bin/python scripts/train.py --config configs/${CONFIG}.yaml --stage all
+echo '🚀 Starting training...' && \
+python scripts/train.py --config configs/${CONFIG}.yaml --stage all
 "
 
 echo "🚀 Launching instance..."
