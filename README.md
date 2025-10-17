@@ -4,10 +4,15 @@ Unified latent simulator with discretization-agnostic I/O, transformer core, few
 
 ## Quick Start
 
-**Production Training (Recommended):**
+**Production Training on VastAI (Recommended):**
 ```bash
-# One-command launch with pre-built Docker image
-./scripts/launch_production.sh train_burgers_32dim
+# One-time setup (configure credentials)
+python scripts/vast_launch.py setup-env
+
+# Launch training
+python scripts/vast_launch.py launch \
+  --config configs/train_burgers_32dim.yaml \
+  --auto-shutdown
 ```
 
 **Local Development:**
@@ -17,8 +22,8 @@ python scripts/train.py --config configs/train_burgers_32dim.yaml --stage all
 ```
 
 **Documentation:**
-- **Production workflow:** `PRODUCTION_WORKFLOW.md` - Fast, bombproof training with Docker
-- **Quick start:** `QUICKSTART.md` - 5-minute getting started guide  
+- **Production workflow:** `PRODUCTION_WORKFLOW.md` - VastAI training with native PyTorch image
+- **Environment setup:** `docs/vastai_env_setup.md` - One-time credential configuration
 - **Best practices:** `docs/production_playbook.md` - Comprehensive operational guide
 - **Operations:** `docs/runbook.md` - Step-by-step procedures
 

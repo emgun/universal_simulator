@@ -1,385 +1,238 @@
 # Production Training Workflow
 
-**Fast, repeatable, bombproof training runs with quick iteration.**
+**Fast, repeatable, bombproof training runs on VastAI.**
 
 ---
 
 ## Overview
 
-This workflow uses pre-built Docker images from GitHub Container Registry for instant, reliable launches.
+This workflow uses VastAI's native PyTorch image with global environment variables for secure, reliable launches.
 
 **Key Benefits:**
-- ⚡ **Fast startup:** 2-3 minutes (vs 5-10 with git clone)
-- 🔒 **Bombproof:** All dependencies pre-installed and tested
-- 🚀 **Quick iteration:** Config changes take seconds, code changes take 5 minutes
-- 💰 **Cost-effective:** Less time waiting = lower costs
+- ⚡ **Fast startup:** 3-4 minutes (git clone + deps)
+- 🔒 **Bombproof:** VastAI's PyTorch image has proper CUDA/Triton setup
+- 🔐 **Secure:** Credentials stored as VastAI global env-vars (not in scripts)
+- ✨ **Simple:** 2 files total (vast_launch.py + run_training_pipeline.sh)
+- 💯 **Reliable:** torch.compile() works natively, no workarounds
+
+**Architecture:**
+- Image: `vastai/pytorch` (PyTorch preinstalled at `/venv/main/`)
+- Files: `scripts/vast_launch.py` + `scripts/run_training_pipeline.sh`
+- Credentials: VastAI global env-vars (set once, use everywhere)
 
 ---
 
-## Setup (One-Time, 5 minutes)
+## Setup (One-Time, 2 minutes)
 
-### 1. Enable GitHub Container Registry
+### Configure VastAI Global Environment Variables
 
-The repository is already configured! GitHub Actions will automatically build Docker images when you push code changes.
+Run this once to set credentials that will be injected into all future instances:
 
-### 2. Verify Environment Variables
-
-Ensure these are set in your shell:
 ```bash
-export WANDB_API_KEY=your_key
-export WANDB_PROJECT=universal-simulator
-export WANDB_ENTITY=your_username
-export B2_KEY_ID=your_id
-export B2_APP_KEY=your_key
-export B2_S3_ENDPOINT=s3.us-west-002.backblazeb2.com
-export B2_S3_REGION=us-west-002
+# Load credentials from .env
+source .env
+
+# Configure VastAI env-vars (one-time)
+python scripts/vast_launch.py setup-env
 ```
 
----
+This configures:
+- `WANDB_API_KEY`, `WANDB_PROJECT`, `WANDB_ENTITY`
+- `B2_KEY_ID`, `B2_APP_KEY`, `B2_S3_ENDPOINT`, `B2_S3_REGION`, `B2_BUCKET`
 
-## Iteration Workflows
-
-### Config Changes (90% of cases) - INSTANT
-
-**When to use:** Hyperparameter tuning, different epoch counts, TTC settings, etc.
-
+**Verify:**
 ```bash
-# 1. Edit config locally
-vim configs/train_burgers_32dim.yaml
-
-# 2. Launch with updated config
-./scripts/launch_production.sh train_burgers_32dim
-
-# That's it! Uses same pre-built image, just different config.
-# Time: 2-3 minutes to start training
-```
-
-### Code Changes (10% of cases) - 5 MINUTES
-
-**When to use:** Bug fixes, new features, algorithm changes
-
-```bash
-# 1. Make code changes
-vim src/ups/models/operator.py
-
-# 2. Commit and push (triggers automatic rebuild)
-git add src/ups/models/operator.py
-git commit -m "fix: improve operator convergence"
-git push
-
-# 3. Wait for GitHub Action to build (~5 min)
-# Watch: https://github.com/emgun/universal_simulator/actions
-
-# 4. Launch with new image
-./scripts/launch_production.sh train_burgers_32dim
-
-# Time: 5 min build + 2-3 min to start training
-```
-
-### Dependency Changes (rare) - 10 MINUTES
-
-**When to use:** Upgrading PyTorch, adding new packages
-
-```bash
-# 1. Update requirements.txt
-vim requirements.txt
-
-# 2. Commit and push (triggers rebuild)
-git add requirements.txt
-git commit -m "deps: upgrade pytorch to 2.2.0"
-git push
-
-# 3. Wait for build (~10 min)
-# 4. Launch
-
-# Time: 10 min build + 2-3 min to start training
+vastai show env-vars
 ```
 
 ---
 
-## Production Run Commands
+## Launching Training
 
-### Option 1: Docker Image (Faster when working)
-
-```bash
-# Uses pre-built Docker image
-./scripts/launch_production.sh train_burgers_32dim
-```
-
-**Pros:** Fast startup (~2 min) when Docker image pulls successfully  
-**Cons:** VastAI container issues can occur  
-**Best for:** Production runs when stable
-
-### Option 2: Git Clone (Most Reliable)
+### Standard Launch
 
 ```bash
-# Uses git clone + pip install (proven reliable)
 python scripts/vast_launch.py launch \
-  --overrides "TRAIN_CONFIG=configs/train_burgers_32dim.yaml TRAIN_STAGE=all" \
-  --b2-key-id "$B2_KEY_ID" \
-  --b2-app-key "$B2_APP_KEY" \
-  --b2-s3-endpoint "$B2_S3_ENDPOINT" \
-  --b2-s3-region "$B2_S3_REGION" \
-  --wandb-api-key "$WANDB_API_KEY" \
-  --wandb-entity "$WANDB_ENTITY" \
+  --config configs/train_burgers_32dim.yaml \
   --auto-shutdown
 ```
 
-**Pros:** Always works, no Docker dependencies  
-**Cons:** Slower startup (~7 min)  
-**Best for:** Reliability when Docker has issues
+### Advanced Options
 
-### Environment Variables
-
-Both methods require these credentials:
 ```bash
-export B2_KEY_ID=your_key
-export B2_APP_KEY=your_app_key  
-export B2_S3_ENDPOINT=s3.us-west-002.backblazeb2.com
-export B2_S3_REGION=us-west-002
-export WANDB_API_KEY=your_key
-export WANDB_ENTITY=your_entity
+# Specific GPU type
+python scripts/vast_launch.py launch \
+  --config configs/train_burgers_32dim.yaml \
+  --gpu H100_PCIE \
+  --auto-shutdown
+
+# Specific offer ID (fastest)
+python scripts/vast_launch.py launch \
+  --offer-id 12345678 \
+  --config configs/train_burgers_32dim.yaml \
+  --auto-shutdown
+
+# Dry-run (test without launching)
+python scripts/vast_launch.py launch \
+  --config configs/train_burgers_32dim.yaml \
+  --dry-run
 ```
 
-### Manual Launch
+### Search for Instances
 
 ```bash
-# 1. Find instance
-vastai search offers 'reliability > 0.98 num_gpus=1 gpu_name=RTX_4090 dph < 0.5' -o 'dph'
+# Find cheapest RTX 4090
+vastai search offers 'reliability > 0.98 num_gpus=1 gpu_name=RTX_4090' --order 'dph'
 
-# 2. Launch
-./scripts/launch_production.sh train_burgers_32dim 12345678
-```
-
-### Monitor
-
-```bash
-# Get instance ID from launch output
-INSTANCE_ID=26875XXX
-
-# Check status
-vastai show instance $INSTANCE_ID
-
-# View logs
-vastai logs $INSTANCE_ID | tail -100
-
-# Monitor continuously
-watch -n 30 'vastai show instance $INSTANCE_ID'
+# Find cheapest H100
+vastai search offers 'reliability > 0.98 num_gpus=1 gpu_name=H100_PCIE' --order 'dph'
 ```
 
 ---
 
-## Docker Image Versioning
+## Monitoring
 
-Images are automatically tagged:
+### Check Status
 
-- `latest` - Most recent build from main branch
-- `feature-sota_burgers_upgrades` - Current feature branch
-- `feature-sota_burgers_upgrades-abc1234` - Specific commit
-
-**Use specific tags for reproducibility:**
 ```bash
-# Use exact version
-IMAGE="ghcr.io/emgun/universal_simulator:feature-sota_burgers_upgrades-abc1234"
+# Show instance details
+vastai show instance <ID>
 
-# Or use latest
-IMAGE="ghcr.io/emgun/universal_simulator:latest"
+# Watch logs (live)
+vastai logs <ID> -f
+
+# Check GPU utilization
+vastai show instance <ID> | grep "Util"
+```
+
+### Monitor Training Progress
+
+```bash
+# Tail logs
+vastai logs <ID> 2>&1 | tail -50
+
+# Watch for errors
+vastai logs <ID> 2>&1 | grep -i "error\|warning"
+
+# Check WandB
+# Look for run URL in logs, e.g.:
+# wandb: 🚀 View run at https://wandb.ai/...
 ```
 
 ---
 
-## Comparison: Old vs New Workflow
+## What Happens During Launch
 
-### OLD (Manual Setup)
-```
-1. Pull PyTorch image: 2-3 min
-2. apt install packages: 1-2 min
-3. git clone repo: 1-2 min
-4. pip install deps: 2-3 min
-5. Download data: 1-2 min
-────────────────────────────
-Total: 7-12 minutes to start training
-```
-
-### NEW (Production Docker)
-```
-1. Pull pre-built image: 1-2 min
-2. Download data: 1-2 min
-────────────────────────────
-Total: 2-4 minutes to start training
-```
-
-**Savings: 5-8 minutes per launch = ~$0.40-0.65 @ $0.30/hr**
-
----
-
-## Local Development with Docker
-
-### Quick Start (Docker Compose)
-
-```bash
-# 1. Create .env file with credentials
-cat << 'EOF' > .env
-WANDB_API_KEY=your_key
-WANDB_PROJECT=universal-simulator
-WANDB_ENTITY=your_username
-B2_KEY_ID=your_id
-B2_APP_KEY=your_key
-B2_S3_ENDPOINT=s3.us-west-002.backblazeb2.com
-B2_S3_REGION=us-west-002
-EOF
-
-# 2. Start container
-docker-compose up -d
-
-# 3. Run training
-docker-compose exec universal_simulator python scripts/train.py --config configs/train_burgers_32dim.yaml --stage all
-
-# 4. View logs
-docker-compose logs -f
-```
-
-### Direct Docker Commands
-
-```bash
-# Build locally
-docker build -t universal-simulator:dev .
-
-# Run with GPU
-docker run --gpus all \
-  -v $(pwd)/checkpoints:/app/checkpoints \
-  -v $(pwd)/data:/app/data \
-  --env-file .env \
-  -it universal-simulator:dev bash
-```
-
-### Docker Image Architecture
-
-**Multi-stage build for optimization:**
-- **Base:** `pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime`
-- **Dependencies:** Pre-installed (torch, wandb, rclone, etc.)
-- **Code:** Baked in (~1.1MB)
-- **Final size:** ~2.5GB (compressed ~900MB)
-
-**Volume mounts:**
-- `/app/checkpoints` - Model checkpoints (persistent)
-- `/app/data` - Training data (persistent)  
-- `/app/configs` - Configuration files (can override)
-
-**Environment variables:**
-- Required: `WANDB_API_KEY`, `WANDB_PROJECT`, `WANDB_ENTITY`
-- Optional: `B2_*` for data download, `CUDA_VISIBLE_DEVICES` for GPU selection
+1. **Instance provisioning** (~30 sec)
+   - VastAI finds GPU
+   - Starts container with `vastai/pytorch` image
+   
+2. **Onstart script execution** (~3-4 min)
+   - Install system dependencies (git, rclone, build-essential)
+   - Clone repository
+   - Activate VastAI's PyTorch venv (`/venv/main/`)
+   - Install additional dependencies (our requirements.txt)
+   - Download training data from B2 (burgers1d_train_000.h5)
+   
+3. **Training pipeline** (hours)
+   - Precompute latent cache
+   - Train operator model
+   - Train diffusion residual
+   - Consistency distillation
+   - Evaluation (optional)
+   - Auto-shutdown (if `--auto-shutdown` flag used)
 
 ---
 
 ## Troubleshooting
 
-### Image not found
-```bash
-# Ensure you're logged in to ghcr.io
-docker login ghcr.io -u YOUR_GITHUB_USERNAME
+### Instance Stuck in "loading"
 
-# Or wait for GitHub Action to complete
-# Check: https://github.com/emgun/universal_simulator/actions
+```bash
+# Destroy and relaunch
+vastai destroy instance <ID>
+python scripts/vast_launch.py launch --config configs/train_burgers_32dim.yaml
 ```
 
-### Build failed
+### Training Errors
+
 ```bash
-# Check GitHub Actions logs
-# Fix the issue and push again
-git push
+# SSH into instance
+vastai ssh <ID>
+
+# Check what's running
+tmux ls
+tmux attach -t training  # if using tmux
+
+# Check full logs
+tail -100 /workspace/universal_simulator/logs/*.log
 ```
 
-### Instance won't start
-```bash
-# Check if image exists
-docker pull ghcr.io/emgun/universal_simulator:latest
+### Out of Disk Space
 
-# If not, trigger manual build:
-# Go to: https://github.com/emgun/universal_simulator/actions
-# Click "Build and Push Docker Image"
-# Click "Run workflow"
+```bash
+# Launch with more disk
+python scripts/vast_launch.py launch \
+  --config configs/train_burgers_32dim.yaml \
+  --disk 128  # 128GB instead of default 64GB
 ```
 
 ---
 
-## Advanced Usage
+## Technical Details
 
-### Override Config at Runtime
+### VastAI PyTorch Image
 
-```bash
-# Use environment variable to specify different config
---env "TRAIN_CONFIG=configs/train_burgers_64dim.yaml"
+- **Image:** `vastai/pytorch`
+- **PyTorch location:** `/venv/main/` (preinstalled)
+- **Benefits:** Proper CUDA/Triton setup, no reinstall needed, torch.compile() works natively
+- **No hacks needed:** libcuda symlinks are already configured
+
+### File Structure
+
+```
+scripts/
+├── vast_launch.py (280 lines)
+│   ├── setup-env: Configure VastAI global env-vars
+│   ├── launch: Generate onstart.sh + launch instance
+│   └── search: Find instances
+│
+└── run_training_pipeline.sh (199 lines)
+    ├── Validate required env-vars
+    ├── Download test/val data (optional)
+    ├── Precompute latent cache
+    ├── Multi-stage training
+    └── Evaluation (optional)
 ```
 
-### Mount Custom Config
+### Environment Variables
 
-```bash
-# For rapid experimentation
---volume ./my_experiment.yaml:/app/configs/experiment.yaml
-```
+**Set via VastAI (`vastai create env-var`):**
+- `WANDB_API_KEY`, `WANDB_PROJECT`, `WANDB_ENTITY`
+- `B2_KEY_ID`, `B2_APP_KEY`, `B2_S3_ENDPOINT`, `B2_S3_REGION`
 
-### Debug Mode
-
-```bash
-# SSH into running instance
-vastai ssh $INSTANCE_ID
-
-# Check what's happening
-cd /app
-ps aux | grep python
-tail -f logs/training.log
-```
-
-### Parallel Cache Optimization (4-8× Faster)
-
-For production runs, enable parallel cache creation:
-
-```yaml
-# In your config (e.g., configs/train_burgers_32dim.yaml)
-training:
-  num_workers: 8              # Enable parallel loading
-  use_parallel_encoding: true # GPU encoding in main process
-  latent_cache_dir: data/latent_cache
-```
-
-**Impact:**
-- Cache creation: 4-8 min (vs 20-30 min with `num_workers: 0`)
-- Savings: ~$0.65-0.95 per run @ $2.59/hr
-- **See:** `docs/parallel_cache_optimization.md` for technical deep-dive
+**Set by onstart.sh:**
+- `TRAIN_CONFIG` (e.g., `configs/train_burgers_32dim.yaml`)
+- `TRAIN_STAGE` (default: `all`)
+- `RESET_CACHE` (default: `1`)
 
 ---
 
-## Best Practices
+## Future: Docker Optimization
 
-1. **Always commit config changes** - Even for experiments, keeps history
-2. **Use descriptive commit messages** - Helps track which image has which features
-3. **Tag important runs** - `git tag v1.0-baseline` for reproducibility
-4. **Monitor builds** - Don't launch until build completes
-5. **Test locally first** - Use `docker-compose up` for quick validation
+The Docker workflow (pre-built images with code baked in) can provide even faster iteration:
+- Startup: 1-2 min (vs 3-4 min git clone)
+- Code changes: 5 min (rebuild + push image)
 
----
+**Archived for reference:**
+- `archive/scripts/launch_production_docker.sh`
+- `Dockerfile`
+- `.github/workflows/docker-build.yml`
 
-## Quick Reference
+**Challenges to solve:**
+- VastAI container runtime issues
+- Image size optimization
+- Registry authentication
 
-```bash
-# Launch production run
-./scripts/launch_production.sh train_burgers_32dim
-
-# Check build status
-gh run list --workflow=docker-build.yml
-
-# View latest image
-docker pull ghcr.io/emgun/universal_simulator:latest
-docker inspect ghcr.io/emgun/universal_simulator:latest
-
-# Local testing
-docker-compose up --build
-
-# Stop instance
-vastai stop instance $INSTANCE_ID
+**Current recommendation:** Use git clone workflow (more reliable)
 ```
-
----
-
-**Questions?** See `docs/production_playbook.md` for detailed guidance.
