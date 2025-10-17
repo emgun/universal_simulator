@@ -25,6 +25,7 @@ from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.utils.monitoring import init_monitoring_session
+from ups.utils.leaderboard import update_leaderboard
 
 # Use spawn to allow CUDA in DataLoader workers during evaluation
 try:
@@ -332,6 +333,16 @@ def main() -> None:
     parser.add_argument("--output-prefix", default="reports/evaluation", help="Prefix (without extension) for saved reports")
     parser.add_argument("--log-path", default="reports/eval_log.jsonl", help="Where to append evaluation logs")
     parser.add_argument("--print-json", action="store_true", help="Print metrics and file paths as JSON")
+    parser.add_argument("--leaderboard-run-id", help="If provided, append metrics to leaderboard")
+    parser.add_argument("--leaderboard-path", default="reports/leaderboard.csv", help="Leaderboard CSV path")
+    parser.add_argument("--leaderboard-html", default="reports/leaderboard.html", help="Leaderboard HTML path")
+    parser.add_argument("--leaderboard-label", help="Label to record in leaderboard (e.g., small_eval)")
+    parser.add_argument("--leaderboard-tag", action="append", default=[], help="Additional key=value pairs to record (may repeat)")
+    parser.add_argument("--leaderboard-notes", help="Optional notes to attach to leaderboard row")
+    parser.add_argument("--leaderboard-wandb", action="store_true", help="Also log leaderboard row to Weights & Biases")
+    parser.add_argument("--leaderboard-wandb-project", help="W&B project for leaderboard logging")
+    parser.add_argument("--leaderboard-wandb-entity", help="W&B entity for leaderboard logging")
+    parser.add_argument("--leaderboard-wandb-run-name", help="Optional W&B run name override")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -385,7 +396,29 @@ def main() -> None:
 
     output_prefix = Path(args.output_prefix)
     outputs = _write_outputs(report, output_prefix, cfg, details)
-    
+    metrics_json = outputs.get("json")
+    if args.leaderboard_run_id and metrics_json is not None:
+        tags = {}
+        for tag in args.leaderboard_tag:
+            if "=" not in tag:
+                raise ValueError(f"Leaderboard tag '{tag}' must be formatted as key=value")
+            key, value = tag.split("=", 1)
+            tags[key] = value
+        update_leaderboard(
+            metrics_path=metrics_json,
+            run_id=args.leaderboard_run_id,
+            leaderboard_csv=Path(args.leaderboard_path),
+            leaderboard_html=Path(args.leaderboard_html),
+            label=args.leaderboard_label,
+            config=args.config,
+            notes=args.leaderboard_notes,
+            tags=tags,
+            wandb_log=args.leaderboard_wandb,
+            wandb_project=args.leaderboard_wandb_project,
+            wandb_entity=args.leaderboard_wandb_entity,
+            wandb_run_name=args.leaderboard_wandb_run_name or args.leaderboard_run_id,
+        )
+
     # Upload all report files to W&B
     try:
         import wandb
