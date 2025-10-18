@@ -67,8 +67,10 @@ def generate_onstart_script(
     repo_url = repo_url or git_remote_url()
     run_args = run_args or []
     extra_args = ""
+    launch_mode_line = "--tag launch_mode=auto"
     if run_args:
         extra_args = "\n  " + " \\\n  ".join(run_args)
+        launch_mode_line += " \\"
     
     script = f"""#!/bin/bash
 set -euo pipefail
@@ -140,29 +142,29 @@ mkdir -p data/latent_cache checkpoints/scale
 
 # Run fast-to-SOTA automation (VastAI env-vars already injected)
 export WANDB_MODE=online
-python scripts/run_fast_to_sota.py \
-  --train-config {config} \
-  --small-eval-config configs/small_eval_burgers.yaml \
-  --full-eval-config configs/full_eval_burgers.yaml \
-  --eval-device cuda \
-  --run-dir artifacts/runs \
-  --leaderboard-csv reports/leaderboard.csv \
-  --leaderboard-html reports/leaderboard.html \
-  --wandb-mode online \
-  --wandb-sync \
-  --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \
-  --wandb-entity "${{WANDB_ENTITY:-}}" \
-  --wandb-group fast-to-sota \
-  --wandb-tags vast \
-  --wandb-tags production \
-  --skip-dry-run \
-  --leaderboard-wandb \
-  --leaderboard-wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \
-  --leaderboard-wandb-entity "${{WANDB_ENTITY:-}}" \
-  --copy-checkpoints \
-  --strict-exit \
-  --tag environment=vast \
-  --tag launch_mode=auto{extra_args}
+python scripts/run_fast_to_sota.py \\
+  --train-config {config} \\
+  --small-eval-config configs/small_eval_burgers.yaml \\
+  --full-eval-config configs/full_eval_burgers.yaml \\
+  --eval-device cuda \\
+  --run-dir artifacts/runs \\
+  --leaderboard-csv reports/leaderboard.csv \\
+  --leaderboard-html reports/leaderboard.html \\
+  --wandb-mode online \\
+  --wandb-sync \\
+  --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \\
+  --wandb-entity "${{WANDB_ENTITY:-}}" \\
+  --wandb-group fast-to-sota \\
+  --wandb-tags vast \\
+  --wandb-tags production \\
+  --skip-dry-run \\
+  --leaderboard-wandb \\
+  --leaderboard-wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \\
+  --leaderboard-wandb-entity "${{WANDB_ENTITY:-}}" \\
+  --copy-checkpoints \\
+  --strict-exit \\
+  --tag environment=vast \\
+  {launch_mode_line}{extra_args}
 """
 
     if auto_shutdown:
