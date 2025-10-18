@@ -54,6 +54,7 @@ def generate_onstart_script(
     branch: str = "feature/sota_burgers_upgrades",
     workdir: str = "/workspace",
     auto_shutdown: bool = False,
+    run_args: list[str] | None = None,
 ) -> str:
     """
     Generate a simple onstart script.
@@ -64,6 +65,10 @@ def generate_onstart_script(
     - Run training
     """
     repo_url = repo_url or git_remote_url()
+    run_args = run_args or []
+    extra_args = ""
+    if run_args:
+        extra_args = "\n  " + " \\\n  ".join(run_args)
     
     script = f"""#!/bin/bash
 set -euo pipefail
@@ -157,7 +162,7 @@ python scripts/run_fast_to_sota.py \
   --copy-checkpoints \
   --strict-exit \
   --tag environment=vast \
-  --tag launch_mode=auto
+  --tag launch_mode=auto{extra_args}
 """
 
     if auto_shutdown:
@@ -237,6 +242,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         branch=args.branch,
         workdir=args.workdir,
         auto_shutdown=args.auto_shutdown,
+        run_args=args.run_arg,
     )
     
     onstart_path.write_text(script_content)
@@ -319,6 +325,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--dry-run", action="store_true", help="Print commands without launching")
     p_launch.add_argument("--retries", type=int, default=0, help="Retries for failed launch attempts")
     p_launch.add_argument("--retry-wait", type=int, default=20, help="Seconds to wait between retries")
+    p_launch.add_argument(
+        "--run-arg",
+        action="append",
+        default=[],
+        help="Additional argument to append to run_fast_to_sota.py command (may repeat)",
+    )
     p_launch.set_defaults(func=cmd_launch)
 
     return parser
