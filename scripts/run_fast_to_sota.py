@@ -564,6 +564,23 @@ def main() -> None:
             return stripped
         return value
 
+    def _ensure_dataset_symlinks(root: Path) -> None:
+        mappings = [
+            ("burgers1d_train.h5", "burgers1d_train_000.h5"),
+        ]
+        for target_name, source_name in mappings:
+            target = root / target_name
+            source = root / source_name
+            if target.exists() or target.is_symlink():
+                continue
+            if not source.exists():
+                continue
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.symlink_to(source.resolve())
+            except Exception:
+                continue
+
     def render_tags(stage: str) -> List[str]:
         tags = dict(common_tags)
         tags.update(user_tags)
@@ -587,6 +604,13 @@ def main() -> None:
     summary["skip_analysis"] = bool(args.skip_analysis)
     summary["skip_comparison"] = bool(args.skip_comparison)
     summary["analysis_max_rows"] = int(args.analysis_max_rows)
+
+    data_root_cfg = cfg.get("data", {}).get("root")
+    if data_root_cfg:
+        dataset_root = Path(data_root_cfg)
+        if not dataset_root.is_absolute():
+            dataset_root = (ROOT / dataset_root).resolve()
+        _ensure_dataset_symlinks(dataset_root)
 
     try:
         # Validation and dry-run steps
