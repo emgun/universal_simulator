@@ -126,6 +126,9 @@ else
   echo "✅ Test data already exists"
 fi
 
+# Ensure expected filenames are present for validators
+ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
+
 # Ensure clean caches for each run
 rm -rf data/latent_cache checkpoints/scale || true
 mkdir -p data/latent_cache checkpoints/scale
@@ -140,12 +143,14 @@ python scripts/run_fast_to_sota.py \
   --run-dir artifacts/runs \
   --leaderboard-csv reports/leaderboard.csv \
   --leaderboard-html reports/leaderboard.html \
+  --wandb-mode online \
   --wandb-sync \
   --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \
   --wandb-entity "${{WANDB_ENTITY:-}}" \
   --wandb-group fast-to-sota \
   --wandb-tags vast \
   --wandb-tags production \
+  --skip-dry-run \
   --leaderboard-wandb \
   --leaderboard-wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \
   --leaderboard-wandb-entity "${{WANDB_ENTITY:-}}" \
