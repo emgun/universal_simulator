@@ -45,7 +45,11 @@ def validate_config(config_path: str) -> Dict:
     train_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(train_module)
     
-    warnings = train_module._validate_config_consistency(cfg)
+    warnings = []
+    if hasattr(train_module, "_validate_config_consistency"):
+        warnings = train_module._validate_config_consistency(cfg)
+    else:
+        print("ℹ️  Skipping advanced consistency checks (train._validate_config_consistency unavailable)")
     
     if warnings:
         has_critical = any("CRITICAL" in w for w in warnings)
@@ -349,4 +353,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
