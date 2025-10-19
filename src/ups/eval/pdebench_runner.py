@@ -54,7 +54,13 @@ def evaluate_latent_operator(
     """Evaluate a latent operator (optionally with diffusion corrector) on PDEBench data."""
 
     device = torch.device(device)
-    loader = build_latent_pair_loader(cfg)
+    # Force num_workers=0 during evaluation to avoid CUDA serialization issues with encoder
+    eval_cfg = cfg.copy()
+    if "training" not in eval_cfg:
+        eval_cfg["training"] = {}
+    eval_cfg["training"] = eval_cfg["training"].copy()
+    eval_cfg["training"]["num_workers"] = 0
+    loader = build_latent_pair_loader(eval_cfg)
     operator = operator.to(device)
     operator.eval()
     if diffusion is not None:
