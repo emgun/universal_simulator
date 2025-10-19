@@ -1,0 +1,174 @@
+# Round B: Depth Scale-Up
+# Variation: Deeper network architecture
+# Hypothesis: More layers will learn better temporal dynamics
+
+include: train_burgers_32dim.yaml
+
+# ============================================================================
+# LATENT SPACE
+# ============================================================================
+latent:
+  dim: 32
+  tokens: 24  # Moderate increase
+
+# ============================================================================
+# OPERATOR ARCHITECTURE - DEEPER
+# ============================================================================
+operator:
+  pdet:
+    input_dim: 32
+    hidden_dim: 80  # Moderate increase
+    depths: [2, 2, 2]  # DOUBLED depth from [1, 1, 1]
+    group_size: 10
+    num_heads: 5
+
+# ============================================================================
+# DIFFUSION ARCHITECTURE
+# ============================================================================
+diffusion:
+  latent_dim: 32
+  hidden_dim: 80
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+training:
+  batch_size: 10
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+  latent_cache_dir: data/latent_cache
+  latent_cache_dtype: float32
+  checkpoint_interval: 50
+  amp: true
+  compile: true
+  grad_clip: 0.8  # Slightly lower for deeper network
+  ema_decay: 0.9995
+  accum_steps: 5
+
+  distill_micro_batch: 2
+  distill_num_taus: 5
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+# ============================================================================
+# TRAINING STAGES
+# ============================================================================
+stages:
+  operator:
+    epochs: 22  # Slightly longer for deeper net
+
+    optimizer:
+      name: adamw
+      lr: 3.5e-4
+      betas: [0.9, 0.95]
+      weight_decay: 0.025  # Slight regularization for depth
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 22
+      eta_min: 8.0e-6
+      warmup_steps_ratio: 0.06  # 6% warmup for deeper network
+
+  diff_residual:
+    epochs: 8
+
+    optimizer:
+      name: adamw
+      lr: 2.5e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.95]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.5e-6
+
+  consistency_distill:
+    epochs: 8
+    batch_size: 5
+    accum_steps: 2
+
+    optimizer:
+      name: adamw
+      lr: 1.8e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.95]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 1.8e-6
+
+  steady_prior:
+    epochs: 0
+
+# ============================================================================
+# TTC
+# ============================================================================
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8
+  beam_width: 3
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 150
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.015
+    noise_schedule: [0.03, 0.015, 0.005]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.2
+      energy: 0.15
+      penalty_negative: 0.6
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 32
+    query_dim: 2
+    hidden_dim: 80
+    mlp_hidden_dim: 160
+    num_layers: 4  # Deeper decoder too
+    num_heads: 5
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+
+    output_channels:
+      rho: 1
+      e: 1
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: sweep-b-deeper
+    tags: [sweep-round-b, depth-scale, depths-2-2-2, model-scaling]
+    group: sota-sweep-round-b

@@ -1,0 +1,143 @@
+# Round A: Optimizer/Schedule Sweep - Run 3
+# Variation: LR=4.5e-4, Warmup=5%, EMA=0.9999
+# Base: rerun_txxoc8a8.yaml (nRMSE ~0.09 baseline)
+
+include: train_burgers_32dim.yaml
+
+latent:
+  dim: 32
+  tokens: 16
+
+operator:
+  pdet:
+    input_dim: 32
+    hidden_dim: 64
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 4
+
+diffusion:
+  latent_dim: 32
+  hidden_dim: 64
+
+training:
+  batch_size: 12
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+  latent_cache_dir: data/latent_cache
+  latent_cache_dtype: float32
+  checkpoint_interval: 50
+  amp: true
+  compile: true
+  grad_clip: 1.0
+  ema_decay: 0.9999  # Higher EMA for stability with higher LR
+  accum_steps: 4
+  distill_micro_batch: 3
+  distill_num_taus: 5
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+stages:
+  operator:
+    epochs: 20
+
+    optimizer:
+      name: adamw
+      lr: 4.5e-4  # Higher LR
+      betas: [0.9, 0.95]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 20
+      eta_min: 1.0e-5
+      warmup_steps_ratio: 0.05  # 5% warmup
+
+  diff_residual:
+    epochs: 8
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.95]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 8
+    batch_size: 6
+    accum_steps: 2
+
+    optimizer:
+      name: adamw
+      lr: 2.2e-5
+      weight_decay: 0.01
+      betas: [0.9, 0.95]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.2e-6
+
+  steady_prior:
+    epochs: 0
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8
+  beam_width: 3
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 150
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.015
+    noise_schedule: [0.03, 0.015, 0.005]
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+    weights:
+      mass: 1.2
+      energy: 0.15
+      penalty_negative: 0.6
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+  decoder:
+    latent_dim: 32
+    query_dim: 2
+    hidden_dim: 64
+    mlp_hidden_dim: 128
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: sweep-a-lr45e4-w5
+    tags: [sweep-round-a, lr-4.5e-4, warmup-5pct, ema-9999, optimizer-sweep]
+    group: sota-sweep-round-a
