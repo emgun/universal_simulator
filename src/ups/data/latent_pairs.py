@@ -297,7 +297,8 @@ class GridLatentPairDataset(Dataset):
                 except (RuntimeError, EOFError):  # corrupted file
                     cache_path.unlink(missing_ok=True)
                 else:
-                    latent_seq = data["latent"].float().to(self.device, non_blocking=True)
+                    # Keep cached latents on CPU so DataLoader pinning stays valid.
+                    latent_seq = data["latent"].float()
                     params_cpu = data.get("params")
                     bc_cpu = data.get("bc")
                     cache_hit = True

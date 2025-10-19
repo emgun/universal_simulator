@@ -98,8 +98,10 @@ source /venv/main/bin/activate
 pip install --upgrade pip
 pip install -e .[dev]
 
+# Apply hotfixes not yet merged upstream (keep cached latents CPU-side)
+perl -0pi -e 's/latent_seq = data\["latent"\]\.float\(\)\.to\(self\.device, non_blocking=True\)/latent_seq = data["latent"].float()/g' src/ups/data/latent_pairs.py
+
 # Download training data using VastAI-injected B2 credentials
-echo "📥 Downloading training data..."
 export RCLONE_CONFIG_B2TRAIN_TYPE=s3
 export RCLONE_CONFIG_B2TRAIN_PROVIDER=B2
 export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="$B2_KEY_ID"
@@ -110,35 +112,39 @@ export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
 mkdir -p data/pdebench
 if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress || exit 1
-  echo "✅ Training data downloaded"
-else
-  echo "✅ Training data already exists"
 fi
 
 # Download validation data
 if [ ! -f data/pdebench/burgers1d_val.h5 ]; then
-  echo "📥 Downloading validation data..."
-  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress || echo "⚠️  Val data download failed"
-  echo "✅ Validation data downloaded"
-else
-  echo "✅ Validation data already exists"
+  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress || true
 fi
 
 # Download test data for evaluation
 if [ ! -f data/pdebench/burgers1d_test.h5 ]; then
-  echo "📥 Downloading test data..."
-  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress || echo "⚠️  Test data download failed, eval may not work"
-  echo "✅ Test data downloaded"
-else
-  echo "✅ Test data already exists"
+  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress || true
 fi
 
 # Ensure expected filenames are present for validators
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
+ln -sf burgers1d_val.h5 data/pdebench/burgers1d_valid.h5 || true
 
 # Ensure clean caches for each run
 rm -rf data/latent_cache checkpoints/scale || true
 mkdir -p data/latent_cache checkpoints/scale
+
+# Precompute latent caches to avoid on-the-fly GPU encoding hiccups
+echo "Precomputing latent caches…"
+PYTHONPATH=src python scripts/precompute_latent_cache.py \
+  --config {config} \
+  --tasks burgers1d \
+  --splits train val \
+  --root data/pdebench \
+  --cache-dir data/latent_cache \
+  --device cpu \
+  --batch-size 4 \
+  --num-workers 0 \
+  --pin-memory \
+  --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
 # Run fast-to-SOTA automation (VastAI env-vars already injected)
 export WANDB_MODE=online
@@ -149,19 +155,13 @@ python scripts/run_fast_to_sota.py \\
   --eval-device cuda \\
   --run-dir artifacts/runs \\
   --leaderboard-csv reports/leaderboard.csv \\
-  --leaderboard-html reports/leaderboard.html \\
   --wandb-mode online \\
   --wandb-sync \\
   --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \\
   --wandb-entity "${{WANDB_ENTITY:-}}" \\
   --wandb-group fast-to-sota \\
   --wandb-tags vast \\
-  --wandb-tags production \\
   --skip-dry-run \\
-  --leaderboard-wandb \\
-  --leaderboard-wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \\
-  --leaderboard-wandb-entity "${{WANDB_ENTITY:-}}" \\
-  --copy-checkpoints \\
   --strict-exit \\
   --tag environment=vast \\
   {launch_mode_line}{extra_args}
