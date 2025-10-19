@@ -115,8 +115,12 @@ if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
 fi
 
 # Download validation data
-if [ ! -f data/pdebench/burgers1d_val.h5 ]; then
+if [ ! -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
   rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress || true
+fi
+# Normalize validation filename expected by configs (valid vs val)
+if [ -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
+  mv -f data/pdebench/burgers1d_val.h5 data/pdebench/burgers1d_valid.h5 || true
 fi
 
 # Download test data for evaluation
@@ -126,7 +130,7 @@ fi
 
 # Ensure expected filenames are present for validators
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
-ln -sf burgers1d_val.h5 data/pdebench/burgers1d_valid.h5 || true
+ln -sf burgers1d_valid.h5 data/pdebench/burgers1d_val.h5 || true
 
 # Ensure clean caches for each run
 rm -rf data/latent_cache checkpoints/scale || true
