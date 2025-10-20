@@ -138,11 +138,22 @@ def _write_config(cfg: Dict[str, object], destination: Path) -> Path:
 
 
 def _log_metrics_to_wandb(run, namespace: str, metrics: Mapping[str, float]) -> None:  # pragma: no cover - optional
+    if run is None or wandb is None:
+        return
+    scalar_payload: Dict[str, float] = {}
+    table_rows: List[List[object]] = []
     for key, value in metrics.items():
         if not isinstance(value, (int, float)):
             continue
         sanitized = key.replace(":", "/")
-        run.log({f"{namespace}/{sanitized}": value})
+        scalar_payload[f"{namespace}/{sanitized}"] = float(value)
+        table_rows.append([key, float(value)])
+    if not scalar_payload:
+        return
+    run.log(scalar_payload, commit=False)
+    if table_rows:
+        table = wandb.Table(columns=["metric", "value"], data=table_rows)
+        run.log({f"{namespace}/metrics": table})
 
 
 def _wandb_log_event(run, event: str, value: float = 1.0) -> None:  # pragma: no cover - optional
@@ -180,14 +191,19 @@ def _log_metrics_to_training_run(
 
     try:
         formatted: Dict[str, float] = {}
+        table_rows: List[List[object]] = []
         for key, value in metrics.items():
             if not isinstance(value, (int, float)):
                 continue
             safe_key = key.replace("metric:", "").replace("extra:", "extra/")
             safe_key = safe_key.replace(":", "/")
-            formatted[f"{namespace}/{safe_key}"] = value
+            formatted[f"{namespace}/{safe_key}"] = float(value)
+            table_rows.append([key, float(value)])
         if formatted:
-            resumed.log(formatted)
+            resumed.log(formatted, commit=False)
+            if table_rows:
+                table = wandb.Table(columns=["metric", "value"], data=table_rows)
+                resumed.log({f"{namespace}/metrics": table})
     finally:
         try:
             resumed.finish()

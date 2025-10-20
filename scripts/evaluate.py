@@ -536,11 +536,21 @@ def main() -> None:
         f"eval/{k}": v for k, v in report.metrics.items()
     }
     session.log(eval_metrics)
+    if session.run is not None and wandb is not None:
+        metric_rows = [[key, value] for key, value in report.metrics.items()]
+        if metric_rows:
+            metrics_table = wandb.Table(columns=["metric", "value"], data=metric_rows)
+            session.run.log({"eval/metrics_table": metrics_table}, commit=False)
     
     # Log extra info
     if report.extra:
         eval_extra = {f"eval/{k}": v for k, v in report.extra.items()}
         session.log(eval_extra)
+        if session.run is not None and wandb is not None:
+            extra_rows = [[key, value] for key, value in report.extra.items()]
+            if extra_rows:
+                extra_table = wandb.Table(columns=["metric", "value"], data=extra_rows)
+                session.run.log({"eval/extra_table": extra_table})
     
     # Log images with eval/ prefix
     if "plot_mse" in outputs:
