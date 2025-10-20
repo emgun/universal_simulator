@@ -959,10 +959,10 @@ def main() -> None:
                 last_full_eval_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             )
 
-                leaderboard_rows = _read_leaderboard(leaderboard_csv)
-                baseline_row, baseline_metrics = _select_baseline(
-                    leaderboard_rows,
-                    baseline_labels,
+            leaderboard_rows = _read_leaderboard(leaderboard_csv)
+            baseline_row, baseline_metrics = _select_baseline(
+                leaderboard_rows,
+                baseline_labels,
                 args.improvement_metric,
             )
             gate_results["baseline"] = baseline_row

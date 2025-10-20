@@ -696,7 +696,11 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     cfg_copy = copy.deepcopy(cfg)
     original_batch_size = cfg_copy.get("training", {}).get("batch_size", 32)
     consistency_batch_size = cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
-    cfg_copy.setdefault("training", {})["batch_size"] = consistency_batch_size
+    training_cfg_copy = cfg_copy.setdefault("training", {})
+    training_cfg_copy["batch_size"] = consistency_batch_size
+    if torch.cuda.is_available():
+        # Keep dataloader simple when everything stays on device
+        training_cfg_copy["pin_memory"] = False
     
     loader = dataset_loader(cfg_copy)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
@@ -719,6 +723,8 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     # Create diffusion model and load checkpoint directly to target device
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
+    tau_schedule = stage_cfg.get("tau_schedule")
+    target_loss = float(stage_cfg.get("target_loss") or cfg.get("training", {}).get("distill_target_loss", 0.0) or 0.0)
     # Read hidden_dim from config, fallback to latent_dim * 2 for backward compatibility
     hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
@@ -752,7 +758,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     
     # Get micro-batch size for gradient accumulation
     distill_micro = cfg.get("training", {}).get("distill_micro_batch")
-    num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
+    base_num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
     
     import time
     for epoch in range(epochs):
@@ -761,6 +767,13 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         total_grad_norm = 0.0
         batches = 0
         
+        num_taus_epoch = base_num_taus
+        if tau_schedule:
+            idx = min(epoch, len(tau_schedule) - 1)
+            scheduled = tau_schedule[idx]
+            if scheduled:
+                num_taus_epoch = int(scheduled)
+
         for batch in loader:
             unpacked = unpack_batch(batch)
             if len(unpacked) == 4:
@@ -774,8 +787,8 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             for start in range(0, batch_size, micro):
                 end = min(start + micro, batch_size)
                 chunk_weight = (end - start) / batch_size
-                z_chunk = z0[start:end].to(device)
-                chunk_cond = {k: v[start:end].to(device) for k, v in cond.items()}
+                z_chunk = z0[start:end].to(device, non_blocking=False)
+                chunk_cond = {k: v[start:end].to(device, non_blocking=False) for k, v in cond.items()}
                 state = LatentState(z=z_chunk, t=torch.tensor(0.0, device=device), cond=chunk_cond)
                 try:
                     with torch.no_grad():
@@ -783,15 +796,15 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     Bc, T, D = teacher_state.z.shape
                     z_tiled = (
                         teacher_state.z.unsqueeze(1)
-                        .expand(Bc, num_taus, T, D)
-                        .reshape(Bc * num_taus, T, D)
+                        .expand(Bc, num_taus_epoch, T, D)
+                        .reshape(Bc * num_taus_epoch, T, D)
                         .contiguous()
                     )
                     cond_tiled = {
-                        k: v.repeat_interleave(num_taus, dim=0)
+                        k: v.repeat_interleave(num_taus_epoch, dim=0)
                         for k, v in teacher_state.cond.items()
                     }
-                    tau_seed = _sample_tau(num_taus, device, cfg)
+                    tau_seed = _sample_tau(num_taus_epoch, device, cfg)
                     tau_flat = tau_seed.repeat(Bc)
                     tau_flat = tau_flat.to(z_tiled.dtype)
                     tiled_state = LatentState(z=z_tiled, t=teacher_state.t, cond=cond_tiled)
@@ -850,6 +863,9 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             epochs_since_improve += 1
             if _should_stop(patience, epochs_since_improve):
                 break
+        if target_loss and best_loss <= target_loss:
+            print(f"Consistency distill reached target loss {best_loss:.6f} <= {target_loss:.6f}; stopping early")
+            break
         if scheduler is not None:
             scheduler.step()
     diff.load_state_dict(best_state)
