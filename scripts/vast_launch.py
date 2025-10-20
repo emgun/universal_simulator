@@ -134,35 +134,6 @@ cd universal_simulator
 git fetch origin
 git checkout {branch}
 git pull origin {branch}
-python3 - <<'PY'
-from pathlib import Path
-import yaml
-
-train_path = Path("{train_cfg_path.as_posix()}")
-if train_path.exists():
-    cfg = yaml.safe_load(train_path.read_text(encoding="utf-8")) or dict()
-else:
-    cfg = dict()
-stages = cfg.setdefault("stages", dict())
-operator = stages.get("operator") or dict()
-if isinstance(operator, dict):
-    operator.pop("scheduler", None)
-    opt = operator.setdefault("optimizer", dict())
-    opt["lr"] = 1.0e-3
-    opt["name"] = "adamw"
-    opt["betas"] = [0.9, 0.999]
-logging_cfg = cfg.setdefault("logging", dict()).setdefault("wandb", dict())
-tags = logging_cfg.setdefault("tags", [])
-for tag in ("32dim", "txxoc8a8-rerun", "baseline-validation", "full-eval"):
-    if tag not in tags:
-        tags.append(tag)
-logging_cfg.setdefault("project", "universal-simulator")
-logging_cfg.setdefault("run_name", "rerun-txxoc8a8")
-logging_cfg.setdefault("group", "baseline-experiments")
-train_path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
-
-PY
-
 apt-get update && apt-get install -y git rclone build-essential
 
 source /venv/main/bin/activate

@@ -115,20 +115,34 @@ python scripts/dry_run.py configs/train_burgers_32dim.yaml --estimate-only
 
 **Step 3:** Find Instance
 ```bash
-python scripts/vast_launch.py --search-only \
-    --min-gpu-ram 24 \
-    --max-price 2.50
+python scripts/vast_launch.py search -g <PREFERRED_GPU> --max-price <BID_LIMIT>
 
 # Review options, note instance ID
 ```
 
 **Step 4:** Launch
 ```bash
-python scripts/vast_launch.py \
-    --config configs/train_burgers_32dim.yaml \
-    --auto-shutdown
+# Local quick test (CPU): skip training to validate wiring
+python scripts/run_fast_to_sota.py \
+  --train-config <TRAIN_CONFIG> \
+  --small-eval-config <SMALL_EVAL_CONFIG> \
+  --full-eval-config <FULL_EVAL_CONFIG> \
+  --skip-training --skip-small-eval --skip-full-eval
 
-# Note instance ID and run ID
+# Production launch on Vast (auto-shutdown when finished)
+python scripts/vast_launch.py launch \
+  --gpu <PREFERRED_GPU> \
+  --config <TRAIN_CONFIG> \
+  --auto-shutdown \
+  --run-arg=--wandb-run-name=<WANDB_RUN_NAME> \
+  --run-arg=--small-eval-config=<SMALL_EVAL_CONFIG> \
+  --run-arg=--full-eval-config=<FULL_EVAL_CONFIG> \
+  --run-arg=--leaderboard-wandb \
+  --run-arg=--leaderboard-wandb-project=<WANDB_PROJECT> \
+  --run-arg=--leaderboard-wandb-entity=<WANDB_ENTITY> \
+  --run-arg=--tag=config=<CONFIG_LABEL>
+
+# Note instance ID and orchestrator run_id printed after launch
 ```
 
 **Step 5:** Verify Launch
@@ -157,6 +171,33 @@ vastai stop instance <instance_id>
 vastai destroy instance <instance_id>
 # Investigate issue before relaunching
 ```
+
+### OP-003: Resume / Re-run a Stage
+
+**Frequency:** As needed | **Risk:** Low
+
+The orchestrator now records checkpoint metadata (`checkpoints/metadata.json`) plus the training W&B run descriptor (`artifacts/wandb_run.json`). Use these flags to resume cleanly:
+
+| Scenario | Flags to pass to `run_fast_to_sota.py` |
+|----------|-----------------------------------------|
+| Training already finished, just re-evaluate | `--skip-training` (auto-reuses metrics unless you also pass `--redo-small-eval`/`--redo-full-eval`) |
+| Force a fresh training pass | `--force-train` |
+| Re-run proxy eval and overwrite cached metrics | `--redo-small-eval` |
+| Re-run full eval (e.g., leaderboards out of sync) | `--redo-full-eval` |
+
+Example (reuse training, redo full eval only):
+```bash
+python scripts/run_fast_to_sota.py \
+  --train-config <TRAIN_CONFIG> \
+  --small-eval-config <SMALL_EVAL_CONFIG> \
+  --full-eval-config <FULL_EVAL_CONFIG> \
+  --skip-training \
+  --redo-full-eval \
+  --wandb-sync \
+  --leaderboard-wandb
+```
+
+If an instance died mid-run, relaunch on Vast with the same config and add `--skip-training` (or `--force-train`) in the `--run-arg` list depending on what completed before failure.
 
 ### OP-002: Monitor Active Training
 
@@ -629,4 +670,3 @@ ifstat 1
 **Last Updated:** 2025-10-16  
 **Next Review:** 2025-11-16  
 **Maintained By:** ML Engineering Team
-

@@ -89,32 +89,41 @@ wandb artifact get burgers1d_full_v1 --root data/pdebench/
 ### Standard Pipeline
 
 ```bash
-# 1. Validate configuration
-python scripts/validate_config.py configs/train_burgers_32dim.yaml
+# 1. Validate config & data wiring (no training)
+python scripts/run_fast_to_sota.py \
+  --train-config configs/rerun_txxoc8a8.yaml \
+  --small-eval-config configs/small_eval_rerun_txxoc8a8.yaml \
+  --full-eval-config configs/full_eval_rerun_txxoc8a8.yaml \
+  --skip-training --skip-small-eval --skip-full-eval
 
-# 2. Validate data
-python scripts/validate_data.py configs/train_burgers_32dim.yaml
+# 2. Dry-run (estimate cost and time)
+python scripts/dry_run.py <TRAIN_CONFIG> --estimate-only
 
-# 3. Dry-run (estimate cost and time)
-python scripts/dry_run.py configs/train_burgers_32dim.yaml
+# 3. Launch production run on Vast
+python scripts/vast_launch.py launch \
+  --gpu <PREFERRED_GPU> \
+  --config <TRAIN_CONFIG> \
+  --auto-shutdown \
+  --run-arg=--wandb-sync \
+  --run-arg=--wandb-run-name=<WANDB_RUN_NAME> \
+  --run-arg=--leaderboard-wandb \
+  --run-arg=--leaderboard-wandb-project=<WANDB_PROJECT> \
+  --run-arg=--leaderboard-wandb-entity=<WANDB_ENTITY>
 
-# 4. Train (if all checks pass)
-python scripts/train.py configs/train_burgers_32dim.yaml
-
-# 5. Analyze results
-python scripts/analyze_run.py <run_id> --output reports/analysis.md
+# 4. Analyze results (after completion)
+python scripts/analyze_run.py <wandb_run_id> --output reports/analysis.md
 ```
 
-### Expected Timeline (32-dim on A100)
+### Expected Timeline (example)
 
-| Stage | Duration | Checkpoints |
-|-------|----------|-------------|
+| Stage | Duration (typical) | Checkpoints |
+|-------|--------------------|-------------|
 | Latent Cache | 2-3 min | latent_cache/ |
-| Operator (25 epochs) | 2 min | operator.pt |
-| Diffusion (8 epochs) | 1 min | diffusion_residual.pt |
-| Distillation (8 epochs) | 15-20 min | diffusion_residual.pt (updated) |
-| Evaluation (baseline + TTC) | 15-20 min | reports/ |
-| **Total** | **~40 min** | **~$1.25 @ $1.89/hr** |
+| Operator (constant LR) | 2-3 min | operator.pt / operator_ema.pt |
+| Diffusion (cosine anneal) | 1-2 min | diffusion_residual.pt |
+| Consistency distill (τ schedule, tight target) | 8-12 min | diffusion_residual.pt / diffusion_residual_ema.pt |
+| Evaluation (baseline + TTC) | 15-20 min | reports/, leaderboard rows |
+| **Total** | **≈35 min** | **Cost scales with GPU rate** |
 
 ---
 
@@ -122,13 +131,9 @@ python scripts/analyze_run.py <run_id> --output reports/analysis.md
 
 ### Choosing Latent Dimension
 
-| Dimension | Use Case | Performance | Cost | When to Use |
-|-----------|----------|-------------|------|-------------|
-| 32-dim | **Production** | NRMSE ~0.09 (w/ TTC) | $0.80 | Default choice, best cost/performance |
-| 64-dim | High capacity | NRMSE ~0.11 (w/ TTC) | $1.20 | Diminishing returns vs 32-dim |
-| 512-dim | Research | NRMSE ~0.002 (baseline) | $5-10 | Overkill for most cases |
-
-**Recommendation:** Start with 32-dim. Only scale up if specific use case requires it.
+- Start with the smallest latent size that meets accuracy targets to minimize cost.
+- Increase latent dimension or depth only when diagnostics show bottlenecks (e.g., persistent bias on hard regimes).
+- If you scale capacity, re-tune optimizer scale (LR, batch tokens) and TTC settings to keep gates satisfied.
 
 ### Hyperparameter Guidelines
 
@@ -139,15 +144,16 @@ python scripts/analyze_run.py <run_id> --output reports/analysis.md
 - Batch size: `8-12` for 32-dim
 
 **Diffusion Stage:**
-- LR: `3e-5 to 5e-5`
-- Epochs: `5-8`
-- Scheduler: `CosineAnnealingLR`
+- LR: `~3e-5` (scale with batch tokens and optimizer choice)
+- Epochs: `≈5`
+- Scheduler: `CosineAnnealingLR` (keep enabled; reruns rely on smooth decay)
 - EMA decay: `0.999`
 
 **Consistency Distillation:**
-- LR: `2e-5 to 3e-5`
-- Epochs: `6-8`
-- `distill_num_taus`: `5` (balance speed/quality)
+- LR: `~2e-5`
+- Epochs: `≤6` (stop once loss hits the target tolerance, e.g. `≤5e-6`)
+- Scheduler: `CosineAnnealingLR`
+- `distill_num_taus`: `≈5` (balance speed/quality)
 - `distill_micro_batch`: `3-4`
 
 ### TTC Configuration
@@ -176,23 +182,11 @@ python scripts/analyze_run.py <run_id> --output reports/analysis.md
 
 ```bash
 # Find cheapest suitable instance
-python scripts/vast_launch.py --search-only --min-gpu-ram 24
-
-# Recommended GPUs by use case:
-# - A100 (40GB): Best cost/performance for 32-64 dim
-# - H100 (80GB): Overkill for most cases, use for 512-dim
-# - H200 (141GB): Only for massive batch sizes or 512-dim
+python scripts/vast_launch.py search -g <GPU_MODEL> --max-price <BID_LIMIT>
 ```
 
 ### Cost Optimization
-
-| GPU | $/hr | 32-dim Training | 512-dim Training | Recommendation |
-|-----|------|-----------------|------------------|----------------|
-| A100 40GB | $1.89 | ✅ $0.80 (~25 min) | ❌ Too small | **Best for 32-64 dim** |
-| H100 80GB | $2.89 | ⚠️ $1.20 (overkill) | ✅ $5-8 | For 512-dim or parallel experiments |
-| H200 141GB | $2.59 | ⚠️ $1.10 (overkill) | ✅ $4-6 | For 512-dim with large batch |
-
-**Golden Rule:** Use cheapest GPU that fits your model + batch size.
+Match GPU memory to expected peak batch tokens + evaluation workloads. Use the cheapest instance that comfortably fits the job; if you need more VRAM later, adjust the search filter and rerun.
 
 ---
 
@@ -434,4 +428,3 @@ cat .env | grep WANDB
 ---
 
 **Questions or Issues?** Check troubleshooting first, then open an issue on GitHub.
-
