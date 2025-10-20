@@ -69,7 +69,7 @@ training:
 
   distill_micro_batch: 3
   distill_num_taus: 5
-  distill_target_loss: 5.0e-4
+  distill_target_loss: 5.0e-6
 
   lambda_spectral: 0.05
   lambda_relative: 0.0
@@ -101,6 +101,11 @@ stages:
       lr: 3.0e-5
       weight_decay: 0.01
       betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 5
+      eta_min: 3.0e-6
 
 
   consistency_distill:
@@ -115,6 +120,11 @@ stages:
       lr: 2.0e-5
       weight_decay: 0.01
       betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 2.0e-6
 
 
   steady_prior:

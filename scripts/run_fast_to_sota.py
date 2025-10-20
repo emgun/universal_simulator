@@ -120,6 +120,17 @@ def _update_checkpoint_metadata(metadata_path: Path, **fields: object) -> None:
     metadata_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
 
+def _persist_wandb_info(destination: Path, info: Mapping[str, Any]) -> None:
+    """Write W&B metadata so evaluation stages can resume the training run."""
+    if not info or not isinstance(info, Mapping):
+        return
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(dict(info), indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _write_config(cfg: Dict[str, object], destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
@@ -398,8 +409,11 @@ def main() -> None:
     parser.add_argument("--skip-data-check", action="store_true", help="Skip dataset validation")
     parser.add_argument("--skip-dry-run", action="store_true", help="Skip dry-run estimate")
     parser.add_argument("--skip-training", action="store_true", help="Skip training step")
+    parser.add_argument("--force-train", action="store_true", help="Force retraining even if existing checkpoints are marked complete")
     parser.add_argument("--skip-small-eval", action="store_true", help="Skip proxy evaluation")
     parser.add_argument("--skip-full-eval", action="store_true", help="Skip full evaluation")
+    parser.add_argument("--redo-small-eval", action="store_true", help="Re-run proxy evaluation even if previous results exist in metadata")
+    parser.add_argument("--redo-full-eval", action="store_true", help="Re-run full evaluation even if previous results exist in metadata")
     parser.add_argument("--skip-analysis", action="store_true", help="Skip post-run analysis report generation")
     parser.add_argument("--skip-comparison", action="store_true", help="Skip comparison reports against baseline")
     parser.add_argument(
@@ -588,7 +602,18 @@ def main() -> None:
     summary["leaderboard_csv"] = str(leaderboard_csv)
     summary["leaderboard_html"] = str(leaderboard_html)
 
-    metadata_path = _write_checkpoint_metadata(cfg, resolved_train_config, checkpoint_dir)
+    metadata_path = checkpoint_dir / "metadata.json"
+    metadata: Dict[str, Any] | None = None
+    if metadata_path.exists():
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"⚠️  Failed to parse checkpoint metadata at {metadata_path}: {exc}. Recreating metadata.")
+            metadata = None
+    if metadata is None:
+        metadata_path = _write_checkpoint_metadata(cfg, resolved_train_config, checkpoint_dir)
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    summary["checkpoint_metadata"] = metadata
 
     wandb_run = None
     wandb_message_rows: List[List[str]] = []
@@ -733,8 +758,14 @@ def main() -> None:
             )
             _wandb_log_event(wandb_run, "dry_run_done")
 
-        # Training step
-        if not args.skip_training:
+        # Training step (with metadata-aware skipping)
+        metadata_trained = bool(metadata.get("trained")) if isinstance(metadata, dict) else False
+        skip_training_due_to_metadata = metadata_trained and not args.force_train
+        if skip_training_due_to_metadata:
+            print("ℹ️  Skipping training: checkpoint metadata indicates training already completed. Use --force-train to override.")
+        elif args.skip_training:
+            print("ℹ️  Skipping training as requested via --skip-training")
+        if not (args.skip_training or skip_training_due_to_metadata):
             train_cmd = [
                 PYTHON,
                 "scripts/train.py",
@@ -754,28 +785,64 @@ def main() -> None:
                 desc="train",
             )
             _wandb_log_event(wandb_run, "training_completed")
+            finished_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
             _update_checkpoint_metadata(
                 metadata_path,
                 trained=True,
-                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                trained_at=finished_at,
+                last_small_eval=None,
+                last_small_eval_at=None,
+                last_full_eval=None,
+                last_full_eval_at=None,
             )
+            if isinstance(metadata, dict):
+                metadata.update(
+                    {
+                        "trained": True,
+                        "trained_at": finished_at,
+                        "last_small_eval": None,
+                        "last_small_eval_at": None,
+                        "last_full_eval": None,
+                        "last_full_eval_at": None,
+                    }
+                )
 
-        training_wandb_info: Optional[Dict[str, str]] = None
-        if wandb_info_path.exists():
-            try:
-                training_wandb_info = json.loads(wandb_info_path.read_text(encoding="utf-8"))
-                summary["training_wandb"] = training_wandb_info
-                _update_checkpoint_metadata(metadata_path, training_wandb=training_wandb_info)
+        training_wandb_info: Optional[Dict[str, Any]] = None
+        if not (args.skip_training or skip_training_due_to_metadata):
+            if wandb_info_path.exists():
+                try:
+                    training_wandb_info = json.loads(wandb_info_path.read_text(encoding="utf-8"))
+                    summary["training_wandb"] = training_wandb_info
+                    _update_checkpoint_metadata(metadata_path, training_wandb=training_wandb_info)
+                    if isinstance(metadata, dict):
+                        metadata["training_wandb"] = training_wandb_info
+                    if training_wandb_info.get("id"):
+                        common_tags["train_wandb_run"] = training_wandb_info.get("id")
+                    if training_wandb_info.get("project"):
+                        common_tags["train_wandb_project"] = training_wandb_info.get("project")
+                    if training_wandb_info.get("entity"):
+                        common_tags["train_wandb_entity"] = training_wandb_info.get("entity")
+                    if training_wandb_info.get("url"):
+                        summary["training_wandb_url"] = training_wandb_info.get("url")
+                except Exception as exc:
+                    summary["training_wandb_error"] = str(exc)
+        else:
+            summary["training_skipped"] = True
+            if isinstance(metadata, dict):
+                candidate = metadata.get("training_wandb")
+                if isinstance(candidate, dict):
+                    training_wandb_info = candidate
+                    summary["training_wandb"] = training_wandb_info
+            if isinstance(training_wandb_info, dict):
                 if training_wandb_info.get("id"):
                     common_tags["train_wandb_run"] = training_wandb_info.get("id")
                 if training_wandb_info.get("project"):
                     common_tags["train_wandb_project"] = training_wandb_info.get("project")
                 if training_wandb_info.get("entity"):
                     common_tags["train_wandb_entity"] = training_wandb_info.get("entity")
-                if training_wandb_info.get("url"):
-                    summary["training_wandb_url"] = training_wandb_info.get("url")
-            except Exception as exc:
-                summary["training_wandb_error"] = str(exc)
+
+        if isinstance(training_wandb_info, dict):
+            _persist_wandb_info(wandb_info_path, training_wandb_info)
 
         operator_ckpt = _find_checkpoint(checkpoint_dir, ["operator_ema.pt", "operator.pt"])
         if operator_ckpt is None:
@@ -793,108 +860,142 @@ def main() -> None:
                 shutil.rmtree(dest)
             shutil.copytree(checkpoint_dir, dest)
 
+        eval_env = {
+            "WANDB_MODE": args.wandb_mode,
+            "FAST_TO_SOTA_WANDB_INFO": str(wandb_info_path),
+        }
+
         # Small evaluation stage
+        small_flat: Optional[Dict[str, float]] = None
+        metadata_last_small = metadata.get("last_small_eval") if isinstance(metadata, dict) else None
         if not args.skip_small_eval:
+            reuse_small = isinstance(metadata_last_small, dict) and bool(metadata_last_small) and not args.redo_small_eval
             small_dir = run_root / "small_eval"
-            small_dir.mkdir(parents=True, exist_ok=True)
             small_prefix = small_dir / "results"
+            small_metrics_path: Optional[Path] = small_prefix.with_suffix(".json")
+            if reuse_small:
+                print("ℹ️  Reusing previous small-eval metrics from checkpoint metadata")
+                small_dir.mkdir(parents=True, exist_ok=True)
+                small_flat = {
+                    key: float(value)
+                    for key, value in metadata_last_small.items()
+                    if isinstance(value, (int, float))
+                }
+            else:
+                small_dir.mkdir(parents=True, exist_ok=True)
 
-            small_cmd = [
-                PYTHON,
-                "scripts/evaluate.py",
-                "--config",
-                str(resolved_small_config),
-                "--operator",
-                str(operator_ckpt),
-                "--device",
-                args.eval_device,
-                "--output-prefix",
-                str(small_prefix),
-                "--leaderboard-run-id",
-                f"{run_id}_small",
-                "--leaderboard-label",
-                "small_eval",
-                "--leaderboard-path",
-                str(leaderboard_csv),
-                "--leaderboard-html",
-                str(leaderboard_html),
-                "--leaderboard-notes",
-                f"run={run_id} stage=small",
-            ]
-            if diffusion_ckpt:
-                small_cmd.extend(["--diffusion", str(diffusion_ckpt), "--tau", str(args.eval_tau)])
-            for tag in render_tags("small"):
-                small_cmd.extend(["--leaderboard-tag", tag])
-            if args.leaderboard_wandb:
-                small_cmd.append("--leaderboard-wandb")
-                if args.leaderboard_wandb_project:
-                    small_cmd.extend(["--leaderboard-wandb-project", args.leaderboard_wandb_project])
-                if args.leaderboard_wandb_entity:
-                    small_cmd.extend(["--leaderboard-wandb-entity", args.leaderboard_wandb_entity])
+                small_cmd = [
+                    PYTHON,
+                    "scripts/evaluate.py",
+                    "--config",
+                    str(resolved_small_config),
+                    "--operator",
+                    str(operator_ckpt),
+                    "--device",
+                    args.eval_device,
+                    "--output-prefix",
+                    str(small_prefix),
+                    "--leaderboard-run-id",
+                    f"{run_id}_small",
+                    "--leaderboard-label",
+                    "small_eval",
+                    "--leaderboard-path",
+                    str(leaderboard_csv),
+                    "--leaderboard-html",
+                    str(leaderboard_html),
+                    "--leaderboard-notes",
+                    f"run={run_id} stage=small",
+                ]
+                if diffusion_ckpt:
+                    small_cmd.extend(["--diffusion", str(diffusion_ckpt), "--tau", str(args.eval_tau)])
+                for tag in render_tags("small"):
+                    small_cmd.extend(["--leaderboard-tag", tag])
+                if args.leaderboard_wandb:
+                    small_cmd.append("--leaderboard-wandb")
+                    if args.leaderboard_wandb_project:
+                        small_cmd.extend(["--leaderboard-wandb-project", args.leaderboard_wandb_project])
+                    if args.leaderboard_wandb_entity:
+                        small_cmd.extend(["--leaderboard-wandb-entity", args.leaderboard_wandb_entity])
 
-            _run_command(
-                small_cmd,
-                env={"WANDB_MODE": args.wandb_mode},
-                desc="evaluate-small",
-            )
-            small_metrics_path = small_prefix.with_suffix(".json")
-            small_flat = _load_metrics(small_metrics_path)
-            gate_results["small_eval"] = {"metrics": small_flat}
-            if wandb_run is not None:
+                _run_command(
+                    small_cmd,
+                    env=dict(eval_env),
+                    desc="evaluate-small",
+                )
+                small_metrics_path = small_prefix.with_suffix(".json")
+                small_flat = _load_metrics(small_metrics_path)
+                timestamp_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                _update_checkpoint_metadata(
+                    metadata_path,
+                    last_small_eval=small_flat,
+                    last_small_eval_at=timestamp_iso,
+                )
+                if isinstance(metadata, dict):
+                    metadata["last_small_eval"] = small_flat
+                    metadata["last_small_eval_at"] = timestamp_iso
+
+            if reuse_small:
+                try:
+                    reuse_path = small_dir / "results.json"
+                    if small_flat and not reuse_path.exists():
+                        reuse_payload = {"reused": True, "source": "checkpoint_metadata", "metrics_flat": small_flat}
+                        reuse_path.write_text(json.dumps(reuse_payload, indent=2), encoding="utf-8")
+                    if small_metrics_path is None:
+                        small_metrics_path = small_dir / "results.json"
+                except Exception:
+                    pass
+
+            gate_results["small_eval"] = {"metrics": small_flat or {}, "reused": reuse_small}
+            if small_flat and wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "small_eval", small_flat)
-            _log_metrics_to_training_run(training_wandb_info, "small_eval", small_flat)
-            _update_checkpoint_metadata(
-                metadata_path,
-                last_small_eval=small_flat,
-                last_small_eval_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            )
+            _log_metrics_to_training_run(training_wandb_info, "small_eval", small_flat or {})
 
             leaderboard_rows = _read_leaderboard(leaderboard_csv)
             baseline_row, baseline_metrics = _select_baseline(
                 leaderboard_rows,
                 baseline_labels,
-            args.improvement_metric,
-        )
-        gate_results["baseline"] = baseline_row
-        if baseline_row:
-            baseline_training_wandb = {
-                "run": _normalize_tag(baseline_row.get("train_wandb_run")),
-                "project": _normalize_tag(baseline_row.get("train_wandb_project")),
-                "entity": _normalize_tag(baseline_row.get("train_wandb_entity")),
-            }
-
-            passed_small, small_messages = _check_gates(
-                small_flat,
-                baseline_metrics,
-                improvement_metric=args.improvement_metric,
-                min_delta=args.min_small_delta,
-                ratio_limits=ratio_limits,
+                args.improvement_metric,
             )
-            gate_results["small_eval"]["passed"] = passed_small
-            gate_results["small_eval"]["messages"] = small_messages
-            _log_metrics_to_training_run(
-                training_wandb_info,
-                "fast_to_sota",
-                {
-                    "small_eval_passed": 1.0 if passed_small else 0.0,
-                    "small_eval_required_delta": args.min_small_delta,
-                },
-            )
+            gate_results["baseline"] = baseline_row
+            if baseline_row:
+                baseline_training_wandb = {
+                    "run": _normalize_tag(baseline_row.get("train_wandb_run")),
+                    "project": _normalize_tag(baseline_row.get("train_wandb_project")),
+                    "entity": _normalize_tag(baseline_row.get("train_wandb_entity")),
+                }
 
-            print("\n[gate] Small evaluation results:")
-            for msg in small_messages:
-                print(f"  - {msg}")
-            if wandb_run is not None:
-                wandb_message_rows.extend([["small_eval", msg] for msg in small_messages])
-                status_value = 1.0 if passed_small else 0.0
-                wandb_run.log({"fast_to_sota/small_eval_passed": status_value})
-                wandb_gate_rows.append(["small_eval", "passed" if passed_small else "failed", " | ".join(small_messages)])
-                _wandb_log_event(wandb_run, "small_eval_completed", status_value)
-            if not passed_small:
-                print("Proxy evaluation gates failed.")
-                failed_gates = True
-                if not args.force_full_eval:
-                    should_run_full = False
+                passed_small, small_messages = _check_gates(
+                    small_flat or {},
+                    baseline_metrics,
+                    improvement_metric=args.improvement_metric,
+                    min_delta=args.min_small_delta,
+                    ratio_limits=ratio_limits,
+                )
+                gate_results["small_eval"]["passed"] = passed_small
+                gate_results["small_eval"]["messages"] = small_messages
+                _log_metrics_to_training_run(
+                    training_wandb_info,
+                    "fast_to_sota",
+                    {
+                        "small_eval_passed": 1.0 if passed_small else 0.0,
+                        "small_eval_required_delta": args.min_small_delta,
+                    },
+                )
+
+                print("\n[gate] Small evaluation results:")
+                for msg in small_messages:
+                    print(f"  - {msg}")
+                if wandb_run is not None:
+                    wandb_message_rows.extend([["small_eval", msg] for msg in small_messages])
+                    status_value = 1.0 if passed_small else 0.0
+                    wandb_run.log({"fast_to_sota/small_eval_passed": status_value})
+                    wandb_gate_rows.append(["small_eval", "passed" if passed_small else "failed", " | ".join(small_messages)])
+                    _wandb_log_event(wandb_run, "small_eval_completed", status_value)
+                if not passed_small:
+                    print("Proxy evaluation gates failed.")
+                    failed_gates = True
+                    if not args.force_full_eval:
+                        should_run_full = False
         else:
             print("Skipping small evaluation by request.")
             gate_results["small_eval"] = {"skipped": True}
@@ -903,61 +1004,95 @@ def main() -> None:
                 wandb_run.log({"fast_to_sota/small_eval_passed": -1.0})
                 _wandb_log_event(wandb_run, "small_eval_completed", -1.0)
 
+        if baseline_row is None:
+            leaderboard_rows = _read_leaderboard(leaderboard_csv)
+            baseline_row, baseline_metrics = _select_baseline(
+                leaderboard_rows,
+                baseline_labels,
+                args.improvement_metric,
+            )
+            gate_results["baseline"] = baseline_row
+
         # Full evaluation stage
+        metadata_last_full = metadata.get("last_full_eval") if isinstance(metadata, dict) else None
         if should_run_full and not args.skip_full_eval:
             full_dir = run_root / "full_eval"
             full_dir.mkdir(parents=True, exist_ok=True)
             full_prefix = full_dir / "results"
-
-            full_cmd = [
-                PYTHON,
-                "scripts/evaluate.py",
-                "--config",
-                str(resolved_full_config),
-                "--operator",
-                str(operator_ckpt),
-                "--device",
-                args.eval_device,
-                "--output-prefix",
-                str(full_prefix),
-                "--leaderboard-run-id",
-                f"{run_id}_full",
-                "--leaderboard-label",
-                "full_eval",
-                "--leaderboard-path",
-                str(leaderboard_csv),
-                "--leaderboard-html",
-                str(leaderboard_html),
-                "--leaderboard-notes",
-                f"run={run_id} stage=full",
-            ]
-            if diffusion_ckpt:
-                full_cmd.extend(["--diffusion", str(diffusion_ckpt), "--tau", str(args.eval_tau)])
-            for tag in render_tags("full"):
-                full_cmd.extend(["--leaderboard-tag", tag])
-            if args.leaderboard_wandb:
-                full_cmd.append("--leaderboard-wandb")
-                if args.leaderboard_wandb_project:
-                    full_cmd.extend(["--leaderboard-wandb-project", args.leaderboard_wandb_project])
-                if args.leaderboard_wandb_entity:
-                    full_cmd.extend(["--leaderboard-wandb-entity", args.leaderboard_wandb_entity])
-
-            _run_command(
-                full_cmd,
-                env={"WANDB_MODE": args.wandb_mode},
-                desc="evaluate-full",
-            )
             full_metrics_path = full_prefix.with_suffix(".json")
-            full_flat = _load_metrics(full_metrics_path)
-            gate_results["full_eval"] = {"metrics": full_flat}
+            reuse_full = isinstance(metadata_last_full, dict) and bool(metadata_last_full) and not args.redo_full_eval
+            if reuse_full:
+                print("ℹ️  Reusing previous full-eval metrics from checkpoint metadata")
+                full_flat = {
+                    key: float(value)
+                    for key, value in metadata_last_full.items()
+                    if isinstance(value, (int, float))
+                }
+                full_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                full_cmd = [
+                    PYTHON,
+                    "scripts/evaluate.py",
+                    "--config",
+                    str(resolved_full_config),
+                    "--operator",
+                    str(operator_ckpt),
+                    "--device",
+                    args.eval_device,
+                    "--output-prefix",
+                    str(full_prefix),
+                    "--leaderboard-run-id",
+                    f"{run_id}_full",
+                    "--leaderboard-label",
+                    "full_eval",
+                    "--leaderboard-path",
+                    str(leaderboard_csv),
+                    "--leaderboard-html",
+                    str(leaderboard_html),
+                    "--leaderboard-notes",
+                    f"run={run_id} stage=full",
+                ]
+                if diffusion_ckpt:
+                    full_cmd.extend(["--diffusion", str(diffusion_ckpt), "--tau", str(args.eval_tau)])
+                for tag in render_tags("full"):
+                    full_cmd.extend(["--leaderboard-tag", tag])
+                if args.leaderboard_wandb:
+                    full_cmd.append("--leaderboard-wandb")
+                    if args.leaderboard_wandb_project:
+                        full_cmd.extend(["--leaderboard-wandb-project", args.leaderboard_wandb_project])
+                    if args.leaderboard_wandb_entity:
+                        full_cmd.extend(["--leaderboard-wandb-entity", args.leaderboard_wandb_entity])
+
+                _run_command(
+                    full_cmd,
+                    env=dict(eval_env),
+                    desc="evaluate-full",
+                )
+                full_flat = _load_metrics(full_metrics_path)
+                timestamp_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                _update_checkpoint_metadata(
+                    metadata_path,
+                    last_full_eval=full_flat,
+                    last_full_eval_at=timestamp_iso,
+                )
+                if isinstance(metadata, dict):
+                    metadata["last_full_eval"] = full_flat
+                    metadata["last_full_eval_at"] = timestamp_iso
+
+            if reuse_full:
+                try:
+                    full_dir.mkdir(parents=True, exist_ok=True)
+                    reuse_path = full_dir / "results.json"
+                    if full_flat and not reuse_path.exists():
+                        reuse_payload = {"reused": True, "source": "checkpoint_metadata", "metrics_flat": full_flat}
+                        reuse_path.write_text(json.dumps(reuse_payload, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+            gate_results["full_eval"] = {"metrics": full_flat, "reused": reuse_full}
             if wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "full_eval", full_flat)
             _log_metrics_to_training_run(training_wandb_info, "full_eval", full_flat)
-            _update_checkpoint_metadata(
-                metadata_path,
-                last_full_eval=full_flat,
-                last_full_eval_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            )
 
             leaderboard_rows = _read_leaderboard(leaderboard_csv)
             baseline_row, baseline_metrics = _select_baseline(
