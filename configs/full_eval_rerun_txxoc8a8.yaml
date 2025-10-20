@@ -1,0 +1,7 @@
+include: rerun_txxoc8a8.yaml
+
+data:
+  split: test
+
+training:
+  time_stride: 1

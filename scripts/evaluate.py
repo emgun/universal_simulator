@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import hashlib
 from pathlib import Path
 from typing import Any, Dict
 
@@ -24,7 +26,7 @@ from ups.eval.reports import MetricReport
 from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
-from ups.utils.monitoring import init_monitoring_session
+from ups.utils.monitoring import MonitoringSession, init_monitoring_session
 from ups.utils.leaderboard import update_leaderboard
 
 # Use spawn to allow CUDA in DataLoader workers during evaluation
@@ -57,6 +59,69 @@ def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to
         state_dict = fixed
 
     model.load_state_dict(state_dict)
+
+
+def _extract_arch_fingerprint(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    latent = cfg.get("latent", {}) if isinstance(cfg.get("latent"), dict) else {}
+    operator_pdet = (
+        cfg.get("operator", {}).get("pdet", {})
+        if isinstance(cfg.get("operator"), dict)
+        else {}
+    )
+    diffusion_cfg = cfg.get("diffusion", {}) if isinstance(cfg.get("diffusion"), dict) else {}
+    return {
+        "latent_dim": latent.get("dim"),
+        "latent_tokens": latent.get("tokens"),
+        "operator_hidden_dim": operator_pdet.get("hidden_dim"),
+        "operator_num_heads": operator_pdet.get("num_heads"),
+        "operator_depths": operator_pdet.get("depths"),
+        "diffusion_hidden_dim": diffusion_cfg.get("hidden_dim"),
+    }
+
+
+def _verify_checkpoint_metadata(metadata_path: Path, cfg: Dict[str, Any], cfg_path: Path) -> None:
+    if not metadata_path.exists():
+        print(f"⚠️  Warning: checkpoint metadata not found at {metadata_path}; skipping architecture check")
+        return
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to parse checkpoint metadata ({metadata_path}): {exc}")
+
+    arch_expected = metadata.get("arch")
+    arch_actual = _extract_arch_fingerprint(cfg)
+    if arch_expected:
+        mismatches = {
+            key: (arch_expected.get(key), arch_actual.get(key))
+            for key in arch_actual.keys()
+            if arch_expected.get(key) != arch_actual.get(key)
+        }
+        if mismatches:
+            details = ", ".join(
+                f"{k}: checkpoint={v[0]!r}, config={v[1]!r}"
+                for k, v in mismatches.items()
+            )
+            raise RuntimeError(
+                f"Checkpoint architecture mismatch detected ({details}). "
+                "Retrain with matching architecture before evaluation."
+            )
+
+    if not metadata.get("trained", True):
+        raise RuntimeError(
+            "Checkpoint metadata indicates training did not finish successfully. Retrain before evaluation."
+        )
+
+    expected_hash = metadata.get("config_hash")
+    expected_config_path = metadata.get("config_path")
+    if expected_hash and expected_config_path:
+        expected_name = Path(expected_config_path).name
+        if cfg_path.name == expected_name:
+            actual_hash = hashlib.sha256(cfg_path.read_bytes()).hexdigest()
+            if actual_hash != expected_hash:
+                raise RuntimeError(
+                    "Evaluation config does not match the training config recorded in checkpoint metadata. "
+                    "Retrain or regenerate checkpoints with the current config."
+                )
 
 
 def load_config(path: str) -> Dict[str, Any]:
@@ -346,6 +411,10 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    cfg_path = Path(args.config).resolve()
+
+    metadata_path = Path(args.operator).resolve().parent / "metadata.json"
+    _verify_checkpoint_metadata(metadata_path, cfg, cfg_path)
 
     operator = make_operator(cfg)
     _load_state_dict_compat(operator, args.operator)
@@ -429,7 +498,38 @@ def main() -> None:
     except Exception as e:
         print(f"Note: Could not upload reports to W&B: {e}")
 
-    session = init_monitoring_session(cfg, component="evaluation", file_path=args.log_path)
+    resume_run = None
+    run_info_path = os.environ.get("FAST_TO_SOTA_WANDB_INFO")
+    if run_info_path:
+        info_file = Path(run_info_path)
+        if info_file.exists():
+            try:
+                info = json.loads(info_file.read_text(encoding="utf-8"))
+                run_id = info.get("id")
+                if run_id:
+                    import wandb
+
+                    resume_kwargs = {
+                        "id": run_id,
+                        "resume": "allow",
+                        "reinit": True,
+                        "settings": wandb.Settings(start_method="thread"),
+                    }
+                    project = info.get("project") or info.get("train_wandb_project")
+                    entity = info.get("entity") or info.get("train_wandb_entity")
+                    if project:
+                        resume_kwargs["project"] = project
+                    if entity:
+                        resume_kwargs["entity"] = entity
+                    resume_run = wandb.init(**resume_kwargs)
+            except Exception as exc:  # pragma: no cover - logging only
+                print(f"Warning: Could not resume training W&B run for eval: {exc}")
+
+    if resume_run is not None:
+        log_path = Path(args.log_path) if args.log_path else None
+        session = MonitoringSession(log_path, run=resume_run, component="evaluation")
+    else:
+        session = init_monitoring_session(cfg, component="evaluation", file_path=args.log_path)
     
     # Log metrics with eval/ prefix for better organization
     eval_metrics = {

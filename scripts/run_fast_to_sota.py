@@ -24,6 +24,7 @@ import shlex
 import shutil
 import sys
 import subprocess
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
@@ -70,6 +71,55 @@ def _apply_overrides(cfg: Dict[str, object], overrides: List[str]) -> Dict[str, 
     return updated
 
 
+def _extract_arch_fingerprint(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    latent = cfg.get("latent", {}) if isinstance(cfg.get("latent"), dict) else {}
+    operator_pdet = (
+        cfg.get("operator", {}).get("pdet", {})
+        if isinstance(cfg.get("operator"), dict)
+        else {}
+    )
+    diffusion_cfg = cfg.get("diffusion", {}) if isinstance(cfg.get("diffusion"), dict) else {}
+    return {
+        "latent_dim": latent.get("dim"),
+        "latent_tokens": latent.get("tokens"),
+        "operator_hidden_dim": operator_pdet.get("hidden_dim"),
+        "operator_num_heads": operator_pdet.get("num_heads"),
+        "operator_depths": operator_pdet.get("depths"),
+        "diffusion_hidden_dim": diffusion_cfg.get("hidden_dim"),
+    }
+
+
+def _write_checkpoint_metadata(
+    cfg: Dict[str, Any],
+    resolved_config: Path,
+    checkpoint_dir: Path,
+) -> Path:
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    metadata_path = checkpoint_dir / "metadata.json"
+    config_hash = hashlib.sha256(resolved_config.read_bytes()).hexdigest()
+    metadata = {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "config_hash": config_hash,
+        "config_path": str(resolved_config),
+        "arch": _extract_arch_fingerprint(cfg),
+        "trained": False,
+    }
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    return metadata_path
+
+
+def _update_checkpoint_metadata(metadata_path: Path, **fields: object) -> None:
+    if not metadata_path.exists():
+        return
+    try:
+        existing = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except Exception:
+        existing = {}
+    existing.update(fields)
+    metadata_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+
 def _write_config(cfg: Dict[str, object], destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
@@ -87,6 +137,51 @@ def _log_metrics_to_wandb(run, namespace: str, metrics: Mapping[str, float]) -> 
 def _wandb_log_event(run, event: str, value: float = 1.0) -> None:  # pragma: no cover - optional
     if run is not None:
         run.log({f"fast_to_sota/{event}": value})
+
+
+def _log_metrics_to_training_run(
+    training_info: Optional[Dict[str, str]],
+    namespace: str,
+    metrics: Mapping[str, float],
+) -> None:  # pragma: no cover - optional
+    """Resume the training W&B run to append evaluation metrics."""
+    if training_info is None or wandb is None:
+        return
+    run_id = training_info.get("id")
+    project = training_info.get("project")
+    entity = training_info.get("entity")
+    if not run_id:
+        return
+    try:
+        resumed = wandb.init(
+            id=run_id,
+            project=project,
+            entity=entity or None,
+            resume="allow",
+            reinit=True,
+            settings=wandb.Settings(start_method="thread"),
+        )
+    except Exception:
+        return
+
+    if resumed is None:
+        return
+
+    try:
+        formatted: Dict[str, float] = {}
+        for key, value in metrics.items():
+            if not isinstance(value, (int, float)):
+                continue
+            safe_key = key.replace("metric:", "").replace("extra:", "extra/")
+            safe_key = safe_key.replace(":", "/")
+            formatted[f"{namespace}/{safe_key}"] = value
+        if formatted:
+            resumed.log(formatted)
+    finally:
+        try:
+            resumed.finish()
+        except Exception:
+            pass
 
 
 def _run_command(
@@ -493,6 +588,8 @@ def main() -> None:
     summary["leaderboard_csv"] = str(leaderboard_csv)
     summary["leaderboard_html"] = str(leaderboard_html)
 
+    metadata_path = _write_checkpoint_metadata(cfg, resolved_train_config, checkpoint_dir)
+
     wandb_run = None
     wandb_message_rows: List[List[str]] = []
     wandb_gate_rows: List[List[str]] = []
@@ -657,11 +754,18 @@ def main() -> None:
                 desc="train",
             )
             _wandb_log_event(wandb_run, "training_completed")
+            _update_checkpoint_metadata(
+                metadata_path,
+                trained=True,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
 
+        training_wandb_info: Optional[Dict[str, str]] = None
         if wandb_info_path.exists():
             try:
                 training_wandb_info = json.loads(wandb_info_path.read_text(encoding="utf-8"))
                 summary["training_wandb"] = training_wandb_info
+                _update_checkpoint_metadata(metadata_path, training_wandb=training_wandb_info)
                 if training_wandb_info.get("id"):
                     common_tags["train_wandb_run"] = training_wandb_info.get("id")
                 if training_wandb_info.get("project"):
@@ -738,11 +842,17 @@ def main() -> None:
             gate_results["small_eval"] = {"metrics": small_flat}
             if wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "small_eval", small_flat)
+            _log_metrics_to_training_run(training_wandb_info, "small_eval", small_flat)
+            _update_checkpoint_metadata(
+                metadata_path,
+                last_small_eval=small_flat,
+                last_small_eval_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
 
-        leaderboard_rows = _read_leaderboard(leaderboard_csv)
-        baseline_row, baseline_metrics = _select_baseline(
-            leaderboard_rows,
-            baseline_labels,
+            leaderboard_rows = _read_leaderboard(leaderboard_csv)
+            baseline_row, baseline_metrics = _select_baseline(
+                leaderboard_rows,
+                baseline_labels,
             args.improvement_metric,
         )
         gate_results["baseline"] = baseline_row
@@ -762,6 +872,14 @@ def main() -> None:
             )
             gate_results["small_eval"]["passed"] = passed_small
             gate_results["small_eval"]["messages"] = small_messages
+            _log_metrics_to_training_run(
+                training_wandb_info,
+                "fast_to_sota",
+                {
+                    "small_eval_passed": 1.0 if passed_small else 0.0,
+                    "small_eval_required_delta": args.min_small_delta,
+                },
+            )
 
             print("\n[gate] Small evaluation results:")
             for msg in small_messages:
@@ -834,11 +952,17 @@ def main() -> None:
             gate_results["full_eval"] = {"metrics": full_flat}
             if wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "full_eval", full_flat)
+            _log_metrics_to_training_run(training_wandb_info, "full_eval", full_flat)
+            _update_checkpoint_metadata(
+                metadata_path,
+                last_full_eval=full_flat,
+                last_full_eval_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
 
-            leaderboard_rows = _read_leaderboard(leaderboard_csv)
-            baseline_row, baseline_metrics = _select_baseline(
-                leaderboard_rows,
-                baseline_labels,
+                leaderboard_rows = _read_leaderboard(leaderboard_csv)
+                baseline_row, baseline_metrics = _select_baseline(
+                    leaderboard_rows,
+                    baseline_labels,
                 args.improvement_metric,
             )
             gate_results["baseline"] = baseline_row
@@ -858,6 +982,14 @@ def main() -> None:
             )
             gate_results["full_eval"]["passed"] = passed_full
             gate_results["full_eval"]["messages"] = full_messages
+            _log_metrics_to_training_run(
+                training_wandb_info,
+                "fast_to_sota",
+                {
+                    "full_eval_passed": 1.0 if passed_full else 0.0,
+                    "full_eval_required_delta": args.min_full_delta,
+                },
+            )
 
             print("\n[gate] Full evaluation results:")
             for msg in full_messages:

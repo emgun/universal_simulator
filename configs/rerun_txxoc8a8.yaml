@@ -90,11 +90,6 @@ stages:
       lr: 1.0e-3
       betas: [0.9, 0.999]
 
-    scheduler:
-      name: cosineannealinglr
-      t_max: 15
-      eta_min: 2.5e-5
-
   diff_residual:
     epochs: 5
     grad_clip: 1.0
@@ -106,10 +101,6 @@ stages:
       weight_decay: 0.01
       betas: [0.9, 0.999]
 
-    scheduler:
-      name: cosineannealinglr
-      t_max: 5
-      eta_min: 3.0e-6
 
   consistency_distill:
     epochs: 6
@@ -122,10 +113,6 @@ stages:
       weight_decay: 0.01
       betas: [0.9, 0.999]
 
-    scheduler:
-      name: cosineannealinglr
-      t_max: 6
-      eta_min: 2.0e-6
 
   steady_prior:
     epochs: 0

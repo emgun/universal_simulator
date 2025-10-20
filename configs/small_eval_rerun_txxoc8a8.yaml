@@ -1,0 +1,22 @@
+include: rerun_txxoc8a8.yaml
+
+data:
+  split: valid
+
+training:
+  batch_size: 8
+  time_stride: 4
+  num_workers: 2
+  prefetch_factor: 2
+  compile: false
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 4
+  beam_width: 1
+  horizon: 1
+  max_evaluations: 30
+  sampler:
+    noise_std: 0.01
+    noise_schedule: [0.02]

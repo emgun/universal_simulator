@@ -24,6 +24,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ONSTART_DIR = REPO_ROOT / ".vast"
@@ -71,15 +72,58 @@ def generate_onstart_script(
     if run_args:
         extra_args = "\n  " + " \\\n  ".join(run_args)
         launch_mode_line += " \\"
+
+    # Pick matching eval configs when available (e.g., small_eval_<train>.yaml)
+    train_cfg_path = Path(config)
+    if not train_cfg_path.is_absolute():
+        train_cfg_path = Path(config)
+    else:
+        try:
+            train_cfg_path = train_cfg_path.relative_to(REPO_ROOT)
+        except ValueError:
+            # Non-repo path, use as-is without smart matching
+            train_cfg_path = Path(config)
+
+    small_eval_candidate = train_cfg_path.with_name(f"small_eval_{train_cfg_path.stem}.yaml")
+    full_eval_candidate = train_cfg_path.with_name(f"full_eval_{train_cfg_path.stem}.yaml")
+
+    default_small_eval = Path("configs/small_eval_burgers.yaml")
+    default_full_eval = Path("configs/full_eval_burgers.yaml")
+
+    small_eval_config = small_eval_candidate if (REPO_ROOT / small_eval_candidate).exists() else default_small_eval
+    full_eval_config = full_eval_candidate if (REPO_ROOT / full_eval_candidate).exists() else default_full_eval
+
+    small_eval_body = ""
+    full_eval_body = ""
+
+    small_eval_path = (REPO_ROOT / small_eval_config).resolve()
+    if small_eval_path.exists():
+        try:
+            data = yaml.safe_load(small_eval_path.read_text())
+            content = yaml.safe_dump(data, sort_keys=False).rstrip()
+        except yaml.YAMLError:
+            content = small_eval_path.read_text().rstrip()
+        small_eval_body = (
+            f"\ncat <<'EOF_SMALL' > {small_eval_config.as_posix()}\n"
+            f"{content}\nEOF_SMALL\n"
+        )
+
+    full_eval_path = (REPO_ROOT / full_eval_config).resolve()
+    if full_eval_path.exists():
+        try:
+            data = yaml.safe_load(full_eval_path.read_text())
+            content = yaml.safe_dump(data, sort_keys=False).rstrip()
+        except yaml.YAMLError:
+            content = full_eval_path.read_text().rstrip()
+        full_eval_body = (
+            f"\ncat <<'EOF_FULL' > {full_eval_config.as_posix()}\n"
+            f"{content}\nEOF_FULL\n"
+        )
     
     script = f"""#!/bin/bash
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-# Install core dependencies
-apt-get update && apt-get install -y git rclone build-essential
-
-# Clone and setup repository
 mkdir -p {workdir}
 cd {workdir}
 
@@ -90,18 +134,40 @@ cd universal_simulator
 git fetch origin
 git checkout {branch}
 git pull origin {branch}
+python3 - <<'PY'
+from pathlib import Path
+import yaml
 
-# Use VastAI's preinstalled PyTorch venv (has proper CUDA/Triton setup)
+train_path = Path("{train_cfg_path.as_posix()}")
+if train_path.exists():
+    cfg = yaml.safe_load(train_path.read_text(encoding="utf-8")) or dict()
+else:
+    cfg = dict()
+stages = cfg.setdefault("stages", dict())
+operator = stages.get("operator") or dict()
+if isinstance(operator, dict):
+    operator.pop("scheduler", None)
+    opt = operator.setdefault("optimizer", dict())
+    opt["lr"] = 1.0e-3
+    opt["name"] = "adamw"
+    opt["betas"] = [0.9, 0.999]
+logging_cfg = cfg.setdefault("logging", dict()).setdefault("wandb", dict())
+tags = logging_cfg.setdefault("tags", [])
+for tag in ("32dim", "txxoc8a8-rerun", "baseline-validation", "full-eval"):
+    if tag not in tags:
+        tags.append(tag)
+logging_cfg.setdefault("project", "universal-simulator")
+logging_cfg.setdefault("run_name", "rerun-txxoc8a8")
+logging_cfg.setdefault("group", "baseline-experiments")
+train_path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+
+PY
+
+apt-get update && apt-get install -y git rclone build-essential
+
 source /venv/main/bin/activate
-
-# Install our additional dependencies (PyTorch already installed in venv)
-pip install --upgrade pip
 pip install -e .[dev]
 
-# Apply hotfixes not yet merged upstream (keep cached latents CPU-side)
-perl -0pi -e 's/latent_seq = data\["latent"\]\.float\(\)\.to\(self\.device, non_blocking=True\)/latent_seq = data["latent"].float()/g' src/ups/data/latent_pairs.py
-
-# Download training data using VastAI-injected B2 credentials
 export RCLONE_CONFIG_B2TRAIN_TYPE=s3
 export RCLONE_CONFIG_B2TRAIN_PROVIDER=B2
 export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="$B2_KEY_ID"
@@ -113,67 +179,35 @@ mkdir -p data/pdebench
 if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress || exit 1
 fi
-
-# Download validation data
 if [ ! -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
   rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress || true
 fi
-# Normalize validation filename expected by configs (valid vs val)
 if [ -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
   mv -f data/pdebench/burgers1d_val.h5 data/pdebench/burgers1d_valid.h5 || true
 fi
-
-# Download test data for evaluation
 if [ ! -f data/pdebench/burgers1d_test.h5 ]; then
   rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress || true
 fi
 
-# Ensure expected filenames are present for validators
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
 ln -sf burgers1d_valid.h5 data/pdebench/burgers1d_val.h5 || true
 
-# Ensure clean caches for each run
 rm -rf data/latent_cache checkpoints/scale || true
+rm -f checkpoints/*.pt checkpoints/*.pth checkpoints/*.ckpt 2>/dev/null || true
+rm -rf checkpoints || true
 mkdir -p data/latent_cache checkpoints/scale
+mkdir -p checkpoints
+mkdir -p artifacts/runs reports
 
-# Precompute latent caches to avoid on-the-fly GPU encoding hiccups
 echo "Precomputing latent caches…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py \
-  --config {config} \
-  --tasks burgers1d \
-  --splits train val \
-  --root data/pdebench \
-  --cache-dir data/latent_cache \
-  --device cpu \
-  --batch-size 4 \
-  --num-workers 0 \
-  --pin-memory \
-  --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
+PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
-# Run fast-to-SOTA automation (VastAI env-vars already injected)
 export WANDB_MODE=online
-python scripts/run_fast_to_sota.py \\
-  --train-config {config} \\
-  --small-eval-config configs/small_eval_burgers.yaml \\
-  --full-eval-config configs/full_eval_burgers.yaml \\
-  --eval-device cuda \\
-  --run-dir artifacts/runs \\
-  --leaderboard-csv reports/leaderboard.csv \\
-  --wandb-mode online \\
-  --wandb-sync \\
-  --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \\
-  --wandb-entity "${{WANDB_ENTITY:-}}" \\
-  --wandb-group fast-to-sota \\
-  --wandb-tags vast \\
-  --skip-dry-run \\
-  --strict-exit \\
-  --tag environment=vast \\
-  {launch_mode_line}{extra_args}
+python scripts/run_fast_to_sota.py --train-config {config} --small-eval-config {small_eval_config.as_posix()} --full-eval-config {full_eval_config.as_posix()} --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args}
 """
 
     if auto_shutdown:
         script += """
-# Auto-shutdown after completion
 if command -v poweroff >/dev/null 2>&1; then
   sync
   poweroff
