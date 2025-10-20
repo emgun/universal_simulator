@@ -698,17 +698,16 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     consistency_batch_size = cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
     training_cfg_copy = cfg_copy.setdefault("training", {})
     training_cfg_copy["batch_size"] = consistency_batch_size
-    if torch.cuda.is_available():
-        # Keep dataloader simple when everything stays on device
-        training_cfg_copy["pin_memory"] = False
+    # Enable pin_memory for faster transfers
+    training_cfg_copy["pin_memory"] = True
     
     loader = dataset_loader(cfg_copy)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    
+
     # Determine device FIRST
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    
+
     # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
@@ -719,7 +718,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     _ensure_model_on_device(operator, device)
     operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
-    
+
     # Create diffusion model and load checkpoint directly to target device
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
@@ -735,6 +734,11 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
+
+    print(f"Consistency distillation optimizations enabled:")
+    print(f"  - Async GPU transfers: enabled")
+    print(f"  - Adaptive tau schedule: {tau_schedule if tau_schedule else 'using base num_taus'}")
+    print(f"  - Micro-batch size: {cfg.get('training', {}).get('distill_micro_batch', 'auto')}")
     
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
@@ -787,8 +791,8 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             for start in range(0, batch_size, micro):
                 end = min(start + micro, batch_size)
                 chunk_weight = (end - start) / batch_size
-                z_chunk = z0[start:end].to(device, non_blocking=False)
-                chunk_cond = {k: v[start:end].to(device, non_blocking=False) for k, v in cond.items()}
+                z_chunk = z0[start:end].to(device, non_blocking=True)
+                chunk_cond = {k: v[start:end].to(device, non_blocking=True) for k, v in cond.items()}
                 state = LatentState(z=z_chunk, t=torch.tensor(0.0, device=device), cond=chunk_cond)
                 try:
                     with torch.no_grad():

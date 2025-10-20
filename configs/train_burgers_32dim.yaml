@@ -84,8 +84,8 @@ training:
   accum_steps: 4            # Gradient accumulation
   
   # Distillation
-  distill_micro_batch: 4    # Optimized: Larger micro-batches for better GPU util
-  distill_num_taus: 4       # Optimized: Reduced from 5 for 2-3× faster distill
+  distill_micro_batch: 8    # Optimized: Larger micro-batches for better GPU util (increased from 4)
+  distill_num_taus: 3       # Optimized: Reduced from 4 for faster distill
   
   # Regularization
   lambda_spectral: 0.05
@@ -133,8 +133,8 @@ stages:
 
   consistency_distill:
     epochs: 8                 # DISABLED: Testing end-to-end without distillation
-    batch_size: 12            # Optimized: 2× larger for better GPU saturation
-    accum_steps: 2            # Simulate effective batch_size=24
+    batch_size: 16            # Optimized: Larger for better GPU saturation (increased from 12)
+    accum_steps: 1            # No gradient accumulation needed with larger batch
     
     optimizer:
       name: adamw
