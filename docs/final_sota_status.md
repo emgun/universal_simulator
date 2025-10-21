@@ -31,7 +31,7 @@
 
 | Instance ID | Config | GPU | Status | Cost/hr | Purpose |
 |-------------|--------|-----|--------|---------|---------|
-| **27012040** | rerun_txxoc8a8 | RTX 5880Ada (48GB) | 🟢 Running | $0.37 | Baseline reference (nRMSE ~0.09) |
+| **27012040** | train_burgers_32dim_golden | RTX 5880Ada (48GB) | 🟢 Running | $0.37 | Baseline reference (nRMSE ~0.09) |
 | **27012048** | sota_push_v1 | Q RTX 8000 (48GB) | 🟢 Running | $0.25 | Optimized HP (moderate capacity) |
 | **27012079** | sota_push_v2_deeper | Q RTX 8000 (48GB) | 🟡 Loading | $0.26 | Deeper architecture test |
 
@@ -42,7 +42,7 @@
 ## 📋 Configuration Details
 
 ### Instance 27012040: Baseline Reference
-**Config:** `rerun_txxoc8a8.yaml`
+**Config:** `train_burgers_32dim_golden.yaml`
 - **Known result:** nRMSE ~0.09
 - **Purpose:** Establish baseline for comparison
 - **Params:**

@@ -1,4 +1,4 @@
-include: rerun_txxoc8a8.yaml
+include: train_burgers_32dim_golden.yaml
 
 data:
   split: test

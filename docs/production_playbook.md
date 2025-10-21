@@ -91,7 +91,7 @@ wandb artifact get burgers1d_full_v1 --root data/pdebench/
 ```bash
 # 1. Validate config & data wiring (no training)
 python scripts/run_fast_to_sota.py \
-  --train-config configs/rerun_txxoc8a8.yaml \
+  --train-config configs/train_burgers_32dim_golden.yaml \
   --small-eval-config configs/small_eval_rerun_txxoc8a8.yaml \
   --full-eval-config configs/full_eval_rerun_txxoc8a8.yaml \
   --skip-training --skip-small-eval --skip-full-eval
