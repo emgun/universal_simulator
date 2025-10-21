@@ -5,7 +5,7 @@ data:
   split: valid
 
 latent:
-  tokens: 16          # fewer tokens → faster encode/compare
+  tokens: 32          # Match training config (was 16, caused eval errors)
 
 training:
   batch_size: 8
