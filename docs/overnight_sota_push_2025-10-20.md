@@ -1,7 +1,8 @@
 # Overnight SOTA Push — 2025-10-20
 
-**Launch Time:** 2025-10-20 23:55 UTC  
-**Instance:** VastAI `27071172` (RTX 5880 Ada, 64 GB)  
+**Launch Time:** 2025-10-20 23:55 UTC (initial attempt)  
+**Relaunch:** 2025-10-21 03:28 UTC after config fix  
+**Instance:** VastAI `27071621` (RTX 5880 Ada, 64 GB)  
 **Entry Point:** `python scripts/vast_launch.py launch --gpu RTX_5880Ada --config configs/rerun_txxoc8a8_capacity.yaml --auto-shutdown ...`
 
 ## Objectives
@@ -26,11 +27,11 @@
 ## Monitoring & Expected Timeline
 | Stage | Duration (est.) | Notes |
 |-------|-----------------|-------|
-| Latent cache | 3–4 min | expect download logs first |
-| Operator stage (20 epochs) | ~45 min | verify `loss < 0.001` after epoch 15 |
-| Diffusion stage (10 epochs) | ~25 min | expect best loss `≤ 0.005` |
-| Consistency distill (6 epochs) | ~50 min | target `best_loss ≤ 5e-5` |
-| Eval + artifact upload | ~20 min | small/full eval on valid/test splits |
+| Latent cache | 4–5 min | larger dataset download, watch rclone logs |
+| Operator stage (20 epochs) | ~55 min | aim for `loss ≤ 3e-4`, monitor grad_norm after LR decay |
+| Diffusion stage (10 epochs) | ~30 min | expect `best_loss ≤ 4e-3` |
+| Consistency distill (6 epochs) | ~60 min | target `best_loss ≤ 5e-5` |
+| Eval + artifact upload | ~25 min | small/full eval on valid/test splits |
 
 Total runtime ≈ 2.5–3.0 hr. Instance auto-shutdown on completion.
 
