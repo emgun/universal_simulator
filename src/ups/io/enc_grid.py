@@ -6,7 +6,6 @@ from typing import Dict, Iterable, Mapping, Optional, Tuple
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.nn.modules.lazy import LazyLinear
 
 
 @dataclass
@@ -97,9 +96,9 @@ class GridEncoder(nn.Module):
         tokens, features = self._encode_fields(fields, coords, grid_shape)
         target_device = next(self.parameters()).device
         features = features.to(target_device)
-        if isinstance(self.to_latent, LazyLinear):
+        if isinstance(self.to_latent, nn.LazyLinear):
             self.to_latent = self.to_latent.to(target_device)
-        if isinstance(self.from_latent, LazyLinear):
+        if isinstance(self.from_latent, nn.LazyLinear):
             self.from_latent = self.from_latent.to(target_device)
         latent = self.to_latent(features)
         if tokens != self.cfg.latent_len:
