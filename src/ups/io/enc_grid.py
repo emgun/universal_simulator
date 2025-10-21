@@ -94,6 +94,8 @@ class GridEncoder(nn.Module):
             raise ValueError(f"Grid shape {grid_shape} not divisible by patch size {self.patch}")
 
         tokens, features = self._encode_fields(fields, coords, grid_shape)
+        target_device = next(self.parameters()).device
+        features = features.to(target_device)
         latent = self.to_latent(features)
         if tokens != self.cfg.latent_len:
             # Pool along the token axis to the configured length.
