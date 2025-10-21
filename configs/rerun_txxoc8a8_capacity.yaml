@@ -17,7 +17,13 @@ operator:
     num_heads: 8
 
 diffusion:
+  latent_dim: 64
   hidden_dim: 128
+
+ttc:
+  decoder:
+    latent_dim: 64
+    hidden_dim: 128
 
 training:
   distill_micro_batch: 6
