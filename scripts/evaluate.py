@@ -547,7 +547,12 @@ def main() -> None:
         eval_extra = {f"eval/{k}": v for k, v in report.extra.items()}
         session.log(eval_extra)
         if session.run is not None and wandb is not None:
-            extra_rows = [[key, value] for key, value in report.extra.items()]
+            extra_rows = []
+            for key, value in report.extra.items():
+                converted = value
+                if isinstance(value, bool):
+                    converted = float(value)
+                extra_rows.append([key, converted])
             if extra_rows:
                 extra_table = wandb.Table(columns=["metric", "value"], data=extra_rows)
                 session.run.log({"eval/extra_table": extra_table})

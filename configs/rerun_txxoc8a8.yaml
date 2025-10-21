@@ -69,7 +69,6 @@ training:
 
   distill_micro_batch: 3
   distill_num_taus: 5
-  distill_target_loss: 5.0e-6
 
   lambda_spectral: 0.05
   lambda_relative: 0.0
