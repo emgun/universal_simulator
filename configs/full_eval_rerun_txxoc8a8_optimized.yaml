@@ -1,5 +1,0 @@
-include: rerun_txxoc8a8_optimized.yaml
-
-# Full evaluation overrides
-data:
-  split: test
