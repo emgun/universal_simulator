@@ -26,7 +26,7 @@ def run_cmd(cmd: list[str]) -> int:
     result = subprocess.run(cmd)
     return result.returncode
 
-def launch_config(config_path: Path, delay: int = 5) -> bool:
+def launch_config(config_path: Path, gpu: str = "RTX_5880Ada", delay: int = 5) -> bool:
     """Launch a single config with proper tracking."""
     # Extract run name from config filename (without .yaml)
     run_name = config_path.stem
@@ -34,6 +34,7 @@ def launch_config(config_path: Path, delay: int = 5) -> bool:
     # Build command using exact requested syntax
     cmd = [
         "python", "scripts/vast_launch.py", "launch",
+        "--gpu", gpu,
         "--config", str(config_path),
         "--auto-shutdown",
         f"--run-arg=--wandb-run-name={run_name}",
