@@ -1,0 +1,156 @@
+include: train_burgers_quality_v2.yaml
+
+# 32-dim v2: PRACTICAL improvements using existing features
+# 
+# Current: Baseline 0.78, TTC 0.09
+# Target:  Baseline 0.45-0.55, TTC 0.05-0.07
+# 
+# Improvements (ALL IMPLEMENTABLE NOW):
+# 1. ARCHITECTURE: Larger capacity (hidden_dim 64→96)
+# 2. TRAINING: More epochs (15→25), better optimization
+# 3. TTC: Enhanced beam search and sampling
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 32
+  tokens: 32
+
+training:
+  time_stride: 2
+  batch_size: 12
+  
+  # pru2jxc4 parallel settings
+  num_workers: 8
+  use_parallel_encoding: true
+  
+  latent_cache_dir: data/latent_cache
+  checkpoint_interval: 50
+  
+  distill_micro_batch: 3
+  distill_num_taus: 5
+  
+  compile: true
+  pin_memory: true
+  
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+operator:
+  pdet:
+    input_dim: 32      # Match latent dim
+    hidden_dim: 96        # ↑ 1.5x larger (was 64)
+    depths: [1, 1, 1]
+    group_size: 12        # Divides 96 evenly
+    num_heads: 6          # ↑ More attention heads (was 4)
+
+diffusion:
+  latent_dim: 32
+  hidden_dim: 96          # ↑ Match operator (was 64)
+
+stages:
+  operator:
+    epochs: 25            # ↑ More epochs (was 15)
+    
+    optimizer:
+      name: adamw
+      lr: 1.0e-3          # Constant LR (pru2jxc4 proven method)
+      weight_decay: 0.03  # ↑ Slightly higher regularization (was 0.02)
+      betas: [0.9, 0.999]
+    
+    # NO SCHEDULER = Constant LR throughout
+
+  diff_residual:
+    epochs: 8             # ↑ More epochs (was 5)
+    grad_clip: 1.0
+    ema_decay: 0.999
+    
+    optimizer:
+      name: adamw
+      lr: 5.0e-5          # ↑ Slightly higher (was 3e-5)
+      weight_decay: 0.015 # ↑ More regularization (was 0.01)
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 8             # ↑ More epochs (was 6)
+    batch_size: 6
+    
+    optimizer:
+      name: adamw
+      lr: 3.0e-5          # ↑ Slightly higher (was 2e-5)
+      weight_decay: 0.015 # ↑ More regularization (was 0.01)
+      betas: [0.9, 0.999]
+    
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-6
+
+evaluation:
+  enabled: true
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8           # ↑ More candidates (was 6)
+  beam_width: 3           # ↑ Wider beam (was 2)
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 150    # ↑ More evaluations (was 100)
+  
+  sampler:
+    tau_range: [0.15, 0.85] # ↑ Wider exploration (was 0.2-0.8)
+    noise_std: 0.015        # ↑ More noise for diversity
+    noise_schedule: [0.03, 0.015, 0.005] # Progressive refinement
+    
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+    weights:
+      mass: 1.2           # ↑ Higher mass conservation weight
+      energy: 0.15        # ↑ Higher energy weight
+      penalty_negative: 0.6 # ↑ Stricter penalties
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+      
+  decoder:
+    latent_dim: 32
+    query_dim: 2
+    hidden_dim: 96        # ↑ Match operator (was 64)
+    mlp_hidden_dim: 128   # ↑ Larger MLP (was 64)
+    num_layers: 3         # ↑ Deeper decoder (was 2)
+    num_heads: 6          # ↑ More attention (was 4)
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers32-v2-practical
+    tags: [32dim, v2_improved, larger_capacity, enhanced_ttc, unified_pipeline]
