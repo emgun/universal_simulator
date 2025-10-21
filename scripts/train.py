@@ -53,15 +53,17 @@ def _nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch
 def _spectral_energy_loss(pred: torch.Tensor, target: torch.Tensor, dim: int = 1, eps: float = 1e-8) -> torch.Tensor:
     """Relative spectral energy difference along the given axis (default: token axis).
 
-    cuFFT requires power-of-two signal sizes when using half precision. Promote to
-    float32 before taking the FFT to avoid runtime errors when latent tokens are not
-    powers of two (e.g., 48). The final loss remains in the original dtype.
+    cuFFT requires power-of-two signal sizes when using half precision. Temporarily
+    disable autocast and promote to float32 before taking the FFT so non-power-of-two
+    token counts (e.g., 48) do not trigger runtime errors. Cast the result back to the
+    original dtype for downstream losses.
     """
-    pred_fft = torch.fft.rfft(pred.float(), dim=dim)
-    tgt_fft = torch.fft.rfft(target.float(), dim=dim)
-    pred_energy = torch.mean(pred_fft.abs() ** 2)
-    tgt_energy = torch.mean(tgt_fft.abs() ** 2)
-    loss = torch.abs(pred_energy - tgt_energy) / (tgt_energy + eps)
+    with torch.cuda.amp.autocast(enabled=False):
+        pred_fft = torch.fft.rfft(pred.float(), dim=dim)
+        tgt_fft = torch.fft.rfft(target.float(), dim=dim)
+        pred_energy = torch.mean(pred_fft.abs() ** 2)
+        tgt_energy = torch.mean(tgt_fft.abs() ** 2)
+        loss = torch.abs(pred_energy - tgt_energy) / (tgt_energy + eps)
     return loss.to(pred.dtype)
 
 
