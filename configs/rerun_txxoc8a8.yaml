@@ -112,7 +112,6 @@ stages:
     epochs: 6
     batch_size: 6
     tau_schedule: [5, 4, 3]
-    target_loss: 5.0e-4
     accum_steps: 2
 
     optimizer:

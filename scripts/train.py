@@ -360,9 +360,10 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     scaler = GradScaler(enabled=use_amp)
     ema_decay = _get_ema_decay(cfg, "operator")
     ema_model = _init_ema(operator) if ema_decay else None
+    best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
     clip_val = _grad_clip_value(cfg, "operator")
     epochs_since_improve = 0
-    
+
     import time
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
@@ -455,6 +456,8 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(operator.state_dict())
+            if ema_model is not None:
+                best_ema_state = copy.deepcopy(ema_model.state_dict())
             epochs_since_improve = 0
         else:
             epochs_since_improve += 1
@@ -473,7 +476,8 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     print(f"Saved operator checkpoint to {operator_path}")
     if ema_model is not None:
         operator_ema_path = checkpoint_dir / "operator_ema.pt"
-        torch.save(ema_model.state_dict(), operator_ema_path)
+        to_save = best_ema_state if best_ema_state is not None else ema_model.state_dict()
+        torch.save(to_save, operator_ema_path)
         print(f"Saved operator EMA checkpoint to {operator_ema_path}")
     
     # Upload checkpoint to W&B
