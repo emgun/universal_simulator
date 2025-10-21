@@ -74,7 +74,7 @@ training:
   ema_decay: 0.999
   accum_steps: 4
 
-  distill_micro_batch: 6         # OPTIMIZED: 2x larger (was 3)
+  distill_micro_batch: 12        # OPTIMIZED: Match batch size (no accumulation)
   distill_num_taus: 3            # OPTIMIZED: Reduced from 5
   distill_target_loss: 5.0e-6
 

@@ -694,6 +694,62 @@ def _ensure_model_on_device(model: nn.Module, device: torch.device) -> None:
         buffer.data = buffer.data.to(device)
 
 
+def _distill_forward_and_loss_compiled(
+    teacher_z_chunk: torch.Tensor,
+    teacher_cond_chunk: dict,
+    num_taus: int,
+    diff_model: nn.Module,
+    t_value: torch.Tensor,
+    tau_seed: torch.Tensor,
+    device: torch.device,
+) -> torch.Tensor:
+    """OPTIMIZATION #1: Compiled distillation forward pass.
+
+    Fuses tau expansion + diffusion forward + loss into single compiled graph.
+    Expected speedup: ~1.3-1.5x via kernel fusion and reduced Python overhead.
+    """
+    Bc, T, D = teacher_z_chunk.shape
+
+    # Tau expansion
+    z_tiled = (
+        teacher_z_chunk.unsqueeze(1)
+        .expand(Bc, num_taus, T, D)
+        .reshape(Bc * num_taus, T, D)
+        .contiguous()
+    )
+
+    cond_tiled = {
+        k: v.repeat_interleave(num_taus, dim=0)
+        for k, v in teacher_cond_chunk.items()
+    }
+
+    tau_flat = tau_seed.repeat(Bc).to(z_tiled.dtype)
+
+    # Diffusion forward
+    tiled_state = LatentState(z=z_tiled, t=t_value, cond=cond_tiled)
+    drift = diff_model(tiled_state, tau_flat)
+
+    # Loss computation
+    z_tiled_cast = z_tiled.to(drift.dtype)
+    student_z = z_tiled_cast + drift
+    loss = torch.nn.functional.mse_loss(student_z, z_tiled_cast)
+
+    return loss
+
+
+# Try to compile the distillation function if torch.compile is available
+try:
+    _distill_forward_and_loss = torch.compile(
+        _distill_forward_and_loss_compiled,
+        mode="reduce-overhead",
+        fullgraph=False,  # Allow graph breaks for LatentState
+    )
+    _COMPILE_AVAILABLE = True
+except Exception:
+    _distill_forward_and_loss = _distill_forward_and_loss_compiled
+    _COMPILE_AVAILABLE = False
+
+
 def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     # Use smaller batch size for consistency stage to avoid OOM
     # This stage needs both operator and diffusion models loaded
@@ -704,6 +760,9 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     training_cfg_copy["batch_size"] = consistency_batch_size
     # Enable pin_memory for faster transfers
     training_cfg_copy["pin_memory"] = True
+    # OPTIMIZATION #3: Persistent workers to avoid respawning overhead
+    training_cfg_copy["persistent_workers"] = True if training_cfg_copy.get("num_workers", 0) > 0 else False
+    training_cfg_copy["prefetch_factor"] = 4  # Increase prefetch
     
     loader = dataset_loader(cfg_copy)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
@@ -773,6 +832,9 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     print(f"  - Teacher caching: ENABLED (computed once per batch)")
     print(f"  - AMP for teacher: {'ENABLED' if use_amp else 'DISABLED'}")
     print(f"  - Async GPU transfers: ENABLED")
+    print(f"  - torch.compile: {'ENABLED' if _COMPILE_AVAILABLE else 'DISABLED'}")
+    print(f"  - Persistent workers: {training_cfg_copy.get('persistent_workers', False)}")
+    print(f"  - Prefetch factor: {training_cfg_copy.get('prefetch_factor', 2)}")
     print(f"  - Micro-batch size: {distill_micro}")
     print(f"  - Base num taus: {base_num_taus}")
     if tau_schedule:
@@ -824,27 +886,20 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 teacher_cond_chunk = {k: v[start:end] for k, v in teacher_full.cond.items()}
 
                 try:
-                    Bc, T, D = teacher_z_chunk.shape
-                    z_tiled = (
-                        teacher_z_chunk.unsqueeze(1)
-                        .expand(Bc, num_taus_epoch, T, D)
-                        .reshape(Bc * num_taus_epoch, T, D)
-                        .contiguous()
-                    )
-                    cond_tiled = {
-                        k: v.repeat_interleave(num_taus_epoch, dim=0)
-                        for k, v in teacher_cond_chunk.items()
-                    }
+                    # Sample tau values
                     tau_seed = _sample_tau(num_taus_epoch, device, cfg)
-                    tau_flat = tau_seed.repeat(Bc)
-                    tau_flat = tau_flat.to(z_tiled.dtype)
-                    tiled_state = LatentState(z=z_tiled, t=teacher_full.t, cond=cond_tiled)
+
+                    # Use compiled forward function
                     with autocast(enabled=use_amp):
-                        drift = diff(tiled_state, tau_flat)
-                        z_tiled_cast = z_tiled.to(drift.dtype)
-                        student_z = z_tiled_cast + drift
-                        teacher_z = z_tiled_cast
-                        loss_chunk = torch.nn.functional.mse_loss(student_z, teacher_z)
+                        loss_chunk = _distill_forward_and_loss(
+                            teacher_z_chunk,
+                            teacher_cond_chunk,
+                            num_taus_epoch,
+                            diff,
+                            teacher_full.t,
+                            tau_seed,
+                            device,
+                        )
                 except RuntimeError as e:
                     if "out of memory" in str(e).lower():
                         if torch.cuda.is_available():
