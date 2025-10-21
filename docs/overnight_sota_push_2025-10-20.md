@@ -1,8 +1,10 @@
 # Overnight SOTA Push — 2025-10-20
 
 **Launch Time:** 2025-10-20 23:55 UTC (initial attempt)  
-**Relaunch:** 2025-10-21 03:28 UTC after config fix  
-**Instance:** VastAI `27071621` (RTX 5880 Ada, 64 GB)  
+**Relaunches:**
+  - 2025-10-21 03:28 UTC (instance 27071621) — failed due to encoder device mismatch
+  - 2025-10-21 04:02 UTC (instance 27072060) — includes encoder device fix
+**Active Instance:** VastAI `27072060` (RTX 5880 Ada, 64 GB)  
 **Entry Point:** `python scripts/vast_launch.py launch --gpu RTX_5880Ada --config configs/rerun_txxoc8a8_capacity.yaml --auto-shutdown ...`
 
 ## Objectives
