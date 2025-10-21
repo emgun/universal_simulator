@@ -74,15 +74,17 @@ def generate_onstart_script(
         launch_mode_line += " \\"
 
     # Pick matching eval configs when available (e.g., small_eval_<train>.yaml)
+    # Convert absolute paths to relative paths for remote execution
     train_cfg_path = Path(config)
-    if not train_cfg_path.is_absolute():
-        train_cfg_path = Path(config)
-    else:
+    if train_cfg_path.is_absolute():
         try:
             train_cfg_path = train_cfg_path.relative_to(REPO_ROOT)
         except ValueError:
             # Non-repo path, use as-is without smart matching
             train_cfg_path = Path(config)
+
+    # Use relative path for the actual config parameter in the script
+    config_for_script = train_cfg_path.as_posix()
 
     small_eval_candidate = train_cfg_path.with_name(f"small_eval_{train_cfg_path.stem}.yaml")
     full_eval_candidate = train_cfg_path.with_name(f"full_eval_{train_cfg_path.stem}.yaml")
@@ -171,10 +173,10 @@ mkdir -p checkpoints
 mkdir -p artifacts/runs reports
 
 echo "Precomputing latent caches…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
+PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
 export WANDB_MODE=online
-python scripts/run_fast_to_sota.py --train-config {config} --small-eval-config {small_eval_config.as_posix()} --full-eval-config {full_eval_config.as_posix()} --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args}
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --small-eval-config {small_eval_config.as_posix()} --full-eval-config {full_eval_config.as_posix()} --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args}
 """
 
     if auto_shutdown:
