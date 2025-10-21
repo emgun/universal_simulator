@@ -877,8 +877,7 @@ def main() -> None:
             shutil.copytree(checkpoint_dir, dest)
 
         eval_env = {
-            "WANDB_MODE": args.wandb_mode,
-            "FAST_TO_SOTA_WANDB_INFO": str(wandb_info_path),
+            "WANDB_MODE": "disabled",
         }
 
         # Small evaluation stage
