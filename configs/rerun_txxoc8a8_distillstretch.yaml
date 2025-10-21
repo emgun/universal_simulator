@@ -1,0 +1,15 @@
+# Distillation-focused follow-up using the high-capacity teacher checkpoints.
+# Run this after the capacity config finishes training: skip operator/diffusion
+# and re-run consistency distill (or use --skip-training with --redo-small-eval
+# / --redo-full-eval as needed).
+
+include: rerun_txxoc8a8_capacity.yaml
+
+stages:
+  consistency_distill:
+    epochs: 12
+    tau_schedule: [6, 5, 4, 3, 2, 1]
+
+training:
+  distill_micro_batch: 5
+  distill_num_taus: 8

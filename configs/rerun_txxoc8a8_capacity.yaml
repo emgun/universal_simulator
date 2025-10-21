@@ -1,0 +1,40 @@
+# High-capacity variant of the txxoc8a8 rerun.
+# Goal: increase latent/operator/diffusion capacity and extend training so the
+# teacher can push toward <0.035 nRMSE.
+
+include: rerun_txxoc8a8.yaml
+
+latent:
+  dim: 64
+  tokens: 32
+
+operator:
+  pdet:
+    input_dim: 64
+    hidden_dim: 128
+    depths: [1, 1, 1]
+    group_size: 16
+    num_heads: 8
+
+diffusion:
+  hidden_dim: 128
+
+training:
+  distill_micro_batch: 6
+  distill_num_taus: 6
+
+stages:
+  operator:
+    epochs: 20
+    optimizer:
+      lr: 7.5e-4
+      betas: [0.9, 0.98]
+      weight_decay: 0.02
+    scheduler:
+      name: cosineannealinglr
+      t_max: 20
+      eta_min: 1.5e-4
+  diff_residual:
+    epochs: 10
+    optimizer:
+      lr: 4.0e-5
