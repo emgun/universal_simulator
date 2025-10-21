@@ -1,0 +1,15 @@
+configs/overnight_sota/round_a_lr20e5_w3pct.yaml
+configs/overnight_sota/round_a_lr20e5_w5pct.yaml
+configs/overnight_sota/round_a_lr20e5_w6pct.yaml
+configs/overnight_sota/round_a_lr29e5_w3pct.yaml
+configs/overnight_sota/round_a_lr29e5_w5pct.yaml
+configs/overnight_sota/round_a_lr29e5_w6pct.yaml
+configs/overnight_sota/round_a_lr45e5_w3pct.yaml
+configs/overnight_sota/round_a_lr45e5_w5pct.yaml
+configs/overnight_sota/round_a_lr45e5_w6pct.yaml
+configs/overnight_sota/round_b_cap64.yaml
+configs/overnight_sota/round_b_cap96.yaml
+configs/overnight_sota/round_b_cap128.yaml
+configs/overnight_sota/round_c_cap128_ttc.yaml
+configs/overnight_sota/round_c_extended.yaml
+configs/overnight_sota/round_c_tokens48.yaml

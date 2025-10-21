@@ -1,0 +1,169 @@
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  shard_limit: null
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+    - source: full/burgers1d/burgers1d_train_000.h5
+      symlink: burgers1d_train.h5
+latent:
+  dim: 32
+  tokens: 32
+operator:
+  pdet:
+    input_dim: 32
+    hidden_dim: 96
+    depths:
+    - 1
+    - 1
+    - 1
+    group_size: 12
+    num_heads: 6
+diffusion:
+  latent_dim: 32
+  hidden_dim: 96
+  num_layers: 3
+  time_embed_dim: 128
+  dropout: 0.0
+training:
+  batch_size: 12
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+  latent_cache_dir: data/latent_cache
+  latent_cache_dtype: float32
+  checkpoint_interval: 50
+  amp: true
+  compile: true
+  grad_clip: 1.0
+  ema_decay: 0.9995
+  accum_steps: 4
+  distill_micro_batch: 8
+  distill_num_taus: 3
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+stages:
+  operator:
+    epochs: 25
+    optimizer:
+      name: adamw
+      lr: 0.0002
+      weight_decay: 0.03
+      betas:
+      - 0.9
+      - 0.999
+    scheduler:
+      name: cosineannealinglr
+      t_max: 40
+      eta_min: 2.5e-05
+    warmup_epochs: 1
+  diff_residual:
+    epochs: 8
+    grad_clip: 1.0
+    ema_decay: 0.999
+    optimizer:
+      name: adamw
+      lr: 5.0e-05
+      weight_decay: 0.015
+      betas:
+      - 0.9
+      - 0.999
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 3.0e-06
+  consistency_distill:
+    epochs: 8
+    batch_size: 16
+    accum_steps: 1
+    optimizer:
+      name: adamw
+      lr: 3.0e-05
+      weight_decay: 0.015
+      betas:
+      - 0.9
+      - 0.999
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-06
+  steady_prior:
+    epochs: 0
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8
+  beam_width: 3
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 150
+  sampler:
+    tau_range:
+    - 0.15
+    - 0.85
+    noise_std: 0.015
+    noise_schedule:
+    - 0.03
+    - 0.015
+    - 0.005
+  reward:
+    analytical_weight: 1.0
+    grid:
+    - 64
+    - 64
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+    weights:
+      mass: 1.2
+      energy: 0.15
+      penalty_negative: 0.6
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+  decoder:
+    latent_dim: 32
+    query_dim: 2
+    hidden_dim: 96
+    mlp_hidden_dim: 128
+    num_layers: 3
+    num_heads: 6
+    frequencies:
+    - 1.0
+    - 2.0
+    - 4.0
+    - 8.0
+    output_channels:
+      rho: 1
+      e: 1
+checkpoint:
+  dir: checkpoints
+evaluation:
+  enabled: true
+  split: test
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: round_a_lr20e5_w6pct
+    tags:
+    - overnight-sota
+    - round-a
+    - optimizer-grid
+    - lr=2.0e-04
+    - warmup=6%
+    group: overnight-sota
