@@ -488,94 +488,104 @@ def main() -> None:
             wandb_run_name=args.leaderboard_wandb_run_name or args.leaderboard_run_id,
         )
 
-    # Upload all report files to W&B
-    try:
-        import wandb
-        if wandb.run is not None:
-            for output_type, output_path in outputs.items():
-                wandb.save(str(output_path), base_path=str(output_path.parent.parent))
-                print(f"Uploaded {output_type} report to W&B: {output_path.name}")
-    except Exception as e:
-        print(f"Note: Could not upload reports to W&B: {e}")
+    # Load or create WandB context (clean way!)
+    wandb_ctx = None
 
-    resume_run = None
-    run_info_path = os.environ.get("FAST_TO_SOTA_WANDB_INFO")
-    if run_info_path:
-        info_file = Path(run_info_path)
-        if info_file.exists():
-            try:
-                info = json.loads(info_file.read_text(encoding="utf-8"))
-                run_id = info.get("id")
-                if run_id:
-                    import wandb
+    # Try to load from environment (subprocess mode - orchestrator passed context)
+    from ups.utils.wandb_context import load_wandb_context_from_file
 
-                    resume_kwargs = {
-                        "id": run_id,
-                        "resume": "allow",
-                        "reinit": True,
-                        "settings": wandb.Settings(start_method="thread"),
-                    }
-                    project = info.get("project") or info.get("train_wandb_project")
-                    entity = info.get("entity") or info.get("train_wandb_entity")
-                    if project:
-                        resume_kwargs["project"] = project
-                    if entity:
-                        resume_kwargs["entity"] = entity
-                    resume_run = wandb.init(**resume_kwargs)
-            except Exception as exc:  # pragma: no cover - logging only
-                print(f"Warning: Could not resume training W&B run for eval: {exc}")
+    context_file = os.environ.get("WANDB_CONTEXT_FILE")
+    if context_file:
+        wandb_ctx = load_wandb_context_from_file(Path(context_file))
+        if wandb_ctx:
+            print(f"✓ Loaded WandB context from {context_file}")
 
-    if resume_run is not None:
-        log_path = Path(args.log_path) if args.log_path else None
-        session = MonitoringSession(log_path, run=resume_run, component="evaluation")
-    else:
-        session = init_monitoring_session(cfg, component="evaluation", file_path=args.log_path)
-    
-    # Log metrics with eval/ prefix for better organization
-    eval_metrics = {
-        f"eval/{k}": v for k, v in report.metrics.items()
-    }
-    session.log(eval_metrics)
-    if session.run is not None and wandb is not None:
-        metric_rows = [[key, value] for key, value in report.metrics.items()]
-        if metric_rows:
-            metrics_table = wandb.Table(columns=["metric", "value"], data=metric_rows)
-            session.run.log({"eval/metrics_table": metrics_table}, commit=False)
-    
-    # Log extra info
-    if report.extra:
-        eval_extra = {f"eval/{k}": v for k, v in report.extra.items()}
-        session.log(eval_extra)
-        if session.run is not None and wandb is not None:
-            extra_rows = []
-            for key, value in report.extra.items():
-                converted = value
-                if isinstance(value, bool):
-                    converted = float(value)
-                extra_rows.append([key, converted])
-            if extra_rows:
-                extra_table = wandb.Table(columns=["metric", "value"], data=extra_rows)
-                session.run.log({"eval/extra_table": extra_table})
-    
-    # Log images with eval/ prefix
-    if "plot_mse" in outputs:
-        session.log_image("eval/mse_histogram", outputs["plot_mse"])
-    if "plot_mae" in outputs:
-        session.log_image("eval/mae_histogram", outputs["plot_mae"])
-    if "plot_latent_heatmap" in outputs:
-        session.log_image("eval/latent_heatmap", outputs["plot_latent_heatmap"])
-    if "plot_latent_spectrum" in outputs:
-        session.log_image("eval/latent_spectrum", outputs["plot_latent_spectrum"])
+    # If no context from orchestrator, evaluation runs standalone - don't create new run
+    # (The orchestrator will handle WandB, or user can run eval separately)
 
-    if session.run is not None:
-        try:  # pragma: no cover
-            session.run.summary.update({f"eval/{k}": v for k, v in report.metrics.items()})
-            if report.extra:
-                session.run.summary.update({f"eval_extra/{k}": v for k, v in report.extra.items()})
-        except Exception:
-            pass
+    # Log evaluation metrics to WandB summary (SCALARS, not time series!)
+    if wandb_ctx:
+        # Separate metrics into categories for better organization
+        basic_metrics = {}
+        physics_metrics = {}
 
-    session.finish()
+        for key, value in report.metrics.items():
+            if key in ["conservation_gap", "bc_violation", "negativity_penalty"]:
+                physics_metrics[key] = value
+            else:
+                basic_metrics[key] = value
+
+        # 1. Log basic metrics to SUMMARY (single values - no line charts!)
+        wandb_ctx.log_eval_summary(basic_metrics, prefix="eval")
+        print(f"✓ Logged {len(basic_metrics)} evaluation metrics to WandB summary")
+
+        # 2. Log physics metrics to SUMMARY with separate prefix
+        if physics_metrics:
+            wandb_ctx.log_eval_summary(physics_metrics, prefix="eval/physics")
+            print(f"✓ Logged {len(physics_metrics)} physics metrics to WandB summary")
+
+        # 3. Log metadata to CONFIG (not as metrics!)
+        if report.extra:
+            wandb_ctx.update_config({
+                "eval_samples": report.extra.get("samples"),
+                "eval_tau": report.extra.get("tau"),
+                "eval_ttc_enabled": report.extra.get("ttc", False),
+            })
+            print("✓ Logged evaluation metadata to WandB config")
+
+        # 4. Create comprehensive metrics tables
+        # Combined summary table (most prominent)
+        all_rows = []
+        if basic_metrics:
+            for key, value in sorted(basic_metrics.items()):
+                all_rows.append(["Accuracy", key, f"{value:.6f}"])
+        if physics_metrics:
+            for key, value in sorted(physics_metrics.items()):
+                all_rows.append(["Physics", key, f"{value:.6f}"])
+
+        if all_rows:
+            wandb_ctx.log_table(
+                "Evaluation Summary",
+                columns=["Category", "Metric", "Value"],
+                data=all_rows
+            )
+            print(f"✓ Created evaluation summary table with {len(all_rows)} metrics")
+
+        # Separate category tables for detailed view
+        if basic_metrics:
+            basic_rows = [[key, f"{value:.6f}"] for key, value in sorted(basic_metrics.items())]
+            wandb_ctx.log_table(
+                "eval/accuracy_metrics",
+                columns=["Metric", "Value"],
+                data=basic_rows
+            )
+
+        if physics_metrics:
+            physics_rows = [[key, f"{value:.6f}"] for key, value in sorted(physics_metrics.items())]
+            wandb_ctx.log_table(
+                "eval/physics_diagnostics",
+                columns=["Physics Check", "Value"],
+                data=physics_rows
+            )
+            print(f"✓ Created {len(physics_metrics)} physics diagnostic entries")
+
+        # 4. Log images
+        if "plot_mse" in outputs:
+            wandb_ctx.log_image("eval/mse_histogram", outputs["plot_mse"])
+        if "plot_mae" in outputs:
+            wandb_ctx.log_image("eval/mae_histogram", outputs["plot_mae"])
+        if "plot_latent_heatmap" in outputs:
+            wandb_ctx.log_image("eval/latent_heatmap", outputs["plot_latent_heatmap"])
+        if "plot_latent_spectrum" in outputs:
+            wandb_ctx.log_image("eval/latent_spectrum", outputs["plot_latent_spectrum"])
+
+        # 5. Save all output files
+        for output_path in outputs.values():
+            wandb_ctx.save_file(output_path)
+
+        print("✓ Uploaded evaluation outputs to WandB")
+
+    # Note: Don't call wandb_ctx.finish() - orchestrator owns the run!
 
     _print_report(report, outputs, args.print_json)
 

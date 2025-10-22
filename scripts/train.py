@@ -98,19 +98,25 @@ def ensure_checkpoint_dir(cfg: dict) -> Path:
 
 
 class TrainingLogger:
-    def __init__(self, cfg: Dict[str, Dict], stage: str, global_step: int = 0, shared_run=None) -> None:
+    def __init__(self, cfg: Dict[str, Dict], stage: str, global_step: int = 0, wandb_ctx=None) -> None:
+        """Training logger that writes to file and optionally to WandB.
+
+        Args:
+            cfg: Training configuration
+            stage: Training stage name (operator, diffusion_residual, etc.)
+            global_step: Initial global step counter
+            wandb_ctx: Optional WandBContext for logging (recommended)
+        """
         training_cfg = cfg.get("training", {})
         log_path = training_cfg.get("log_path", "reports/training_log.jsonl")
         self.stage = stage
         self.global_step = global_step
-        
-        # Use shared run if provided, otherwise create new one
-        if shared_run is not None:
-            self.session = MonitoringSession(file_path=Path(log_path) if log_path else None, run=shared_run, component=f"training-{stage}")
-            self.owns_run = False
-        else:
-            self.session = init_monitoring_session(cfg, component=f"training-{stage}", file_path=log_path)
-            self.owns_run = True
+        self.wandb_ctx = wandb_ctx
+        self.log_path = Path(log_path) if log_path else None
+
+        # Create log file if specified
+        if self.log_path:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(
         self,
@@ -125,32 +131,50 @@ class TrainingLogger:
     ) -> None:
         lr = optimizer.param_groups[0].get("lr") if optimizer.param_groups else None
         self.global_step += 1
-        
-        # Log with stage-specific prefixes for better W&B charts
-        entry = {
-            f"{self.stage}/loss": loss,
-            f"{self.stage}/epoch": epoch,
-            f"{self.stage}/lr": lr,
-            "global_step": self.global_step,
-        }
-        
-        # Add optional metrics
-        if patience_counter is not None:
-            entry[f"{self.stage}/epochs_since_improve"] = patience_counter
-        if grad_norm is not None:
-            entry[f"{self.stage}/grad_norm"] = grad_norm
-        if epoch_time is not None:
-            entry[f"{self.stage}/epoch_time_sec"] = epoch_time
-        if best_loss is not None:
-            entry[f"{self.stage}/best_loss"] = best_loss
-        
-        self.session.log(entry)
+
+        # Log to file (JSONL format)
+        if self.log_path:
+            entry = {
+                "stage": self.stage,
+                "loss": loss,
+                "epoch": epoch,
+                "lr": lr,
+                "global_step": self.global_step,
+            }
+            if patience_counter is not None:
+                entry["epochs_since_improve"] = patience_counter
+            if grad_norm is not None:
+                entry["grad_norm"] = grad_norm
+            if epoch_time is not None:
+                entry["epoch_time_sec"] = epoch_time
+            if best_loss is not None:
+                entry["best_loss"] = best_loss
+
+            try:
+                with self.log_path.open("a", encoding="utf-8") as fh:
+                    import json
+                    fh.write(json.dumps(entry) + "\n")
+            except Exception:
+                pass
+
+        # Log to WandB using clean context (proper time series!)
+        if self.wandb_ctx:
+            self.wandb_ctx.log_training_metric(self.stage, "loss", loss, step=self.global_step)
+            if lr is not None:
+                self.wandb_ctx.log_training_metric(self.stage, "lr", lr, step=self.global_step)
+            if patience_counter is not None:
+                self.wandb_ctx.log_training_metric(self.stage, "epochs_since_improve", patience_counter, step=self.global_step)
+            if grad_norm is not None:
+                self.wandb_ctx.log_training_metric(self.stage, "grad_norm", grad_norm, step=self.global_step)
+            if epoch_time is not None:
+                self.wandb_ctx.log_training_metric(self.stage, "epoch_time_sec", epoch_time, step=self.global_step)
+            if best_loss is not None:
+                self.wandb_ctx.log_training_metric(self.stage, "best_loss", best_loss, step=self.global_step)
 
     def close(self) -> None:
-        # Only finish the run if we own it
-        if self.owns_run:
-            self.session.finish()
-    
+        # No longer owns wandb run - orchestrator manages it
+        pass
+
     def get_global_step(self) -> int:
         return self.global_step
 
@@ -345,7 +369,7 @@ def _stage_epochs(cfg: dict, stage: str) -> int:
         return 0
 
 
-def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
+def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     operator = make_operator(cfg)
     train_cfg = cfg.get("training", {})
@@ -355,7 +379,7 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     optimizer = _create_optimizer(cfg, operator, "operator")
     scheduler = _create_scheduler(optimizer, cfg, "operator")
     patience = _get_patience(cfg, "operator")
-    logger = TrainingLogger(cfg, stage="operator", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(cfg, stage="operator", global_step=global_step, wandb_ctx=wandb_ctx)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     operator.to(device)
@@ -488,24 +512,23 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         torch.save(to_save, operator_ema_path)
         print(f"Saved operator EMA checkpoint to {operator_ema_path}")
     
-    # Upload checkpoint to W&B
-    if wandb is not None and wandb.run is not None:
-        wandb.save(str(operator_path), base_path=str(checkpoint_dir.parent))
+    # Upload checkpoint to W&B (clean way!)
+    if wandb_ctx:
+        wandb_ctx.save_file(operator_path)
         print(f"Uploaded operator checkpoint to W&B")
-    
+        if ema_model is not None:
+            wandb_ctx.save_file(operator_ema_path)
+
     # Send W&B alert
-    if wandb is not None and wandb.run is not None:
-        try:
-            wandb.alert(
-                title="✅ Operator Training Complete",
-                text=f"Final loss: {best_loss:.6f} | Ready for diffusion stage",
-                level=wandb.AlertLevel.INFO
-            )
-        except Exception:
-            pass
+    if wandb_ctx:
+        wandb_ctx.alert(
+            title="✅ Operator Training Complete",
+            text=f"Final loss: {best_loss:.6f} | Ready for diffusion stage",
+            level="INFO"
+        )
 
 
-def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
+def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     
@@ -538,7 +561,7 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     dt = cfg.get("training", {}).get("dt", 0.1)
     epochs = stage_cfg.get("epochs", 1)
     checkpoint_interval = int(cfg.get("training", {}).get("checkpoint_interval", 0) or 0)
-    logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, wandb_ctx=wandb_ctx)
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
@@ -672,21 +695,20 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         torch.save(best_ema_state if best_ema_state is not None else ema_model.state_dict(), diffusion_ema_path)
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
     
-    # Upload checkpoint to W&B
-    if wandb is not None and wandb.run is not None:
-        wandb.save(str(diffusion_path), base_path=str(checkpoint_dir.parent))
+    # Upload checkpoint to W&B (clean way!)
+    if wandb_ctx:
+        wandb_ctx.save_file(diffusion_path)
         print(f"Uploaded diffusion checkpoint to W&B")
-    
+        if ema_model is not None:
+            wandb_ctx.save_file(diffusion_ema_path)
+
     # Send W&B alert
-    if wandb is not None and wandb.run is not None:
-        try:
-            wandb.alert(
-                title="✅ Diffusion Residual Training Complete",
-                text=f"Final loss: {best_loss:.6f} | Ready for consistency distillation",
-                level=wandb.AlertLevel.INFO
-            )
-        except Exception:
-            pass
+    if wandb_ctx:
+        wandb_ctx.alert(
+            title="✅ Diffusion Residual Training Complete",
+            text=f"Final loss: {best_loss:.6f} | Ready for consistency distillation",
+            level="INFO"
+        )
 
 
 def _ensure_model_on_device(model: nn.Module, device: torch.device) -> None:
@@ -758,7 +780,7 @@ except Exception:
     _COMPILE_AVAILABLE = False
 
 
-def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
+def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     # Use smaller batch size for consistency stage to avoid OOM
     # This stage needs both operator and diffusion models loaded
     cfg_copy = copy.deepcopy(cfg)
@@ -815,7 +837,7 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
     scheduler = _create_scheduler(optimizer, cfg, "consistency_distill")
     patience = _get_patience(cfg, "consistency_distill")
-    logger = TrainingLogger(cfg, stage="consistency_distill", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(cfg, stage="consistency_distill", global_step=global_step, wandb_ctx=wandb_ctx)
     dt = cfg.get("training", {}).get("dt", 0.1)
     
     dt_tensor = torch.tensor(dt, device=device)
@@ -972,29 +994,28 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         torch.save(ema_model.state_dict(), diffusion_ema_path)
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
     
-    # Upload updated checkpoint to W&B
-    if wandb is not None and wandb.run is not None:
-        wandb.save(str(diffusion_path), base_path=str(checkpoint_dir.parent))
+    # Upload updated checkpoint to W&B (clean way!)
+    if wandb_ctx:
+        wandb_ctx.save_file(diffusion_path)
         print(f"Uploaded updated diffusion checkpoint to W&B")
-    
+        if ema_model is not None:
+            wandb_ctx.save_file(diffusion_ema_path)
+
     # Clean up operator from memory
     del operator
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    
+
     # Send W&B alert
-    if wandb is not None and wandb.run is not None:
-        try:
-            wandb.alert(
-                title="✅ Consistency Distillation Complete",
-                text=f"Final loss: {best_loss:.6f} | Ready for steady prior training",
-                level=wandb.AlertLevel.INFO
-            )
-        except Exception:
-            pass
+    if wandb_ctx:
+        wandb_ctx.alert(
+            title="✅ Consistency Distillation Complete",
+            text=f"Final loss: {best_loss:.6f} | Ready for steady prior training",
+            level="INFO"
+        )
 
 
-def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None:
+def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("steady_prior", {})
     epochs = stage_cfg.get("epochs", 0)
@@ -1009,7 +1030,7 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
     optimizer = _create_optimizer(cfg, prior, "steady_prior")
     scheduler = _create_scheduler(optimizer, cfg, "steady_prior")
     patience = _get_patience(cfg, "steady_prior")
-    logger = TrainingLogger(cfg, stage="steady_prior", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(cfg, stage="steady_prior", global_step=global_step, wandb_ctx=wandb_ctx)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     prior.to(device)
@@ -1081,24 +1102,21 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
     torch.save(prior.state_dict(), prior_path)
     print(f"Saved steady prior checkpoint to {prior_path}")
     
-    # Upload checkpoint to W&B
-    if wandb is not None and wandb.run is not None:
-        wandb.save(str(prior_path), base_path=str(checkpoint_dir.parent))
+    # Upload checkpoint to W&B (clean way!)
+    if wandb_ctx:
+        wandb_ctx.save_file(prior_path)
         print(f"Uploaded steady prior checkpoint to W&B")
-    
+
     # Send W&B alert
-    if wandb is not None and wandb.run is not None:
-        try:
-            wandb.alert(
-                title="🎉 All Training Stages Complete!",
-                text=f"Steady prior final loss: {best_loss:.6f} | Full pipeline ready for evaluation",
-                level=wandb.AlertLevel.SUCCESS
-            )
-        except Exception:
-            pass
+    if wandb_ctx:
+        wandb_ctx.alert(
+            title="🎉 All Training Stages Complete!",
+            text=f"Steady prior final loss: {best_loss:.6f} | Full pipeline ready for evaluation",
+            level="INFO"
+        )
 
 
-def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline") -> dict:
+def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline", wandb_ctx=None) -> dict:
     """Run evaluation and return metrics. Mode can be 'baseline' or 'ttc'."""
     from ups.eval.pdebench_runner import evaluate_latent_operator
     from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
@@ -1173,38 +1191,60 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
     return {"report": report, "details": details}
 
 
-def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dict = None) -> None:
-    """Log evaluation results and summary to WandB."""
-    if not shared_run or wandb is None:
+def _log_evaluation_summary(wandb_ctx, baseline_metrics: dict, ttc_metrics: dict = None) -> None:
+    """Log evaluation results and summary to WandB using WandBContext.
+
+    Args:
+        wandb_ctx: WandBContext instance (or None to skip logging)
+        baseline_metrics: Baseline evaluation results
+        ttc_metrics: Optional TTC evaluation results
+    """
+    if not wandb_ctx or not wandb_ctx.enabled:
         return
-    
-    # Log baseline metrics
-    wandb.log({
-        "eval/baseline_mse": baseline_metrics["report"].metrics.get("mse"),
-        "eval/baseline_mae": baseline_metrics["report"].metrics.get("mae"),
-        "eval/baseline_rmse": baseline_metrics["report"].metrics.get("rmse"),
-        "eval/baseline_nrmse": baseline_metrics["report"].metrics.get("nrmse"),
-        "eval/baseline_rel_l2": baseline_metrics["report"].metrics.get("rel_l2"),
-    })
-    
+
+    baseline_report = baseline_metrics["report"]
+
+    # Log baseline metrics to SUMMARY (scalars, not time series!)
+    baseline_vals = {
+        "baseline_mse": baseline_report.metrics.get("mse"),
+        "baseline_mae": baseline_report.metrics.get("mae"),
+        "baseline_rmse": baseline_report.metrics.get("rmse"),
+        "baseline_nrmse": baseline_report.metrics.get("nrmse"),
+        "baseline_rel_l2": baseline_report.metrics.get("rel_l2"),
+    }
+
+    # Add physics metrics if present
+    for physics_key in ["conservation_gap", "bc_violation", "negativity_penalty"]:
+        if physics_key in baseline_report.metrics:
+            baseline_vals[f"baseline_{physics_key}"] = baseline_report.metrics[physics_key]
+
+    wandb_ctx.log_eval_summary(baseline_vals, prefix="eval")
+
     # Log TTC metrics if available
+    ttc_improvement_pct = None
     if ttc_metrics:
-        wandb.log({
-            "eval/ttc_mse": ttc_metrics["report"].metrics.get("mse"),
-            "eval/ttc_mae": ttc_metrics["report"].metrics.get("mae"),
-            "eval/ttc_rmse": ttc_metrics["report"].metrics.get("rmse"),
-            "eval/ttc_nrmse": ttc_metrics["report"].metrics.get("nrmse"),
-            "eval/ttc_rel_l2": ttc_metrics["report"].metrics.get("rel_l2"),
-        })
-        
+        ttc_report = ttc_metrics["report"]
+        ttc_vals = {
+            "ttc_mse": ttc_report.metrics.get("mse"),
+            "ttc_mae": ttc_report.metrics.get("mae"),
+            "ttc_rmse": ttc_report.metrics.get("rmse"),
+            "ttc_nrmse": ttc_report.metrics.get("nrmse"),
+            "ttc_rel_l2": ttc_report.metrics.get("rel_l2"),
+        }
+
+        # Add TTC physics metrics
+        for physics_key in ["conservation_gap", "bc_violation", "negativity_penalty"]:
+            if physics_key in ttc_report.metrics:
+                ttc_vals[f"ttc_{physics_key}"] = ttc_report.metrics[physics_key]
+
+        wandb_ctx.log_eval_summary(ttc_vals, prefix="eval")
+
         # Compute TTC improvement
-        baseline_nrmse = baseline_metrics["report"].metrics.get("nrmse", 1.0)
-        ttc_nrmse = ttc_metrics["report"].metrics.get("nrmse", 1.0)
-        improvement_pct = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
-        
-        wandb.log({
-            "eval/ttc_improvement_pct": improvement_pct,
-        })
+        baseline_nrmse = baseline_report.metrics.get("nrmse", 1.0)
+        ttc_nrmse = ttc_report.metrics.get("nrmse", 1.0)
+        ttc_improvement_pct = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
+
+        wandb_ctx.log_eval_summary({"ttc_improvement_pct": ttc_improvement_pct}, prefix="eval")
     
     # Create summary table
     summary_md = "## Evaluation Summary\n\n"
@@ -1220,72 +1260,110 @@ def _log_evaluation_summary(shared_run, baseline_metrics: dict, ttc_metrics: dic
         else:
             summary_md += f"| {metric_name.upper()} | {baseline_val:.6f} | - | - |\n"
     
-    # Log summary as artifact
-    wandb.summary["evaluation_summary"] = summary_md
-    
-    # Also log as table for better visualization
-    if ttc_metrics:
-        table_rows = []
+    # Log comprehensive comparison tables
+    if wandb_ctx:
+        # Accuracy metrics table
+        accuracy_rows = []
         for metric in ["mse", "mae", "rmse", "nrmse", "rel_l2"]:
             base_val = baseline_metrics["report"].metrics.get(metric)
-            ttc_val = ttc_metrics["report"].metrics.get(metric)
-            if base_val is None or ttc_val is None:
-                improvement_pct = None
-            elif base_val == 0:
-                improvement_pct = None
+            if ttc_metrics:
+                ttc_val = ttc_metrics["report"].metrics.get(metric)
+                if base_val is not None and ttc_val is not None and base_val != 0:
+                    improvement_pct = ((base_val - ttc_val) / base_val) * 100.0
+                else:
+                    improvement_pct = None
+                accuracy_rows.append([
+                    metric.upper(),
+                    f"{base_val:.6f}" if base_val is not None else "N/A",
+                    f"{ttc_val:.6f}" if ttc_val is not None else "N/A",
+                    f"{improvement_pct:.1f}%" if improvement_pct is not None else "N/A",
+                ])
             else:
-                improvement_pct = ((base_val - ttc_val) / base_val) * 100.0
-            table_rows.append([
-                metric.upper(),
-                base_val,
-                ttc_val,
-                improvement_pct,
-            ])
-        table = wandb.Table(
-            columns=["Metric", "Baseline", "TTC", "Improvement (%)"],
-            data=table_rows,
+                accuracy_rows.append([
+                    metric.upper(),
+                    f"{base_val:.6f}" if base_val is not None else "N/A",
+                    "N/A",
+                    "N/A",
+                ])
+
+        wandb_ctx.log_table(
+            "Training Evaluation Summary",
+            columns=["Metric", "Baseline", "TTC", "Improvement"],
+            data=accuracy_rows
         )
-        wandb.log({"eval/metrics_comparison": table})
+
+        # Physics metrics table (if present)
+        physics_rows = []
+        for physics_key in ["conservation_gap", "bc_violation", "negativity_penalty"]:
+            base_val = baseline_report.metrics.get(physics_key)
+            if base_val is not None:
+                if ttc_metrics:
+                    ttc_val = ttc_metrics["report"].metrics.get(physics_key)
+                    physics_rows.append([
+                        physics_key.replace("_", " ").title(),
+                        f"{base_val:.6f}",
+                        f"{ttc_val:.6f}" if ttc_val is not None else "N/A",
+                    ])
+                else:
+                    physics_rows.append([
+                        physics_key.replace("_", " ").title(),
+                        f"{base_val:.6f}",
+                        "N/A",
+                    ])
+
+        if physics_rows:
+            wandb_ctx.log_table(
+                "Training Physics Diagnostics",
+                columns=["Physics Check", "Baseline", "TTC"],
+                data=physics_rows
+            )
 
 
-def train_all_stages(cfg: dict) -> None:
-    """Run all training stages in sequence with shared W&B run for better charts."""
-    # Initialize W&B once for all stages
-    logging_cfg = cfg.get("logging", {})
-    wandb_cfg = logging_cfg.get("wandb", {})
-    shared_run = None
-    
-    if wandb_cfg.get("enabled") and wandb is not None:
-        shared_run = wandb.init(
-            project=wandb_cfg.get("project", "universal-simulator"),
-            entity=wandb_cfg.get("entity"),
-            name=wandb_cfg.get("run_name", "full-pipeline"),
-            config=cfg,
-            tags=wandb_cfg.get("tags", []) + ["full-pipeline"],
-            group=wandb_cfg.get("group"),
-            job_type="multi-stage-training",
-        )
-        # Define metric relationships for better charting
-        if shared_run:
-            wandb.define_metric("global_step")
-            wandb.define_metric("operator/*", step_metric="global_step")
-            wandb.define_metric("diffusion_residual/*", step_metric="global_step")
-            wandb.define_metric("consistency_distill/*", step_metric="global_step")
-            wandb.define_metric("steady_prior/*", step_metric="global_step")
-            wandb.define_metric("eval/*")  # Evaluation metrics
-            
-            # Log system info
-            if torch.cuda.is_available():
-                gpu_info = {
-                    "gpu_name": torch.cuda.get_device_name(0),
-                    "gpu_count": torch.cuda.device_count(),
-                    "cuda_version": torch.version.cuda,
-                }
-                wandb.config.update(gpu_info)
-            
-            # Watch gradients and model parameters (optional, can be heavy)
-            # wandb.watch(models, log="all", log_freq=100)
-    
+def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
+    """Run all training stages in sequence with clean WandB context.
+
+    Args:
+        cfg: Training configuration
+        wandb_ctx: Optional WandBContext (if not provided, will try to load from env)
+    """
+    # Load or create WandB context
+    if wandb_ctx is None:
+        # Try to load from environment (subprocess mode)
+        from ups.utils.wandb_context import create_wandb_context
+        import datetime
+        import os
+
+        # Check if we're running as a subprocess from orchestrator
+        parent_run_id = os.environ.get("FAST_TO_SOTA_RUN_ID")
+
+        # Standalone mode: create new WandB context
+        logging_cfg = cfg.get("logging", {})
+        wandb_cfg = logging_cfg.get("wandb", {})
+        if wandb_cfg.get("enabled", True):
+            run_id = f"train-{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            # If running as subprocess, link to parent run via tags
+            if parent_run_id:
+                print(f"ℹ️  Linking training run to parent orchestrator run: {parent_run_id}")
+                # Add parent run ID to tags for linkage
+                if "tags" not in wandb_cfg:
+                    wandb_cfg["tags"] = []
+                wandb_cfg["tags"].append(f"parent:{parent_run_id}")
+                # Update config for context creation
+                cfg_copy = cfg.copy()
+                cfg_copy["logging"] = {"wandb": wandb_cfg}
+                wandb_ctx = create_wandb_context(cfg_copy, run_id=run_id, mode="online")
+            else:
+                wandb_ctx = create_wandb_context(cfg, run_id=run_id, mode="online")
+
+    # Log system info to config
+    if wandb_ctx and wandb_ctx.enabled and torch.cuda.is_available():
+        wandb_ctx.update_config({
+            "gpu_name": torch.cuda.get_device_name(0),
+            "gpu_count": torch.cuda.device_count(),
+            "cuda_version": torch.version.cuda,
+        })
+
     global_step = 0
     
     # Stage 1: Operator
@@ -1294,7 +1372,7 @@ def train_all_stages(cfg: dict) -> None:
         print("\n" + "="*50)
         print("STAGE 1/4: Training Operator")
         print("="*50)
-        train_operator(cfg, shared_run=shared_run, global_step=global_step)
+        train_operator(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
         global_step += op_epochs
     else:
         print("\n" + "="*50)
@@ -1312,7 +1390,7 @@ def train_all_stages(cfg: dict) -> None:
         print("\n" + "="*50)
         print("STAGE 2/4: Training Diffusion Residual")
         print("="*50)
-        train_diffusion(cfg, shared_run=shared_run, global_step=global_step)
+        train_diffusion(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
         global_step += diff_epochs
     else:
         print("\n" + "="*50)
@@ -1330,7 +1408,7 @@ def train_all_stages(cfg: dict) -> None:
         print("\n" + "="*50)
         print("STAGE 3/4: Consistency Distillation")
         print("="*50)
-        train_consistency(cfg, shared_run=shared_run, global_step=global_step)
+        train_consistency(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
         global_step += distill_epochs
     else:
         print("\n" + "="*50)
@@ -1348,7 +1426,7 @@ def train_all_stages(cfg: dict) -> None:
         print("\n" + "="*50)
         print("STAGE 4/4: Training Steady Prior")
         print("="*50)
-        train_steady_prior(cfg, shared_run=shared_run, global_step=global_step)
+        train_steady_prior(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
     else:
         print("\n" + "="*50)
         print("STAGE 4/4: Skipping Steady Prior (epochs<=0)")
@@ -1366,7 +1444,7 @@ def train_all_stages(cfg: dict) -> None:
         try:
             # Run baseline evaluation
             print("\n📊 Running baseline evaluation...")
-            baseline_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="baseline")
+            baseline_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="baseline", wandb_ctx=wandb_ctx)
             baseline_report = baseline_results["report"]
             
             print(f"Baseline Results:")
@@ -1379,7 +1457,7 @@ def train_all_stages(cfg: dict) -> None:
             ttc_results = None
             if cfg.get("ttc", {}).get("enabled", False):
                 print("\n📊 Running TTC evaluation...")
-                ttc_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="ttc")
+                ttc_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="ttc", wandb_ctx=wandb_ctx)
                 ttc_report = ttc_results["report"]
                 
                 print(f"TTC Results:")
@@ -1394,9 +1472,9 @@ def train_all_stages(cfg: dict) -> None:
                 improvement = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
                 print(f"\n  TTC Improvement: {improvement:.1f}%")
             
-            # Log to WandB
-            if shared_run:
-                _log_evaluation_summary(shared_run, baseline_results, ttc_results)
+            # Log to WandB using clean context
+            if wandb_ctx:
+                _log_evaluation_summary(wandb_ctx, baseline_results, ttc_results)
                 
                 # Save reports as artifacts
                 import os

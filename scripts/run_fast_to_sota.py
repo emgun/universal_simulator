@@ -631,13 +631,18 @@ def main() -> None:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     summary["checkpoint_metadata"] = metadata
 
-    wandb_run = None
+    # Create clean WandB context for entire pipeline (single run!)
+    wandb_ctx = None
+    wandb_context_file = None
+    wandb_run = None  # Keep for backward compatibility with helper functions
     wandb_message_rows: List[List[str]] = []
     wandb_gate_rows: List[List[str]] = []
     if args.wandb_sync:
         if wandb is None:
             print("⚠️  W&B SDK not available; skipping --wandb-sync")
         else:
+            from ups.utils.wandb_context import create_wandb_context, save_wandb_context
+
             logging_cfg = cfg.get("logging", {}).get("wandb", {})
             wandb_project = args.wandb_project or os.environ.get("WANDB_PROJECT") or logging_cfg.get("project") or "universal-simulator"
             wandb_entity = args.wandb_entity or os.environ.get("WANDB_ENTITY") or logging_cfg.get("entity")
@@ -647,45 +652,61 @@ def main() -> None:
             orchestrator_tags.add("fast_to_sota")
             orchestrator_tags.add("orchestrator")
             orchestrator_tags.update(f"{k}:{v}" for k, v in common_tags.items())
-            wandb_config_payload = {
-                "run_id": run_id,
-                "train_config": str(resolved_train_config),
-                "small_eval_config": str(resolved_small_config),
-                "full_eval_config": str(resolved_full_config),
-                "config_overrides": list(args.config_override),
-                "baseline_labels": baseline_labels,
-                "ratio_limits": ratio_limits,
-                "leaderboard_csv": str(leaderboard_csv),
-                "leaderboard_html": str(leaderboard_html),
-                "common_tags": common_tags,
-                "user_tags": user_tags,
-            }
+
+            # Update config with orchestrator metadata
+            cfg_copy = cfg.copy()
+            if "logging" not in cfg_copy:
+                cfg_copy["logging"] = {}
+            if "wandb" not in cfg_copy["logging"]:
+                cfg_copy["logging"]["wandb"] = {}
+            cfg_copy["logging"]["wandb"].update({
+                "enabled": True,
+                "project": wandb_project,
+                "entity": wandb_entity,
+                "group": wandb_group,
+                "run_name": args.wandb_run_name or f"fast-to-sota-{run_id}",
+                "tags": sorted(orchestrator_tags),
+            })
+
             try:
-                if wandb.run is None:
-                    wandb_run = wandb.init(
-                        project=wandb_project,
-                        entity=wandb_entity,
-                        group=wandb_group,
-                        name=args.wandb_run_name or f"fast-to-sota-{run_id}",
-                        tags=sorted(orchestrator_tags),
-                        config=wandb_config_payload,
-                        reinit=True,
-                        mode=os.environ.get("WANDB_MODE"),
-                    )
-                else:
-                    wandb_run = wandb.run
-                    wandb_run.config.update(wandb_config_payload, allow_val_change=True)
-            except Exception as exc:  # pragma: no cover - external dependency
-                print(f"⚠️  W&B initialization failed ({exc}); continuing without wandb-sync")
-                wandb_run = None
-            else:
-                if wandb_run is not None:
+                wandb_ctx = create_wandb_context(
+                    cfg_copy,
+                    run_id=run_id,
+                    mode=os.environ.get("WANDB_MODE", "online"),
+                )
+
+                if wandb_ctx and wandb_ctx.enabled:
+                    # Save context to file for subprocesses (training, evaluation)
+                    wandb_context_file = run_root / "wandb_context.json"
+                    save_wandb_context(wandb_ctx, wandb_context_file)
+
+                    # Update config with orchestrator metadata
+                    wandb_ctx.update_config({
+                        "run_id": run_id,
+                        "train_config": str(resolved_train_config),
+                        "small_eval_config": str(resolved_small_config),
+                        "full_eval_config": str(resolved_full_config),
+                        "config_overrides": list(args.config_override),
+                        "baseline_labels": baseline_labels,
+                        "ratio_limits": ratio_limits,
+                        "leaderboard_csv": str(leaderboard_csv),
+                        "leaderboard_html": str(leaderboard_html),
+                        "common_tags": common_tags,
+                        "user_tags": user_tags,
+                    })
+
+                    # Keep wandb_run for backward compatibility with helper functions
+                    wandb_run = wandb_ctx.run
                     _wandb_log_event(wandb_run, "start")
                     summary["orchestrator_wandb_project"] = wandb_project
                     if wandb_entity:
                         summary["orchestrator_wandb_entity"] = wandb_entity
                     summary["orchestrator_wandb_group"] = wandb_group
-                    summary["orchestrator_wandb_run"] = getattr(wandb_run, "id", None)
+                    summary["orchestrator_wandb_run"] = wandb_ctx.run_id
+            except Exception as exc:  # pragma: no cover - external dependency
+                print(f"⚠️  W&B initialization failed ({exc}); continuing without wandb-sync")
+                wandb_ctx = None
+                wandb_run = None
 
     gate_results: Dict[str, Dict[str, object]] = {}
     promoted = False
@@ -795,6 +816,9 @@ def main() -> None:
                 "WANDB_MODE": args.wandb_mode,
                 "FAST_TO_SOTA_WANDB_INFO": str(wandb_info_path),
             }
+            # Pass parent run ID to link training run
+            if wandb_ctx and wandb_ctx.enabled:
+                train_env["FAST_TO_SOTA_RUN_ID"] = run_id
             _run_command(
                 train_cmd,
                 env=train_env,
@@ -876,9 +900,10 @@ def main() -> None:
                 shutil.rmtree(dest)
             shutil.copytree(checkpoint_dir, dest)
 
-        eval_env = {
-            "WANDB_MODE": "disabled",
-        }
+        # Pass WandB context to subprocesses (no more WANDB_MODE=disabled hack!)
+        eval_env = {}
+        if wandb_context_file and wandb_context_file.exists():
+            eval_env["WANDB_CONTEXT_FILE"] = str(wandb_context_file)
 
         # Small evaluation stage
         small_flat: Optional[Dict[str, float]] = None
@@ -963,7 +988,9 @@ def main() -> None:
             gate_results["small_eval"] = {"metrics": small_flat or {}, "reused": reuse_small}
             if small_flat and wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "small_eval", small_flat)
-            _log_metrics_to_training_run(training_wandb_info, "small_eval", small_flat or {})
+            # Legacy: resume training run to log eval metrics (no longer needed with clean WandB context)
+            if not wandb_ctx:
+                _log_metrics_to_training_run(training_wandb_info, "small_eval", small_flat or {})
 
             leaderboard_rows = _read_leaderboard(leaderboard_csv)
             baseline_row, baseline_metrics = _select_baseline(
@@ -988,14 +1015,16 @@ def main() -> None:
                 )
                 gate_results["small_eval"]["passed"] = passed_small
                 gate_results["small_eval"]["messages"] = small_messages
-                _log_metrics_to_training_run(
-                    training_wandb_info,
-                    "fast_to_sota",
-                    {
-                        "small_eval_passed": 1.0 if passed_small else 0.0,
-                        "small_eval_required_delta": args.min_small_delta,
-                    },
-                )
+                # Legacy: resume training run to log gate results (no longer needed with clean WandB context)
+                if not wandb_ctx:
+                    _log_metrics_to_training_run(
+                        training_wandb_info,
+                        "fast_to_sota",
+                        {
+                            "small_eval_passed": 1.0 if passed_small else 0.0,
+                            "small_eval_required_delta": args.min_small_delta,
+                        },
+                    )
 
                 print("\n[gate] Small evaluation results:")
                 for msg in small_messages:
@@ -1107,7 +1136,9 @@ def main() -> None:
             gate_results["full_eval"] = {"metrics": full_flat, "reused": reuse_full}
             if wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "full_eval", full_flat)
-            _log_metrics_to_training_run(training_wandb_info, "full_eval", full_flat)
+            # Legacy: resume training run to log eval metrics (no longer needed with clean WandB context)
+            if not wandb_ctx:
+                _log_metrics_to_training_run(training_wandb_info, "full_eval", full_flat)
 
             leaderboard_rows = _read_leaderboard(leaderboard_csv)
             baseline_row, baseline_metrics = _select_baseline(
@@ -1132,14 +1163,16 @@ def main() -> None:
             )
             gate_results["full_eval"]["passed"] = passed_full
             gate_results["full_eval"]["messages"] = full_messages
-            _log_metrics_to_training_run(
-                training_wandb_info,
-                "fast_to_sota",
-                {
-                    "full_eval_passed": 1.0 if passed_full else 0.0,
-                    "full_eval_required_delta": args.min_full_delta,
-                },
-            )
+            # Legacy: resume training run to log gate results (no longer needed with clean WandB context)
+            if not wandb_ctx:
+                _log_metrics_to_training_run(
+                    training_wandb_info,
+                    "fast_to_sota",
+                    {
+                        "full_eval_passed": 1.0 if passed_full else 0.0,
+                        "full_eval_required_delta": args.min_full_delta,
+                    },
+                )
 
             print("\n[gate] Full evaluation results:")
             for msg in full_messages:
@@ -1316,7 +1349,11 @@ def main() -> None:
             wandb_run.log({"fast_to_sota/error": str(exc)})
         raise
     finally:
-        if wandb_run is not None:
+        # Finish WandB context (clean way!)
+        if wandb_ctx is not None:
+            wandb_ctx.finish()
+        elif wandb_run is not None:
+            # Fallback for backward compatibility
             wandb_run.finish()
 
 
