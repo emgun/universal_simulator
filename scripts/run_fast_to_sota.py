@@ -161,54 +161,8 @@ def _wandb_log_event(run, event: str, value: float = 1.0) -> None:  # pragma: no
         run.log({f"fast_to_sota/{event}": value})
 
 
-def _log_metrics_to_training_run(
-    training_info: Optional[Dict[str, str]],
-    namespace: str,
-    metrics: Mapping[str, float],
-) -> None:  # pragma: no cover - optional
-    """Resume the training W&B run to append evaluation metrics."""
-    if training_info is None or wandb is None:
-        return
-    run_id = training_info.get("id")
-    project = training_info.get("project")
-    entity = training_info.get("entity")
-    if not run_id:
-        return
-    try:
-        resumed = wandb.init(
-            id=run_id,
-            project=project,
-            entity=entity or None,
-            resume="allow",
-            reinit=True,
-            settings=wandb.Settings(start_method="thread"),
-        )
-    except Exception:
-        return
-
-    if resumed is None:
-        return
-
-    try:
-        formatted: Dict[str, float] = {}
-        table_rows: List[List[object]] = []
-        for key, value in metrics.items():
-            if not isinstance(value, (int, float)):
-                continue
-            safe_key = key.replace("metric:", "").replace("extra:", "extra/")
-            safe_key = safe_key.replace(":", "/")
-            formatted[f"{namespace}/{safe_key}"] = float(value)
-            table_rows.append([key, float(value)])
-        if formatted:
-            resumed.log(formatted, commit=False)
-            if table_rows:
-                table = wandb.Table(columns=["metric", "value"], data=table_rows)
-                resumed.log({f"{namespace}/metrics": table})
-    finally:
-        try:
-            resumed.finish()
-        except Exception:
-            pass
+# Legacy function removed - evaluation subprocess logs metrics directly to training run
+# via WANDB_CONTEXT_FILE mechanism (see WandBContext in src/ups/utils/wandb_context.py)
 
 
 def _run_command(
@@ -919,9 +873,7 @@ def main() -> None:
             gate_results["small_eval"] = {"metrics": small_flat or {}, "reused": reuse_small}
             if small_flat and wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "small_eval", small_flat)
-            # Legacy: resume training run to log eval metrics (no longer needed with clean WandB context)
-            if not wandb_ctx:
-                _log_metrics_to_training_run(training_wandb_info, "small_eval", small_flat or {})
+            # Evaluation subprocess logs metrics via WANDB_CONTEXT_FILE (no extra runs created)
 
             leaderboard_rows = _read_leaderboard(leaderboard_csv)
             baseline_row, baseline_metrics = _select_baseline(
@@ -946,16 +898,7 @@ def main() -> None:
                 )
                 gate_results["small_eval"]["passed"] = passed_small
                 gate_results["small_eval"]["messages"] = small_messages
-                # Legacy: resume training run to log gate results (no longer needed with clean WandB context)
-                if not wandb_ctx:
-                    _log_metrics_to_training_run(
-                        training_wandb_info,
-                        "fast_to_sota",
-                        {
-                            "small_eval_passed": 1.0 if passed_small else 0.0,
-                            "small_eval_required_delta": args.min_small_delta,
-                        },
-                    )
+                # Gate results logged via orchestrator's wandb_run (if enabled)
 
                 print("\n[gate] Small evaluation results:")
                 for msg in small_messages:
@@ -1067,9 +1010,7 @@ def main() -> None:
             gate_results["full_eval"] = {"metrics": full_flat, "reused": reuse_full}
             if wandb_run is not None:
                 _log_metrics_to_wandb(wandb_run, "full_eval", full_flat)
-            # Legacy: resume training run to log eval metrics (no longer needed with clean WandB context)
-            if not wandb_ctx:
-                _log_metrics_to_training_run(training_wandb_info, "full_eval", full_flat)
+            # Evaluation subprocess logs metrics via WANDB_CONTEXT_FILE (no extra runs created)
 
             leaderboard_rows = _read_leaderboard(leaderboard_csv)
             baseline_row, baseline_metrics = _select_baseline(
@@ -1094,16 +1035,7 @@ def main() -> None:
             )
             gate_results["full_eval"]["passed"] = passed_full
             gate_results["full_eval"]["messages"] = full_messages
-            # Legacy: resume training run to log gate results (no longer needed with clean WandB context)
-            if not wandb_ctx:
-                _log_metrics_to_training_run(
-                    training_wandb_info,
-                    "fast_to_sota",
-                    {
-                        "full_eval_passed": 1.0 if passed_full else 0.0,
-                        "full_eval_required_delta": args.min_full_delta,
-                    },
-                )
+            # Gate results logged via orchestrator's wandb_run (if enabled)
 
             print("\n[gate] Full evaluation results:")
             for msg in full_messages:
