@@ -107,6 +107,33 @@ python scripts/precompute_latent_cache.py \
   --output data/latent_cache
 ```
 
+### Experiment Management
+
+```bash
+# Archive completed/failed experiments
+python scripts/archive_experiments.py --status all --dry-run
+python scripts/archive_experiments.py --status all
+
+# List experiment status
+python scripts/archive_experiments.py --list-only
+
+# Promote successful experiment to production
+python scripts/promote_config.py \
+  experiments/2025-01-22-my-experiment/config.yaml \
+  --production-dir configs/ \
+  --rename train_burgers_improved.yaml \
+  --update-leaderboard
+
+# Catalog all configs
+python scripts/config_catalog.py
+
+# Deprecate outdated config
+python scripts/deprecate_config.py configs/old_config.yaml \
+  --reason "Superseded by golden config" \
+  --replacement train_burgers_golden.yaml \
+  --move-to-deprecated
+```
+
 ### Monitoring
 
 ```bash
@@ -118,6 +145,9 @@ vastai logs <instance_id> -f
 
 # SSH into instance
 vastai ssh <instance_id>
+
+# Monitor instance startup and logs
+scripts/monitor_instance.sh <instance_id>
 ```
 
 ## Architecture
@@ -177,6 +207,35 @@ All code is namespaced under `src/ups/` to avoid stdlib collisions:
   - `leaderboard.py` - Leaderboard tracking
   - `wandb_context.py` - Clean WandB integration (one run per pipeline)
 
+### Script Organization
+
+**Core Pipeline Scripts:**
+- **`scripts/run_fast_to_sota.py`** - Main orchestrator (validation → train → eval → gating → leaderboard)
+- **`scripts/train.py`** - Training engine (standalone or called by orchestrator)
+- **`scripts/evaluate.py`** - Evaluation engine (standalone or called by orchestrator)
+- **`scripts/vast_launch.py`** - VastAI provisioning (generates onstart scripts that call orchestrator)
+
+**Validation & Quality:**
+- **`scripts/validate_config.py`** - Config validation
+- **`scripts/validate_data.py`** - Data integrity checks
+- **`scripts/dry_run.py`** - Dry-run testing with cost estimates
+
+**Experiment Management:**
+- **`scripts/archive_experiments.py`** - Archive completed/failed experiments
+- **`scripts/promote_config.py`** - Promote successful configs to production
+- **`scripts/config_catalog.py`** - Generate config catalog CSV
+
+**Analysis & Utilities:**
+- **`scripts/analyze_run.py`** - Post-run analysis
+- **`scripts/compare_runs.py`** - Multi-run comparison
+- **`scripts/precompute_latent_cache.py`** - Pre-encode training data
+- **`scripts/monitor_instance.sh`** - VastAI instance monitoring
+
+**Architecture Notes:**
+- `run_fast_to_sota.py` delegates to `train.py` and `evaluate.py` via subprocess calls
+- `train.py` and `evaluate.py` can be used standalone for debugging
+- `vast_launch.py` generates `.vast/onstart.sh` which calls `run_fast_to_sota.py`
+
 ### Key Architectural Concepts
 
 1. **Latent Space Evolution**: Physical fields → Encoder → Latent tokens → Operator → Latent tokens → Decoder → Physical fields
@@ -216,6 +275,12 @@ Configs are YAML files in `configs/` using a hierarchical structure:
 
 **Important**: `latent.dim` must match `operator.pdet.input_dim`, `diffusion.latent_dim`, and `ttc.decoder.latent_dim`
 
+**Config Management**: See `configs/README.md` for:
+- Golden config identification (which configs to use)
+- Deprecated config list (which to avoid)
+- Config naming conventions
+- Promotion workflow
+
 ## Development Workflow
 
 ### Adding New Features
@@ -232,6 +297,54 @@ Configs are YAML files in `configs/` using a hierarchical structure:
 - Keep dimension consistency: `latent.dim == operator.pdet.input_dim == diffusion.latent_dim`
 - Test locally with `--stage operator --epochs 1` before full runs
 
+### Experiment Lifecycle Management
+
+**Organized iteration** to prevent experimental configs from piling up:
+
+```bash
+# 1. Start new experiment
+mkdir -p experiments/$(date +%Y-%m-%d)-my-experiment
+cp configs/train_burgers_golden.yaml experiments/$(date +%Y-%m-%d)-my-experiment/config.yaml
+
+# 2. Run experiment
+python scripts/vast_launch.py launch \
+  --config experiments/2025-01-22-my-experiment/config.yaml \
+  --auto-shutdown
+
+# 3. Document results in experiments/2025-01-22-my-experiment/notes.md
+
+# 4a. If successful: Promote to production
+python scripts/promote_config.py \
+  experiments/2025-01-22-my-experiment/config.yaml \
+  --production-dir configs/ \
+  --rename train_burgers_64dim.yaml \
+  --update-leaderboard
+
+# 4b. If completed/failed: Archive
+python scripts/archive_experiments.py --status all
+```
+
+**Automated archiving** keeps `experiments/` clean:
+
+```bash
+# List experiment status
+python scripts/archive_experiments.py --list-only
+
+# Archive completed experiments (dry-run first)
+python scripts/archive_experiments.py --status all --dry-run
+
+# Actually archive
+python scripts/archive_experiments.py --status all
+```
+
+**Experiment status classifications**:
+- **active**: Recent runs (< 7 days) or in-progress
+- **success**: Passed validation gates, ready to promote
+- **failed**: Errors or failing gates
+- **stale**: No activity for > 30 days
+
+See `experiments/README.md` for detailed workflow.
+
 ### Production Training Checklist
 
 1. **Validate config**: `python scripts/validate_config.py <config>`
@@ -247,7 +360,7 @@ Configs are YAML files in `configs/` using a hierarchical structure:
 - **Use Git clone method** for development/debugging (2-3 min startup)
 - **Use Docker method** for production (1-2 min startup, requires GitHub Actions build)
 - **Global env-vars** are set once via `python scripts/vast_launch.py setup-env`
-- **Training data** is downloaded by `scripts/run_training_pipeline.sh` from B2
+- **Training data** is downloaded by the onstart script from B2 cloud storage
 - **Test/val data** is downloaded from WandB artifacts during pipeline
 
 ## Important Technical Details

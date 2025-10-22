@@ -1,7 +1,12 @@
+# DEPRECATED: 2025-01-22
+# This config was an experimental iteration and has not been validated.
+# Use train_burgers_golden.yaml instead for all new work.
+# Reason: Experimental config that should have been in experiments/ directory
+#
 include: train_burgers_quality_v2.yaml
 
 # 32-dim v2: PRACTICAL improvements using existing features
-# 
+#
 # Current: Baseline 0.78, TTC 0.09
 # Target:  Baseline 0.45-0.55, TTC 0.05-0.07
 # 

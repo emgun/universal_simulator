@@ -52,3 +52,17 @@ smoke_tmp/
 # Reports directory (generated files)
 reports/
 
+# Experiment lifecycle management
+# Exclude large artifacts but keep metadata
+experiments/*/checkpoints/
+experiments/*/artifacts/
+experiments-archive/*/checkpoints/
+experiments-archive/*/artifacts/
+# Allow metadata and configs
+!experiments/*/config.yaml
+!experiments/*/notes.md
+!experiments/*/metadata.json
+!experiments-archive/*/config.yaml
+!experiments-archive/*/notes.md
+!experiments-archive/*/metadata.json
+

@@ -1,3 +1,8 @@
+# DEPRECATED: 2025-01-22
+# This config was an experimental iteration and has not been validated.
+# Use train_burgers_golden.yaml instead for all new work.
+# Reason: Experimental config that should have been in experiments/ directory
+#
 include: train_burgers_32dim_golden.yaml
 
 # Practical stack overrides inspired by original v2 config

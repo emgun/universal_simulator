@@ -1,3 +1,8 @@
+# DEPRECATED: 2025-01-22
+# This config has been superseded by train_burgers_golden.yaml
+# Use train_burgers_golden.yaml instead for all new work.
+# Reason: Multiple iterative versions caused confusion; consolidated into single golden config
+#
 # Production 32-dim Burgers1D Training Config
 # Self-contained, validated, production-ready
 # Based on successful v2 run with optimizations
