@@ -73,7 +73,6 @@ def generate_onstart_script(
         extra_args = "\n  " + " \\\n  ".join(run_args)
         launch_mode_line += " \\"
 
-    # Pick matching eval configs when available (e.g., small_eval_<train>.yaml)
     # Convert absolute paths to relative paths for remote execution
     train_cfg_path = Path(config)
     if train_cfg_path.is_absolute():
@@ -85,42 +84,6 @@ def generate_onstart_script(
 
     # Use relative path for the actual config parameter in the script
     config_for_script = train_cfg_path.as_posix()
-
-    small_eval_candidate = train_cfg_path.with_name(f"small_eval_{train_cfg_path.stem}.yaml")
-    full_eval_candidate = train_cfg_path.with_name(f"full_eval_{train_cfg_path.stem}.yaml")
-
-    default_small_eval = Path("configs/small_eval_burgers.yaml")
-    default_full_eval = Path("configs/full_eval_burgers.yaml")
-
-    small_eval_config = small_eval_candidate if (REPO_ROOT / small_eval_candidate).exists() else default_small_eval
-    full_eval_config = full_eval_candidate if (REPO_ROOT / full_eval_candidate).exists() else default_full_eval
-
-    small_eval_body = ""
-    full_eval_body = ""
-
-    small_eval_path = (REPO_ROOT / small_eval_config).resolve()
-    if small_eval_path.exists():
-        try:
-            data = yaml.safe_load(small_eval_path.read_text())
-            content = yaml.safe_dump(data, sort_keys=False).rstrip()
-        except yaml.YAMLError:
-            content = small_eval_path.read_text().rstrip()
-        small_eval_body = (
-            f"\ncat <<'EOF_SMALL' > {small_eval_config.as_posix()}\n"
-            f"{content}\nEOF_SMALL\n"
-        )
-
-    full_eval_path = (REPO_ROOT / full_eval_config).resolve()
-    if full_eval_path.exists():
-        try:
-            data = yaml.safe_load(full_eval_path.read_text())
-            content = yaml.safe_dump(data, sort_keys=False).rstrip()
-        except yaml.YAMLError:
-            content = full_eval_path.read_text().rstrip()
-        full_eval_body = (
-            f"\ncat <<'EOF_FULL' > {full_eval_config.as_posix()}\n"
-            f"{content}\nEOF_FULL\n"
-        )
     
     script = f"""#!/bin/bash
 set -euo pipefail
@@ -176,7 +139,7 @@ echo "Precomputing latent caches…"
 PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
 export WANDB_MODE=online
-python scripts/run_fast_to_sota.py --train-config {config_for_script} --small-eval-config {small_eval_config.as_posix()} --full-eval-config {full_eval_config.as_posix()} --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args}
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args}
 """
 
     if auto_shutdown:
