@@ -1484,46 +1484,49 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
                 # Save baseline report
                 baseline_json = report_dir / "eval_baseline.json"
                 baseline_report.to_json(baseline_json)
-                artifact = wandb.Artifact(name=f"eval-baseline-{wandb.run.id}", type="evaluation")
-                artifact.add_file(str(baseline_json))
-                wandb.log_artifact(artifact)
-                
+                if wandb_ctx and wandb_ctx.run is not None:
+                    artifact = wandb.Artifact(name=f"eval-baseline-{wandb_ctx.run.id}", type="evaluation")
+                    artifact.add_file(str(baseline_json))
+                    wandb_ctx.log_artifact(artifact)
+
                 # Save TTC report if available
                 if ttc_results:
                     ttc_json = report_dir / "eval_ttc.json"
                     ttc_report.to_json(ttc_json)
-                    artifact = wandb.Artifact(name=f"eval-ttc-{wandb.run.id}", type="evaluation")
-                    artifact.add_file(str(ttc_json))
-                    wandb.log_artifact(artifact)
+                    if wandb_ctx and wandb_ctx.run is not None:
+                        artifact = wandb.Artifact(name=f"eval-ttc-{wandb_ctx.run.id}", type="evaluation")
+                        artifact.add_file(str(ttc_json))
+                        wandb_ctx.log_artifact(artifact)
                 
         except Exception as e:
             print(f"\n⚠️  Evaluation failed: {e}")
-            if shared_run:
-                wandb.log({"eval/error": str(e)})
+            if wandb_ctx and wandb_ctx.enabled:
+                wandb_ctx.log_eval_summary({"error": str(e)}, prefix="eval")
     else:
         print("\n" + "="*50)
         print("STAGE 5/5: Skipping Evaluation (disabled in config)")
         print("="*50)
     
     # Log final summary
-    if shared_run:
+    if wandb_ctx and wandb_ctx.enabled:
         # Load final checkpoints to get model sizes
         import os
         summary = {
-            "summary/total_training_complete": 1,
-            "summary/operator_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator.pt") / 1e6 if (checkpoint_dir / "operator.pt").exists() else 0,
-            "summary/diffusion_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6 if (checkpoint_dir / "diffusion_residual.pt").exists() else 0,
-            "summary/steady_prior_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6 if (checkpoint_dir / "steady_prior.pt").exists() else 0,
+            "total_training_complete": 1,
+            "operator_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator.pt") / 1e6 if (checkpoint_dir / "operator.pt").exists() else 0,
+            "diffusion_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6 if (checkpoint_dir / "diffusion_residual.pt").exists() else 0,
+            "steady_prior_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6 if (checkpoint_dir / "steady_prior.pt").exists() else 0,
         }
-        shared_run.log(summary)
-        
+        wandb_ctx.log_eval_summary(summary, prefix="summary")
+
         # Generate final report summary
         print("\n" + "="*50)
         print("📝 WandB Summary Generated")
         print("="*50)
-        print(f"View full results at: {wandb.run.url}")
-        
-        shared_run.finish()
+        print(f"View full results at: {wandb_ctx.run.url}")
+
+        # Training run owns its own lifecycle - call finish()
+        wandb_ctx.finish()
     
     print("\n" + "="*50)
     print("✅ All training stages complete!")
