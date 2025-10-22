@@ -1,0 +1,9 @@
+include: train_burgers_golden.yaml
+
+# Full evaluation overrides (overnight or full-suite)
+data:
+  split: test
+
+training:
+  # Use full temporal resolution during evaluation
+  time_stride: 1
