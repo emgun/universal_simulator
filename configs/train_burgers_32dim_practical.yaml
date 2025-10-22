@@ -1,0 +1,59 @@
+include: train_burgers_32dim_golden.yaml
+
+# Practical stack overrides inspired by original v2 config
+latent:
+  dim: 16
+  tokens: 32  # double tokens for higher spatial resolution
+
+operator:
+  pdet:
+    input_dim: 16
+    hidden_dim: 96
+    group_size: 12
+    num_heads: 6
+
+diffusion:
+  latent_dim: 16
+  hidden_dim: 96
+
+training:
+  batch_size: 12
+  time_stride: 2
+  distill_micro_batch: 3
+  distill_num_taus: 5
+
+stages:
+  operator:
+    epochs: 25
+    optimizer:
+      weight_decay: 0.03
+  diff_residual:
+    epochs: 8
+    optimizer:
+      lr: 5.0e-5
+      weight_decay: 0.015
+      name: adamw
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 3.0e-6
+  consistency_distill:
+    epochs: 8
+    optimizer:
+      lr: 3.0e-5
+      weight_decay: 0.015
+      name: adamw
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-6
+
+ttc:
+  decoder:
+    latent_dim: 16
+    hidden_dim: 96
+
+logging:
+  wandb:
+    run_name: burgers32-practical-2025
+    tags: [32dim, practical_v2, golden_base]

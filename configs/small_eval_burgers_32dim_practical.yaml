@@ -1,0 +1,11 @@
+include: train_burgers_32dim_practical.yaml
+
+data:
+  split: valid
+
+training:
+  batch_size: 8
+  time_stride: 4
+  num_workers: 2
+  prefetch_factor: 2
+
