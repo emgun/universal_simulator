@@ -1329,32 +1329,37 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
     # Load or create WandB context
     if wandb_ctx is None:
         # Try to load from environment (subprocess mode)
-        from ups.utils.wandb_context import create_wandb_context
+        from ups.utils.wandb_context import create_wandb_context, save_wandb_context
         import datetime
         import os
-
-        # Check if we're running as a subprocess from orchestrator
-        parent_run_id = os.environ.get("FAST_TO_SOTA_RUN_ID")
+        import json
+        from pathlib import Path
 
         # Standalone mode: create new WandB context
         logging_cfg = cfg.get("logging", {})
         wandb_cfg = logging_cfg.get("wandb", {})
         if wandb_cfg.get("enabled", True):
             run_id = f"train-{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            wandb_ctx = create_wandb_context(cfg, run_id=run_id, mode="online")
 
-            # If running as subprocess, link to parent run via tags
-            if parent_run_id:
-                print(f"ℹ️  Linking training run to parent orchestrator run: {parent_run_id}")
-                # Add parent run ID to tags for linkage
-                if "tags" not in wandb_cfg:
-                    wandb_cfg["tags"] = []
-                wandb_cfg["tags"].append(f"parent:{parent_run_id}")
-                # Update config for context creation
-                cfg_copy = cfg.copy()
-                cfg_copy["logging"] = {"wandb": wandb_cfg}
-                wandb_ctx = create_wandb_context(cfg_copy, run_id=run_id, mode="online")
-            else:
-                wandb_ctx = create_wandb_context(cfg, run_id=run_id, mode="online")
+            # Save context to file for evaluation subprocess
+            context_file_path = os.environ.get("WANDB_CONTEXT_FILE")
+            if context_file_path and wandb_ctx and wandb_ctx.enabled:
+                save_wandb_context(wandb_ctx, Path(context_file_path))
+                print(f"✓ Saved WandB context to {context_file_path}")
+
+            # Save WandB info for orchestrator
+            wandb_info_path = os.environ.get("FAST_TO_SOTA_WANDB_INFO")
+            if wandb_info_path and wandb_ctx and wandb_ctx.run:
+                wandb_info = {
+                    "id": wandb_ctx.run.id,
+                    "name": wandb_ctx.run.name,
+                    "project": wandb_ctx.run.project,
+                    "entity": wandb_ctx.run.entity,
+                    "url": wandb_ctx.run.url,
+                }
+                Path(wandb_info_path).write_text(json.dumps(wandb_info, indent=2))
+                print(f"✓ Saved WandB info to {wandb_info_path}")
 
     # Log system info to config
     if wandb_ctx and wandb_ctx.enabled and torch.cuda.is_available():
