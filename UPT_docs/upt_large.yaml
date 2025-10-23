@@ -1,0 +1,96 @@
+# ===== UPT Large (≈68M params) =====
+# Goal: highest fidelity; requires more VRAM
+experiment_name: upt_large
+
+seed: 1337
+
+dataset:
+  name: transient_flow
+  root: /PATH/TO/DATASET_ROOT
+  stats_path: /PATH/TO/DATASET_ROOT/stats.json
+  max_input_points: 128000
+  query_points_per_batch: 8192
+  segment:
+    steps: 4
+    dt: 1
+  splits:
+    train: train.txt
+    val: val.txt
+    test: test.txt
+
+model:
+  encoder:
+    cls: CfdGnnPoolTransformerPerceiver
+    num_supernodes: 2048
+    gnn_dim: 256
+    gnn_depth: 4
+    enc_dim: 384
+    enc_depth: 8
+    enc_num_attn_heads: 8
+    perc_dim: 384
+    perc_num_attn_heads: 8
+    num_latent_tokens: 768
+
+  approximator:
+    cls: LatentTransformer
+    latent_dim: 384
+    depth: 12
+    num_attn_heads: 8
+    drop_path_rate: 0.15
+
+  decoder:
+    cls: CfdTransformerPerceiver
+    dim: 384
+    depth: 8
+    num_attn_heads: 8
+    perc_dim: 384
+    perc_num_attn_heads: 8
+    use_last_norm: true
+    clamp: null
+
+  channels:
+    in: 3
+    out: 3
+
+losses:
+  pred: mse
+  inv_encode_weight: 0.35
+  inv_decode_weight: 0.35
+  reg_weight: 0.0
+
+trainer:
+  epochs: 160
+  batch_size: 1
+  grad_accum_steps: 4
+  amp: bf16
+  grad_clip_norm: 1.0
+  ema:
+    enabled: true
+    decay: 0.999
+
+optimizer:
+  name: adamw
+  lr: 1.5e-4
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.999]
+
+schedule:
+  name: cosine
+  warmup_steps: 3000
+  min_lr: 5.0e-6
+
+eval:
+  rollout:
+    enabled: true
+    steps: 300
+    decode_dense: false
+
+logging:
+  wandb:
+    enabled: true
+    project: UPT
+    mode: online
+  checkpoint:
+    save_best_metric: val/mse
+    save_every_epochs: 5
+    outdir: ./checkpoints/upt_large

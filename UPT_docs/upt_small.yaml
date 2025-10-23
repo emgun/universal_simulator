@@ -1,0 +1,103 @@
+# ===== UPT Small (≈8–12M params) =====
+# Goal: fast plumbing check & smoke tests on proxy subsets
+experiment_name: upt_small
+
+seed: 1337
+
+dataset:
+  name: transient_flow   # ["transient_flow", "shapenet_car", "lagrangian"]
+  root: /PATH/TO/DATASET_ROOT
+  # normalization stats precomputed by data scripts
+  stats_path: /PATH/TO/DATASET_ROOT/stats.json
+  # how many input nodes to encode per sample (pre-pooled supernodes will be derived)
+  max_input_points: 32000
+  # how many query points per batch to decode against (subsampled for training)
+  query_points_per_batch: 4096
+  # rollout / segment parameters (for transient data)
+  segment:
+    steps: 2            # short segments for curriculum
+    dt: 1               # dataset time-step index (not physical units)
+  splits:
+    train: train.txt
+    val: val.txt
+    test: test.txt
+
+model:
+  # ---- encoder (GNN pooling -> transformer -> perceiver pooling) ----
+  encoder:
+    cls: CfdGnnPoolTransformerPerceiver
+    num_supernodes: 512
+    gnn_dim: 128
+    gnn_depth: 3
+    enc_dim: 192
+    enc_depth: 4
+    enc_num_attn_heads: 4
+    perc_dim: 192
+    perc_num_attn_heads: 4
+    num_latent_tokens: 256
+
+  # ---- approximator (latent transformer) ----
+  approximator:
+    cls: LatentTransformer
+    latent_dim: 192
+    depth: 4
+    num_attn_heads: 4
+    drop_path_rate: 0.0
+
+  # ---- decoder (query MLP + perceiver over latent) ----
+  decoder:
+    cls: CfdTransformerPerceiver
+    dim: 192
+    depth: 4
+    num_attn_heads: 4
+    perc_dim: 192
+    perc_num_attn_heads: 4
+    use_last_norm: false
+    clamp: null
+
+  channels:
+    in: 3      # e.g., (u,v,p) or adapt per dataset
+    out: 3
+
+losses:
+  pred: mse
+  inv_encode_weight: 0.2
+  inv_decode_weight: 0.2
+  reg_weight: 0.0
+
+trainer:
+  epochs: 40
+  batch_size: 2
+  grad_accum_steps: 1
+  amp: bf16
+  grad_clip_norm: 1.0
+  ema:
+    enabled: true
+    decay: 0.999
+
+optimizer:
+  name: adamw
+  lr: 3.0e-4
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.999]
+
+schedule:
+  name: cosine
+  warmup_steps: 1000
+  min_lr: 1.0e-5
+
+eval:
+  rollout:
+    enabled: true
+    steps: 100
+    decode_dense: false
+
+logging:
+  wandb:
+    enabled: true
+    project: UPT
+    mode: online   # ["online","offline","disabled"]
+  checkpoint:
+    save_best_metric: val/mse
+    save_every_epochs: 5
+    outdir: ./checkpoints/upt_small

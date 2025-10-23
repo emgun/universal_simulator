@@ -248,6 +248,10 @@ class LatentPair:
     z1: torch.Tensor
     cond: Dict[str, torch.Tensor]
     future: Optional[torch.Tensor] = None
+    # UPT inverse loss support (Phase 1)
+    fields_orig: Optional[Dict[str, torch.Tensor]] = None  # Original physical fields
+    coords: Optional[torch.Tensor] = None                   # Spatial coordinates
+    meta: Optional[Dict[str, Any]] = None                   # Metadata (grid_shape, etc.)
 
 
 class GridLatentPairDataset(Dataset):
@@ -289,6 +293,8 @@ class GridLatentPairDataset(Dataset):
         latent_seq: Optional[torch.Tensor] = None
         params_cpu = None
         bc_cpu = None
+        fields_cpu = None  # Keep for UPT inverse losses
+
         if self.cache_dir:
             cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
             if cache_path.exists():
@@ -303,11 +309,15 @@ class GridLatentPairDataset(Dataset):
                     bc_cpu = data.get("bc")
                     cache_hit = True
 
-        if latent_seq is None:
-            sample = self.base[idx]
-            fields_cpu = sample["fields"].float()
+        # Always load original fields for UPT inverse losses (even if cache hit)
+        sample = self.base[idx]
+        fields_cpu = sample["fields"].float()
+        if params_cpu is None:  # Use from sample if not cached
             params_cpu = sample.get("params")
+        if bc_cpu is None:
             bc_cpu = sample.get("bc")
+
+        if latent_seq is None:
             fields = fields_cpu.to(self.device, non_blocking=True)
             params_device = None
             if params_cpu is not None:
@@ -341,6 +351,8 @@ class GridLatentPairDataset(Dataset):
         # Optionally downsample the time dimension to accelerate epochs
         if self.time_stride > 1:
             latent_seq = latent_seq[:: self.time_stride]
+            # Also downsample original fields to match
+            fields_cpu = fields_cpu[:: self.time_stride]
 
         if latent_seq.shape[0] <= self.rollout_horizon:
             raise ValueError("Need more time steps than rollout horizon to form latent pairs")
@@ -354,7 +366,36 @@ class GridLatentPairDataset(Dataset):
         z1 = target_stack[:, 0]
         future = target_stack[:, 1:] if self.rollout_horizon > 1 else None
         cond = prepare_conditioning(params_cpu, bc_cpu, base_len)
-        return LatentPair(z0, z1, cond, future=future)
+
+        # UPT inverse loss support: Add original fields, coords, and metadata
+        # fields_cpu shape: (T, H, W, C) or (T, C, H, W) or (T, H*W, C)
+        # Take first timestep for now (can extend to full sequence later)
+        H, W = self.grid_shape
+        T = fields_cpu.shape[0]
+
+        # Reshape fields to (T, H*W, C) format for consistency
+        if fields_cpu.dim() == 4:
+            # (T, H, W, C) or (T, C, H, W)
+            if fields_cpu.shape[-1] <= 8:  # Channels last: (T, H, W, C)
+                fields_reshaped = fields_cpu.view(T, H * W, -1)
+            else:  # Channels first: (T, C, H, W)
+                fields_reshaped = fields_cpu.permute(0, 2, 3, 1).reshape(T, H * W, -1)
+        elif fields_cpu.dim() == 3:
+            # Already (T, H*W, C) or (T, C, H*W)
+            if fields_cpu.shape[-1] <= 8:  # Already correct
+                fields_reshaped = fields_cpu
+            else:  # Transpose needed
+                fields_reshaped = fields_cpu.transpose(1, 2)
+        else:
+            # Fallback: assume (T, H*W)
+            fields_reshaped = fields_cpu.unsqueeze(-1)
+
+        # Take only the base_len timesteps to match z0
+        fields_orig = {self.field_name: fields_reshaped[:base_len]}
+        coords = self.coords.cpu()  # (1, H*W, 2)
+        meta = {"grid_shape": self.grid_shape}
+
+        return LatentPair(z0, z1, cond, future=future, fields_orig=fields_orig, coords=coords, meta=meta)
 
 
 class GridZarrLatentPairDataset(Dataset):
@@ -488,27 +529,72 @@ class GraphLatentPairDataset(Dataset):
         return LatentPair(z0, z1, cond, future=future)
 
 
-def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
+def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple:
+    """Collate LatentPair items into batched tensors.
+
+    Returns:
+        If future available: (z0, z1, cond, future, fields_orig, coords, meta)
+        Otherwise: (z0, z1, cond, fields_orig, coords, meta)
+    """
     z0_chunks = []
     z1_chunks = []
     cond_list = []
     future_chunks: List[torch.Tensor] = []
     future_available = True
+
+    # UPT inverse loss support
+    fields_orig_list = []
+    coords_list = []
+    meta_list = []
+    upt_data_available = True
+
     for item in batch_items:
         z0_chunks.append(item.z0)
         z1_chunks.append(item.z1)
         cond_list.append(item.cond)
+
         if item.future is None:
             future_available = False
         else:
             future_chunks.append(item.future)
+
+        # Collect UPT fields
+        if item.fields_orig is None or item.coords is None or item.meta is None:
+            upt_data_available = False
+        else:
+            fields_orig_list.append(item.fields_orig)
+            coords_list.append(item.coords)
+            meta_list.append(item.meta)
+
     z0 = torch.cat(z0_chunks, dim=0)
     z1 = torch.cat(z1_chunks, dim=0)
     cond = collate_conditions(cond_list)
+
+    # Collate UPT fields if available
+    fields_orig = None
+    coords = None
+    meta = None
+
+    if upt_data_available and fields_orig_list:
+        # Collate fields_orig: Dict[str, Tensor]
+        # Each item is {field_name: (T, points, C)}, we concatenate along T
+        fields_orig = {}
+        field_names = fields_orig_list[0].keys()
+        for field_name in field_names:
+            field_chunks = [item[field_name] for item in fields_orig_list]
+            fields_orig[field_name] = torch.cat(field_chunks, dim=0)
+
+        # Collate coords: (1, points, coord_dim) -> just take first (they're all the same)
+        coords = coords_list[0]
+
+        # Collate meta: merge dicts (they should all have same grid_shape)
+        meta = meta_list[0]
+
     if future_available and future_chunks:
         future = torch.cat(future_chunks, dim=0)
-        return z0, z1, cond, future
-    return z0, z1, cond
+        return z0, z1, cond, future, fields_orig, coords, meta
+
+    return z0, z1, cond, fields_orig, coords, meta
 
 
 def _build_pdebench_dataset(data_cfg: Dict[str, Any]) -> Tuple[Dataset, GridEncoder, Tuple[int, int], str]:
@@ -661,7 +747,24 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
 
 
 def unpack_batch(batch):
+    """Unpack batch from DataLoader.
+
+    Supports both legacy format (z0, z1, cond, future) and new UPT format
+    (z0, z1, cond, future, fields_orig, coords, meta).
+
+    Returns:
+        Tuple with appropriate length based on batch format
+    """
     if isinstance(batch, (list, tuple)):
+        # New UPT format with inverse loss support
+        if len(batch) == 7 and isinstance(batch[2], dict):
+            z0, z1, cond, future, fields_orig, coords, meta = batch
+            return z0, z1, cond, future, fields_orig, coords, meta
+        if len(batch) == 6 and isinstance(batch[2], dict):
+            z0, z1, cond, fields_orig, coords, meta = batch
+            return z0, z1, cond, None, fields_orig, coords, meta
+
+        # Legacy format (backward compatible)
         if len(batch) == 4 and isinstance(batch[2], dict):
             z0, z1, cond, future = batch
             return z0, z1, cond, future
@@ -671,4 +774,5 @@ def unpack_batch(batch):
         if len(batch) == 2:
             z0, z1 = batch
             return z0, z1, {}
-    raise ValueError("Unexpected batch structure returned by DataLoader")
+
+    raise ValueError(f"Unexpected batch structure returned by DataLoader: {type(batch)}, len={len(batch) if isinstance(batch, (list, tuple)) else 'N/A'}")
