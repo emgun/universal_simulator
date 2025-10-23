@@ -139,21 +139,46 @@ echo "Precomputing latent caches…"
 PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
 export WANDB_MODE=online
-python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args}
+
+# Add timeout to prevent infinite hangs (60 min = 3600 sec)
+# This ensures auto-shutdown happens even if training hangs
+timeout 3600 python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args} || echo "⚠️  Training exited with code $? (timeout or error)"
+
+echo "✓ Training pipeline completed or timed out"
 """
 
     if auto_shutdown:
         script += """
 # Auto-shutdown: Use VastAI API to destroy instance
 # $CONTAINER_ID is provided by VastAI environment
+echo "🔄 Preparing auto-shutdown..."
+
+# Install vastai if not present
+pip install -q vastai >/dev/null 2>&1 || true
+
 if [ -n "${CONTAINER_ID:-}" ]; then
-  echo "🔄 Training complete - auto-shutdown in 10 seconds..."
-  sleep 10  # Give time for logs to flush
-  pip install -q vastai >/dev/null 2>&1 || true
-  vastai destroy instance $CONTAINER_ID || echo "⚠️  Auto-shutdown failed (you may need to manually destroy instance)"
+  echo "🔄 Auto-shutdown triggered - destroying instance $CONTAINER_ID in 10 seconds..."
+  sleep 10  # Give time for logs to flush and WandB to sync
+
+  # Try to destroy instance - retry up to 3 times
+  for i in 1 2 3; do
+    echo "Attempt $i to destroy instance..."
+    if vastai destroy instance $CONTAINER_ID; then
+      echo "✓ Instance destroyed successfully"
+      exit 0
+    else
+      echo "⚠️  Destroy attempt $i failed, retrying in 5 seconds..."
+      sleep 5
+    fi
+  done
+
+  echo "❌ Auto-shutdown failed after 3 attempts - please manually destroy instance $CONTAINER_ID"
 else
   echo "⚠️  CONTAINER_ID not set - cannot auto-shutdown (please destroy instance manually)"
 fi
+
+# Fallback: exit anyway to stop billing
+exit 0
 """
 
     return script

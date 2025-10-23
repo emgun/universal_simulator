@@ -149,17 +149,17 @@ stages:
 ttc:
   enabled: true
   steps: 1
-  candidates: 8
-  beam_width: 3
+  candidates: 16              # Increased from 8 for better search
+  beam_width: 5               # Increased from 3 for wider exploration
   horizon: 1
   residual_threshold: 0.35
   gamma: 1.0
-  max_evaluations: 150
+  max_evaluations: 200        # Increased from 150 to allow more exploration
 
   sampler:
     tau_range: [0.15, 0.85]
-    noise_std: 0.015
-    noise_schedule: [0.03, 0.015, 0.005]
+    noise_std: 0.05           # Increased from 0.015 for more diversity
+    noise_schedule: [0.08, 0.05, 0.02]  # Updated schedule
 
   reward:
     analytical_weight: 1.0
@@ -169,9 +169,9 @@ ttc:
     momentum_field: []
 
     weights:
-      mass: 1.2
-      energy: 0.15
-      penalty_negative: 0.6
+      mass: 1.0               # Reduced from 1.2 for balance
+      energy: 1.0             # Increased from 0.15 (KEY FIX)
+      penalty_negative: 0.5   # Reduced from 0.6 for balance
 
     critic:
       weight: 0.0
