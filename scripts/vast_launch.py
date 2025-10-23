@@ -144,9 +144,15 @@ python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-sma
 
     if auto_shutdown:
         script += """
-if command -v poweroff >/dev/null 2>&1; then
-  sync
-  poweroff
+# Auto-shutdown: Use VastAI API to destroy instance
+# $CONTAINER_ID is provided by VastAI environment
+if [ -n "${CONTAINER_ID:-}" ]; then
+  echo "🔄 Training complete - auto-shutdown in 10 seconds..."
+  sleep 10  # Give time for logs to flush
+  pip install -q vastai >/dev/null 2>&1 || true
+  vastai destroy instance $CONTAINER_ID || echo "⚠️  Auto-shutdown failed (you may need to manually destroy instance)"
+else
+  echo "⚠️  CONTAINER_ID not set - cannot auto-shutdown (please destroy instance manually)"
 fi
 """
 
