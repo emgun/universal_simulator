@@ -118,7 +118,8 @@ training:
 
   # Enable/disable UPT inverse losses (for ablation studies)
   # Set to false to disable and match golden config exactly
-  use_upt_inverse_losses: true
+  # TEMPORARILY DISABLED due to CUDA compatibility issues on VastAI
+  use_upt_inverse_losses: false
 
   # ========================================================================
   # Standard Losses (keep from golden config)
