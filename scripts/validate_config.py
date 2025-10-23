@@ -126,12 +126,12 @@ def validate_stages(cfg: Dict) -> List[Tuple[str, bool, str]]:
         f"epochs = {op_epochs}"
     ))
     
-    # Check diffusion stage
+    # Check diffusion stage (allow 0 for ablation tests)
     diff_epochs = stages.get("diff_residual", {}).get("epochs", 0)
     checks.append((
-        "diff_residual.epochs > 0",
-        diff_epochs > 0,
-        f"epochs = {diff_epochs}"
+        "diff_residual.epochs >= 0",
+        diff_epochs >= 0,
+        f"epochs = {diff_epochs} (0 = disabled for ablation test)"
     ))
     
     # Check optimizer for operator
