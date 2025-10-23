@@ -99,10 +99,14 @@ def set_seed(cfg: Dict) -> None:
     benchmark = cfg.get("benchmark", True)
 
     if deterministic:
+        # Set CUBLAS workspace config for deterministic CuBLAS operations
+        import os
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+
         torch.use_deterministic_algorithms(True, warn_only=True)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-        print(f"✓ Deterministic mode enabled (seed={seed})")
+        print(f"✓ Deterministic mode enabled (seed={seed}, CUBLAS workspace configured)")
     else:
         torch.backends.cudnn.benchmark = benchmark
         print(f"✓ Seed set to {seed} (deterministic={deterministic}, benchmark={benchmark})")
