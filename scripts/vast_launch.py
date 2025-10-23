@@ -135,8 +135,15 @@ mkdir -p data/latent_cache checkpoints/scale
 mkdir -p checkpoints
 mkdir -p artifacts/runs reports
 
+# Verify CUDA is available before starting
+echo "Verifying CUDA availability..."
+python -c "import torch; assert torch.cuda.is_available(), 'CUDA not available!'; print(f'✓ CUDA available: {{torch.cuda.get_device_name(0)}}')" || {{
+  echo "❌ CUDA not available - cannot train on CPU. Exiting."
+  exit 1
+}}
+
 echo "Precomputing latent caches…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
+PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cuda --batch-size 16 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
 export WANDB_MODE=online
 
