@@ -1,0 +1,67 @@
+# Hyperparameter Sweep for Diffusion Stage
+#
+# Purpose: Address diffusion overfitting issue identified in variance analysis
+#
+# Key Findings:
+# - Diffusion loss variance: 38.8% (ranges from 0.0029 to 0.0065)
+# - Inverse correlation with eval: Lower diffusion loss → WORSE eval NRMSE (-0.394 correlation)
+# - This suggests overfitting: diffusion learns spurious patterns that hurt generalization
+#
+# Sweep Strategy:
+# - Test reducing epochs (less training may prevent overfitting)
+# - Test lower learning rates (slower training may help)
+# - Test higher regularization (weight_decay)
+# - Test disabling diffusion entirely (baseline)
+
+# WandB sweep configuration format
+method: bayes  # Bayesian optimization to find best params efficiently
+metric:
+  name: eval/baseline_nrmse
+  goal: minimize
+
+# Early termination
+early_terminate:
+  type: hyperband
+  min_iter: 3
+  eta: 2
+
+# Hyperparameters to sweep
+parameters:
+  # Diffusion epochs
+  stages.diff_residual.epochs:
+    values: [0, 3, 5, 8]  # 0 = disable, test if less is more
+
+  # Diffusion learning rate
+  stages.diff_residual.optimizer.lr:
+    distribution: log_uniform_values
+    min: 1.0e-6
+    max: 1.0e-4  # Current: 5e-5, test lower range
+
+  # Diffusion weight decay (regularization)
+  stages.diff_residual.optimizer.weight_decay:
+    values: [0.01, 0.03, 0.05, 0.1]  # Current: 0.015, test stronger
+
+  # Keep these fixed (baseline config)
+  seed:
+    value: 42
+  deterministic:
+    value: true
+  latent.dim:
+    value: 16
+  latent.tokens:
+    value: 32
+  stages.operator.epochs:
+    value: 25
+  stages.consistency_distill.epochs:
+    value: 8
+  ttc.enabled:
+    value: true
+
+# Command to run
+command:
+  - python
+  - scripts/train.py
+  - --config
+  - configs/train_burgers_golden.yaml
+  - --stage
+  - all

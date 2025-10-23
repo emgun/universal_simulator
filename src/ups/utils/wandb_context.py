@@ -304,34 +304,68 @@ def create_wandb_context(
         return WandBContext(run=None, run_id=run_id, enabled=False)
 
     # Extract key hyperparameters for wandb.config
-    # (Don't dump entire config - just what's important)
+    # Log comprehensive config for reproducibility and debugging
     wandb_config = {
+        # Reproducibility settings
+        "seed": config.get("seed"),
+        "deterministic": config.get("deterministic", False),
+        "benchmark": config.get("benchmark", True),
+
+        # Latent space
         "latent_dim": config["latent"]["dim"],
         "latent_tokens": config["latent"]["tokens"],
+
+        # Operator architecture
         "operator_hidden_dim": config["operator"]["pdet"]["hidden_dim"],
         "operator_num_heads": config["operator"]["pdet"]["num_heads"],
         "operator_depths": config["operator"]["pdet"]["depths"],
+        "operator_group_size": config["operator"]["pdet"].get("group_size"),
+
+        # Diffusion architecture
+        "diffusion_latent_dim": config.get("diffusion", {}).get("latent_dim"),
+        "diffusion_hidden_dim": config.get("diffusion", {}).get("hidden_dim"),
+
+        # Training params
         "batch_size": config["training"]["batch_size"],
         "time_stride": config["training"]["time_stride"],
+        "grad_clip": config["training"].get("grad_clip"),
+        "amp": config["training"].get("amp", False),
+        "compile": config["training"].get("compile", False),
+        "ema_decay": config["training"].get("ema_decay"),
+        "accum_steps": config["training"].get("accum_steps", 1),
+
+        # Data
         "task": config["data"]["task"],
+        "split": config["data"].get("split", "train"),
     }
 
-    # Add training stage configs
+    # Add training stage configs with full optimizer details
     stages = config.get("stages", {})
     if "operator" in stages:
-        wandb_config["operator_epochs"] = stages["operator"].get("epochs", 0)
-        wandb_config["operator_lr"] = stages["operator"].get("optimizer", {}).get(
-            "lr", 0
-        )
+        op_stage = stages["operator"]
+        wandb_config["operator_epochs"] = op_stage.get("epochs", 0)
+        if "optimizer" in op_stage:
+            op_opt = op_stage["optimizer"]
+            wandb_config["operator_lr"] = op_opt.get("lr", 0)
+            wandb_config["operator_weight_decay"] = op_opt.get("weight_decay", 0)
+            wandb_config["operator_optimizer"] = op_opt.get("name", "adamw")
+
     if "diff_residual" in stages:
-        wandb_config["diffusion_epochs"] = stages["diff_residual"].get("epochs", 0)
-        wandb_config["diffusion_lr"] = stages["diff_residual"].get("optimizer", {}).get(
-            "lr", 0
-        )
+        diff_stage = stages["diff_residual"]
+        wandb_config["diffusion_epochs"] = diff_stage.get("epochs", 0)
+        if "optimizer" in diff_stage:
+            diff_opt = diff_stage["optimizer"]
+            wandb_config["diffusion_lr"] = diff_opt.get("lr", 0)
+            wandb_config["diffusion_weight_decay"] = diff_opt.get("weight_decay", 0)
+            wandb_config["diffusion_optimizer"] = diff_opt.get("name", "adamw")
+
     if "consistency_distill" in stages:
-        wandb_config["consistency_epochs"] = stages["consistency_distill"].get(
-            "epochs", 0
-        )
+        cons_stage = stages["consistency_distill"]
+        wandb_config["consistency_epochs"] = cons_stage.get("epochs", 0)
+        if "optimizer" in cons_stage:
+            cons_opt = cons_stage["optimizer"]
+            wandb_config["consistency_lr"] = cons_opt.get("lr", 0)
+            wandb_config["consistency_weight_decay"] = cons_opt.get("weight_decay", 0)
 
     # Add TTC config if enabled
     ttc_cfg = config.get("ttc", {})
@@ -339,6 +373,9 @@ def create_wandb_context(
         wandb_config["ttc_enabled"] = True
         wandb_config["ttc_candidates"] = ttc_cfg.get("candidates", 0)
         wandb_config["ttc_beam_width"] = ttc_cfg.get("beam_width", 0)
+        wandb_config["ttc_steps"] = ttc_cfg.get("steps", 1)
+        if "sampler" in ttc_cfg:
+            wandb_config["ttc_noise_std"] = ttc_cfg["sampler"].get("noise_std")
 
     try:
         run = wandb.init(

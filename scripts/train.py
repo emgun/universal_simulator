@@ -82,12 +82,30 @@ def load_config(path: str) -> dict:
 
 
 def set_seed(cfg: Dict) -> None:
+    """Set random seed and configure determinism settings.
+
+    Args:
+        cfg: Config dict with optional 'seed', 'deterministic', and 'benchmark' keys
+    """
     seed = cfg.get("seed", 17)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+    # Configure PyTorch determinism
+    deterministic = cfg.get("deterministic", False)
+    benchmark = cfg.get("benchmark", True)
+
+    if deterministic:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        print(f"✓ Deterministic mode enabled (seed={seed})")
+    else:
+        torch.backends.cudnn.benchmark = benchmark
+        print(f"✓ Seed set to {seed} (deterministic={deterministic}, benchmark={benchmark})")
 
 
 def ensure_checkpoint_dir(cfg: dict) -> Path:

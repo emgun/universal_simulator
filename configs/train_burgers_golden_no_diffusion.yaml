@@ -1,18 +1,14 @@
-# Golden Burgers1D Training Configuration
-# Based on successful run ptxr87mw (NRMSE: 0.0782 - 25x improvement)
-# 
-# Performance:
-#   Baseline NRMSE: ~0.078 (vs 1.96 in previous configs)
-#   TTC NRMSE: ~0.078 (minimal improvement, but stable)
-#   Training time: ~14.5 min on RTX 4090
-#   Architecture: 16-dim latent, 32 tokens, 96 hidden_dim
+# Golden Burgers1D Training Configuration - NO DIFFUSION
+# Test if diffusion stage is hurting performance (based on variance analysis)
 #
-# Key Success Factors:
-#   1. Dimensional consistency between training and TTC inference
-#   2. More training epochs (25/8/8 vs 15/5/6)
-#   3. Higher learning rates for diffusion/consistency stages
-#   4. Better regularization with weight decay
-#   5. Efficient token utilization (32 tokens, 16 latent)
+# Changes from train_burgers_golden.yaml:
+# - Diffusion epochs: 8 → 0 (DISABLED)
+# - Consistency epochs: 8 → 0 (DISABLED, depends on diffusion)
+# - Added reproducibility settings (seed=42, deterministic=true)
+#
+# Hypothesis: Diffusion overfitting may be causing eval variance and poor performance.
+# The inverse correlation (-0.394) between diffusion loss and NRMSE suggests that
+# when diffusion trains "well" (low loss), eval actually gets worse.
 
 # ============================================================================
 # REPRODUCIBILITY
@@ -29,7 +25,6 @@ data:
   split: train
   root: data/pdebench
   patch_size: 1
-  # No shard_limit - use full dataset
 
   download:
     test_val_datasets: burgers1d_full_v1
@@ -41,26 +36,26 @@ data:
 # LATENT SPACE
 # ============================================================================
 latent:
-  dim: 16        # Key: Smaller latent dim for efficiency
-  tokens: 32     # Key: More tokens for better spatial resolution
+  dim: 16
+  tokens: 32
 
 # ============================================================================
 # OPERATOR ARCHITECTURE
 # ============================================================================
 operator:
   pdet:
-    input_dim: 16           # Must match latent.dim
-    hidden_dim: 96          # 6x latent_dim (enhanced capacity)
+    input_dim: 16
+    hidden_dim: 96
     depths: [1, 1, 1]
-    group_size: 12          # Divides hidden_dim evenly (96/12=8)
-    num_heads: 6            # Enhanced attention heads
+    group_size: 12
+    num_heads: 6
 
 # ============================================================================
 # DIFFUSION ARCHITECTURE
 # ============================================================================
 diffusion:
-  latent_dim: 16            # Must match latent.dim
-  hidden_dim: 96            # Match operator hidden_dim
+  latent_dim: 16
+  hidden_dim: 96
 
 # ============================================================================
 # TRAINING CONFIGURATION
@@ -102,46 +97,19 @@ training:
 # ============================================================================
 stages:
   operator:
-    epochs: 25              # Key: More epochs (was 15)
-    
+    epochs: 25
+
     optimizer:
       name: adamw
       lr: 1.0e-3
       betas: [0.9, 0.999]
-      weight_decay: 0.03    # Key: Added weight decay
+      weight_decay: 0.03
 
   diff_residual:
-    epochs: 8               # Key: More epochs (was 5)
-    grad_clip: 1.0
-    ema_decay: 0.999
-
-    optimizer:
-      name: adamw
-      lr: 5.0e-5            # Key: Higher LR (was 3e-5)
-      weight_decay: 0.015   # Key: Added weight decay
-      betas: [0.9, 0.999]
-    
-    scheduler:
-      name: cosineannealinglr
-      t_max: 8
-      eta_min: 3.0e-6
+    epochs: 0  # DISABLED - Test baseline without diffusion
 
   consistency_distill:
-    epochs: 8               # Key: More epochs (was 6)
-    batch_size: 6
-    tau_schedule: [5, 4, 3]
-    accum_steps: 2
-
-    optimizer:
-      name: adamw
-      lr: 3.0e-5            # Key: Higher LR (was 2e-5)
-      weight_decay: 0.015   # Key: Added weight decay
-      betas: [0.9, 0.999]
-    
-    scheduler:
-      name: cosineannealinglr
-      t_max: 8
-      eta_min: 2.0e-6
+    epochs: 0  # DISABLED - Depends on diffusion
 
   steady_prior:
     epochs: 0
@@ -182,9 +150,9 @@ ttc:
       dropout: 0.1
 
   decoder:
-    latent_dim: 16          # Key: Matches main latent dim
+    latent_dim: 16
     query_dim: 2
-    hidden_dim: 96          # Key: Matches main hidden dim
+    hidden_dim: 96
     mlp_hidden_dim: 128
     num_layers: 3
     num_heads: 4
@@ -215,6 +183,6 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: burgers-golden
-    tags: [16dim, golden, practical, efficient]
-    group: baseline-experiments
+    run_name: burgers-golden-no-diffusion
+    tags: [16dim, golden, no-diffusion, reproducibility-test]
+    group: diffusion-ablation
