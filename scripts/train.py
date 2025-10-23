@@ -43,7 +43,6 @@ from ups.training.consistency_distill import DistillationConfig, distillation_lo
 from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
 from ups.utils.monitoring import init_monitoring_session, MonitoringSession
-from ups.training.losses import upt_inverse_encoding_loss, upt_inverse_decoding_loss
 
 # ---- Auxiliary training losses ----
 def _nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
@@ -424,51 +423,6 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
     lam_rollout = float(cfg.get("training", {}).get("lambda_rollout", 0.0) or 0.0)
-
-    # UPT Inverse losses (Phase 1 implementation)
-    use_upt_losses = cfg.get("training", {}).get("use_upt_inverse_losses", False)
-    lam_inv_enc = float(cfg.get("training", {}).get("lambda_inv_enc", 0.0) or 0.0)
-    lam_inv_dec = float(cfg.get("training", {}).get("lambda_inv_dec", 0.0) or 0.0)
-    inv_enc_query_points = int(cfg.get("training", {}).get("inv_enc_query_points", 2048))
-    inv_dec_query_points = int(cfg.get("training", {}).get("inv_dec_query_points", 1024))
-
-    # Retrieve encoder and create decoder for UPT inverse losses
-    encoder = None
-    decoder = None
-
-    if use_upt_losses:
-        # Try to get encoder from dataset
-        if hasattr(loader.dataset, 'encoder'):
-            encoder = loader.dataset.encoder
-            print(f"Retrieved encoder from dataset for UPT inverse losses")
-        elif hasattr(loader.dataset, 'datasets'):  # ConcatDataset
-            if hasattr(loader.dataset.datasets[0], 'encoder'):
-                encoder = loader.dataset.datasets[0].encoder
-                print(f"Retrieved encoder from first concatenated dataset for UPT inverse losses")
-
-        # Create decoder if encoder available
-        if encoder is not None:
-            from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
-
-            latent_dim = cfg.get("latent", {}).get("dim", 32)
-            hidden_dim = cfg.get("operator", {}).get("pdet", {}).get("hidden_dim", 64)
-
-            decoder_cfg = AnyPointDecoderConfig(
-                latent_dim=latent_dim,
-                query_dim=2,  # 2D spatial coordinates
-                hidden_dim=hidden_dim,
-                num_layers=2,
-                num_heads=4,
-                frequencies=(1.0, 2.0, 4.0),
-                output_channels={"u": 1},  # Burgers equation has 1-channel field
-            )
-            decoder = AnyPointDecoder(decoder_cfg).to(device).eval()
-            print(f"Created decoder for UPT inverse losses: latent_dim={latent_dim}, hidden_dim={hidden_dim}")
-        else:
-            print("Warning: use_upt_inverse_losses=true but encoder not found in dataset")
-            print("UPT inverse losses will be skipped")
-            use_upt_losses = False
-
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -479,16 +433,11 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         optimizer.zero_grad(set_to_none=True)
         for i, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
-            # Handle both new UPT format and legacy format
-            if len(unpacked) == 7:
-                z0, z1, cond, future, fields_orig, coords, meta = unpacked
-            elif len(unpacked) == 4:
+            if len(unpacked) == 4:
                 z0, z1, cond, future = unpacked
-                fields_orig, coords, meta = None, None, None
             else:
                 z0, z1, cond = unpacked
-                future, fields_orig, coords, meta = None, None, None, None
-
+                future = None
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
@@ -513,43 +462,6 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                             rollout_loss = rollout_loss + F.mse_loss(rollout_state.z, target_step)
                         rollout_loss = rollout_loss / max(steps, 1)
                         loss = loss + lam_rollout * rollout_loss
-
-                    # ============================================================
-                    # UPT Inverse Losses (Phase 1 - ACTIVE)
-                    # ============================================================
-                    if use_upt_losses and encoder is not None and decoder is not None:
-                        if fields_orig is not None and coords is not None:
-                            # Move UPT data to device
-                            fields_orig_device = {k: v.to(device, non_blocking=True) for k, v in fields_orig.items()}
-                            coords_device = coords.to(device, non_blocking=True)
-
-                            # Inverse encoding loss: decode latent → compare with original
-                            if lam_inv_enc > 0.0:
-                                loss_inv_enc = upt_inverse_encoding_loss(
-                                    input_fields=fields_orig_device,
-                                    input_coords=coords_device,
-                                    latent=next_state.z,
-                                    decoder=decoder,
-                                    meta=meta,
-                                    num_query_points=inv_enc_query_points,
-                                    weight=lam_inv_enc,
-                                )
-                                loss = loss + loss_inv_enc
-
-                            # Inverse decoding loss: decode → re-encode → compare latent
-                            if lam_inv_dec > 0.0:
-                                loss_inv_dec = upt_inverse_decoding_loss(
-                                    latent=next_state.z,
-                                    decoder=decoder,
-                                    encoder=encoder,
-                                    query_coords=coords_device,
-                                    original_coords=coords_device,
-                                    meta=meta,
-                                    num_query_points=inv_dec_query_points,
-                                    weight=lam_inv_dec,
-                                )
-                                loss = loss + loss_inv_dec
-                    # ============================================================
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
