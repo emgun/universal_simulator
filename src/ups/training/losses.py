@@ -96,7 +96,15 @@ def upt_inverse_encoding_loss(
     -------
     Weighted MSE loss between reconstructed and original fields
     """
-    batch_size, num_points, coord_dim = input_coords.shape
+    # Get batch size from latent (coords may be (1, points, coord_dim) and need expansion)
+    latent_batch_size = latent.shape[0]
+    coords_batch_size, num_points, coord_dim = input_coords.shape
+
+    # Expand coords to match latent batch size if needed (broadcast)
+    if coords_batch_size == 1 and latent_batch_size > 1:
+        input_coords = input_coords.expand(latent_batch_size, -1, -1)
+
+    batch_size = latent_batch_size
 
     # Sample subset of query points if requested (for efficiency)
     if num_query_points is not None and num_query_points < num_points:
@@ -171,7 +179,16 @@ def upt_inverse_decoding_loss(
     This loss requires a forward pass through both decoder and encoder,
     which can be expensive. Use `num_query_points` to control computational cost.
     """
-    batch_size, total_points, coord_dim = original_coords.shape
+    # Get batch size from latent
+    latent_batch_size = latent.shape[0]
+    coords_batch_size, total_points, coord_dim = original_coords.shape
+
+    # Expand coords to match latent batch size if needed (broadcast)
+    if coords_batch_size == 1 and latent_batch_size > 1:
+        original_coords = original_coords.expand(latent_batch_size, -1, -1)
+        query_coords = query_coords.expand(latent_batch_size, -1, -1)
+
+    batch_size = latent_batch_size
 
     # Sample random query points for decoding
     if num_query_points < total_points:
