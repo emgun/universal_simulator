@@ -92,7 +92,11 @@ def evaluate_latent_operator(
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
-            if len(unpacked) == 4:
+            if isinstance(unpacked, dict):
+                z0 = unpacked["z0"]
+                z1 = unpacked["z1"]
+                cond = unpacked.get("cond", {})
+            elif len(unpacked) == 4:
                 z0, z1, cond, _ = unpacked
             else:
                 z0, z1, cond = unpacked
@@ -278,7 +282,11 @@ def evaluate_latent_model(
     with torch.no_grad():
         for batch in loader:
             unpacked = unpack_batch(batch)
-            if len(unpacked) == 4:
+            if isinstance(unpacked, dict):
+                z0 = unpacked["z0"]
+                z1 = unpacked["z1"]
+                cond = unpacked.get("cond", {})
+            elif len(unpacked) == 4:
                 z0, z1, cond, _ = unpacked
             else:
                 z0, z1, cond = unpacked

@@ -1,54 +1,29 @@
-# UPT Inverse Losses Experimental Configuration
-# Based on train_burgers_golden.yaml with UPT inverse encoding/decoding losses
+# Burgers1D Training with UPT Inverse Losses
+# Based on train_burgers_golden.yaml with added inverse reconstruction losses
+# Expected: 10-20% NRMSE improvement over baseline
 #
-# Phase 1 Implementation: Inverse Losses Integration
-# - Adds UPT inverse encoding loss (ensures latent can reconstruct input)
-# - Adds UPT inverse decoding loss (ensures decoder output can be re-encoded)
-# - Uses same architecture as golden config for fair comparison
-#
-# Expected Impact:
-#   - Improved latent rollout stability (correlation time)
-#   - Better encoder/decoder separation of concerns
-#   - 10-20% NRMSE improvement over baseline
-#
-# Note: This config requires data loader modifications to provide:
-#   - Original physical fields (not just latent pairs)
-#   - Spatial coordinates
-#   - Metadata (grid_shape, etc.)
-#   See implementation notes in scripts/train.py
+# Phase 1 - UPT Inverse Losses Implementation
+# Reference: thoughts/shared/plans/2025-01-23-upt-inverse-losses-implementation.md
 
-# ============================================================================
-# REPRODUCIBILITY
-# ============================================================================
 seed: 42
-deterministic: true
-benchmark: false
+deterministic: false  # Disabled to avoid deterministic algorithm warnings
+benchmark: true       # Enabled for better performance
 
-# ============================================================================
-# DATA CONFIGURATION
-# ============================================================================
 data:
   task: burgers1d
   split: train
   root: data/pdebench
   patch_size: 1
-
   download:
     test_val_datasets: burgers1d_full_v1
     train_files:
       - source: full/burgers1d/burgers1d_train_000.h5
         symlink: burgers1d_train.h5
 
-# ============================================================================
-# LATENT SPACE
-# ============================================================================
 latent:
   dim: 16
   tokens: 32
 
-# ============================================================================
-# OPERATOR ARCHITECTURE
-# ============================================================================
 operator:
   pdet:
     input_dim: 16
@@ -57,16 +32,10 @@ operator:
     group_size: 12
     num_heads: 6
 
-# ============================================================================
-# DIFFUSION ARCHITECTURE
-# ============================================================================
 diffusion:
   latent_dim: 16
   hidden_dim: 96
 
-# ============================================================================
-# TRAINING CONFIGURATION
-# ============================================================================
 training:
   batch_size: 12
   time_stride: 2
@@ -88,53 +57,23 @@ training:
   ema_decay: 0.999
   accum_steps: 4
 
-  distill_micro_batch: 3
-  distill_num_taus: 5
-
-  # ========================================================================
   # UPT Inverse Losses (NEW)
-  # ========================================================================
-  # These losses enforce true E/A/D disentanglement as described in UPT paper
+  lambda_inv_enc: 0.5  # Weight for inverse encoding loss
+  lambda_inv_dec: 0.5  # Weight for inverse decoding loss
+  use_inverse_losses: true  # Enable physical field loading
+  inverse_loss_frequency: 10  # Compute every N batches (to reduce overhead)
 
-  # Inverse encoding loss weight
-  # Ensures latent can reconstruct original input via decoder
-  # Algorithm: z = E(u) → u_recon = D(z, input_pos) → MSE(u_recon, u)
-  lambda_inv_enc: 0.5
-
-  # Inverse decoding loss weight
-  # Ensures decoder output can be re-encoded to latent
-  # Algorithm: u_dec = D(z, query_pos) → z_recon = E(u_dec) → MSE(z_recon, z)
-  lambda_inv_dec: 0.5
-
-  # Number of query points to sample for inverse encoding loss
-  # Lower values = faster training, higher values = better coverage
-  # Recommended: 2048-4096 for grids
-  inv_enc_query_points: 2048
-
-  # Number of query points to sample for inverse decoding loss
-  # Lower values = faster training, higher values = better coverage
-  # Recommended: 1024-2048 (cheaper than inv_enc due to double forward pass)
-  inv_dec_query_points: 1024
-
-  # Enable/disable UPT inverse losses (for ablation studies)
-  # Set to false to disable and match golden config exactly
-  use_upt_inverse_losses: true
-
-  # ========================================================================
-  # Standard Losses (keep from golden config)
-  # ========================================================================
   lambda_spectral: 0.05
   lambda_relative: 0.0
-  lambda_rollout: 0.0  # Can be increased if rollout_horizon > 1
+
+  distill_micro_batch: 3
+  distill_num_taus: 5
 
   tau_distribution:
     type: beta
     alpha: 1.2
     beta: 1.2
 
-# ============================================================================
-# TRAINING STAGES
-# ============================================================================
 stages:
   operator:
     epochs: 25
@@ -181,9 +120,6 @@ stages:
   steady_prior:
     epochs: 0
 
-# ============================================================================
-# TEST-TIME CONDITIONING (TTC)
-# ============================================================================
 ttc:
   enabled: true
   steps: 1
@@ -229,73 +165,18 @@ ttc:
       rho: 1
       e: 1
 
-# ============================================================================
-# CHECKPOINT CONFIGURATION
-# ============================================================================
 checkpoint:
   dir: checkpoints
 
-# ============================================================================
-# EVALUATION
-# ============================================================================
 evaluation:
   enabled: true
   split: test
 
-# ============================================================================
-# LOGGING
-# ============================================================================
 logging:
   wandb:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
     run_name: burgers-upt-losses
-    tags: [16dim, upt-phase1, inverse-losses, experimental]
-    group: upt-integration
-
-# ============================================================================
-# IMPLEMENTATION NOTES
-# ============================================================================
-#
-# To enable UPT inverse losses, the data pipeline must provide:
-#
-# 1. In batch dict during operator training:
-#    - "fields_orig": Dict[str, Tensor]  # Original physical fields (B, points, channels)
-#    - "coords": Tensor                   # Spatial coordinates (B, points, coord_dim)
-#    - "meta": Dict[str, Any]             # Metadata (grid_shape, etc.)
-#
-# 2. Encoder and decoder modules must be passed to train_operator():
-#    - encoder: GridEncoder or MeshParticleEncoder
-#    - decoder: AnyPointDecoder
-#
-# 3. Modify scripts/train.py train_operator() to compute UPT losses:
-#    ```python
-#    if use_upt_inverse_losses:
-#        # Inverse encoding loss
-#        loss_inv_enc = upt_inverse_encoding_loss(
-#            batch["fields_orig"],
-#            batch["coords"],
-#            next_state.z,
-#            decoder,
-#            meta=batch.get("meta"),
-#            num_query_points=inv_enc_query_points,
-#            weight=lambda_inv_enc,
-#        )
-#
-#        # Inverse decoding loss
-#        loss_inv_dec = upt_inverse_decoding_loss(
-#            next_state.z,
-#            decoder,
-#            encoder,
-#            batch["coords"],
-#            batch["coords"],
-#            meta=batch.get("meta"),
-#            num_query_points=inv_dec_query_points,
-#            weight=lambda_inv_dec,
-#        )
-#
-#        loss = loss + loss_inv_enc + loss_inv_dec
-#    ```
-#
-# See UPT_INTEGRATION_ANALYSIS.md Section 5 for detailed implementation roadmap.
+    tags: [16dim, upt, inverse-losses, phase1]
+    group: upt-experiments

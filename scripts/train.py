@@ -406,6 +406,56 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     print(f"Using device: {device}")
     operator.to(device)
     operator = _maybe_compile(operator, cfg, "operator")
+
+    # Instantiate encoder and decoder for inverse losses
+    use_inverse_losses = (
+        cfg.get("training", {}).get("lambda_inv_enc", 0.0) > 0 or
+        cfg.get("training", {}).get("lambda_inv_dec", 0.0) > 0
+    )
+
+    encoder = None
+    decoder = None
+    if use_inverse_losses:
+        from ups.io.enc_grid import GridEncoder, GridEncoderConfig
+        from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
+
+        # Create encoder (same config as used in data preprocessing)
+        data_cfg = cfg.get("data", {})
+        latent_cfg = cfg.get("latent", {})
+
+        # Infer field channels from dataset
+        # For Burgers: {"u": 1}
+        # TODO: Make this more robust by reading from dataset metadata
+        field_channels = {"u": 1}  # Burgers 1D default
+        if "field_channels" in data_cfg:
+            field_channels = data_cfg["field_channels"]
+
+        encoder_cfg = GridEncoderConfig(
+            latent_len=latent_cfg.get("tokens", 32),
+            latent_dim=latent_cfg.get("dim", 16),
+            field_channels=field_channels,
+            patch_size=data_cfg.get("patch_size", 4),
+        )
+        encoder = GridEncoder(encoder_cfg).to(device)
+        encoder.eval()  # Encoder not trained during operator stage
+
+        # Create decoder (matches TTC decoder config or use sensible defaults)
+        ttc_decoder_cfg = cfg.get("ttc", {}).get("decoder", {})
+        decoder_cfg = AnyPointDecoderConfig(
+            latent_dim=latent_cfg.get("dim", 16),
+            query_dim=2,  # 2D spatial coords for Burgers
+            hidden_dim=ttc_decoder_cfg.get("hidden_dim", latent_cfg.get("dim", 16) * 4),
+            num_layers=ttc_decoder_cfg.get("num_layers", 2),
+            num_heads=ttc_decoder_cfg.get("num_heads", 4),
+            frequencies=tuple(ttc_decoder_cfg.get("frequencies", [1.0, 2.0, 4.0])),
+            mlp_hidden_dim=ttc_decoder_cfg.get("mlp_hidden_dim", 128),
+            output_channels=field_channels,
+        )
+        decoder = AnyPointDecoder(decoder_cfg).to(device)
+        decoder.eval()  # Decoder not trained during operator stage
+
+        print(f"✓ Initialized encoder and decoder for inverse losses")
+
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(operator.state_dict())
@@ -433,35 +483,96 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         optimizer.zero_grad(set_to_none=True)
         for i, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
-            if len(unpacked) == 4:
+
+            # Handle both dict and tuple formats
+            if isinstance(unpacked, dict):
+                z0 = unpacked["z0"]
+                z1 = unpacked["z1"]
+                cond = unpacked.get("cond", {})
+                future = unpacked.get("future")
+                # Extract inverse loss fields from dict
+                input_fields_physical = unpacked.get("input_fields")
+                coords = unpacked.get("coords")
+                meta = unpacked.get("meta")
+            elif len(unpacked) == 4:
                 z0, z1, cond, future = unpacked
+                input_fields_physical = None
+                coords = None
+                meta = None
             else:
                 z0, z1, cond = unpacked
                 future = None
+                input_fields_physical = None
+                coords = None
+                meta = None
+
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
             target = z1.to(device)
+
+            # Move inverse loss fields to device if present
+            if input_fields_physical is not None:
+                input_fields_physical = {k: v.to(device) for k, v in input_fields_physical.items()}
+            if coords is not None:
+                coords = coords.to(device)
+
             try:
                 with autocast(enabled=use_amp):
+                    # Forward prediction (always computed)
                     next_state = operator(state, dt_tensor)
-                    base = F.mse_loss(next_state.z, target)
-                    extra = 0.0
-                    if lam_spec > 0.0:
-                        extra = extra + lam_spec * _spectral_energy_loss(next_state.z, target, dim=1)
-                    if lam_rel > 0.0:
-                        extra = extra + lam_rel * _nrmse(next_state.z, target)
-                    loss = base + extra
+
+                    # Build loss weights dict
+                    loss_weights = {
+                        "lambda_forward": 1.0,  # Always weight forward loss at 1.0
+                        "lambda_inv_enc": float(train_cfg.get("lambda_inv_enc", 0.0)),
+                        "lambda_inv_dec": float(train_cfg.get("lambda_inv_dec", 0.0)),
+                        "lambda_spectral": lam_spec,
+                        "lambda_rollout": lam_rollout,
+                    }
+
+                    # Prepare rollout targets if needed
+                    rollout_pred = None
+                    rollout_tgt = None
                     if lam_rollout > 0.0 and future is not None and future.numel() > 0:
                         rollout_targets = future.to(device)
                         rollout_state = next_state
-                        rollout_loss = 0.0
+                        rollout_preds = []
                         steps = rollout_targets.shape[1]
                         for step in range(steps):
                             rollout_state = operator(rollout_state, dt_tensor)
-                            target_step = rollout_targets[:, step]
-                            rollout_loss = rollout_loss + F.mse_loss(rollout_state.z, target_step)
-                        rollout_loss = rollout_loss / max(steps, 1)
-                        loss = loss + lam_rollout * rollout_loss
+                            rollout_preds.append(rollout_state.z)
+                        rollout_pred = torch.stack(rollout_preds, dim=1)  # (B, steps, tokens, dim)
+                        rollout_tgt = rollout_targets
+
+                    # Compute loss bundle (handles optional inverse losses)
+                    from ups.training.losses import compute_operator_loss_bundle
+
+                    loss_bundle = compute_operator_loss_bundle(
+                        # Inverse encoding inputs (optional)
+                        input_fields=input_fields_physical if use_inverse_losses else None,
+                        encoded_latent=state.z if use_inverse_losses else None,
+                        decoder=decoder if use_inverse_losses else None,
+                        input_positions=coords if use_inverse_losses else None,
+                        # Inverse decoding inputs (optional)
+                        encoder=encoder if use_inverse_losses else None,
+                        query_positions=coords if use_inverse_losses else None,
+                        coords=coords if use_inverse_losses else None,
+                        meta=meta if use_inverse_losses else None,
+                        # Forward prediction (always)
+                        pred_next=next_state.z,
+                        target_next=target,
+                        # Rollout (optional)
+                        pred_rollout=rollout_pred,
+                        target_rollout=rollout_tgt,
+                        # Spectral (optional)
+                        spectral_pred=next_state.z if lam_spec > 0 else None,
+                        spectral_target=target if lam_spec > 0 else None,
+                        # Weights
+                        weights=loss_weights,
+                    )
+
+                    loss = loss_bundle.total
+
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
@@ -469,7 +580,13 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     print("Warning: OOM encountered in operator step, skipping batch")
                     continue
                 raise
+
             loss_value = loss.detach().item()
+
+            # Log individual loss components to WandB
+            if wandb_ctx and i % 10 == 0:  # Log every 10 batches
+                for name, value in loss_bundle.components.items():
+                    wandb_ctx.log_training_metric("operator", name, value.item(), step=logger.get_global_step())
             if use_amp:
                 scaler.scale(loss / accum_steps).backward()
             else:
@@ -610,7 +727,11 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         num_batches = len(loader)
         for i, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
-            if len(unpacked) == 4:
+            if isinstance(unpacked, dict):
+                z0 = unpacked["z0"]
+                z1 = unpacked["z1"]
+                cond = unpacked.get("cond", {})
+            elif len(unpacked) == 4:
                 z0, z1, cond, _ = unpacked
             else:
                 z0, z1, cond = unpacked
@@ -908,7 +1029,10 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
         for batch in loader:
             unpacked = unpack_batch(batch)
-            if len(unpacked) == 4:
+            if isinstance(unpacked, dict):
+                z0 = unpacked["z0"]
+                cond = unpacked.get("cond", {})
+            elif len(unpacked) == 4:
                 z0, _, cond, _ = unpacked
             else:
                 z0, _, cond = unpacked
@@ -1072,7 +1196,11 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         num_batches = len(loader)
         for i, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
-            if len(unpacked) == 4:
+            if isinstance(unpacked, dict):
+                z0 = unpacked["z0"]
+                z1 = unpacked["z1"]
+                cond = unpacked.get("cond", {})
+            elif len(unpacked) == 4:
                 z0, z1, cond, _ = unpacked
             else:
                 z0, z1, cond = unpacked

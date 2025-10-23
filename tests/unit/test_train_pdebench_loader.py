@@ -19,7 +19,12 @@ from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 
 def _extract_batch(batch):
     unpacked = unpack_batch(batch)
-    if len(unpacked) == 4:
+    if isinstance(unpacked, dict):
+        z0 = unpacked["z0"]
+        z1 = unpacked["z1"]
+        cond = unpacked.get("cond", {})
+        future = unpacked.get("future")
+    elif len(unpacked) == 4:
         z0, z1, cond, future = unpacked
     else:
         z0, z1, cond = unpacked
