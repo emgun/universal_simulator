@@ -65,14 +65,52 @@ def test_wandb_context_disabled():
 
 
 def test_log_training_metric(mock_wandb_run):
-    """Test logging training metrics as time series."""
+    """Test logging training metrics as time series.
+
+    Verifies that BOTH the metric AND the step metric are logged.
+    This is required for WandB's define_metric() to work correctly.
+    """
     ctx = WandBContext(run=mock_wandb_run, run_id="test-id", enabled=True)
 
     ctx.log_training_metric("operator", "loss", 0.5, step=10)
 
+    # Should log both the metric value AND the step metric
     mock_wandb_run.log.assert_called_once_with(
-        {"training/operator/loss": 0.5}, step=10
+        {"training/operator/loss": 0.5, "training/operator/step": 10}, step=10
     )
+
+
+def test_log_training_metric_multiple_stages(mock_wandb_run):
+    """Test logging training metrics from multiple stages.
+
+    Verifies that each stage gets its own step metric namespace.
+    """
+    ctx = WandBContext(run=mock_wandb_run, run_id="test-id", enabled=True)
+
+    # Log from operator stage
+    ctx.log_training_metric("operator", "loss", 0.5, step=10)
+    # Log from diffusion_residual stage
+    ctx.log_training_metric("diffusion_residual", "loss", 0.3, step=5)
+    # Log from consistency_distill stage
+    ctx.log_training_metric("consistency_distill", "loss", 0.2, step=3)
+
+    # Verify each stage's metrics and step metrics were logged correctly
+    assert mock_wandb_run.log.call_count == 3
+
+    # Check call arguments
+    calls = mock_wandb_run.log.call_args_list
+    assert calls[0][0][0] == {
+        "training/operator/loss": 0.5,
+        "training/operator/step": 10,
+    }
+    assert calls[1][0][0] == {
+        "training/diffusion_residual/loss": 0.3,
+        "training/diffusion_residual/step": 5,
+    }
+    assert calls[2][0][0] == {
+        "training/consistency_distill/loss": 0.2,
+        "training/consistency_distill/step": 3,
+    }
 
 
 def test_log_eval_summary(mock_wandb_run):

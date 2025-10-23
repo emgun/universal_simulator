@@ -49,6 +49,10 @@ class WandBContext:
 
         Use this for per-epoch/per-step metrics that should appear as line charts.
 
+        IMPORTANT: This logs BOTH the metric AND the step metric. WandB requires
+        the step metric to exist as data for define_metric() to work correctly.
+        Without logging the step metric, charts will appear empty!
+
         Args:
             stage: Training stage (operator, diffusion, consistency)
             metric: Metric name (loss, lr, grad_norm, etc.)
@@ -58,13 +62,18 @@ class WandBContext:
         Example:
             ctx.log_training_metric("operator", "loss", 0.001, step=100)
             # Creates: training/operator/loss = 0.001 at step 100
+            #          training/operator/step = 100 (for x-axis)
         """
         if not self.enabled or self.run is None:
             return
 
         key = f"training/{stage}/{metric}"
+        step_key = f"training/{stage}/step"
+
         try:
-            self.run.log({key: value}, step=step)
+            # Log both the metric AND the step metric for proper charting
+            # WandB needs the step metric to exist as data for define_metric() to work
+            self.run.log({key: value, step_key: step}, step=step)
         except Exception:
             pass
 
@@ -344,14 +353,20 @@ def create_wandb_context(
         )
 
         # Define metric step relationships for proper charting
+        # Each stage uses its own step metric for x-axis
+        # Stage names: operator, diffusion_residual, consistency_distill, steady_prior
         if run is not None and wandb is not None:
+            # Define step metrics to use the wandb step parameter
+            wandb.define_metric("training/operator/step")
+            wandb.define_metric("training/diffusion_residual/step")
+            wandb.define_metric("training/consistency_distill/step")
+            wandb.define_metric("training/steady_prior/step")
+
+            # Define all other metrics in each namespace to use their stage's step
             wandb.define_metric("training/operator/*", step_metric="training/operator/step")
-            wandb.define_metric(
-                "training/diffusion/*", step_metric="training/diffusion/step"
-            )
-            wandb.define_metric(
-                "training/consistency/*", step_metric="training/consistency/step"
-            )
+            wandb.define_metric("training/diffusion_residual/*", step_metric="training/diffusion_residual/step")
+            wandb.define_metric("training/consistency_distill/*", step_metric="training/consistency_distill/step")
+            wandb.define_metric("training/steady_prior/*", step_metric="training/steady_prior/step")
 
         return WandBContext(run=run, run_id=run_id, enabled=True)
 
