@@ -134,6 +134,7 @@ def evaluate_latent_operator(
                                 "chosen": sl.chosen_index,
                                 "beam_width": sl.beam_width,
                                 "horizon": sl.horizon,
+                                **{f"component_{k}": v for k, v in sl.reward_components.items()},
                             }
                             for sl in step_logs
                         ]

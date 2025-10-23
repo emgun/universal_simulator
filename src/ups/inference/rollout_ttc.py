@@ -47,6 +47,7 @@ class TTCStepLog:
     beam_width: int = 1
     horizon: int = 1
     noise_std: float = 0.0
+    reward_components: Dict[str, float] = field(default_factory=dict)
 
 
 def _copy_state(state: LatentState) -> LatentState:
@@ -168,6 +169,12 @@ def ttc_rollout(
 
         chosen = max(enumerate(totals), key=lambda item: item[1])[0]
         chosen_state = candidates[chosen]
+
+        # Capture reward components from the chosen candidate
+        # Re-score the chosen candidate to populate last_components
+        _ = reward_model.score(state, chosen_state, context={"step": float(step)})
+        reward_components = getattr(reward_model, 'last_components', {}).copy()
+
         step_logs.append(
             TTCStepLog(
                 rewards=rewards,
@@ -176,6 +183,7 @@ def ttc_rollout(
                 beam_width=config.beam_width,
                 horizon=config.horizon,
                 noise_std=_noise_for_step(step),
+                reward_components=reward_components,
             )
         )
 

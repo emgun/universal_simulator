@@ -87,6 +87,9 @@ class AnalyticalRewardModel(RewardModel):
         self.device = device or next(decoder.parameters()).device
         self.register_buffer("query_points", _build_grid_coords(self.height, self.width, self.device))
 
+        # Store last reward components for logging
+        self.last_components: Dict[str, float] = {}
+
     def _decode(
         self,
         state: LatentState,
@@ -155,11 +158,10 @@ class AnalyticalRewardModel(RewardModel):
             components['negativity'] = penalty.mean().item()
             components['negativity_penalty'] = neg_penalty.mean().item()
 
-        # Log detailed components for debugging
-        if components:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"[TTC Reward Components] {components} | Total: {rewards.mean().item():.4f} | Std: {rewards.std().item():.4f}")
+        # Store components for external logging
+        components['reward_mean'] = rewards.mean().item()
+        components['reward_std'] = rewards.std().item()
+        self.last_components = components
 
         return rewards.mean()
 

@@ -1154,12 +1154,14 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
         operator.load_state_dict(operator_state)
     operator = operator.to(device)
     operator.eval()
-    
+
+    # Get latent_dim for potential TTC reward model (needed regardless of diffusion)
+    latent_dim = cfg.get("latent", {}).get("dim", 32)
+
     # Load diffusion if available
     diffusion = None
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
-        latent_dim = cfg.get("latent", {}).get("dim", 32)
         hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
         diffusion = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
         diff_state = torch.load(diff_path, map_location="cpu")
