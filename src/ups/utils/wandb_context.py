@@ -73,7 +73,9 @@ class WandBContext:
         try:
             # Log both the metric AND the step metric for proper charting
             # WandB needs the step metric to exist as data for define_metric() to work
-            self.run.log({key: value, step_key: step}, step=step)
+            # IMPORTANT: Do NOT pass step= parameter when using custom step metrics!
+            # See: https://github.com/wandb/examples/blob/master/colabs/wandb-log/Customize_metric_logging_with_define_metric.ipynb
+            self.run.log({key: value, step_key: step})
         except Exception:
             pass
 

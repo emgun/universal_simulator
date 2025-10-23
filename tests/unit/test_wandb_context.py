@@ -75,8 +75,9 @@ def test_log_training_metric(mock_wandb_run):
     ctx.log_training_metric("operator", "loss", 0.5, step=10)
 
     # Should log both the metric value AND the step metric
+    # Note: No step= parameter when using custom step metrics per WandB docs
     mock_wandb_run.log.assert_called_once_with(
-        {"training/operator/loss": 0.5, "training/operator/step": 10}, step=10
+        {"training/operator/loss": 0.5, "training/operator/step": 10}
     )
 
 
