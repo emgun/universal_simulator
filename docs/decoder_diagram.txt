@@ -1,0 +1,337 @@
+================================================================================
+AnyPointDecoder: Architecture Diagram and Data Flow
+================================================================================
+
+COMPONENT OVERVIEW
+==================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         AnyPointDecoder Module                          │
+│                  (Perceiver-IO Cross-Attention Decoder)                 │
+└─────────────────────────────────────────────────────────────────────────┘
+
+HIGH-LEVEL ARCHITECTURE
+=======================
+
+         Latent Tokens               Query Points
+              (z)                      (x, y)
+              │                          │
+              ├────────────┬─────────────┤
+              │            │             │
+              v            v             v
+         ┌─────────┐  ┌──────────────┐
+         │ Latent  │  │   Fourier    │
+         │Projection│  │   Encoding   │
+         └────┬────┘  └──────┬───────┘
+              │               │
+              v               v
+         ┌───────────┐   ┌──────────┐
+         │(B,T,H)   │   │(B,Q,E)   │
+         │ Latents  │   │Queries   │
+         └────┬────┘   └──────┬───┘
+              │               │
+              └───────┬───────┘
+                      │
+                      v
+              ┌───────────────┐
+              │  Cross-Attn   │  (num_layers times)
+              │    Blocks     │  - Attention + FF
+              │ (Transformer) │  - Layer norms
+              │               │  - Residual connections
+              └───────┬───────┘
+                      │
+                      v
+                  ┌─────────────────┐
+                  │ Refined Queries │
+                  │   (B, Q, H)     │
+                  └────────┬────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+        v                  v                  v
+    ┌──────────┐      ┌──────────┐      ┌──────────┐
+    │Head "u"  │      │Head "p"  │      │Head "rho"│
+    │(vel)     │      │(pressure)│      │(density) │
+    └────┬─────┘      └────┬─────┘      └────┬─────┘
+         │                 │                 │
+         v                 v                 v
+    (B,Q,2)            (B,Q,1)            (B,Q,1)
+         │                 │                 │
+         └──────────────────┼─────────────────┘
+                            │
+                            v
+                      Output Dict
+                     {field -> tensor}
+
+
+DETAILED COMPONENT BREAKDOWN
+=============================
+
+1. FOURIER ENCODING
+   ────────────────
+
+   Input coordinates: (B, Q, query_dim)
+   
+   For each frequency f in [1.0, 2.0, 4.0]:
+     sin(2π × f × x), cos(2π × f × x)
+     sin(2π × f × y), cos(2π × f × y)  [if 2D]
+   
+   Concatenate: [x, y, sin(2πx), sin(4πx), sin(8πx), 
+                       cos(2πx), cos(4πx), cos(8πx),
+                       sin(2πy), sin(4πy), sin(8πy),
+                       cos(2πy), cos(4πy), cos(8πy)]
+   
+   Output: (B, Q, query_dim + 2*query_dim*num_freqs)
+   
+   Example: (B, Q, 2) with 3 freqs → (B, Q, 2 + 2*2*3) = (B, Q, 14)
+
+
+2. QUERY EMBEDDING
+   ────────────────
+   
+   Input: Fourier-encoded points (B, Q, enriched_dim)
+   Linear: enriched_dim → hidden_dim
+   Output: (B, Q, hidden_dim)
+
+
+3. LATENT PROJECTION
+   ─────────────────
+   
+   Input: Latent tokens (B, T, latent_dim) [+ optional conditioning]
+   Linear: (latent_dim + cond_dim) → hidden_dim
+   Output: (B, T, hidden_dim)
+
+
+4. CROSS-ATTENTION BLOCK (REPEATED num_layers times)
+   ──────────────────────────────────────────────────
+   
+   Input:  queries (B, Q, H), latents (B, T, H)
+   
+   Step 1: Cross-Attention
+     attn_out = MultiheadAttention(
+       query=queries,      shape: (B, Q, H)
+       key=latents,        shape: (B, T, H)
+       value=latents       shape: (B, T, H)
+     )
+     Output: (B, Q, H)
+   
+   Step 2: Residual + LayerNorm
+     queries = LayerNorm(queries + attn_out)  # (B, Q, H)
+   
+   Step 3: Feed-Forward Network
+     ff_out = Linear(H, mlp_H) + GELU + Linear(mlp_H, H)
+     Output: (B, Q, H)
+   
+   Step 4: Residual + LayerNorm
+     queries = LayerNorm(queries + ff_out)    # (B, Q, H)
+
+
+5. PREDICTION HEADS
+   ────────────────
+   
+   For each output field (e.g., "u", "p", "rho"):
+     
+     head = Sequential(
+       Linear(hidden_dim, mlp_hidden_dim),
+       GELU(),
+       Linear(mlp_hidden_dim, output_channels[field])
+     )
+     
+     output[field] = head(queries)  # (B, Q, out_ch)
+
+
+DATA FLOW EXAMPLE (2D Burgers)
+==============================
+
+Input Shapes:
+  points:          (4, 1024, 2)      # Batch of 4, 1024 query points, 2D coords
+  latent_tokens:   (4, 64, 32)       # Batch of 4, 64 tokens, 32D latent
+  conditioning:    {} or {key: (4, 64, cond_dim)}
+
+Processing:
+
+1. Conditioning (if present):
+   latent_tokens: (4, 64, 32) + cond: (4, 64, 8) → (4, 64, 40)
+
+2. Latent Projection:
+   (4, 64, 40) → Linear(40, 128) → (4, 64, 128)
+
+3. Fourier Encoding:
+   (4, 1024, 2) → Fourier(freqs=[1,2,4]) → (4, 1024, 14)
+
+4. Query Embedding:
+   (4, 1024, 14) → Linear(14, 128) → (4, 1024, 128)
+
+5. Cross-Attention Blocks (2 times):
+   Block 1:
+     attn((4, 1024, 128), (4, 64, 128)) → (4, 1024, 128)
+     + residual + LN + FF + residual + LN → (4, 1024, 128)
+   
+   Block 2:
+     attn((4, 1024, 128), (4, 64, 128)) → (4, 1024, 128)
+     + residual + LN + FF + residual + LN → (4, 1024, 128)
+
+6. Prediction Heads:
+   Head "u": (4, 1024, 128) → Linear→GELU→Linear(1) → (4, 1024, 1)
+   Head "v": (4, 1024, 128) → Linear→GELU→Linear(1) → (4, 1024, 1)
+
+Output:
+   {
+     "u": (4, 1024, 1),
+     "v": (4, 1024, 1)
+   }
+
+
+INTEGRATION IN UPS PIPELINE
+=============================
+
+                    Training/Inference Loop
+                            │
+                ┌───────────┬┴─────────────┐
+                │           │             │
+                v           v             v
+          ┌─────────┐  ┌──────────┐  ┌──────────┐
+          │GridEnc  │  │ Operator │  │Decoder   │
+          │         │  │          │  │          │
+          │Enc →    │  │ Evolve   │  │→Dec      │
+          └────┬────┘  └────┬─────┘  └────┬─────┘
+               │            │             │
+               v            v             v
+          (B,H,W,C)    LatentState    (B,Q,C)
+          Physical    z=(B,T,D)      Physical
+          Fields      t=scalar       Fields
+                      cond={...}
+
+
+TEST-TIME CONDITIONING (TTC) FLOW
+==================================
+
+   Rollout Step:
+   
+   LatentState(t)
+        │
+        v
+   ┌──────────────────┐
+   │ LatentOperator   │ → Base prediction
+   │  (deterministic) │
+   └────────┬─────────┘
+            │
+            v
+        Generate N candidates (with diffusion/noise)
+            │
+            ├─→ Candidate 1
+            ├─→ Candidate 2
+            └─→ Candidate N
+            │
+            v (for each candidate)
+        ┌────────────────────────────┐
+        │ RewardModel:               │
+        │ 1. Decode via AnyPointDec  │
+        │ 2. Eval conservation laws  │
+        │ 3. Score candidate         │
+        └────────────────────────────┘
+            │
+            v
+        Beam search over candidates
+            │
+            v
+        Select best candidate for next step
+
+
+ATTENTION MECHANISM DETAILS
+===========================
+
+Standard Multi-Head Cross-Attention:
+
+Input:  Q = (B, Q, H), K = (B, T, H), V = (B, T, H)
+
+For each head h in num_heads:
+  Project: Q_h = Q @ W_Q^h    shape: (B, Q, head_dim)
+  Project: K_h = K @ W_K^h    shape: (B, T, head_dim)
+  Project: V_h = V @ W_V^h    shape: (B, T, head_dim)
+  
+  Attention: A = softmax(Q_h @ K_h^T / sqrt(head_dim)) @ V_h
+             shape: (B, Q, head_dim)
+
+Concatenate all heads: (B, Q, H)
+Output projection: (B, Q, H) @ W_O
+
+Result: Each query point attends to weighted sum of all latent tokens
+
+
+MEMORY AND COMPUTATION COMPLEXITY
+==================================
+
+Memory:
+  Latent tokens:       O(B × T × H)
+  Queries:             O(B × Q × H)
+  Attention matrices:  O(B × num_heads × Q × T)
+  
+  Example: B=4, T=64, Q=1024, H=128, heads=4
+    Latents:  4 × 64 × 128 × 4 = 131K float32 ≈ 524 KB
+    Queries:  4 × 1024 × 128 × 4 = 2.1M float32 ≈ 8.4 MB
+    Attention: 4 × 4 × 1024 × 64 × 4 = 1M float32 ≈ 4 MB
+    Total: ~13 MB (reasonable for A100/H100)
+
+Computation (Forward Pass):
+  Latent projection:    O(B × T × latent_dim × H)
+  Query embedding:      O(B × Q × enriched_dim × H)
+  Attention (per block): O(B × Q × T × H)
+  Feed-forward (per block): O(B × Q × H × mlp_H)
+  Prediction heads:     O(B × Q × H × out_ch_total)
+  
+  Dominant term: O(B × Q × T × H) per attention block
+
+
+CONFIGURATION SPACE
+===================
+
+Typical Ranges:
+
+  latent_dim:     16, 32, 64, 128
+  query_dim:      1 (1D), 2 (2D), 3 (3D)
+  hidden_dim:     64, 128, 256, 512
+  num_layers:     1, 2, 3, 4
+  num_heads:      4, 8, 16 (must divide hidden_dim)
+  frequencies:    [1.0], [1.0, 2.0], [1.0, 2.0, 4.0], [1.0, 2.0, 4.0, 8.0]
+  mlp_hidden_dim: 128, 256, 512
+  
+  output_channels: {field1: n1, field2: n2, ...}
+
+
+COMMON PITFALLS
+===============
+
+1. Dimension Mismatch
+   - latent_dim must match encoder output
+   - hidden_dim must be divisible by num_heads
+   
+2. Memory Explosion
+   - Increasing num_tokens or num_queries both increase memory
+   - Attention is O(T×Q) which can be large
+   
+3. Slow Convergence
+   - Too few layers (< 2) may limit expressiveness
+   - Too many layers (> 4) may not improve much
+   
+4. Output Unbounded
+   - No clamping on outputs (can be negative, extreme)
+   - Physics constraints must be applied elsewhere
+
+
+FILE LOCATIONS
+==============
+
+Implementation:     /Users/emerygunselman/Code/universal_simulator/src/ups/io/decoder_anypoint.py
+Configuration:      Lines 35-50   (AnyPointDecoderConfig)
+Fourier Encoding:   Lines 11-32   (_fourier_encode)
+Module Initialization: Lines 63-87 (__init__)
+Forward Pass:       Lines 89-136  (forward)
+
+Tests:              /Users/emerygunselman/Code/universal_simulator/tests/unit/test_decoder_anypoint.py
+Usage (TTC):        /Users/emerygunselman/Code/universal_simulator/src/ups/inference/rollout_ttc.py
+Reward Models:      /Users/emerygunselman/Code/universal_simulator/src/ups/eval/reward_models.py
+
+Full Documentation: /Users/emerygunselman/Code/universal_simulator/docs/decoder_architecture.md
+
+================================================================================

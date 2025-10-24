@@ -248,6 +248,10 @@ class LatentPair:
     z1: torch.Tensor
     cond: Dict[str, torch.Tensor]
     future: Optional[torch.Tensor] = None
+    # Optional fields for UPT inverse losses (Phase 1.5)
+    input_fields: Optional[Dict[str, torch.Tensor]] = None
+    coords: Optional[torch.Tensor] = None
+    meta: Optional[Dict] = None
 
 
 class GridLatentPairDataset(Dataset):
@@ -266,6 +270,7 @@ class GridLatentPairDataset(Dataset):
         cache_dtype: Optional[torch.dtype] = torch.float16,
         time_stride: int = 1,
         rollout_horizon: int = 1,
+        use_inverse_losses: bool = False,
     ) -> None:
         super().__init__()
         self.base = base
@@ -280,6 +285,7 @@ class GridLatentPairDataset(Dataset):
         self.cache_dtype = cache_dtype
         self.time_stride = max(1, int(time_stride))
         self.rollout_horizon = max(1, int(rollout_horizon))
+        self.use_inverse_losses = use_inverse_losses
 
     def __len__(self) -> int:
         return len(self.base)
@@ -289,6 +295,8 @@ class GridLatentPairDataset(Dataset):
         latent_seq: Optional[torch.Tensor] = None
         params_cpu = None
         bc_cpu = None
+        fields_cpu = None  # For inverse losses
+
         if self.cache_dir:
             cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
             if cache_path.exists():
@@ -301,6 +309,9 @@ class GridLatentPairDataset(Dataset):
                     latent_seq = data["latent"].float()
                     params_cpu = data.get("params")
                     bc_cpu = data.get("bc")
+                    # For inverse losses, also load physical fields if cached
+                    if self.use_inverse_losses:
+                        fields_cpu = data.get("fields")
                     cache_hit = True
 
         if latent_seq is None:
@@ -333,14 +344,24 @@ class GridLatentPairDataset(Dataset):
                     "params": params_cpu,
                     "bc": bc_cpu,
                 }
+                # Optionally cache physical fields for inverse losses
+                if self.use_inverse_losses and fields_cpu is not None:
+                    payload["fields"] = fields_cpu.cpu()
                 buffer = io.BytesIO()
                 torch.save(payload, buffer)
                 tmp_path.write_bytes(buffer.getvalue())
                 tmp_path.replace(cache_path)
 
+        # If cache hit but inverse losses needed and fields not cached, reload from base
+        if self.use_inverse_losses and fields_cpu is None:
+            sample = self.base[idx]
+            fields_cpu = sample["fields"].float()
+
         # Optionally downsample the time dimension to accelerate epochs
         if self.time_stride > 1:
             latent_seq = latent_seq[:: self.time_stride]
+            if fields_cpu is not None and self.time_stride > 1:
+                fields_cpu = fields_cpu[:: self.time_stride]
 
         if latent_seq.shape[0] <= self.rollout_horizon:
             raise ValueError("Need more time steps than rollout horizon to form latent pairs")
@@ -354,7 +375,34 @@ class GridLatentPairDataset(Dataset):
         z1 = target_stack[:, 0]
         future = target_stack[:, 1:] if self.rollout_horizon > 1 else None
         cond = prepare_conditioning(params_cpu, bc_cpu, base_len)
-        return LatentPair(z0, z1, cond, future=future)
+
+        # Prepare optional inverse loss inputs
+        input_fields = None
+        coords = None
+        meta = None
+        if self.use_inverse_losses and fields_cpu is not None:
+            # Extract first timestep fields for inverse loss computation
+            # Shape: (T, ...) -> take t=0
+            first_field = fields_cpu[0]  # First timestep
+
+            # Convert to dict format expected by loss functions
+            # Assume field_name is "u" for Burgers
+            if first_field.dim() == 1:  # 1D field
+                input_fields = {self.field_name: first_field.unsqueeze(0).unsqueeze(-1)}  # (1, N, 1)
+            elif first_field.dim() == 2:  # 2D field or (N, C)
+                if first_field.shape[-1] <= 8:  # Likely (N, C)
+                    input_fields = {self.field_name: first_field.unsqueeze(0)}  # (1, N, C)
+                else:  # Likely (H, W)
+                    H, W = first_field.shape
+                    input_fields = {self.field_name: first_field.reshape(1, H * W, 1)}  # (1, H*W, 1)
+            else:  # 3D or higher
+                # Flatten spatial dims
+                input_fields = {self.field_name: first_field.reshape(1, -1, first_field.shape[-1])}
+
+            coords = self.coords.cpu()  # (1, N, 2)
+            meta = {"grid_shape": self.grid_shape}
+
+        return LatentPair(z0, z1, cond, future=future, input_fields=input_fields, coords=coords, meta=meta)
 
 
 class GridZarrLatentPairDataset(Dataset):
@@ -536,6 +584,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     data_cfg = cfg.get("data", {})
     latent_cfg = cfg.get("latent", {})
     train_cfg = cfg.get("training", {})
+    use_inverse_losses = train_cfg.get("use_inverse_losses", False)
     batch = train_cfg.get("batch_size", 16)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     default_workers = max(1, (os.cpu_count() or 4) // 4)
@@ -585,10 +634,11 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                     cache_dtype=cache_dtype,
                     time_stride=time_stride,
                     rollout_horizon=rollout_horizon,
+                    use_inverse_losses=use_inverse_losses,
                 )
                 datasets.append(latent_ds)
             mixed = ConcatDataset(datasets)
-            return DataLoader(mixed, **loader_kwargs)
+            return DataLoader(mixed, collate_fn=latent_pair_collate, **loader_kwargs)
         else:
             dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
                 {**data_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
@@ -607,8 +657,9 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 cache_dtype=cache_dtype,
                 time_stride=time_stride,
                 rollout_horizon=rollout_horizon,
+                use_inverse_losses=use_inverse_losses,
             )
-            return DataLoader(latent_dataset, **loader_kwargs)
+            return DataLoader(latent_dataset, collate_fn=latent_pair_collate, **loader_kwargs)
 
     kind = data_cfg.get("kind")
     if kind == "grid":
@@ -660,7 +711,76 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     raise ValueError("Data configuration must specify either 'task' or 'kind'")
 
 
+def latent_pair_collate(batch):
+    """Custom collate function for LatentPair instances with optional fields.
+
+    Handles the case where some fields (input_fields, coords, meta) may be None
+    for some or all samples in the batch.
+    """
+    if not batch:
+        raise ValueError("Empty batch")
+
+    # Stack required fields
+    z0 = torch.stack([item.z0 for item in batch])
+    z1 = torch.stack([item.z1 for item in batch])
+
+    # Collate conditioning dicts
+    cond = collate_conditions([item.cond for item in batch])
+
+    # Handle optional future field
+    futures = [item.future for item in batch if item.future is not None]
+    future = torch.stack(futures) if futures else None
+
+    # Handle optional inverse loss fields
+    # Only include in batch if at least one sample has them
+    input_fields = None
+    coords = None
+    meta = None
+
+    fields_list = [item.input_fields for item in batch if item.input_fields is not None]
+    if fields_list:
+        # Collate input_fields dicts
+        field_names = set()
+        for f in fields_list:
+            field_names.update(f.keys())
+        input_fields = {}
+        for name in field_names:
+            tensors = [f[name] for f in fields_list if name in f]
+            if tensors:
+                input_fields[name] = torch.cat(tensors, dim=0)
+
+    coords_list = [item.coords for item in batch if item.coords is not None]
+    if coords_list:
+        coords = torch.cat(coords_list, dim=0)
+
+    # Meta is typically the same for all samples, just take the first
+    meta_list = [item.meta for item in batch if item.meta is not None]
+    if meta_list:
+        meta = meta_list[0]
+
+    # Return as dict for easy unpacking in training loop
+    return {
+        "z0": z0,
+        "z1": z1,
+        "cond": cond,
+        "future": future,
+        "input_fields": input_fields,
+        "coords": coords,
+        "meta": meta,
+    }
+
+
 def unpack_batch(batch):
+    """Unpack batch from DataLoader.
+
+    Supports both legacy tuple format and new dict format from latent_pair_collate.
+    """
+    # New dict format (with optional inverse loss fields)
+    if isinstance(batch, dict):
+        # Return as dict to preserve optional fields for training loop
+        return batch
+
+    # Legacy tuple format (backward compatibility)
     if isinstance(batch, (list, tuple)):
         if len(batch) == 4 and isinstance(batch[2], dict):
             z0, z1, cond, future = batch
@@ -671,4 +791,5 @@ def unpack_batch(batch):
         if len(batch) == 2:
             z0, z1 = batch
             return z0, z1, {}
+
     raise ValueError("Unexpected batch structure returned by DataLoader")

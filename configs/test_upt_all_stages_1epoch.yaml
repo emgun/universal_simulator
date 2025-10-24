@@ -1,0 +1,162 @@
+# UPT All Stages Test - 1 Epoch Each
+# Purpose: Fast validation of complete pipeline with UPT inverse losses
+# Expected runtime: ~5-8 minutes on A100
+# Tests: operator + diffusion + consistency distillation with inverse losses
+
+seed: 42
+deterministic: true
+benchmark: false
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 16
+  tokens: 32
+
+operator:
+  pdet:
+    input_dim: 16
+    hidden_dim: 96
+    depths: [1, 1, 1]
+    group_size: 12
+    num_heads: 6
+
+diffusion:
+  latent_dim: 16
+  hidden_dim: 96
+
+training:
+  batch_size: 8  # Moderate for faster iteration
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+
+  num_workers: 4
+  use_parallel_encoding: true
+  pin_memory: true
+
+  latent_cache_dir: data/latent_cache
+  latent_cache_dtype: float32
+
+  amp: true
+  compile: false  # Disable for faster startup
+  grad_clip: 1.0
+  accum_steps: 2
+
+  # UPT Inverse Losses (ENABLED)
+  use_inverse_losses: true
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  distill_micro_batch: 2
+  distill_num_taus: 3
+
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+stages:
+  operator:
+    epochs: 1  # Just 1 epoch for testing
+
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 1  # Just 1 epoch for testing
+    grad_clip: 1.0
+
+    optimizer:
+      name: adamw
+      lr: 5.0e-5
+      weight_decay: 0.015
+
+  consistency_distill:
+    epochs: 1  # Just 1 epoch for testing
+    batch_size: 4
+    tau_schedule: [3]  # Simplified schedule
+    accum_steps: 1
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.015
+
+  steady_prior:
+    epochs: 0  # Skip for testing
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8  # Reduced for faster testing
+  beam_width: 3
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100  # Reduced for faster testing
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.05]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 16
+    query_dim: 2
+    hidden_dim: 96
+    mlp_hidden_dim: 128
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0]
+
+    output_channels:
+      rho: 1
+      e: 1
+
+checkpoint:
+  dir: checkpoints/test_upt_all_stages
+
+evaluation:
+  enabled: true
+  split: test
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: test-upt-all-stages-1epoch
+    tags: [test, upt, inverse-losses, 1-epoch, all-stages]
+    group: upt-validation
