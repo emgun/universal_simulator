@@ -73,10 +73,10 @@ stages:
       weight_decay: 0.03
 
   diff_residual:
-    epochs: 0  # Skip for testing
+    epochs: 1  # Skip for testing
 
   consistency_distill:
-    epochs: 0  # Skip for testing
+    epochs: 1  # Skip for testing
 
   steady_prior:
     epochs: 0  # Skip for testing
