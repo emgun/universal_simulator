@@ -2,13 +2,18 @@
 
 ## Instance Details
 
-**Instance ID:** 27205160
-**GPU:** Q_RTX_6000 (24GB VRAM)
-**Cost:** $0.14/hr
-**Location:** Minnesota, US
-**Reliability:** 99.9%
-**Branch:** feature--UPT (commit 5fa91bd)
+**Instance ID:** 27205346
+**GPU:** Q_RTX_8000 (48GB VRAM)
+**Cost:** $0.26/hr
+**Location:** US
+**Reliability:** 99.7%
+**Branch:** feature--UPT (commit 6bbb24c)
 **Config:** `configs/train_burgers_upt_losses.yaml`
+
+### Previous Attempts (OOM on 24GB GPUs)
+- **27205160** (Q_RTX_6000 24GB) - OOM errors, destroyed
+- **27205263** (RTX 3090 Ti 24GB) - OOM expected, destroyed
+- **Root cause:** batch_size=12 + UPT inverse losses need >24GB VRAM
 
 ## Training Configuration
 
@@ -58,19 +63,19 @@ inverse_loss_frequency: 10  # Compute every 10 batches
 vastai show instances
 
 # View live logs
-vastai logs 27205160 -f
+vastai logs 27205346 -f
 
 # View training progress
-vastai logs 27205160 2>&1 | grep -E "Epoch|L_inv|loss:"
+vastai logs 27205346 2>&1 | grep -E "Epoch|L_inv|loss:"
 
 # SSH into instance (if needed)
-vastai ssh 27205160
+vastai ssh 27205346
 ```
 
 ### Background Monitors
 Two background monitors are running:
-- **3d28d8**: Startup logs after 3 minutes
-- **c95b39**: Training progress after 10 minutes
+- **fdf98a**: Startup logs after 3 minutes
+- **5ef02d**: Training progress after 10 minutes
 
 ### WandB Dashboard
 Training metrics will be logged to:
@@ -133,13 +138,13 @@ Check that these metrics are logged in WandB:
 ### If auto-shutdown fails
 ```bash
 # Manually destroy instance
-vastai destroy instance 27205160
+vastai destroy instance 27205346
 ```
 
 ### If training fails
 ```bash
 # SSH and check logs
-vastai ssh 27205160
+vastai ssh 27205346
 tail -200 /workspace/universal_simulator/nohup.out
 
 # Check for errors
