@@ -638,7 +638,8 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 )
                 datasets.append(latent_ds)
             mixed = ConcatDataset(datasets)
-            return DataLoader(mixed, collate_fn=latent_pair_collate, **loader_kwargs)
+            loader_kwargs["collate_fn"] = latent_pair_collate
+            return DataLoader(mixed, **loader_kwargs)
         else:
             dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
                 {**data_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
@@ -659,7 +660,8 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 rollout_horizon=rollout_horizon,
                 use_inverse_losses=use_inverse_losses,
             )
-            return DataLoader(latent_dataset, collate_fn=latent_pair_collate, **loader_kwargs)
+            loader_kwargs["collate_fn"] = latent_pair_collate
+            return DataLoader(latent_dataset, **loader_kwargs)
 
     kind = data_cfg.get("kind")
     if kind == "grid":
