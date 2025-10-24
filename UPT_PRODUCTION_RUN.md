@@ -176,7 +176,15 @@ grep -i error /workspace/universal_simulator/nohup.out
 
 ---
 
-**Status:** 🚀 **RUNNING**
-**Started:** 2025-10-24 (instance launching)
-**ETA Complete:** ~50-60 minutes from startup
-**Cost:** ~$0.14-0.20 total
+**Status:** ❌ **FAILED - CRITICAL BUG FOUND AND FIXED**
+**Root Cause:** Latent cache precomputation script was not passing `use_inverse_losses=True`,
+causing cache to be created WITHOUT physical fields. Training silently skipped inverse losses.
+
+**Fix:** Commit 52f0532 - Updated `scripts/precompute_latent_cache.py` to read and pass
+`use_inverse_losses` flag from config. Ready for relaunch.
+
+**Previous Attempts:**
+- **27205160** (Q_RTX_8000 48GB) - Ran 56 min, NO inverse losses logged
+- **27205792** (A100 SXM4 40GB) - Ran 14 min, NO inverse losses logged
+- **27205346** (Q_RTX_8000 48GB) - Destroyed, NO inverse losses
+- **27205263** (RTX 3090 Ti 24GB) - Destroyed, NO inverse losses
