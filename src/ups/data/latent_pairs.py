@@ -381,25 +381,33 @@ class GridLatentPairDataset(Dataset):
         coords = None
         meta = None
         if self.use_inverse_losses and fields_cpu is not None:
-            # Extract first timestep fields for inverse loss computation
-            # Shape: (T, ...) -> take t=0
-            first_field = fields_cpu[0]  # First timestep
+            # Extract fields for ALL pairs (not just first timestep)
+            # Each z0 in the pairs corresponds to a different timestep
+            # Shape: (base_len, ...) to match z0 shape (base_len, tokens, dim)
+            fields_for_pairs = fields_cpu[:base_len]  # (base_len, ...)
 
             # Convert to dict format expected by loss functions
-            # Assume field_name is "u" for Burgers
-            if first_field.dim() == 1:  # 1D field
-                input_fields = {self.field_name: first_field.unsqueeze(0).unsqueeze(-1)}  # (1, N, 1)
-            elif first_field.dim() == 2:  # 2D field or (N, C)
-                if first_field.shape[-1] <= 8:  # Likely (N, C)
-                    input_fields = {self.field_name: first_field.unsqueeze(0)}  # (1, N, C)
-                else:  # Likely (H, W)
-                    H, W = first_field.shape
-                    input_fields = {self.field_name: first_field.reshape(1, H * W, 1)}  # (1, H*W, 1)
-            else:  # 3D or higher
-                # Flatten spatial dims
-                input_fields = {self.field_name: first_field.reshape(1, -1, first_field.shape[-1])}
+            # Process all timesteps together
+            if fields_for_pairs.dim() == 2:  # 1D spatial: (base_len, N)
+                # Add channel dimension
+                formatted = fields_for_pairs.unsqueeze(-1)  # (base_len, N, 1)
+            elif fields_for_pairs.dim() == 3:  # (base_len, N, C) or (base_len, H, W)
+                if fields_for_pairs.shape[-1] <= 8:  # Likely (base_len, N, C)
+                    formatted = fields_for_pairs
+                else:  # Likely (base_len, H, W) - flatten spatial
+                    base_len_actual, H, W = fields_for_pairs.shape
+                    formatted = fields_for_pairs.reshape(base_len_actual, H * W, 1)  # (base_len, H*W, 1)
+            elif fields_for_pairs.dim() == 4:  # (base_len, H, W, C)
+                base_len_actual, H, W, C = fields_for_pairs.shape
+                formatted = fields_for_pairs.reshape(base_len_actual, H * W, C)  # (base_len, H*W, C)
+            else:
+                # Flatten spatial dims, keep channel dim
+                formatted = fields_for_pairs.reshape(fields_for_pairs.shape[0], -1, fields_for_pairs.shape[-1])
 
-            coords = self.coords.cpu()  # (1, N, 2)
+            input_fields = {self.field_name: formatted}
+
+            # Replicate coords for each pair in the trajectory
+            coords = self.coords.cpu().expand(base_len, -1, -1)  # (base_len, N, 2)
             meta = {"grid_shape": self.grid_shape}
 
         return LatentPair(z0, z1, cond, future=future, input_fields=input_fields, coords=coords, meta=meta)
@@ -718,20 +726,23 @@ def latent_pair_collate(batch):
 
     Handles the case where some fields (input_fields, coords, meta) may be None
     for some or all samples in the batch.
+
+    Note: Each LatentPair may contain multiple pairs (num_pairs, tokens, dim) from
+    a single trajectory. We concatenate along dim=0 to flatten into (batch*num_pairs, tokens, dim).
     """
     if not batch:
         raise ValueError("Empty batch")
 
-    # Stack required fields
-    z0 = torch.stack([item.z0 for item in batch])
-    z1 = torch.stack([item.z1 for item in batch])
+    # Concatenate pairs from all samples (flattens num_pairs into batch dimension)
+    z0 = torch.cat([item.z0 for item in batch], dim=0)
+    z1 = torch.cat([item.z1 for item in batch], dim=0)
 
     # Collate conditioning dicts
     cond = collate_conditions([item.cond for item in batch])
 
-    # Handle optional future field
+    # Handle optional future field (concatenate to match z0/z1)
     futures = [item.future for item in batch if item.future is not None]
-    future = torch.stack(futures) if futures else None
+    future = torch.cat(futures, dim=0) if futures else None
 
     # Handle optional inverse loss fields
     # Only include in batch if at least one sample has them
