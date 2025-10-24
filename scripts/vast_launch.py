@@ -136,7 +136,7 @@ mkdir -p checkpoints
 mkdir -p artifacts/runs reports
 
 echo "Precomputing latent caches…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
+PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
 
 export WANDB_MODE=online
 
