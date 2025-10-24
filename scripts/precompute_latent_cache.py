@@ -46,6 +46,7 @@ def _instantiate_dataset(
     cache_dir: Optional[Path],
     cache_dtype: Optional[torch.dtype],
     rollout_horizon: int,
+    use_inverse_losses: bool = False,
 ) -> GridLatentPairDataset:
     ds_cfg = {
         **data_cfg,
@@ -68,6 +69,7 @@ def _instantiate_dataset(
         cache_dir=ds_cache,
         cache_dtype=cache_dtype,
         rollout_horizon=rollout_horizon,
+        use_inverse_losses=use_inverse_losses,
     )
 
 
@@ -213,6 +215,16 @@ def main() -> None:
     torch.set_grad_enabled(False)
     rollout_horizon = max(1, int(cfg.get("training", {}).get("rollout_horizon", 1)))
 
+    # Read UPT inverse losses flag from config
+    training_cfg = cfg.get("training", {})
+    use_inverse_losses = (
+        training_cfg.get("use_inverse_losses", False) or
+        training_cfg.get("lambda_inv_enc", 0.0) > 0 or
+        training_cfg.get("lambda_inv_dec", 0.0) > 0
+    )
+    if use_inverse_losses:
+        print("✓ UPT inverse losses enabled - physical fields will be cached")
+
     summary: Dict[str, Dict[str, float]] = {}
     start_time = time.time()
     for task in args.tasks:
@@ -228,6 +240,7 @@ def main() -> None:
                 cache_dir=cache_root,
                 cache_dtype=cache_dtype,
                 rollout_horizon=rollout_horizon,
+                use_inverse_losses=use_inverse_losses,
             )
             total_samples = len(dataset)
             target_samples = total_samples if args.limit <= 0 else min(args.limit, total_samples)
