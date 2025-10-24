@@ -149,32 +149,32 @@ echo "✓ Training pipeline completed or timed out"
 
     if auto_shutdown:
         script += """
-# Auto-shutdown: Use VastAI API to destroy instance
+# Auto-stop: Use VastAI API to stop instance (keeps logs accessible)
 # $CONTAINER_ID is provided by VastAI environment
-echo "🔄 Preparing auto-shutdown..."
+echo "🔄 Preparing auto-stop..."
 
 # Install vastai if not present
 pip install -q vastai >/dev/null 2>&1 || true
 
 if [ -n "${CONTAINER_ID:-}" ]; then
-  echo "🔄 Auto-shutdown triggered - destroying instance $CONTAINER_ID in 10 seconds..."
+  echo "🔄 Auto-stop triggered - stopping instance $CONTAINER_ID in 10 seconds..."
   sleep 10  # Give time for logs to flush and WandB to sync
 
-  # Try to destroy instance - retry up to 3 times
+  # Try to stop instance - retry up to 3 times
   for i in 1 2 3; do
-    echo "Attempt $i to destroy instance..."
-    if vastai destroy instance $CONTAINER_ID; then
-      echo "✓ Instance destroyed successfully"
+    echo "Attempt $i to stop instance..."
+    if vastai stop instance $CONTAINER_ID; then
+      echo "✓ Instance stopped successfully (logs preserved for review)"
       exit 0
     else
-      echo "⚠️  Destroy attempt $i failed, retrying in 5 seconds..."
+      echo "⚠️  Stop attempt $i failed, retrying in 5 seconds..."
       sleep 5
     fi
   done
 
-  echo "❌ Auto-shutdown failed after 3 attempts - please manually destroy instance $CONTAINER_ID"
+  echo "❌ Auto-stop failed after 3 attempts - please manually stop instance $CONTAINER_ID"
 else
-  echo "⚠️  CONTAINER_ID not set - cannot auto-shutdown (please destroy instance manually)"
+  echo "⚠️  CONTAINER_ID not set - cannot auto-stop (please stop instance manually)"
 fi
 
 # Fallback: exit anyway to stop billing
