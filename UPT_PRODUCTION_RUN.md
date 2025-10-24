@@ -176,15 +176,26 @@ grep -i error /workspace/universal_simulator/nohup.out
 
 ---
 
-**Status:** ❌ **FAILED - CRITICAL BUG FOUND AND FIXED**
-**Root Cause:** Latent cache precomputation script was not passing `use_inverse_losses=True`,
-causing cache to be created WITHOUT physical fields. Training silently skipped inverse losses.
+**Status:** ✅ **LAUNCHED - FLOAT16 CACHE OPTIMIZATION**
 
-**Fix:** Commit 52f0532 - Updated `scripts/precompute_latent_cache.py` to read and pass
-`use_inverse_losses` flag from config. Ready for relaunch.
+**Current Instance:** 27247185
+**GPU:** RTX A6000 (48GB VRAM)
+**Disk:** 1431GB
+**Cost:** $0.39/hr
+**Location:** Sweden (99.2% reliability)
+**Optimization:** Using float16 cache dtype (50% size reduction)
+
+**Critical Fixes Applied:**
+1. **Commit 52f0532** - Fixed `precompute_latent_cache.py` to pass `use_inverse_losses=True`
+2. **Commit 5ccaf56** - Changed auto-shutdown to auto-stop (preserve logs)
+3. **Commit d1f077e** - Added `--cache-dtype float16` to reduce cache size from >1TB to ~500GB
 
 **Previous Attempts:**
-- **27205160** (Q_RTX_8000 48GB) - Ran 56 min, NO inverse losses logged
-- **27205792** (A100 SXM4 40GB) - Ran 14 min, NO inverse losses logged
-- **27205346** (Q_RTX_8000 48GB) - Destroyed, NO inverse losses
-- **27205263** (RTX 3090 Ti 24GB) - Destroyed, NO inverse losses
+- **27205160** (Q_RTX_8000 48GB) - NO inverse losses (cache bug)
+- **27205792** (A100 SXM4 40GB) - NO inverse losses (cache bug)
+- **27239686** (RTX 5880 Ada 237GB) - Disk full during cache (float32)
+- **27240693** (RTX A6000 64GB) - Disk full during cache (float32)
+- **27242199** (RTX A6000 500GB) - Disk full during cache (float32)
+- **27243507** (RTX 4090 1TB) - Disk full during cache (float32)
+
+**Key Lesson:** UPT cache with physical fields in float32 requires >1TB disk. Float16 reduces to ~500GB.
