@@ -610,7 +610,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     loader_kwargs: Dict[str, Any] = {
         "batch_size": batch,
         "shuffle": True,
-        "collate_fn": collate_latent_pairs,
+        "collate_fn": latent_pair_collate,
         "num_workers": num_workers,
         "pin_memory": pin_memory,
         "persistent_workers": num_workers > 0,
