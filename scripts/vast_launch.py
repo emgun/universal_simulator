@@ -140,11 +140,9 @@ PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_sc
 
 export WANDB_MODE=online
 
-# Add timeout to prevent infinite hangs (60 min = 3600 sec)
-# This ensures auto-shutdown happens even if training hangs
-timeout 3600 python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args} || echo "⚠️  Training exited with code $? (timeout or error)"
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args} || echo "⚠️  Training exited with code $?"
 
-echo "✓ Training pipeline completed or timed out"
+echo "✓ Training pipeline completed"
 """
 
     if auto_shutdown:
