@@ -54,7 +54,7 @@ training:
   checkpoint_interval: 50
 
   amp: true
-  compile: true
+  compile: false  # DISABLE - torch compile cache fills /tmp on small disks
   grad_clip: 1.0
   ema_decay: 0.999
   accum_steps: 4
