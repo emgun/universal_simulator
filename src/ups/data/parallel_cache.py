@@ -25,7 +25,7 @@ from ups.data.pdebench import PDEBenchDataset
 from ups.data.latent_pairs import (
     LatentPair,
     prepare_conditioning,
-    collate_latent_pairs,
+    latent_pair_collate,
 )
 from ups.io.enc_grid import GridEncoder
 
@@ -250,7 +250,7 @@ def make_collate_with_encoding(
             latent_pairs.append(LatentPair(z0, z1, cond, future=future))
 
         # Collate latent pairs
-        return collate_latent_pairs(latent_pairs)
+        return latent_pair_collate(latent_pairs)
 
     return collate_with_encoding
 
