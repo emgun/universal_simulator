@@ -910,17 +910,8 @@ def _distill_forward_and_loss_compiled(
     return loss
 
 
-# Try to compile the distillation function if torch.compile is available
-try:
-    _distill_forward_and_loss = torch.compile(
-        _distill_forward_and_loss_compiled,
-        mode="reduce-overhead",
-        fullgraph=False,  # Allow graph breaks for LatentState
-    )
-    _COMPILE_AVAILABLE = True
-except Exception:
-    _distill_forward_and_loss = _distill_forward_and_loss_compiled
-    _COMPILE_AVAILABLE = False
+# Distillation function - will be optionally compiled based on config
+_distill_forward_and_loss = _distill_forward_and_loss_compiled
 
 
 def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
@@ -1000,12 +991,28 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     distill_micro = cfg.get("training", {}).get("distill_micro_batch")
     base_num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
 
+    # Conditionally compile the distillation function if enabled
+    distill_fn = _distill_forward_and_loss  # Default to uncompiled
+    distill_compile_enabled = False
+    if cfg.get("training", {}).get("compile", False):
+        try:
+            distill_fn = torch.compile(
+                _distill_forward_and_loss,
+                mode="reduce-overhead",
+                fullgraph=False,
+            )
+            distill_compile_enabled = True
+            print("✓ torch.compile enabled for consistency distillation function")
+        except Exception as e:
+            print(f"⚠ torch.compile failed for distill function: {e}")
+            distill_fn = _distill_forward_and_loss
+
     # Log optimizations applied
     print("Consistency distillation optimizations:")
     print(f"  - Teacher caching: ENABLED (computed once per batch)")
     print(f"  - AMP for teacher: {'ENABLED' if use_amp else 'DISABLED'}")
     print(f"  - Async GPU transfers: ENABLED")
-    print(f"  - torch.compile: {'ENABLED' if _COMPILE_AVAILABLE else 'DISABLED'}")
+    print(f"  - torch.compile: {'ENABLED' if distill_compile_enabled else 'DISABLED'}")
     print(f"  - Persistent workers: {training_cfg_copy.get('persistent_workers', False)}")
     print(f"  - Prefetch factor: {training_cfg_copy.get('prefetch_factor', 2)}")
     print(f"  - Micro-batch size: {distill_micro}")
@@ -1065,9 +1072,9 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     # Sample tau values
                     tau_seed = _sample_tau(num_taus_epoch, device, cfg)
 
-                    # Use compiled forward function
+                    # Use (optionally compiled) forward function
                     with autocast(enabled=use_amp):
-                        loss_chunk = _distill_forward_and_loss(
+                        loss_chunk = distill_fn(
                             teacher_z_chunk,
                             teacher_cond_chunk,
                             num_taus_epoch,
