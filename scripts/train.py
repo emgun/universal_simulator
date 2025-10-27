@@ -1741,10 +1741,59 @@ def main() -> None:
         required=True,
         help="Training stage to run, or 'all' to run full pipeline"
     )
+    parser.add_argument(
+        "--resume-from-wandb",
+        type=str,
+        default=None,
+        help="WandB run ID to resume from (e.g., 'train-20251027_193043')"
+    )
+    parser.add_argument(
+        "--resume-mode",
+        type=str,
+        default="allow",
+        choices=["allow", "must", "never"],
+        help="WandB resume mode (allow, must, never). Default: allow"
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
     set_seed(cfg)
     stage = args.stage
+
+    # Handle checkpoint resumption from WandB if requested
+    if args.resume_from_wandb:
+        from ups.utils.checkpoint_manager import CheckpointManager
+
+        checkpoint_dir = Path(cfg.get("checkpoint", {}).get("dir", "checkpoints"))
+        print(f"\n=== Resuming from WandB run: {args.resume_from_wandb} ===")
+
+        try:
+            manager = CheckpointManager(checkpoint_dir=checkpoint_dir)
+
+            # Download checkpoints from WandB
+            downloaded_files = manager.download_checkpoints_from_run(
+                run_id=args.resume_from_wandb,
+                checkpoint_files=None,  # Download all common checkpoints
+                force=False  # Skip already-downloaded files
+            )
+
+            # Setup WandB environment for resumption
+            manager.setup_wandb_resume(
+                run_id=args.resume_from_wandb,
+                resume_mode=args.resume_mode
+            )
+
+            # Verify critical checkpoints exist
+            if stage == "all" or stage == "operator":
+                if not manager.verify_checkpoints(["operator.pt", "operator_ema.pt"]):
+                    print("⚠️  Warning: Operator checkpoints missing")
+
+            print(f"✓ Ready to resume training from {args.resume_from_wandb}\n")
+
+        except Exception as e:
+            print(f"❌ Failed to resume from WandB: {e}")
+            print("Continuing with fresh training...")
+            import traceback
+            traceback.print_exc()
     
     if stage == "all":
         train_all_stages(cfg)
