@@ -1,0 +1,189 @@
+# Burgers1D Training with UPT Inverse Losses — TUNED VARIANT
+# Based on: configs/train_burgers_upt_losses.yaml
+# Changes:
+# - Operator: add cosine LR schedule, increase to 40 epochs, lr 5e-4, wd 0.02
+# - Diffusion: increase to 12 epochs, cosine T_max=12, eta_min 2e-6
+# - Distillation: reduce to 6 epochs to save time (converges fast)
+# - TTC: stronger search (candidates 32, beam_width 4), narrower tau_range, lower noise, stricter negativity penalty
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 16
+  tokens: 32
+
+operator:
+  pdet:
+    input_dim: 16
+    hidden_dim: 96
+    depths: [1, 1, 1]
+    group_size: 12
+    num_heads: 6
+
+diffusion:
+  latent_dim: 16
+  hidden_dim: 96
+
+training:
+  batch_size: 12
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+
+  latent_cache_dir: data/latent_cache
+  latent_cache_dtype: float32
+  checkpoint_interval: 50
+
+  amp: true
+  compile: true
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 4
+
+  # UPT Inverse Losses
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+  use_inverse_losses: true
+  inverse_loss_frequency: 10
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  distill_micro_batch: 3
+  distill_num_taus: 4
+
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+stages:
+  operator:
+    epochs: 40
+
+    optimizer:
+      name: adamw
+      lr: 5.0e-4
+      betas: [0.9, 0.999]
+      weight_decay: 0.02
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 40
+      eta_min: 1.0e-5
+
+  diff_residual:
+    epochs: 12
+    grad_clip: 1.0
+    ema_decay: 0.999
+
+    optimizer:
+      name: adamw
+      lr: 5.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 12
+      eta_min: 2.0e-6
+
+  consistency_distill:
+    epochs: 6
+    batch_size: 6
+    tau_schedule: [5, 4, 3]
+    accum_steps: 2
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 6
+      eta_min: 2.0e-6
+
+  steady_prior:
+    epochs: 0
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 32
+  beam_width: 4
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 200
+
+  sampler:
+    tau_range: [0.20, 0.80]
+    noise_std: 0.03
+    noise_schedule: [0.06, 0.04, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 1.0
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 16
+    query_dim: 2
+    hidden_dim: 96
+    mlp_hidden_dim: 128
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+
+    output_channels:
+      rho: 1
+      e: 1
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt-tuned
+    tags: [16dim, upt, inverse-losses, tuned, cosine, ttc32]
+    group: upt-experiments
+

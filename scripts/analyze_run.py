@@ -103,16 +103,30 @@ def load_history(run: wandb.apis.public.Run, max_rows: Optional[int]) -> pd.Data
     return history
 
 
+def _first_present_column(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+
 def analyze_training_curves(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
-    """Analyze training loss curves for each stage using the history dataframe."""
+    """Analyze training loss curves for each stage using the history dataframe.
+
+    Supports both "stage/..." and "training/stage/..." naming.
+    """
     analysis: Dict[str, Dict[str, float]] = {}
 
     if df.empty:
         return analysis
 
     for stage_key, _label in STAGES:
-        loss_col = f"{stage_key}/loss"
-        if loss_col not in df.columns:
+        # Loss
+        loss_col = _first_present_column(df, [
+            f"{stage_key}/loss",
+            f"training/{stage_key}/loss",
+        ])
+        if not loss_col:
             continue
         losses = df[loss_col].dropna()
         if losses.empty:
@@ -127,29 +141,45 @@ def analyze_training_curves(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
         if losses.iloc[0] != 0:
             stage_stats["reduction_pct"] = float((losses.iloc[0] - losses.iloc[-1]) / losses.iloc[0] * 100.0)
 
-        lr_col = f"{stage_key}/lr"
-        if lr_col in df.columns:
+        # LR
+        lr_col = _first_present_column(df, [
+            f"{stage_key}/lr",
+            f"training/{stage_key}/lr",
+        ])
+        if lr_col:
             lrs = df[lr_col].dropna()
             if not lrs.empty:
                 stage_stats["lr_initial"] = float(lrs.iloc[0])
                 stage_stats["lr_final"] = float(lrs.iloc[-1])
                 stage_stats["lr_min"] = float(lrs.min())
 
-        epoch_col = f"{stage_key}/epoch"
-        if epoch_col in df.columns:
+        # Epoch index
+        epoch_col = _first_present_column(df, [
+            f"{stage_key}/epoch",
+            f"training/{stage_key}/epoch",
+        ])
+        if epoch_col:
             epochs = df[epoch_col].dropna()
             if not epochs.empty:
                 stage_stats["epochs_recorded"] = int(epochs.max()) + 1 if epochs.dtype.kind in "iu" else float(epochs.max())
 
-        time_col = f"{stage_key}/epoch_time_sec"
-        if time_col in df.columns:
+        # Epoch times
+        time_col = _first_present_column(df, [
+            f"{stage_key}/epoch_time_sec",
+            f"training/{stage_key}/epoch_time_sec",
+        ])
+        if time_col:
             times = df[time_col].dropna()
             if not times.empty:
                 stage_stats["epoch_time_mean"] = float(times.mean())
                 stage_stats["epoch_time_max"] = float(times.max())
 
-        patience_col = f"{stage_key}/epochs_since_improve"
-        if patience_col in df.columns:
+        # Patience
+        patience_col = _first_present_column(df, [
+            f"{stage_key}/epochs_since_improve",
+            f"training/{stage_key}/epochs_since_improve",
+        ])
+        if patience_col:
             patience = df[patience_col].dropna()
             if not patience.empty:
                 stage_stats["epochs_since_improve_last"] = float(patience.iloc[-1])
@@ -160,15 +190,21 @@ def analyze_training_curves(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
 
 
 def analyze_gradient_norms(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
-    """Analyze gradient norms for convergence issues."""
+    """Analyze gradient norms for convergence issues.
+
+    Supports both "stage/..." and "training/stage/..." naming.
+    """
     grad_analysis: Dict[str, Dict[str, float]] = {}
 
     if df.empty:
         return grad_analysis
 
     for stage_key, _label in STAGES:
-        grad_col = f"{stage_key}/grad_norm"
-        if grad_col not in df.columns:
+        grad_col = _first_present_column(df, [
+            f"{stage_key}/grad_norm",
+            f"training/{stage_key}/grad_norm",
+        ])
+        if not grad_col:
             continue
         grads = df[grad_col].dropna()
         if grads.empty:
