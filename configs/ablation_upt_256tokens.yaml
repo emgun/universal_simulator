@@ -1,0 +1,94 @@
+# Ablation: 256 tokens (UPT-17M scale)
+# Purpose: Find optimal token count for Burgers
+
+seed: 42
+deterministic: true
+benchmark: false
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 192
+  tokens: 256
+
+operator:
+  pdet:
+    input_dim: 192
+    hidden_dim: 384
+    depths: [4, 4, 4]
+    group_size: 32
+    num_heads: 6
+
+diffusion:
+  latent_dim: 192
+  hidden_dim: 384
+
+training:
+  batch_size: 4
+  time_stride: 2
+  dt: 0.1
+  patience: 15
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+
+  checkpoint_interval: 10
+
+  amp: true
+  compile: true
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 8
+
+  # UPT Inverse Losses
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+  use_inverse_losses: true
+  inverse_loss_frequency: 10
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 30
+
+    optimizer:
+      name: adamw
+      lr: 8.0e-4
+      betas: [0.9, 0.999]
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 10
+
+  consistency_distill:
+    epochs: 10
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-ablation-256tokens
+    tags: [ablation, 256tokens, 192dim, phase2]
+    group: upt-ablation
+

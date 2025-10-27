@@ -1,0 +1,180 @@
+# Burgers1D with UPT-17M Configuration
+# 256 tokens, 192 latent dim (matches UPT paper recommendations)
+# Expected: 20-40% additional NRMSE improvement over Phase 1
+
+seed: 42
+deterministic: true
+benchmark: false
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1  # May be increased to 2 if needed
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 192        # Up from 16
+  tokens: 256     # Up from 32
+
+operator:
+  pdet:
+    input_dim: 192      # Must match latent.dim
+    hidden_dim: 384     # 2x latent.dim
+    depths: [4, 4, 4]   # Keep U-shaped architecture for now
+    group_size: 32
+    num_heads: 6
+
+diffusion:
+  latent_dim: 192       # Must match latent.dim
+  hidden_dim: 384
+
+training:
+  batch_size: 4         # Reduced due to larger model
+  time_stride: 2
+  dt: 0.1
+  patience: 15
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+
+  latent_cache_dir: data/latent_cache_upt17m
+  latent_cache_dtype: float32
+  checkpoint_interval: 10
+
+  amp: true
+  compile: true
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 8        # Increased for memory
+
+  # UPT Inverse Losses
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+  use_inverse_losses: true
+  inverse_loss_frequency: 10
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  distill_micro_batch: 2
+  distill_num_taus: 5
+
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+stages:
+  operator:
+    epochs: 30
+
+    optimizer:
+      name: adamw
+      lr: 8.0e-4
+      betas: [0.9, 0.999]
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 10
+    grad_clip: 1.0
+    ema_decay: 0.999
+
+    optimizer:
+      name: adamw
+      lr: 4.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 10
+      eta_min: 2.0e-6
+
+  consistency_distill:
+    epochs: 10
+    batch_size: 2
+    tau_schedule: [5, 4, 3, 2]
+    accum_steps: 4
+
+    optimizer:
+      name: adamw
+      lr: 2.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 10
+      eta_min: 1.0e-6
+
+  steady_prior:
+    epochs: 0
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 16
+  beam_width: 5
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 200
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.08, 0.05, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 192
+    query_dim: 2
+    hidden_dim: 384
+    mlp_hidden_dim: 256
+    num_layers: 3
+    num_heads: 6
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+
+    output_channels:
+      rho: 1
+      e: 1
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt17m
+    tags: [192dim, 256tokens, upt17m, phase2]
+    group: upt-experiments
+
