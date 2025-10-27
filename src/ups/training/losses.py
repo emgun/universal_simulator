@@ -131,6 +131,40 @@ def edge_total_variation(latent: Tensor, edges: Tensor, weight: float = 1.0) -> 
     return weight * tv
 
 
+def compute_inverse_loss_curriculum_weight(
+    epoch: int,
+    base_weight: float,
+    warmup_epochs: int = 15,
+    max_weight: float = 0.05,
+) -> float:
+    """Compute curriculum-scheduled weight for inverse losses.
+
+    Implements gradual ramp-up to prevent gradient explosion:
+    - Epochs 0-warmup_epochs: weight = 0 (pure forward training)
+    - Epochs warmup_epochs to warmup_epochs*2: linear ramp from 0 to base_weight
+    - Epochs > warmup_epochs*2: weight = min(base_weight, max_weight)
+
+    Args:
+        epoch: Current training epoch (0-indexed)
+        base_weight: Base weight from config (e.g., 0.001)
+        warmup_epochs: Number of epochs with zero inverse loss (default: 15)
+        max_weight: Maximum allowed inverse loss weight (default: 0.05)
+
+    Returns:
+        Effective weight for this epoch
+    """
+    if epoch < warmup_epochs:
+        # Phase 1: Pure forward training
+        return 0.0
+    elif epoch < warmup_epochs * 2:
+        # Phase 2: Linear ramp-up
+        progress = (epoch - warmup_epochs) / warmup_epochs
+        return min(base_weight * progress, max_weight)
+    else:
+        # Phase 3: Full weight (but capped at max_weight)
+        return min(base_weight, max_weight)
+
+
 def compute_operator_loss_bundle(
     *,
     # For inverse encoding
@@ -154,27 +188,46 @@ def compute_operator_loss_bundle(
     spectral_target: Optional[torch.Tensor] = None,
     # Weights
     weights: Optional[Mapping[str, float]] = None,
+    # Curriculum learning
+    current_epoch: Optional[int] = None,
 ) -> LossBundle:
     """Compute full loss bundle for operator training including UPT inverse losses.
 
     All inputs are optional to allow flexible usage (e.g., only forward loss,
     or forward + inverse, etc.). Losses are only computed if their inputs are provided.
+
+    If current_epoch is provided, applies curriculum learning to inverse loss weights.
     """
     weights = weights or {}
     comp = {}
+
+    # Apply curriculum learning to inverse loss weights if epoch is provided
+    lambda_inv_enc = weights.get("lambda_inv_enc", 0.0)
+    lambda_inv_dec = weights.get("lambda_inv_dec", 0.0)
+
+    if current_epoch is not None:
+        warmup_epochs = weights.get("inverse_loss_warmup_epochs", 15)
+        max_weight = weights.get("inverse_loss_max_weight", 0.05)
+
+        lambda_inv_enc = compute_inverse_loss_curriculum_weight(
+            current_epoch, lambda_inv_enc, warmup_epochs, max_weight
+        )
+        lambda_inv_dec = compute_inverse_loss_curriculum_weight(
+            current_epoch, lambda_inv_dec, warmup_epochs, max_weight
+        )
 
     # UPT Inverse Encoding Loss
     if all(x is not None for x in [input_fields, encoded_latent, decoder, input_positions]):
         comp["L_inv_enc"] = inverse_encoding_loss(
             input_fields, encoded_latent, decoder, input_positions,
-            weight=weights.get("lambda_inv_enc", 0.0)
+            weight=lambda_inv_enc
         )
 
     # UPT Inverse Decoding Loss
     if all(x is not None for x in [encoded_latent, decoder, encoder, query_positions, coords, meta]):
         comp["L_inv_dec"] = inverse_decoding_loss(
             encoded_latent, decoder, encoder, query_positions, coords, meta,
-            weight=weights.get("lambda_inv_dec", 0.0)
+            weight=lambda_inv_dec
         )
 
     # Forward prediction loss (always used)

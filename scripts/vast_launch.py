@@ -110,15 +110,21 @@ git checkout {branch}
 git pull origin {branch}
 apt-get update && apt-get install -y git rclone build-essential
 
-source /venv/main/bin/activate
+# Activate venv if it exists (vastai/pytorch), otherwise use system Python
+if [ -f /venv/main/bin/activate ]; then
+  source /venv/main/bin/activate
+fi
+
 pip install -e .[dev]
 
 export RCLONE_CONFIG_B2TRAIN_TYPE=s3
-export RCLONE_CONFIG_B2TRAIN_PROVIDER=B2
+export RCLONE_CONFIG_B2TRAIN_PROVIDER=Other
 export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="$B2_KEY_ID"
 export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY="$B2_APP_KEY"
 export RCLONE_CONFIG_B2TRAIN_ENDPOINT="$B2_S3_ENDPOINT"
 export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
+export RCLONE_CONFIG_B2TRAIN_ACL=private
+export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 
 mkdir -p data/pdebench
 if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
@@ -156,35 +162,10 @@ echo "✓ Training pipeline completed"
 
     if auto_shutdown:
         script += """
-# Auto-stop: Use VastAI API to stop instance (keeps logs accessible)
-# $CONTAINER_ID is provided by VastAI environment
-echo "🔄 Preparing auto-stop..."
-
-# Install vastai if not present
-pip install -q vastai >/dev/null 2>&1 || true
-
-if [ -n "${CONTAINER_ID:-}" ]; then
-  echo "🔄 Auto-stop triggered - stopping instance $CONTAINER_ID in 10 seconds..."
-  sleep 10  # Give time for logs to flush and WandB to sync
-
-  # Try to stop instance - retry up to 3 times
-  for i in 1 2 3; do
-    echo "Attempt $i to stop instance..."
-    if vastai stop instance $CONTAINER_ID; then
-      echo "✓ Instance stopped successfully (logs preserved for review)"
-      exit 0
-    else
-      echo "⚠️  Stop attempt $i failed, retrying in 5 seconds..."
-      sleep 5
-    fi
-  done
-
-  echo "❌ Auto-stop failed after 3 attempts - please manually stop instance $CONTAINER_ID"
-else
-  echo "⚠️  CONTAINER_ID not set - cannot auto-stop (please stop instance manually)"
-fi
-
-# Fallback: exit anyway to stop billing
+# Auto-stop instance
+pip install -q vastai 2>&1 || true
+sleep 10
+[ -n "${CONTAINER_ID:-}" ] && vastai stop instance $CONTAINER_ID || true
 exit 0
 """
 
@@ -328,8 +309,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--offer-id", help="Explicit offer ID to create from")
     p_launch.add_argument("--gpu", default="RTX_4090", help="GPU model (default: RTX_4090)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
-    p_launch.add_argument("--image", default="vastai/pytorch", 
-                         help="Docker image (vastai/pytorch has PyTorch preinstalled with proper CUDA/Triton setup)")
+    p_launch.add_argument("--image", default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
+                         help="Docker image (default: PyTorch 2.7 CUDA 12.8 for Blackwell support)")
     p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
     p_launch.add_argument("--region", help="Region filter")
     p_launch.add_argument("--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)")
