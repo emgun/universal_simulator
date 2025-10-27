@@ -27,7 +27,7 @@ operator:
     hidden_dim: 384     # 2x latent.dim
     depths: [4, 4, 4]   # Keep U-shaped architecture for now
     group_size: 32
-    num_heads: 6
+    num_heads: 8
 
 diffusion:
   latent_dim: 192       # Must match latent.dim
@@ -177,4 +177,3 @@ logging:
     run_name: burgers-upt17m
     tags: [192dim, 256tokens, upt17m, phase2]
     group: upt-experiments
-
