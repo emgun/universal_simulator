@@ -1,0 +1,196 @@
+# Burgers1D Training - 64-dim UPT with All Oscillation Fixes
+# Based on OSCILLATION_ANALYSIS.md recommendations
+#
+# KEY CHANGES from 16-dim nocache config:
+# 1. Scale up latent space: 16→64 dim, 32→64 tokens (8x capacity)
+# 2. Increase depth: [1,1,1]→[3,3,2] (8 total layers)
+# 3. Lower LR: 1e-3→5e-4 (more conservative training)
+# 4. Keep inverse losses: lambda_inv_enc=0.5, lambda_inv_dec=0.5
+#
+# EXPECTED RESULTS:
+# - Operator loss: <0.001 (vs 1.536 in 16-dim)
+# - Smooth convergence (no oscillation)
+# - Training time: ~35-40 min (vs 25 min for 16-dim)
+#
+# Reference: reports/OSCILLATION_ANALYSIS.md (Scenario C)
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+# FIX #1: Scale up latent space (512→4096 dimensions)
+latent:
+  dim: 64      # 16→64 (4x increase)
+  tokens: 64   # 32→64 (2x increase)
+  # Total: 64 × 64 = 4096 dimensions (vs 512)
+  # Sufficient for Burgers 1D needs (~600-800 effective dims)
+
+# FIX #2: Increase model depth (3→8 layers)
+operator:
+  pdet:
+    input_dim: 64    # Must match latent.dim
+    hidden_dim: 192  # Scale up proportionally (96→192)
+    depths: [3, 3, 2]  # [1,1,1]→[3,3,2] = 8 total layers
+    group_size: 12
+    num_heads: 6
+
+diffusion:
+  latent_dim: 64     # Must match latent.dim
+  hidden_dim: 192    # Scale up proportionally
+
+training:
+  batch_size: 8      # Reduce from 12 (larger model needs less batch)
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+
+  # DISABLE CACHING - UPT needs physical fields
+  num_workers: 0
+  use_parallel_encoding: false
+  pin_memory: false
+  prefetch_factor: null
+
+  checkpoint_interval: 50
+
+  amp: true
+  compile: false  # Disable to avoid /tmp issues
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 6   # Increase from 4 to maintain effective batch (8×6=48)
+
+  # FIX #3: Keep inverse losses (prevent encoder drift)
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+  use_inverse_losses: true
+  inverse_loss_frequency: 10
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  distill_micro_batch: 3
+  distill_num_taus: 5
+
+  tau_distribution:
+    type: beta
+    alpha: 1.2
+    beta: 1.2
+
+stages:
+  operator:
+    epochs: 25
+
+    # FIX #4: Lower learning rate (more conservative)
+    optimizer:
+      name: adamw
+      lr: 5.0e-4        # 1e-3→5e-4 (halved)
+      betas: [0.9, 0.999]
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 8
+    grad_clip: 1.0
+    ema_decay: 0.999
+
+    optimizer:
+      name: adamw
+      lr: 5.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 3.0e-6
+
+  consistency_distill:
+    epochs: 8
+    batch_size: 4      # Reduce from 6 (larger model)
+    tau_schedule: [5, 4, 3]
+    accum_steps: 3     # Increase to maintain effective batch
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-5
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-6
+
+  steady_prior:
+    epochs: 0
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 16
+  beam_width: 5
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 200
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.08, 0.05, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 64     # Must match latent.dim
+    query_dim: 2
+    hidden_dim: 192    # Scale up proportionally
+    mlp_hidden_dim: 256  # Scale up proportionally
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+
+    output_channels:
+      rho: 1
+      e: 1
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt-64dim
+    tags: [64dim, upt, inverse-losses, 8layers, oscillation-fix]
+    group: upt-experiments
+    notes: "Implements all 4 fixes from OSCILLATION_ANALYSIS.md: 64-dim latent, 8 layers, inverse losses, lower LR. Expected: <0.001 loss, no oscillation."
