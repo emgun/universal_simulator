@@ -26,7 +26,7 @@ operator:
     hidden_dim: 256
     depths: [3, 3, 2]
     group_size: 32
-    num_heads: 6
+    num_heads: 8
 
 diffusion:
   latent_dim: 128
@@ -91,4 +91,3 @@ logging:
     run_name: burgers-ablation-128tokens
     tags: [ablation, 128tokens, 128dim, phase2]
     group: upt-ablation
-
