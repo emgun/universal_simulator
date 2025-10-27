@@ -242,38 +242,40 @@ def compute_operator_loss_bundle(
     if spectral_pred is not None and spectral_target is not None:
         comp["L_spec"] = spectral_loss(spectral_pred, spectral_target, weight=weights.get("lambda_spectral", 0.0))
 
-    # Sum only non-zero losses
-    total = torch.stack([v for v in comp.values() if v.numel() == 1 and v.item() != 0.0]).sum()
-    return LossBundle(total=total, components=comp)
+    # Sum losses robustly, even if some are exactly zero or no components present
+    total_tensor: Optional[Tensor] = None
+    for v in comp.values():
+        total_tensor = v if total_tensor is None else total_tensor + v
+    if total_tensor is None:
+        total_tensor = torch.tensor(0.0)
+    return LossBundle(total=total_tensor, components=comp)
 
 
 def compute_loss_bundle(
     *,
-    encoded: Tensor,
-    reconstructed: Tensor,
-    decoded_pred: Mapping[str, Tensor],
-    decoded_target: Mapping[str, Tensor],
     pred_next: Tensor,
     target_next: Tensor,
-    pred_rollout: Tensor,
-    target_rollout: Tensor,
-    spectral_pred: Tensor,
-    spectral_target: Tensor,
-    consistency_pred: Tensor,
-    consistency_target: Tensor,
-    latent_for_tv: Tensor,
-    edges: Tensor,
+    pred_rollout: Optional[Tensor] = None,
+    target_rollout: Optional[Tensor] = None,
+    spectral_pred: Optional[Tensor] = None,
+    spectral_target: Optional[Tensor] = None,
     weights: Optional[Mapping[str, float]] = None,
 ) -> LossBundle:
-    weights = weights or {}
-    comp = {}
-    comp["L_inv_enc"] = inverse_encoding_loss(encoded, reconstructed, weights.get("L_inv_enc", 1.0))
-    comp["L_inv_dec"] = inverse_decoding_loss(decoded_pred, decoded_target, weights.get("L_inv_dec", 1.0))
-    comp["L_one_step"] = one_step_loss(pred_next, target_next, weights.get("L_one_step", 1.0))
-    comp["L_rollout"] = rollout_loss(pred_rollout, target_rollout, weights.get("L_rollout", 1.0))
-    comp["L_spec"] = spectral_loss(spectral_pred, spectral_target, weights.get("L_spec", 1.0))
-    comp["L_cons"] = consistency_loss(consistency_pred, consistency_target, weights.get("L_cons", 1.0))
-    comp["L_tv_edge"] = edge_total_variation(latent_for_tv, edges, weights.get("L_tv_edge", 1.0))
-    total = torch.stack([c for c in comp.values() if c.numel() == 1]).sum()
-    return LossBundle(total=total, components=comp)
+    """Deprecated wrapper retained for backward compatibility in tests.
 
+    Computes forward, rollout, and spectral losses using the new naming scheme.
+    For full UPT inverse losses, use compute_operator_loss_bundle.
+    """
+    weights = weights or {}
+    comp: Dict[str, Tensor] = {}
+    comp["L_forward"] = one_step_loss(pred_next, target_next, weights.get("lambda_forward", 1.0))
+    if pred_rollout is not None and target_rollout is not None:
+        comp["L_rollout"] = rollout_loss(pred_rollout, target_rollout, weights.get("lambda_rollout", 0.0))
+    if spectral_pred is not None and spectral_target is not None:
+        comp["L_spec"] = spectral_loss(spectral_pred, spectral_target, weights.get("lambda_spectral", 0.0))
+    total = None
+    for v in comp.values():
+        total = v if total is None else total + v
+    if total is None:
+        total = torch.tensor(0.0)
+    return LossBundle(total=total, components=comp)

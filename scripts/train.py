@@ -415,6 +415,7 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
     # Instantiate encoder and decoder for inverse losses
     use_inverse_losses = (
+        bool(cfg.get("training", {}).get("use_inverse_losses", False)) or
         cfg.get("training", {}).get("lambda_inv_enc", 0.0) > 0 or
         cfg.get("training", {}).get("lambda_inv_dec", 0.0) > 0
     )
@@ -442,8 +443,17 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             field_channels=field_channels,
             patch_size=data_cfg.get("patch_size", 4),
         )
-        encoder = GridEncoder(encoder_cfg).to(device)
-        encoder.eval()  # Encoder not trained during operator stage
+        # Prefer using the same encoder instance used by the dataset if available
+        dataset_obj = getattr(loader, "dataset", None)
+        shared_encoder = None
+        if dataset_obj is not None:
+            # Handle ConcatDataset by peeking first child
+            if hasattr(dataset_obj, "encoder"):
+                shared_encoder = dataset_obj.encoder
+            elif hasattr(dataset_obj, "datasets") and len(dataset_obj.datasets) > 0 and hasattr(dataset_obj.datasets[0], "encoder"):
+                shared_encoder = dataset_obj.datasets[0].encoder
+        encoder = (shared_encoder or GridEncoder(encoder_cfg)).to(device)
+        encoder.eval()  # Encoder is frozen during operator stage
 
         # Create decoder (matches TTC decoder config or use sensible defaults)
         ttc_decoder_cfg = cfg.get("ttc", {}).get("decoder", {})
@@ -534,6 +544,9 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                         "lambda_inv_dec": float(train_cfg.get("lambda_inv_dec", 0.0)),
                         "lambda_spectral": lam_spec,
                         "lambda_rollout": lam_rollout,
+                        # Curriculum schedule parameters (optional)
+                        "inverse_loss_warmup_epochs": int(train_cfg.get("inverse_loss_warmup_epochs", 15)),
+                        "inverse_loss_max_weight": float(train_cfg.get("inverse_loss_max_weight", 0.05)),
                     }
 
                     # Prepare rollout targets if needed
@@ -553,17 +566,21 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     # Compute loss bundle (handles optional inverse losses)
                     from ups.training.losses import compute_operator_loss_bundle
 
+                    # Optionally subsample inverse loss computation to reduce overhead
+                    inv_freq = int(train_cfg.get("inverse_loss_frequency", 1) or 1)
+                    use_inv_now = use_inverse_losses and (inv_freq > 0) and (i % inv_freq == 0)
+
                     loss_bundle = compute_operator_loss_bundle(
                         # Inverse encoding inputs (optional)
-                        input_fields=input_fields_physical if use_inverse_losses else None,
-                        encoded_latent=state.z if use_inverse_losses else None,
-                        decoder=decoder if use_inverse_losses else None,
-                        input_positions=coords if use_inverse_losses else None,
+                        input_fields=input_fields_physical if use_inv_now else None,
+                        encoded_latent=state.z if use_inv_now else None,
+                        decoder=decoder if use_inv_now else None,
+                        input_positions=coords if use_inv_now else None,
                         # Inverse decoding inputs (optional)
-                        encoder=encoder if use_inverse_losses else None,
-                        query_positions=coords if use_inverse_losses else None,
-                        coords=coords if use_inverse_losses else None,
-                        meta=meta if use_inverse_losses else None,
+                        encoder=encoder if use_inv_now else None,
+                        query_positions=coords if use_inv_now else None,
+                        coords=coords if use_inv_now else None,
+                        meta=meta if use_inv_now else None,
                         # Forward prediction (always)
                         pred_next=next_state.z,
                         target_next=target,
@@ -575,6 +592,8 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                         spectral_target=target if lam_spec > 0 else None,
                         # Weights
                         weights=loss_weights,
+                        # Curriculum learning
+                        current_epoch=epoch,
                     )
 
                     loss = loss_bundle.total

@@ -992,7 +992,7 @@ def test_inverse_losses_decrease_with_perfect_reconstruction(simple_encoder, sim
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] Unit tests pass: `pytest tests/unit/test_losses.py -v -k inverse`
+- [x] Unit tests pass: `pytest tests/unit/test_losses.py -v -k inverse`
 - [ ] 1-epoch test runs without errors: `python scripts/train.py --config configs/test_upt_losses_1epoch.yaml --stage operator`
 - [ ] Inverse encoding loss decreases during training
 - [ ] Inverse decoding loss decreases during training

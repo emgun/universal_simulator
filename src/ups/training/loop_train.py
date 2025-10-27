@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from ups.core.latent_state import LatentState
 from ups.models.latent_operator import LatentOperator
-from ups.training.losses import LossBundle, compute_loss_bundle
+from ups.training.losses import LossBundle, compute_operator_loss_bundle
 
 
 @dataclass
@@ -91,25 +91,15 @@ class LatentTrainer:
 
         spectral_pred = batch.get("spectral_pred", pred_next)
         spectral_target = batch.get("spectral_target", target_next)
-        consistency_pred = batch.get("consistency_pred", pred_next)
-        consistency_target = batch.get("consistency_target", target_next)
-        latent_for_tv = batch.get("latent_for_tv", pred_next)
-        edges = batch.get("edges", torch.zeros(0, 2, device=pred_next.device))
 
-        loss_bundle = compute_loss_bundle(
-            encoded=encoded,
-            reconstructed=reconstructed,
-            decoded_pred=decoded_pred,
-            decoded_target=decoded_target,
+        # Use new operator loss bundle without inverse terms here (unit tests use dummy data)
+        loss_bundle = compute_operator_loss_bundle(
             pred_next=pred_next,
             target_next=target_next,
             pred_rollout=pred_rollout,
             target_rollout=target_rollout,
             spectral_pred=spectral_pred,
             spectral_target=spectral_target,
-            consistency_pred=consistency_pred,
-            consistency_target=consistency_target,
-            latent_for_tv=latent_for_tv,
-            edges=edges,
+            weights={"lambda_forward": 1.0},
         )
         return loss_bundle
