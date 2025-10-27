@@ -1028,13 +1028,16 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
     if should_compile:
         try:
+            # Use "default" mode instead of "reduce-overhead" to avoid CUDA graph bugs
+            # CUDA graphs can cause "accessing tensor output that has been overwritten" errors
+            # when tensors are reused across iterations (issue #27338341)
             distill_fn = torch.compile(
                 _distill_forward_and_loss,
-                mode="reduce-overhead",
+                mode="default",  # Safe mode without CUDA graphs
                 fullgraph=False,
             )
             distill_compile_enabled = True
-            print("✓ torch.compile enabled for consistency distillation function")
+            print("✓ torch.compile enabled for consistency distillation function (safe mode)")
         except Exception as e:
             print(f"⚠ torch.compile failed for distill function: {e}")
             distill_fn = _distill_forward_and_loss
