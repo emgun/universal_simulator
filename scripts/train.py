@@ -1017,9 +1017,16 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     base_num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
 
     # Conditionally compile the distillation function if enabled
+    # Allow per-stage override via stages.consistency_distill.compile
     distill_fn = _distill_forward_and_loss  # Default to uncompiled
     distill_compile_enabled = False
-    if cfg.get("training", {}).get("compile", False):
+
+    # Check stage-specific compile setting first, fall back to global training.compile
+    stage_compile = cfg.get("stages", {}).get("consistency_distill", {}).get("compile")
+    global_compile = cfg.get("training", {}).get("compile", False)
+    should_compile = stage_compile if stage_compile is not None else global_compile
+
+    if should_compile:
         try:
             distill_fn = torch.compile(
                 _distill_forward_and_loss,

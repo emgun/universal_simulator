@@ -117,6 +117,7 @@ stages:
 
   consistency_distill:
     epochs: 8
+    compile: false  # Disable torch.compile for consistency distill (CUDA graph bug)
     batch_size: 6
     tau_schedule: [5, 4, 3]
     accum_steps: 2
