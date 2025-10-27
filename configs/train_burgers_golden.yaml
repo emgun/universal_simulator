@@ -110,6 +110,7 @@ stages:
       betas: [0.9, 0.999]
       weight_decay: 0.03    # Key: Added weight decay
 
+
   diff_residual:
     epochs: 8               # Key: More epochs (was 5)
     grad_clip: 1.0
