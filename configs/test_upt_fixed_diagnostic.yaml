@@ -107,7 +107,8 @@ checkpoint:
   dir: checkpoints
 
 evaluation:
-  enabled: false  # Skip for diagnostic
+  enabled: true  # Required by validator
+  split: test
 
 logging:
   wandb:
