@@ -344,9 +344,8 @@ class GridLatentPairDataset(Dataset):
                     "params": params_cpu,
                     "bc": bc_cpu,
                 }
-                # Optionally cache physical fields for inverse losses
-                if self.use_inverse_losses and fields_cpu is not None:
-                    payload["fields"] = fields_cpu.cpu()
+                # Do not persist physical fields to reduce cache size and inode pressure.
+                # When inverse losses are enabled, fields will be loaded on-demand from the base dataset.
                 buffer = io.BytesIO()
                 torch.save(payload, buffer)
                 tmp_path.write_bytes(buffer.getvalue())

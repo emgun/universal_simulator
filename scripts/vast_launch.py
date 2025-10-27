@@ -48,6 +48,15 @@ def git_remote_url() -> str:
         return "https://github.com/emgun/universal_simulator.git"
 
 
+def git_current_branch() -> str:
+    """Get current git branch name."""
+    try:
+        out = subprocess.check_output(["git", "branch", "--show-current"], cwd=REPO_ROOT)
+        return out.decode().strip()
+    except subprocess.CalledProcessError:
+        return "feature/sota_burgers_upgrades"  # fallback
+
+
 def generate_onstart_script(
     config: str,
     stage: str = "all",
@@ -236,15 +245,18 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 def cmd_launch(args: argparse.Namespace) -> None:
     """Launch a training instance."""
+    # Auto-detect branch if not specified
+    branch = args.branch if args.branch else git_current_branch()
+
     # Generate onstart script
     ONSTART_DIR.mkdir(exist_ok=True)
     onstart_path = ONSTART_DIR / "onstart.sh"
-    
+
     script_content = generate_onstart_script(
         config=args.config,
         stage=args.stage,
         repo_url=args.repo_url,
-        branch=args.branch,
+        branch=branch,
         workdir=args.workdir,
         auto_shutdown=args.auto_shutdown,
         run_args=args.run_arg,
@@ -324,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--stage", default="all", choices=["all", "operator", "diffusion", "distill"],
                          help="Training stage (default: all)")
     p_launch.add_argument("--repo-url", help="Git remote URL (default: auto-detect)")
-    p_launch.add_argument("--branch", default="feature/sota_burgers_upgrades", help="Git branch")
+    p_launch.add_argument("--branch", default=None, help="Git branch (default: auto-detect from current branch)")
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_launch.add_argument("--auto-shutdown", action="store_true", help="Auto-shutdown after completion")
     p_launch.add_argument("--dry-run", action="store_true", help="Print commands without launching")

@@ -176,26 +176,71 @@ grep -i error /workspace/universal_simulator/nohup.out
 
 ---
 
-**Status:** ✅ **LAUNCHED - FLOAT16 CACHE OPTIMIZATION**
+**Status:** ✅ **FINAL PRODUCTION RUN - ALL 8 UPT FIXES APPLIED**
 
-**Current Instance:** 27247185
-**GPU:** RTX A6000 (48GB VRAM)
-**Disk:** 1431GB
-**Cost:** $0.39/hr
-**Location:** Sweden (99.2% reliability)
-**Optimization:** Using float16 cache dtype (50% size reduction)
+**Current Instance:** 27283596
+**GPU:** RTX 4090 (24GB VRAM)
+**Disk:** 64GB
+**Cost:** $0.30/hr
+**Branch:** feature--UPT (commit bfd60d6 - NO-COMPILE FIX)
+**Config:** `train_burgers_upt_nocache.yaml` (caching + compile disabled)
+**WandB:** Will be at emgun-morpheus-space/universal-simulator
 
-**Critical Fixes Applied:**
+**Previous Instances (Failed):**
+- **27252152** (RTX 5880 Ada 48GB) - Crashed in diffusion (incomplete collate fix)
+- **27262305** (RTX 5880 Ada 48GB) - Crashed in diffusion (same error, led to real fix)
+- **27279702** (RTX A6000 48GB) - WRONG BRANCH (launched with feature/sota_burgers_upgrades)
+- **27281504** (RTX A6000 48GB) - DISK FULL during training (UPT+cache incompatibility)
+- **27283349** (RTX 4090 24GB) - DISK FULL from torch.compile kernels in /tmp
+
+**All 8 Critical Fixes Applied:**
 1. **Commit 52f0532** - Fixed `precompute_latent_cache.py` to pass `use_inverse_losses=True`
 2. **Commit 5ccaf56** - Changed auto-shutdown to auto-stop (preserve logs)
 3. **Commit d1f077e** - Added `--cache-dtype float16` to reduce cache size from >1TB to ~500GB
+4. **Commit c592248** - Removed 60-minute timeout (training needs time to complete)
+5. **Commit becc775** - Fixed `latent_pairs.py` collate function (INCOMPLETE - only fixed one file)
+6. **Commit bc974c3** - Fixed `parallel_cache.py` collate function (THE REAL COLLATE FIX)
+7. **Commit 6850081** - Disabled caching entirely for UPT (avoid UPT+cache incompatibility)
+8. **Commit bfd60d6** - Disabled torch.compile (kernel cache fills /tmp on small disks)
 
-**Previous Attempts:**
-- **27205160** (Q_RTX_8000 48GB) - NO inverse losses (cache bug)
-- **27205792** (A100 SXM4 40GB) - NO inverse losses (cache bug)
-- **27239686** (RTX 5880 Ada 237GB) - Disk full during cache (float32)
-- **27240693** (RTX A6000 64GB) - Disk full during cache (float32)
-- **27242199** (RTX A6000 500GB) - Disk full during cache (float32)
-- **27243507** (RTX 4090 1TB) - Disk full during cache (float32)
+**Root Causes Discovered:**
 
-**Key Lesson:** UPT cache with physical fields in float32 requires >1TB disk. Float16 reduces to ~500GB.
+**Issue #1 - Diffusion Crashes (Fixes #5-6):**
+- TWO files were using legacy `collate_latent_pairs()` function
+- Fix #5 only updated `latent_pairs.py`
+- Fix #6 found and fixed `parallel_cache.py` (used by diffusion stage)
+- Both files now use new `latent_pair_collate()` that returns dict format
+
+**Issue #2 - UPT + Caching Incompatibility (Fix #7):**
+- UPT inverse losses require physical fields + coords during training
+- Legacy latent cache only stores latent vectors (no physical fields)
+- When training loads from cache, it tries to write missing data on-the-fly
+- This filled the disk during the first training batch (OSError: No space left on device)
+- **Solution**: Disable caching entirely (`num_workers=0`, no `latent_cache_dir`)
+- **Trade-off**: Training slower (~3-5x) but no massive disk requirement
+
+**Issue #3 - torch.compile Kernel Cache (Fix #8):**
+- Even with caching disabled, torch.compile filled `/tmp/torchinductor_root/` with compiled kernels
+- RTX 4090 with 64GB disk ran out of space during first batch compilation
+- Error: `OSError: [Errno 28] No space left on device: '/tmp/torchinductor_root/sw'`
+- **Solution**: Disable torch.compile (`training.compile=false`)
+- **Trade-off**: Training ~1.5x slower but works on small disks
+
+**Key Insights:**
+- Instance 27252152 confirmed operator training works with UPT + torch.compile + float16 cache
+- Diffusion crash was due to collate function mismatch in `parallel_cache.py`
+- Needed comprehensive grep search to find ALL uses of legacy collate function
+- UPT on small disks requires BOTH caching and compile disabled
+- Performance penalty: ~4.5-7.5x slower (3-5x from no cache, 1.5x from no compile)
+
+**Earlier Failed Attempts:**
+- **27205160** (Q_RTX_8000 48GB) - NO inverse losses (cache bug - fix #1)
+- **27205792** (A100 SXM4 40GB) - NO inverse losses (cache bug - fix #1)
+- **27239686** (RTX 5880 Ada 237GB) - Disk full during cache (float32 - fix #3)
+- **27240693** (RTX A6000 64GB) - Disk full during cache (float32 - fix #3)
+- **27242199** (RTX A6000 500GB) - Disk full during cache (float32 - fix #3)
+- **27243507** (RTX 4090 1TB) - Disk full during cache (float32 - fix #3)
+
+**Key Lessons:**
+- UPT cache with physical fields in float32 requires >1TB disk. Float16 reduces to ~500GB.
+- When fixing function names, grep entire codebase - don't assume one fix is enough!
