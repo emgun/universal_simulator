@@ -20,12 +20,24 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
 import yaml
+import os
 import torch.multiprocessing as mp
 
 try:
     import wandb
 except ImportError:
     wandb = None
+
+# Safer compile defaults: compile in main process and fall back to eager on failures
+try:
+    import torch._dynamo as _dynamo
+    _dynamo.config.suppress_errors = True  # Avoid hard-crash on backend failures
+    _dynamo.config.error_on_recompile = False
+except Exception:
+    pass
+
+# Avoid inductor subprocess crashes by compiling in the main process
+os.environ.setdefault("TORCHINDUCTOR_COMPILE_THREADS", "1")
 
 # Ensure CUDA + DataLoader workers use a safe start method
 try:
@@ -306,20 +318,14 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
     try:
         import torch
 
-        # Use different compile modes based on model type and training config:
-        # - "default" for diffusion models (avoids CUDA graph issues with complex control flow)
-        # - "default" for operators with rollout loss (multi-step prediction breaks CUDA graphs)
-        # - "reduce-overhead" for operators without rollout (aggressive CUDA graph optimization)
+        # Safer default: "default" mode; allow override via training.compile_mode
         training_cfg = cfg.get("training", {})
-        has_rollout = training_cfg.get("rollout_horizon", 0) > 0 and training_cfg.get("lambda_rollout", 0) > 0
-        
-        if "diffusion" in name.lower():
-            compile_mode = "default"
-        elif "operator" in name.lower() and has_rollout:
-            compile_mode = "default"  # Rollout breaks CUDA graphs
+        user_mode = str(training_cfg.get("compile_mode", "")).lower()
+        if user_mode in {"default", "reduce-overhead", "max-autotune"}:
+            compile_mode = user_mode
         else:
-            compile_mode = "reduce-overhead"
-        
+            compile_mode = "default"
+
         compiled = torch.compile(model, mode=compile_mode, fullgraph=False)
         return compiled
     except Exception:
