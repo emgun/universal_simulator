@@ -471,7 +471,7 @@ def build_parser() -> argparse.ArgumentParser:
     # launch command
     p_launch = sub.add_parser("launch", help="Launch training instance")
     p_launch.add_argument("--offer-id", help="Explicit offer ID to create from")
-    p_launch.add_argument("--gpu", default="RTX_4090", help="GPU model (default: RTX_4090)")
+    p_launch.add_argument("--gpu", default="A100_PCIE", help="GPU model (default: A100_PCIE)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
     p_launch.add_argument("--image", default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
                          help="Docker image (default: PyTorch 2.7 CUDA 12.8 for Blackwell support)")
