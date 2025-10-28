@@ -42,7 +42,7 @@ diffusion:
   hidden_dim: 512
 
 training:
-  batch_size: 6   # Memory constrained
+  batch_size: 2   # Very conservative for 256-dim model
   time_stride: 2
   dt: 0.1
   patience: 20    # Longer patience for larger model
@@ -58,7 +58,7 @@ training:
   compile: true   # Critical for large model efficiency
   grad_clip: 1.0
   ema_decay: 0.999
-  accum_steps: 6  # Higher accumulation for effective batch of 36
+  accum_steps: 20  # Very high accumulation for effective batch of 40
 
   # UPT Inverse Losses (FIXED - gentler for large model)
   lambda_inv_enc: 0.005  # Even smaller for large model (100x reduction from 0.5)

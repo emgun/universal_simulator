@@ -41,7 +41,7 @@ diffusion:
   hidden_dim: 256
 
 training:
-  batch_size: 10  # Increased from 6
+  batch_size: 4  # Reduced for 40GB A100 (was 10, caused OOM)
   time_stride: 2
   dt: 0.1
   patience: 15   # Increased due to longer training
@@ -57,7 +57,7 @@ training:
   compile: true
   grad_clip: 1.0
   ema_decay: 0.999
-  accum_steps: 4  # Reduced from 6
+  accum_steps: 10  # Increased to maintain effective batch size of 40
 
   # UPT Inverse Losses (FIXED)
   lambda_inv_enc: 0.01  # Reduced from 0.5 (50x reduction)
