@@ -1,0 +1,143 @@
+# Ablation: 256 tokens (FIXED)
+# Purpose: Fixed configuration for UPT Phase 2 with proper inverse loss weights
+# Changes from original 256-token config:
+#   - Inverse loss weights: 0.5 → 0.005 (100x reduction for larger model)
+#   - Inverse loss frequency: 10 → 1 (every iteration)
+#   - Warmup epochs: 15 → 10 (longer warmup for larger model)
+#   - Total epochs: 25 → 50 (more time needed for larger model)
+#   - Batch size: carefully tuned for memory
+#   - Learning rate: scaled with sqrt(d_model)
+#
+# Note: This is a large model and may require an A100 or larger GPU
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 256
+  tokens: 256
+
+operator:
+  pdet:
+    input_dim: 256
+    hidden_dim: 512
+    depths: [3, 3, 3]
+    group_size: 32  # Keep at 32 to avoid divisibility issues
+    num_heads: 8    # 256/32 = 8 heads per group
+
+diffusion:
+  latent_dim: 256
+  hidden_dim: 512
+
+training:
+  batch_size: 6   # Memory constrained
+  time_stride: 2
+  dt: 0.1
+  patience: 20    # Longer patience for larger model
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+
+  checkpoint_interval: 20
+
+  amp: true
+  compile: true   # Critical for large model efficiency
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 6  # Higher accumulation for effective batch of 36
+
+  # UPT Inverse Losses (FIXED - gentler for large model)
+  lambda_inv_enc: 0.005  # Even smaller for large model (100x reduction from 0.5)
+  lambda_inv_dec: 0.005  # Even smaller for large model
+  use_inverse_losses: true
+  inverse_loss_frequency: 1  # Every iteration (was 10)
+  inverse_loss_warmup_epochs: 10  # Longer warmup for stability
+  inverse_loss_max_weight: 0.02  # Lower cap for large model
+
+  lambda_spectral: 0.03  # Reduced for large model
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 50  # More epochs for large model convergence
+
+    optimizer:
+      name: adamw
+      lr: 2.0e-3  # Scaled with sqrt(256/32) = sqrt(8) ≈ 2.8, but capped at 2e-3
+      betas: [0.9, 0.999]
+      weight_decay: 0.05  # Slightly higher weight decay for large model
+
+  diff_residual:
+    epochs: 3  # Keep minimal to avoid overfitting
+
+  consistency_distill:
+    epochs: 3  # Keep minimal
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  steps: 5  # More steps for large model
+  candidates: 16  # More candidates
+  beam_width: 5
+  horizon: 1
+  residual_threshold: 0.3  # Slightly tighter threshold
+  gamma: 1.0
+  max_evaluations: 200
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.03  # Lower noise for large model
+    noise_schedule: [0.05, 0.03, 0.01]  # Gentler schedule
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 512
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 256
+    query_dim: 2
+    hidden_dim: 512
+    mlp_hidden_dim: 512
+    num_layers: 4  # Extra layer for expressiveness
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-ablation-256tokens-fixed
+    tags: [ablation, 256tokens, 256dim, phase2, fixed, inverse-losses-fixed, large-model]
+    group: upt-ablation-fixed

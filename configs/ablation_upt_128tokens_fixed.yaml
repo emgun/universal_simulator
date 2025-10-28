@@ -1,0 +1,142 @@
+# Ablation: 128 tokens (FIXED)
+# Purpose: Fixed configuration for UPT Phase 2 with proper inverse loss weights
+# Changes from original:
+#   - Inverse loss weights: 0.5 → 0.01 (50x reduction)
+#   - Inverse loss frequency: 10 → 1 (every iteration)
+#   - Warmup epochs: 15 → 5 (faster ramp-up)
+#   - Total epochs: 25 → 40 (more time for inverse loss training)
+#   - Batch size: 6 → 10 (better gradient stability)
+#   - Accum steps: 6 → 4 (maintain reasonable effective batch)
+#   - Learning rate: 5e-4 → 1.4e-3 (scaled with sqrt(d_model))
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 128
+  tokens: 128
+
+operator:
+  pdet:
+    input_dim: 128
+    hidden_dim: 256
+    depths: [3, 3, 2]
+    group_size: 32
+    num_heads: 8
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 256
+
+training:
+  batch_size: 10  # Increased from 6
+  time_stride: 2
+  dt: 0.1
+  patience: 15   # Increased due to longer training
+
+  num_workers: 6
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2
+
+  checkpoint_interval: 25
+
+  amp: true
+  compile: true
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 4  # Reduced from 6
+
+  # UPT Inverse Losses (FIXED)
+  lambda_inv_enc: 0.01  # Reduced from 0.5 (50x reduction)
+  lambda_inv_dec: 0.01  # Reduced from 0.5 (50x reduction)
+  use_inverse_losses: true
+  inverse_loss_frequency: 1  # Every iteration (was 10)
+  inverse_loss_warmup_epochs: 5  # Faster warmup (was implicit 15)
+  inverse_loss_max_weight: 0.05  # Explicit cap
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 40  # Increased from 25 for proper inverse loss training
+
+    optimizer:
+      name: adamw
+      lr: 1.4e-3  # Increased from 5e-4 (scaled with sqrt(128/32))
+      betas: [0.9, 0.999]
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 3  # Reduced from 8 (less overfitting)
+
+  consistency_distill:
+    epochs: 3  # Reduced from 8
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  steps: 3  # Increased from 1 for actual TTC
+  candidates: 12
+  beam_width: 4
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 175
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.08, 0.05, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128
+    query_dim: 2
+    hidden_dim: 256
+    mlp_hidden_dim: 256
+    num_layers: 3
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-ablation-128tokens-fixed
+    tags: [ablation, 128tokens, 128dim, phase2, fixed, inverse-losses-fixed]
+    group: upt-ablation-fixed

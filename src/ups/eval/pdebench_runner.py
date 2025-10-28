@@ -106,7 +106,7 @@ def evaluate_latent_operator(
 
             if ttc_config is not None and reward_model is not None:
                 ttc_cfg = TTCConfig(
-                    steps=1,
+                    steps=ttc_config.steps,  # Use configured steps instead of hardcoding to 1
                     dt=ttc_config.dt,
                     candidates=ttc_config.candidates,
                     beam_width=ttc_config.beam_width,
