@@ -132,6 +132,11 @@ ttc:
     hidden_dim: 512
     mlp_hidden_dim: 512
     num_layers: 4  # Extra layer for expressiveness
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
 
 logging:
   wandb:
