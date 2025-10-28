@@ -5,6 +5,7 @@ Streamlined VastAI launcher for training runs.
 Commands:
   setup-env  - One-time: Configure VastAI environment variables
   launch     - Launch training instance
+  resume     - Resume training on existing instance with checkpoint
   search     - Search for available instances
 
 Usage:
@@ -15,6 +16,12 @@ Usage:
   python scripts/vast_launch.py launch \\
     --config configs/train_burgers_32dim.yaml \\
     --auto-shutdown
+
+  # Resume from checkpoint on existing instance
+  python scripts/vast_launch.py resume \\
+    --instance-id 12345 \\
+    --config configs/train_burgers_32dim.yaml \\
+    --resume-from-wandb train-20251027_193043
 """
 
 import argparse
@@ -65,6 +72,7 @@ def generate_onstart_script(
     workdir: str = "/workspace",
     auto_shutdown: bool = False,
     run_args: list[str] | None = None,
+    precompute: bool = True,
 ) -> str:
     """
     Generate a simple onstart script.
@@ -93,7 +101,36 @@ def generate_onstart_script(
 
     # Use relative path for the actual config parameter in the script
     config_for_script = train_cfg_path.as_posix()
+
+    # Try to inline the training config contents so remote runs do not depend
+    # on the Git branch containing local, unpushed changes.
+    config_inline = None
+    try:
+        local_cfg_path = (REPO_ROOT / train_cfg_path) if not train_cfg_path.is_absolute() else train_cfg_path
+        if local_cfg_path.exists():
+            # Only inline very small configs to keep VastAI args under limits
+            max_inline_bytes = 800
+            size = local_cfg_path.stat().st_size
+            if size <= max_inline_bytes:
+                config_inline = local_cfg_path.read_text(encoding="utf-8")
+            else:
+                config_inline = None
+        else:
+            config_inline = None
+    except Exception:
+        config_inline = None
     
+    # Build optional inline block for config
+    inline_block = ""
+    if config_inline is not None:
+        inline_block = f"""
+# Inline training config to ensure availability on remote
+mkdir -p "$(dirname {config_for_script})"
+cat > {config_for_script} << 'EOF_CFG'
+{config_inline}
+EOF_CFG
+"""
+
     script = f"""#!/bin/bash
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -150,12 +187,13 @@ mkdir -p data/latent_cache checkpoints/scale
 mkdir -p checkpoints
 mkdir -p artifacts/runs reports
 
-echo "Precomputing latent caches…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"
+{inline_block}
+
+{('echo "Precomputing latent caches…"\nPYTHONPATH=src python scripts/precompute_latent_cache.py --config ' + config_for_script + ' --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"') if precompute else 'echo "Skipping latent cache precompute (quick-run)"'}
 
 export WANDB_MODE=online
 
-python scripts/run_fast_to_sota.py --train-config {config_for_script} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args} || echo "⚠️  Training exited with code $?"
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args} || echo "⚠️  Training exited with code $?"
 
 echo "✓ Training pipeline completed"
 """
@@ -241,6 +279,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         workdir=args.workdir,
         auto_shutdown=args.auto_shutdown,
         run_args=args.run_arg,
+        precompute=not getattr(args, "no_precompute", False),
     )
     
     onstart_path.write_text(script_content)
@@ -286,6 +325,131 @@ def cmd_launch(args: argparse.Namespace) -> None:
     raise SystemExit(rc)
 
 
+def cmd_resume(args: argparse.Namespace) -> None:
+    """Resume training on existing instance with checkpoint resumption."""
+    # Get SSH connection details for the instance
+    import json
+    result = subprocess.run(
+        ["vastai", "show", "instance", str(args.instance_id), "--raw"],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        print(f"❌ Failed to get instance info for {args.instance_id}")
+        sys.exit(1)
+
+    instance_info = json.loads(result.stdout)
+    ssh_host = instance_info.get("ssh_host")
+    ssh_port = instance_info.get("ssh_port")
+
+    if not ssh_host or not ssh_port:
+        print(f"❌ Could not get SSH details for instance {args.instance_id}")
+        sys.exit(1)
+
+    print(f"✓ Found instance {args.instance_id} at {ssh_host}:{ssh_port}")
+
+    # Generate resume script
+    branch = args.branch if args.branch else git_current_branch()
+    workdir = args.workdir
+    config_path = args.config
+
+    # Convert to relative path for remote
+    train_cfg_path = Path(config_path)
+    if train_cfg_path.is_absolute():
+        try:
+            train_cfg_path = train_cfg_path.relative_to(REPO_ROOT)
+        except ValueError:
+            train_cfg_path = Path(config_path)
+    config_for_script = train_cfg_path.as_posix()
+
+    # Build training command with checkpoint resumption
+    resume_args = [
+        f"--resume-from-wandb {args.resume_from_wandb}",
+        f"--resume-mode {args.resume_mode}"
+    ]
+
+    script = f"""#!/bin/bash
+set -euo pipefail
+
+cd {workdir}/universal_simulator
+
+# Pull latest code
+git fetch origin
+git checkout {branch}
+git pull origin {branch}
+
+# Activate venv if it exists
+if [ -f /venv/main/bin/activate ]; then
+  source /venv/main/bin/activate
+fi
+
+# Ensure dependencies are up to date
+pip install -e .[dev] --quiet
+
+export WANDB_MODE=online
+
+echo "=== Resuming training from WandB run {args.resume_from_wandb} ==="
+
+# Resume training using checkpoint manager
+PYTHONPATH=src python scripts/train.py \\
+  --config {config_for_script} \\
+  --stage {args.stage} \\
+  {resume_args[0]} \\
+  {resume_args[1]} || echo "⚠️  Training exited with code $?"
+
+echo "✓ Training resumed and running"
+"""
+
+    if args.auto_shutdown:
+        script += """
+# Auto-stop instance after completion
+pip install -q vastai 2>&1 || true
+sleep 10
+[ -n "${CONTAINER_ID:-}" ] && vastai stop instance $CONTAINER_ID || true
+"""
+
+    # Write script to temp file
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+        f.write(script)
+        script_path = f.name
+
+    try:
+        # Upload script to instance
+        print(f"📤 Uploading resume script to instance...")
+        scp_cmd = [
+            "scp",
+            "-o", "StrictHostKeyChecking=no",
+            "-P", str(ssh_port),
+            script_path,
+            f"root@{ssh_host}:/tmp/resume_training.sh"
+        ]
+        run(scp_cmd)
+
+        # Execute script on instance
+        print(f"🚀 Starting training resumption on instance {args.instance_id}...")
+        ssh_cmd = [
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-p", str(ssh_port),
+            f"root@{ssh_host}",
+            "chmod +x /tmp/resume_training.sh && nohup /tmp/resume_training.sh > /tmp/resume_training.log 2>&1 &"
+        ]
+        run(ssh_cmd)
+
+        print(f"\n✅ Training resumption started on instance {args.instance_id}")
+        print(f"   WandB run: {args.resume_from_wandb}")
+        print(f"   Config: {config_path}")
+        print(f"   Stage: {args.stage}")
+        print(f"\nMonitor with:")
+        print(f"   vastai logs {args.instance_id}")
+        print(f"   ssh -p {ssh_port} root@{ssh_host} 'tail -f /tmp/resume_training.log'")
+
+    finally:
+        # Clean up temp file
+        os.unlink(script_path)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build argument parser."""
     parser = argparse.ArgumentParser(
@@ -329,7 +493,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Additional argument to append to run_fast_to_sota.py command (may repeat)",
     )
+    p_launch.add_argument("--no-precompute", action="store_true", help="Skip latent cache precompute in onstart (faster startup)")
     p_launch.set_defaults(func=cmd_launch)
+
+    # resume command
+    p_resume = sub.add_parser("resume", help="Resume training on existing instance with checkpoint")
+    p_resume.add_argument("--instance-id", required=True, type=int, help="VastAI instance ID")
+    p_resume.add_argument("--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)")
+    p_resume.add_argument("--resume-from-wandb", required=True, help="WandB run ID to resume from (e.g., train-20251027_193043)")
+    p_resume.add_argument("--resume-mode", default="allow", choices=["allow", "must", "never"],
+                         help="WandB resume mode (default: allow)")
+    p_resume.add_argument("--stage", default="all", choices=["all", "operator", "diffusion", "distill"],
+                         help="Training stage (default: all)")
+    p_resume.add_argument("--branch", default=None, help="Git branch (default: auto-detect from current branch)")
+    p_resume.add_argument("--workdir", default="/workspace", help="Remote working directory")
+    p_resume.add_argument("--auto-shutdown", action="store_true", help="Auto-shutdown after completion")
+    p_resume.set_defaults(func=cmd_resume)
 
     return parser
 
