@@ -1,12 +1,11 @@
-# Burgers1D Training with UPT Inverse Losses — TUNED VARIANT v3.0
+# Burgers1D Training with UPT Inverse Losses — TUNED VARIANT v3.0 (No Distillation)
 # Based on analysis of run train-20251028_000918
 # Changes:
 # - Fixed gradient clipping for diffusion stage (max norm 17.24 detected)
 # - Enhanced TTC hyperparameters (candidates 24, beam_width 8)
-# - All stages enabled including consistency distillation
 # - Operator: 35 epochs with grad_clip 0.3
 # - Diffusion: 8 epochs with grad_clip 1.0
-# - Distillation: 5 epochs enabled
+# - Distillation: DISABLED (epochs = 0)
 
 seed: 42
 deterministic: false
@@ -114,20 +113,8 @@ stages:
       eta_min: 3.0e-6
 
   consistency_distill:
-    epochs: 5
-    grad_clip: 1.0
-    ema_decay: 0.999
-
-    optimizer:
-      name: adamw
-      lr: 3.0e-5
-      weight_decay: 0.01
-      betas: [0.9, 0.999]
-
-    scheduler:
-      name: cosineannealinglr
-      t_max: 5
-      eta_min: 1.0e-6
+    # DISABLED: Skip distillation stage for faster experimentation
+    epochs: 0
 
   steady_prior:
     epochs: 0
@@ -192,7 +179,7 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: burgers-upt-tuned
-    tags: [16dim, upt, inverse-losses, gradient-clipping, tuned-ttc, all-stages]
+    run_name: burgers-upt-tuned-nodistill
+    tags: [16dim, upt, inverse-losses, gradient-clipping, tuned-ttc, no-distill]
     group: upt-experiments
 
