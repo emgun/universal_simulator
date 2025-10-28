@@ -39,3 +39,29 @@ def test_grid_encoder_shapes_and_identity():
     for name in fields:
         mse = (recon[name] - fields[name]).pow(2).mean().item()
         assert mse < 1e-6
+
+
+def test_encoder_scales_to_256_tokens():
+    """Verify encoder can handle UPT-17M scale (256 tokens, 192 dim)."""
+    # Create a synthetic 128x128 grid sample with single-channel field
+    B, H, W = 2, 128, 128
+    N = H * W
+    coords = torch.stack(torch.meshgrid(
+        torch.linspace(0, 1, H),
+        torch.linspace(0, 1, W),
+        indexing="ij"
+    ), dim=-1).reshape(1, N, 2).repeat(B, 1, 1)
+    fields = {"u": torch.randn(B, N, 1)}
+    meta = {"grid_shape": (H, W)}
+
+    from ups.io import GridEncoder, GridEncoderConfig
+
+    cfg = GridEncoderConfig(
+        latent_len=256,
+        latent_dim=192,
+        field_channels={"u": 1},
+        patch_size=4,
+    )
+    encoder = GridEncoder(cfg)
+    latent = encoder(fields, coords, meta=meta)
+    assert latent.shape == (B, 256, 192)

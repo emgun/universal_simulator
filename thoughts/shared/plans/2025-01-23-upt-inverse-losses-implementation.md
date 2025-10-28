@@ -1451,7 +1451,7 @@ if __name__ == "__main__":
 #### Automated Verification:
 - [ ] Training completes with 256 tokens without OOM
 - [ ] All ablation configs (64/128/256) train successfully
-- [ ] Unit test passes: `pytest tests/unit/test_encoder.py::test_encoder_scales_to_256_tokens`
+- [x] Unit test passes: `pytest tests/unit/test_encoder.py::test_encoder_scales_to_256_tokens`
 - [ ] Training time ≤ 5x baseline (acceptable given quality gains)
 - [ ] Operator final loss < 0.0005 (better than Phase 1)
 
@@ -1494,17 +1494,17 @@ if __name__ == "__main__":
 ### Implementation Notes
 
 **Phase 2 Completion Checklist:**
-1. Create `configs/train_burgers_upt17m.yaml`
-2. Create ablation configs (64/128/256 tokens)
-3. Add unit test for large encoder
-4. Create `scripts/train_large_model.py` memory-optimized wrapper
-5. Create `scripts/test_zero_shot_superres.py`
-6. Run ablation study: launch all 4 configs (16/64/128/256) on VastAI
-7. Monitor training: check for OOM, adjust batch size / accum_steps if needed
-8. Run zero-shot super-resolution tests on all checkpoints
-9. Compare results: `python scripts/compare_runs.py <run_16> <run_64> <run_128> <run_256>`
-10. Document findings in `experiments/2025-01-23-upt-phase2/ablation_results.md`
-11. Identify optimal configuration for Phase 3
+1. [x] Create `configs/train_burgers_upt17m.yaml`
+2. [x] Create ablation configs (64/128/256 tokens)
+3. [x] Add unit test for large encoder
+4. [x] Create `scripts/train_large_model.py` memory-optimized wrapper
+5. [x] Create `scripts/test_zero_shot_superres.py`
+6. [ ] Run ablation study: launch all 4 configs (16/64/128/256) on VastAI
+7. [ ] Monitor training: check for OOM, adjust batch size / accum_steps if needed
+8. [ ] Run zero-shot super-resolution tests on all checkpoints
+9. [ ] Compare results: `python scripts/compare_runs.py <run_16> <run_64> <run_128> <run_256>`
+10. [ ] Document findings in `experiments/2025-01-23-upt-phase2/ablation_results.md`
+11. [ ] Identify optimal configuration for Phase 3
 
 **Pause Point**: After Phase 2 complete, review results and decide:
 - Which token count to use for Phase 3?
