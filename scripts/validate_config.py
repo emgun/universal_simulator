@@ -229,20 +229,24 @@ def validate_hardware(cfg: Dict) -> List[Tuple[str, bool, str]]:
     batch_memory = (batch_size * latent_dim * 32 * 4) / 1e9  # 32 timesteps, float32
     total_memory_gb = (model_params * 4 + batch_memory) * 2  # 2x for gradients/optimizer
     
-    # Check if batch size is reasonable for dimension
+    # Check if batch size is reasonable for dimension (A100 80GB targets)
+    # These are conservative estimates - actual limits depend on GPU and other factors
     if latent_dim <= 32:
-        max_safe_batch = 16
+        max_safe_batch = 32
     elif latent_dim <= 64:
-        max_safe_batch = 12
+        max_safe_batch = 16
     elif latent_dim <= 128:
+        max_safe_batch = 12
+    elif latent_dim <= 256:
         max_safe_batch = 8
     else:  # 512-dim
         max_safe_batch = 4
-    
-    checks.append((
-        f"batch_size appropriate for {latent_dim}-dim model",
+
+    # Make this a warning, not a hard error - users know their GPU limits
+    warnings.append((
+        f"batch_size reasonable for {latent_dim}-dim model",
         batch_size <= max_safe_batch,
-        f"batch_size={batch_size}, recommended ≤{max_safe_batch} for {latent_dim}-dim (~{total_memory_gb:.1f}GB GPU RAM)"
+        f"batch_size={batch_size}, suggested ≤{max_safe_batch} for {latent_dim}-dim (~{total_memory_gb:.1f}GB estimated). Adjust if OOM occurs."
     ))
     
     # Check compilation settings
