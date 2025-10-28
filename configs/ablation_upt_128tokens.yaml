@@ -83,6 +83,28 @@ evaluation:
   enabled: true
   split: test
 
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 12
+  beam_width: 4
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 175
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.08, 0.05, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
 logging:
   wandb:
     enabled: true
