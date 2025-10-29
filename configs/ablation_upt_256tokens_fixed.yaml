@@ -45,7 +45,7 @@ training:
   batch_size: 6   # Requires 80GB GPU
   time_stride: 2
   dt: 0.1
-  patience: 20    # Longer patience for larger model
+  patience: 5     # Stop early if no improvement (was 20, too high)
 
   num_workers: 8
   use_parallel_encoding: true

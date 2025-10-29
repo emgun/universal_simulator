@@ -44,7 +44,7 @@ training:
   batch_size: 12  # Increased from 8
   time_stride: 2
   dt: 0.1
-  patience: 15   # Increased due to longer training
+  patience: 5    # Stop early if no improvement (was 15, too high)
 
   num_workers: 4
   use_parallel_encoding: true
