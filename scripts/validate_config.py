@@ -342,6 +342,55 @@ def validate_checkpoints(cfg: Dict) -> List[Tuple[str, bool, str]]:
     
     return checks
 
+
+def validate_cache(cfg: Dict) -> List[Tuple[str, bool, str]]:
+    """Validate latent cache status."""
+    checks = []
+
+    cache_dir = Path(cfg.get("training", {}).get("latent_cache_dir", "data/latent_cache"))
+
+    if not cache_dir.exists():
+        checks.append((
+            "cache directory exists",
+            False,
+            f"Cache dir {cache_dir} not found (will be created on first run)"
+        ))
+        return checks
+
+    # Check for metadata file
+    metadata_file = cache_dir / ".cache_metadata.json"
+    if not metadata_file.exists():
+        checks.append((
+            "cache metadata exists",
+            False,
+            "No metadata file found (cache will be regenerated)"
+        ))
+        return checks
+
+    # Load and validate metadata
+    try:
+        import json
+        metadata = json.loads(metadata_file.read_text())
+        checks.append((
+            "cache metadata valid",
+            True,
+            f"hash={metadata.get('config_hash', 'unknown')}"
+        ))
+
+        # Check if hash matches current config (optional deep validation)
+        # Would require importing compute_cache_hash from precompute_latent_cache.py
+        # For now, just validate the metadata is parseable
+
+    except Exception as e:
+        checks.append((
+            "cache metadata parseable",
+            False,
+            f"Corrupted metadata: {e}"
+        ))
+
+    return checks
+
+
 def print_results(category: str, checks: List[Tuple[str, bool, str]]):
     """Print validation results for a category."""
     print(f"\n{category}:")
@@ -395,7 +444,11 @@ def main():
     checkpoint_checks = validate_checkpoints(cfg)
     print_results("Checkpoints", checkpoint_checks)
     all_checks.extend(checkpoint_checks)
-    
+
+    cache_checks = validate_cache(cfg)
+    print_results("Latent Cache", cache_checks)
+    all_checks.extend(cache_checks)
+
     wandb_checks = validate_wandb(cfg)
     print_results("WandB Logging", wandb_checks)
     all_checks.extend(wandb_checks)

@@ -617,6 +617,14 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     if prefetch_factor is not None and num_workers > 0:
         loader_kwargs["prefetch_factor"] = prefetch_factor
 
+    # Import helper functions for PreloadedCacheDataset
+    from ups.data.parallel_cache import (
+        check_cache_complete,
+        estimate_cache_size_mb,
+        check_sufficient_ram,
+        PreloadedCacheDataset,
+    )
+
     # Support single task or a list of tasks for multi-dataset mixing
     tasks = data_cfg.get("task")
     if tasks:
@@ -654,19 +662,52 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
             encoder = encoder.to(device)
             coords = make_grid_coords(grid_shape, device)
             ds_cache = cache_root / f"{tasks}_{split_name}" if cache_root and isinstance(tasks, str) else cache_root
-            latent_dataset = GridLatentPairDataset(
-                dataset,
-                encoder,
-                coords,
-                grid_shape,
-                field_name=field_name,
-                device=device,
-                cache_dir=ds_cache,
-                cache_dtype=cache_dtype,
-                time_stride=time_stride,
-                rollout_horizon=rollout_horizon,
-                use_inverse_losses=use_inverse_losses,
-            )
+
+            # Check if we can use PreloadedCacheDataset for better performance
+            use_preloaded = False
+            if ds_cache and ds_cache.exists():
+                num_samples = len(dataset)
+                cache_complete, num_cached = check_cache_complete(ds_cache, num_samples)
+
+                if cache_complete:
+                    # Check cache size and RAM availability
+                    cache_size_mb = estimate_cache_size_mb(ds_cache, num_samples=min(10, num_samples))
+                    has_sufficient_ram = check_sufficient_ram(cache_size_mb)
+
+                    if has_sufficient_ram:
+                        print(f"✅ Using PreloadedCacheDataset for {tasks}_{split_name}")
+                        print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB")
+                        use_preloaded = True
+                    else:
+                        print(f"⚠️  Insufficient RAM for PreloadedCacheDataset ({cache_size_mb:.0f} MB required)")
+                        print(f"   Falling back to disk I/O mode (slower but memory-efficient)")
+                else:
+                    print(f"⚠️  Cache incomplete for {tasks}_{split_name} ({num_cached}/{num_samples} samples)")
+                    print(f"   Falling back to on-demand encoding (will populate cache)")
+
+            # Use PreloadedCacheDataset if cache is complete and RAM is sufficient
+            if use_preloaded and ds_cache:
+                latent_dataset = PreloadedCacheDataset(
+                    cache_dir=ds_cache,
+                    num_samples=len(dataset),
+                    time_stride=time_stride,
+                    rollout_horizon=rollout_horizon,
+                )
+            else:
+                # Fallback to GridLatentPairDataset (original behavior)
+                latent_dataset = GridLatentPairDataset(
+                    dataset,
+                    encoder,
+                    coords,
+                    grid_shape,
+                    field_name=field_name,
+                    device=device,
+                    cache_dir=ds_cache,
+                    cache_dtype=cache_dtype,
+                    time_stride=time_stride,
+                    rollout_horizon=rollout_horizon,
+                    use_inverse_losses=use_inverse_losses,
+                )
             loader_kwargs["collate_fn"] = latent_pair_collate
             return DataLoader(latent_dataset, **loader_kwargs)
 

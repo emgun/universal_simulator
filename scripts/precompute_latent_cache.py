@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import time
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 from torch.utils.data import DataLoader, Subset
@@ -158,6 +159,65 @@ def _load_config(path: Optional[str]) -> Dict[str, object]:
         return yaml.safe_load(fh) or {}
 
 
+def compute_cache_hash(cfg: Dict[str, Any]) -> str:
+    """Compute hash of config parameters that affect cache validity.
+
+    Cache is invalidated when any of these change:
+    - latent.dim (changes latent space dimensionality)
+    - latent.tokens (changes latent sequence length)
+    - encoder type/architecture
+    - data.task (different PDE)
+    - data.root (different data source)
+    """
+    cache_keys = {
+        "latent_dim": cfg.get("latent", {}).get("dim"),
+        "latent_tokens": cfg.get("latent", {}).get("tokens"),
+        "encoder_patch_size": cfg.get("encoder", {}).get("patch_size"),
+        "data_task": cfg.get("data", {}).get("task"),
+        "data_root": cfg.get("data", {}).get("root"),
+    }
+    # Sort keys for deterministic hash
+    serialized = json.dumps(cache_keys, sort_keys=True)
+    return hashlib.sha256(serialized.encode()).hexdigest()[:12]
+
+
+def save_cache_metadata(cache_dir: Path, cfg: Dict[str, Any]) -> None:
+    """Save cache metadata for validation on subsequent runs."""
+    metadata = {
+        "config_hash": compute_cache_hash(cfg),
+        "generated_at": time.time(),
+        "latent_dim": cfg.get("latent", {}).get("dim"),
+        "latent_tokens": cfg.get("latent", {}).get("tokens"),
+        "data_task": cfg.get("data", {}).get("task"),
+    }
+    metadata_file = cache_dir / ".cache_metadata.json"
+    metadata_file.write_text(json.dumps(metadata, indent=2))
+    print(f"✓ Saved cache metadata: hash={metadata['config_hash']}")
+
+
+def check_cache_valid(cache_dir: Path, cfg: Dict[str, Any]) -> bool:
+    """Check if existing cache matches current config."""
+    metadata_file = cache_dir / ".cache_metadata.json"
+    if not metadata_file.exists():
+        return False
+
+    try:
+        metadata = json.loads(metadata_file.read_text())
+        current_hash = compute_cache_hash(cfg)
+        is_valid = metadata.get("config_hash") == current_hash
+
+        if is_valid:
+            age_hours = (time.time() - metadata.get("generated_at", 0)) / 3600
+            print(f"✓ Cache valid (hash={current_hash}, age={age_hours:.1f}h)")
+        else:
+            print(f"⚠ Cache invalid (hash mismatch: {metadata.get('config_hash')} != {current_hash})")
+
+        return is_valid
+    except (json.JSONDecodeError, KeyError):
+        # Corrupted metadata, regenerate cache
+        return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Precompute latent caches for PDEBench tasks")
     parser.add_argument("--config", default="configs/train_pdebench_scale.yaml", help="Training config to read defaults from")
@@ -194,6 +254,13 @@ def main() -> None:
 
     cache_root = Path(args.cache_dir).resolve()
     cache_root.mkdir(parents=True, exist_ok=True)
+
+    # Check if cache is valid and up-to-date
+    if cache_root.exists() and not args.overwrite:
+        if check_cache_valid(cache_root, cfg):
+            print("✅ Cache is valid and up-to-date, skipping regeneration")
+            print("   Use --overwrite to force regeneration")
+            return
 
     cache_dtype = None
     if args.cache_dtype:
@@ -276,6 +343,9 @@ def main() -> None:
 
     total_elapsed = time.time() - start_time
     print(f"Latency precomputation finished in {total_elapsed/60.0:.2f} minutes")
+
+    # Save cache metadata for validation on subsequent runs
+    save_cache_metadata(cache_root, cfg)
 
     if args.manifest:
         manifest_path = Path(args.manifest)

@@ -164,32 +164,35 @@ export RCLONE_CONFIG_B2TRAIN_ACL=private
 export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 
 mkdir -p data/pdebench
+# Download all files in parallel (backgrounded with &)
 if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress || exit 1
+  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress &
 fi
 if [ ! -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
-  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress || true
+  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress &
 fi
+if [ ! -f data/pdebench/burgers1d_test.h5 ]; then
+  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress &
+fi
+
+# Wait for all downloads to complete
+wait
+
+# Continue with file management after downloads finish
 if [ -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
   mv -f data/pdebench/burgers1d_val.h5 data/pdebench/burgers1d_valid.h5 || true
 fi
-if [ ! -f data/pdebench/burgers1d_test.h5 ]; then
-  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress || true
-fi
-
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
 ln -sf burgers1d_valid.h5 data/pdebench/burgers1d_val.h5 || true
 
-rm -rf data/latent_cache checkpoints/scale || true
-rm -f checkpoints/*.pt checkpoints/*.pth checkpoints/*.ckpt 2>/dev/null || true
+# Only clear checkpoints, preserve cache (will be validated by precompute script)
 rm -rf checkpoints || true
-mkdir -p data/latent_cache checkpoints/scale
-mkdir -p checkpoints
+mkdir -p data/latent_cache checkpoints
 mkdir -p artifacts/runs reports
 
 {inline_block}
 
-{('echo "Precomputing latent caches…"\nPYTHONPATH=src python scripts/precompute_latent_cache.py --config ' + config_for_script + ' --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cpu --batch-size 4 --num-workers 0 --pin-memory --no-parallel || echo "⚠️  Latent cache precompute failed (continuing)"') if precompute else 'echo "Skipping latent cache precompute (quick-run)"'}
+{('echo "Precomputing latent caches…"\nPYTHONPATH=src python scripts/precompute_latent_cache.py --config ' + config_for_script + ' --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 4 --pin-memory --parallel || echo "⚠️  Latent cache precompute failed (continuing)"') if precompute else 'echo "Skipping latent cache precompute (quick-run)"'}
 
 export WANDB_MODE=online
 
