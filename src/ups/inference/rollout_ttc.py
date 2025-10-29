@@ -232,6 +232,8 @@ def build_reward_model_from_config(
 
     analytic_weight = float(reward_cfg.get("analytical_weight", 1.0))
     if analytic_weight != 0.0:
+        # Check for debug flag in config
+        debug = ttc_cfg.get("debug", False) or reward_cfg.get("debug", False)
         analytic_model = AnalyticalRewardModel(
             decoder,
             grid_shape=grid,
@@ -240,6 +242,7 @@ def build_reward_model_from_config(
             momentum_field=momentum_field,
             energy_field=reward_cfg.get("energy_field"),
             device=device,
+            debug=debug,
         )
         models.append(analytic_model)
         model_weights.append(analytic_weight)

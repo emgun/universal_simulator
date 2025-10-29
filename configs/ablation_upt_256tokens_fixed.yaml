@@ -96,18 +96,19 @@ evaluation:
 
 ttc:
   enabled: true
+  debug: true  # ✅ ARM FIX: Enable detailed logging
   steps: 5  # More steps for large model
-  candidates: 16  # More candidates
+  candidates: 16  # Large model: more candidates
   beam_width: 5
-  horizon: 1
-  residual_threshold: 0.3  # Slightly tighter threshold
+  horizon: 2  # ✅ ARM FIX: Enable lookahead (was 1)
+  residual_threshold: 0.3  # Slightly tighter threshold for large model
   gamma: 1.0
   max_evaluations: 200
 
   sampler:
-    tau_range: [0.15, 0.85]
-    noise_std: 0.03  # Lower noise for large model
-    noise_schedule: [0.05, 0.03, 0.01]  # Gentler schedule
+    tau_range: [0.05, 0.95]  # ✅ ARM FIX: Wider range for diversity (was [0.15, 0.85])
+    noise_std: 0.08  # ✅ ARM FIX: Moderate noise for large model (was 0.03)
+    noise_schedule: [0.10, 0.08, 0.05]  # Updated for higher noise
 
   reward:
     analytical_weight: 1.0
@@ -117,9 +118,10 @@ ttc:
     momentum_field: []
 
     weights:
-      mass: 1.0
-      energy: 1.0
-      penalty_negative: 0.5
+      # ✅ ARM FIX: Disable conservation penalties for dissipative Burgers PDE
+      mass: 0.0  # Burgers does NOT conserve mass (was 1.0)
+      energy: 0.0  # Burgers does NOT conserve energy (was 1.0)
+      penalty_negative: 1.0  # Only penalize unphysical negatives (was 0.5)
 
     critic:
       weight: 0.0

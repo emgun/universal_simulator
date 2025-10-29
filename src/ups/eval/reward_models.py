@@ -10,6 +10,7 @@ from torch import nn
 
 from ups.core.latent_state import LatentState
 from ups.io.decoder_anypoint import AnyPointDecoder
+from ups.logging import get_logger
 
 
 class RewardModel(nn.Module):
@@ -76,6 +77,7 @@ class AnalyticalRewardModel(RewardModel):
         momentum_field: Optional[Sequence[str]] = None,
         energy_field: Optional[str] = None,
         device: Optional[torch.device] = None,
+        debug: bool = False,
     ) -> None:
         super().__init__()
         self.decoder = decoder
@@ -89,6 +91,10 @@ class AnalyticalRewardModel(RewardModel):
 
         # Store last reward components for logging
         self.last_components: Dict[str, float] = {}
+
+        # Debug mode for detailed logging
+        self.debug = debug
+        self.logger = get_logger("ups.reward.arm")
 
     def _decode(
         self,
@@ -161,7 +167,29 @@ class AnalyticalRewardModel(RewardModel):
         # Store components for external logging
         components['reward_mean'] = rewards.mean().item()
         components['reward_std'] = rewards.std().item()
+        components['reward_min'] = rewards.min().item()
+        components['reward_max'] = rewards.max().item()
         self.last_components = components
+
+        # Debug logging
+        if self.debug:
+            self.logger.debug("=" * 60)
+            self.logger.debug("ARM Score Debug Info")
+            self.logger.debug(f"Batch size: {batch}")
+            self.logger.debug(f"Latent shape: {prev_state.z.shape}")
+            self.logger.debug(f"Reward weights: mass={self.weights.mass}, energy={self.weights.energy}, "
+                            f"momentum={self.weights.momentum}, neg={self.weights.penalty_negative}")
+            self.logger.debug(f"Raw rewards tensor: {rewards}")
+            self.logger.debug(f"Reward stats: min={rewards.min():.6f}, max={rewards.max():.6f}, "
+                            f"mean={rewards.mean():.6f}, std={rewards.std():.6f}")
+            if batch <= 20:  # Only show individual values for small batches
+                for i in range(batch):
+                    self.logger.debug(f"  Candidate {i}: reward={rewards[i].item():.6f}")
+            self.logger.debug("Reward components:")
+            for key, value in components.items():
+                self.logger.debug(f"  {key}: {value:.6f}")
+            self.logger.debug(f"Returning: scalar mean = {rewards.mean().item():.6f}")
+            self.logger.debug("=" * 60)
 
         return rewards.mean()
 

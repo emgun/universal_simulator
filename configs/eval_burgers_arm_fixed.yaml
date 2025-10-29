@@ -1,0 +1,65 @@
+# Fixed ARM Configuration for Testing
+#
+# This config tests fixes for the 0% TTC improvement issue:
+# 1. Enable lookahead (horizon=2)
+# 2. Disable invalid conservation penalties for dissipative Burgers PDE
+# 3. Increase candidate diversity (wider tau range, more noise)
+#
+# Expected: 5-10% NRMSE improvement vs baseline
+
+# Inherit from golden config base settings
+defaults:
+  - train_burgers_golden
+
+# Override only TTC settings for testing
+ttc:
+  enabled: true
+  debug: true                 # ✅ Enable detailed ARM logging
+  steps: 1
+  candidates: 16              # Keep high for good search
+  beam_width: 5               # Keep for lookahead
+  horizon: 2                  # ✅ FIX: Enable 1-step lookahead (was 1)
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 200
+
+  sampler:
+    tau_range: [0.05, 0.95]   # ✅ FIX: Wider range for more diversity (was [0.15, 0.85])
+    noise_std: 0.10           # ✅ FIX: More latent noise (was 0.05)
+    noise_schedule: [0.12, 0.10, 0.08]  # Updated for higher noise
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      # ✅ FIX: Disable conservation penalties for dissipative Burgers PDE
+      mass: 0.0               # Burgers does NOT conserve mass (diffusion dissipates)
+      energy: 0.0             # Burgers does NOT conserve energy (dissipative)
+      penalty_negative: 1.0   # Only penalize unphysical negative values
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 16
+    query_dim: 2
+    hidden_dim: 96
+    mlp_hidden_dim: 128
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+
+    output_channels:
+      rho: 1
+      e: 1
+
+# Enable debug logging
+logging:
+  level: DEBUG
+  arm_debug: true           # New flag for detailed ARM logging
