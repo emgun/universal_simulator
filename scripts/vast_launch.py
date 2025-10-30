@@ -73,14 +73,20 @@ def generate_onstart_script(
     auto_shutdown: bool = False,
     run_args: list[str] | None = None,
     precompute: bool = True,
+    resume_from_wandb: str | None = None,
+    resume_mode: str = "allow",
 ) -> str:
     """
     Generate a simple onstart script.
-    
+
     Since VastAI env-vars are globally configured, the script is minimal:
     - Install dependencies
     - Clone repo
-    - Run training
+    - Run training (optionally downloading checkpoints from WandB for resume)
+
+    Args:
+        resume_from_wandb: WandB run ID to resume from (optional)
+        resume_mode: WandB resume mode ('allow', 'must', 'never')
     """
     repo_url = repo_url or git_remote_url()
     run_args = run_args or []
@@ -185,18 +191,41 @@ fi
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
 ln -sf burgers1d_valid.h5 data/pdebench/burgers1d_val.h5 || true
 
-# Only clear checkpoints, preserve cache (will be validated by precompute script)
-rm -rf checkpoints || true
-mkdir -p data/latent_cache checkpoints
+# Checkpoint handling: clear for fresh start OR download from WandB for resume
+{"# RESUME MODE: Download checkpoints from WandB" if resume_from_wandb else "# FRESH START: Clear checkpoints"}
+{"mkdir -p checkpoints data/latent_cache" if resume_from_wandb else "rm -rf checkpoints || true"}
+{"mkdir -p data/latent_cache checkpoints" if not resume_from_wandb else ""}
 mkdir -p artifacts/runs reports
+{f'''
+echo "📥 Downloading checkpoints from WandB run: {resume_from_wandb}"
+python -c "
+from pathlib import Path
+from ups.utils.checkpoint_manager import CheckpointManager
 
+run_id = '{resume_from_wandb}'
+resume_mode = '{resume_mode}'
+
+# Download checkpoints
+manager = CheckpointManager(checkpoint_dir=Path('checkpoints'))
+downloaded = manager.download_checkpoints_from_run(
+    run_id=run_id,
+    checkpoint_files=None,
+    force=False
+)
+print(f'✓ Downloaded {{len(downloaded)}} checkpoint files')
+
+# Setup WandB resume
+manager.setup_wandb_resume(run_id=run_id, resume_mode=resume_mode)
+print(f'✓ Configured WandB to resume run: {{run_id}}')
+"
+''' if resume_from_wandb else ""}
 {inline_block}
 
 {('echo "Precomputing latent caches…"\nPYTHONPATH=src python scripts/precompute_latent_cache.py --config ' + config_for_script + ' --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 4 --pin-memory --parallel || echo "⚠️  Latent cache precompute failed (continuing)"') if precompute else 'echo "Skipping latent cache precompute (quick-run)"'}
 
 export WANDB_MODE=online
 
-python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{extra_args} || echo "⚠️  Training exited with code $?"
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args} || echo "⚠️  Training exited with code $?"
 
 echo "✓ Training pipeline completed"
 """
@@ -283,6 +312,8 @@ def cmd_launch(args: argparse.Namespace) -> None:
         auto_shutdown=args.auto_shutdown,
         run_args=args.run_arg,
         precompute=not getattr(args, "no_precompute", False),
+        resume_from_wandb=getattr(args, "resume_from_wandb", None),
+        resume_mode=getattr(args, "resume_mode", "allow"),
     )
     
     onstart_path.write_text(script_content)
@@ -497,6 +528,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Additional argument to append to run_fast_to_sota.py command (may repeat)",
     )
     p_launch.add_argument("--no-precompute", action="store_true", help="Skip latent cache precompute in onstart (faster startup)")
+    p_launch.add_argument("--resume-from-wandb", type=str, metavar="RUN_ID", help="Resume from WandB run (downloads checkpoints and resumes training)")
+    p_launch.add_argument("--resume-mode", type=str, choices=["allow", "must", "never"], default="allow", help="WandB resume mode (default: allow)")
     p_launch.set_defaults(func=cmd_launch)
 
     # resume command

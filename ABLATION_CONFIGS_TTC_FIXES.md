@@ -1,7 +1,27 @@
 # ARM TTC Fixes Applied to Ablation Configs
 
-**Date**: 2025-10-28
-**Status**: ✅ All configs validated
+**Date**: 2025-10-28 (Updated: 2025-10-29)
+**Status**: ✅ All configs validated and CRITICAL FIX applied
+
+---
+
+## 🚨 CRITICAL UPDATE (2025-10-29)
+
+**Discovery**: The field named `rho` in Burgers dataset is **VELOCITY**, not density!
+
+**Problem with original fix**:
+```yaml
+penalty_negative: 1.0  # ❌ Was penalizing negative velocity!
+```
+
+**New fix**:
+```yaml
+penalty_negative: 0.0  # ✅ Negative velocity is physically valid!
+```
+
+**Analysis**: PDEBench Burgers1D contains velocity values ranging from -0.9 to +0.9, with 49% negative values. This is perfectly normal for velocity (backward flow), but our ARM was treating it as density and heavily penalizing all predictions.
+
+**See**: `reports/ARM_CRITICAL_FIX_VELOCITY_VS_DENSITY.md` for full analysis.
 
 ---
 
@@ -32,9 +52,10 @@ horizon: 2  # Was 1 (disabled beam search)
 weights:
   mass: 0.0      # Was 1.0 - Burgers does NOT conserve mass
   energy: 0.0    # Was 1.0 - Burgers does NOT conserve energy
-  penalty_negative: 1.0  # Was 0.5 - Only penalize unphysical negatives
+  penalty_negative: 0.0  # ✅ UPDATED 2025-10-29: rho is velocity, not density!
 ```
 **Impact**: Removes invalid conservation penalties for dissipative PDEs
+**Critical**: Field 'rho' is velocity (can be negative), not density!
 
 ### 3. Increase Candidate Diversity
 ```yaml

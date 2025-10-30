@@ -1555,6 +1555,37 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
                 Path(wandb_info_path).write_text(json.dumps(wandb_info, indent=2))
                 print(f"✓ Saved WandB info to {wandb_info_path}")
 
+    # Initialize stage tracker
+    from ups.utils.stage_tracker import StageTracker
+    checkpoint_dir = ensure_checkpoint_dir(cfg)
+    tracker = StageTracker(checkpoint_dir)
+
+    # Auto-resume logic (if enabled via CLI flag)
+    import sys
+    if "--auto-resume" in sys.argv:
+        print("\n" + "="*50)
+        print("AUTO-RESUME ENABLED")
+        print("="*50)
+
+        completed_stages = tracker.get_completed_stages()
+        if completed_stages:
+            print(f"✓ Found completed stages: {', '.join(completed_stages)}")
+            print("  Setting epochs=0 for completed stages to skip them")
+
+            # Override config to skip completed stages
+            for stage_name in completed_stages:
+                if "stages" not in cfg:
+                    cfg["stages"] = {}
+                if stage_name not in cfg["stages"]:
+                    cfg["stages"][stage_name] = {}
+
+                original_epochs = cfg["stages"][stage_name].get("epochs", 0)
+                cfg["stages"][stage_name]["epochs"] = 0
+                print(f"  - {stage_name}: {original_epochs} epochs → 0 epochs (skipping)")
+        else:
+            print("  No completed stages found, starting from beginning")
+        print("="*50 + "\n")
+
     # Log system info to config
     if wandb_ctx and wandb_ctx.enabled and torch.cuda.is_available():
         wandb_ctx.update_config({
@@ -1571,7 +1602,20 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
         print("\n" + "="*50)
         print("STAGE 1/4: Training Operator")
         print("="*50)
-        train_operator(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+        # Mark stage as started
+        tracker.mark_stage_started("operator", total_epochs=op_epochs)
+
+        try:
+            train_operator(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+            # Mark stage as completed
+            tracker.mark_stage_completed("operator", checkpoint="operator_ema.pt")
+        except Exception as e:
+            # Mark stage as failed
+            tracker.mark_stage_failed("operator", error_message=str(e))
+            raise
+
         global_step += op_epochs
     else:
         print("\n" + "="*50)
@@ -1589,7 +1633,20 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
         print("\n" + "="*50)
         print("STAGE 2/4: Training Diffusion Residual")
         print("="*50)
-        train_diffusion(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+        # Mark stage as started
+        tracker.mark_stage_started("diff_residual", total_epochs=diff_epochs)
+
+        try:
+            train_diffusion(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+            # Mark stage as completed
+            tracker.mark_stage_completed("diff_residual", checkpoint="diffusion_residual_ema.pt")
+        except Exception as e:
+            # Mark stage as failed
+            tracker.mark_stage_failed("diff_residual", error_message=str(e))
+            raise
+
         global_step += diff_epochs
     else:
         print("\n" + "="*50)
@@ -1607,7 +1664,20 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
         print("\n" + "="*50)
         print("STAGE 3/4: Consistency Distillation")
         print("="*50)
-        train_consistency(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+        # Mark stage as started
+        tracker.mark_stage_started("consistency_distill", total_epochs=distill_epochs)
+
+        try:
+            train_consistency(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+            # Mark stage as completed (Consistency overwrites diffusion checkpoint)
+            tracker.mark_stage_completed("consistency_distill", checkpoint="diffusion_residual_ema.pt")
+        except Exception as e:
+            # Mark stage as failed
+            tracker.mark_stage_failed("consistency_distill", error_message=str(e))
+            raise
+
         global_step += distill_epochs
     else:
         print("\n" + "="*50)
@@ -1625,7 +1695,19 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
         print("\n" + "="*50)
         print("STAGE 4/4: Training Steady Prior")
         print("="*50)
-        train_steady_prior(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+        # Mark stage as started
+        tracker.mark_stage_started("steady_prior", total_epochs=steady_epochs)
+
+        try:
+            train_steady_prior(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
+
+            # Mark stage as completed
+            tracker.mark_stage_completed("steady_prior", checkpoint="steady_prior.pt")
+        except Exception as e:
+            # Mark stage as failed
+            tracker.mark_stage_failed("steady_prior", error_message=str(e))
+            raise
     else:
         print("\n" + "="*50)
         print("STAGE 4/4: Skipping Steady Prior (epochs<=0)")
@@ -1753,6 +1835,11 @@ def main() -> None:
         default="allow",
         choices=["allow", "must", "never"],
         help="WandB resume mode (allow, must, never). Default: allow"
+    )
+    parser.add_argument(
+        "--auto-resume",
+        action="store_true",
+        help="Automatically detect completed stages and skip them (resume from last incomplete stage)"
     )
     args = parser.parse_args()
     cfg = load_config(args.config)

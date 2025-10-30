@@ -121,7 +121,7 @@ ttc:
       # ✅ ARM FIX: Disable conservation penalties for dissipative Burgers PDE
       mass: 0.0  # Burgers does NOT conserve mass (was 1.0)
       energy: 0.0  # Burgers does NOT conserve energy (was 1.0)
-      penalty_negative: 1.0  # Only penalize unphysical negatives (was 0.5)
+      penalty_negative: 0.0  # CRITICAL: rho is velocity, not density! Negative velocity is valid! (was 1.0)
 
     critic:
       weight: 0.0

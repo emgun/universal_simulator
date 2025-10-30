@@ -39,7 +39,7 @@ ttc:
       # ✅ FIX: Disable conservation penalties for dissipative Burgers PDE
       mass: 0.0               # Burgers does NOT conserve mass (diffusion dissipates)
       energy: 0.0             # Burgers does NOT conserve energy (dissipative)
-      penalty_negative: 1.0   # Only penalize unphysical negative values
+      penalty_negative: 0.0   # CRITICAL: rho is velocity, not density! Negative velocity is valid!
 
     critic:
       weight: 0.0
