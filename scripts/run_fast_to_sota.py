@@ -1231,6 +1231,11 @@ def main() -> None:
         import time
         time.sleep(1)
 
+        # Force exit to ensure shell script continues
+        import sys
+        import os
+        os._exit(0)  # Nuclear option - terminates immediately
+
 
 if __name__ == "__main__":
     main()
