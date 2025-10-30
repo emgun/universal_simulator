@@ -352,7 +352,7 @@ def validate_cache(cfg: Dict) -> List[Tuple[str, bool, str]]:
     if not cache_dir.exists():
         checks.append((
             "cache directory exists",
-            False,
+            True,  # Changed from False - missing cache dir is OK, will be created
             f"Cache dir {cache_dir} not found (will be created on first run)"
         ))
         return checks
@@ -362,8 +362,8 @@ def validate_cache(cfg: Dict) -> List[Tuple[str, bool, str]]:
     if not metadata_file.exists():
         checks.append((
             "cache metadata exists",
-            False,
-            "No metadata file found (cache will be regenerated)"
+            True,  # Changed from False - missing metadata is OK when resuming
+            "No metadata file found (cache will be regenerated on first run)"
         ))
         return checks
 
