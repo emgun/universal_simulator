@@ -243,11 +243,14 @@ def make_operator(cfg: dict) -> LatentOperator:
 
 
 def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Optimizer:
+    """Create optimizer with optional hybrid Muon+AdamW support."""
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     opt_cfg = stage_cfg.get("optimizer") or cfg.get("optimizer", {})
     name = opt_cfg.get("name", "adam").lower()
     lr = opt_cfg.get("lr", 1e-3)
     weight_decay = opt_cfg.get("weight_decay", 0.0)
+
+    # Standard optimizers (original behavior)
     if name == "adam":
         return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     if name == "adamw":
@@ -255,6 +258,70 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
     if name == "sgd":
         momentum = opt_cfg.get("momentum", 0.9)
         return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+
+    # NEW: Hybrid Muon+AdamW optimizer
+    if name == "muon_hybrid" or name == "muon":
+        from ups.training.param_groups import build_param_groups, print_param_split_summary
+        from ups.training.hybrid_optimizer import HybridOptimizer
+        from ups.training.muon_factory import create_muon_optimizer, get_available_backends
+
+        # Log available backends
+        backends = get_available_backends()
+        if not backends:
+            print("WARNING: No Muon implementation available, falling back to AdamW")
+            print("  Install: pip install torch>=2.9 or pip install git+https://github.com/nil0x9/flash-muon.git")
+            return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+        print(f"Available Muon backends: {', '.join(backends)}")
+
+        # Split parameters into Muon (2D+) and AdamW (1D) groups
+        muon_params, adamw_params = build_param_groups(model)
+        print_param_split_summary(model)
+
+        # Muon-specific hyperparameters (with defaults from research)
+        muon_momentum = opt_cfg.get("muon_momentum", 0.95)  # Nesterov momentum
+        muon_ns_steps = opt_cfg.get("muon_ns_steps", 5)  # Newton-Schulz iterations
+        muon_backend = opt_cfg.get("muon_backend", "auto")  # Backend selection
+
+        # AdamW hyperparameters
+        adamw_betas = tuple(opt_cfg.get("betas", [0.9, 0.999]))
+        adamw_eps = opt_cfg.get("eps", 1e-8)
+
+        optimizers = []
+
+        # Create Muon optimizer if there are 2D+ parameters
+        if len(muon_params) > 0:
+            muon_opt, backend_name = create_muon_optimizer(
+                muon_params,
+                lr=lr,
+                weight_decay=weight_decay,
+                momentum=muon_momentum,
+                nesterov=True,
+                ns_steps=muon_ns_steps,
+                backend=muon_backend,
+            )
+            optimizers.append(muon_opt)
+            print(f"  Muon ({backend_name}): {len(muon_params)} parameter groups")
+
+        # Create AdamW optimizer for 1D parameters
+        if len(adamw_params) > 0:
+            adamw_opt = torch.optim.AdamW(
+                adamw_params,
+                lr=lr,
+                betas=adamw_betas,
+                eps=adamw_eps,
+                weight_decay=weight_decay,
+            )
+            optimizers.append(adamw_opt)
+            print(f"  AdamW: {len(adamw_params)} parameter groups")
+
+        # If only one optimizer, return it directly (no wrapper needed)
+        if len(optimizers) == 1:
+            return optimizers[0]
+
+        # Return hybrid wrapper
+        return HybridOptimizer(optimizers)
+
     raise ValueError(f"Unsupported optimizer '{name}'")
 
 
@@ -1813,6 +1880,13 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
     print("✅ All training stages complete!")
     print("="*50)
 
+    # Force cleanup of CUDA resources and DataLoader workers
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -1892,6 +1966,17 @@ def main() -> None:
         train_consistency(cfg)
     elif stage == "steady_prior":
         train_steady_prior(cfg)
+
+    # Final cleanup to ensure clean exit
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
+    # Give time for any background threads to finish
+    import time
+    time.sleep(2)
 
 
 if __name__ == "__main__":

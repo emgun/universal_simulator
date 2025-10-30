@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Universal Physics Stack Devs"}]
 dependencies = [
-  "torch>=2.3",
+  "torch>=2.9",
+  "triton>=2.1",
   "einops>=0.7",
   "xarray>=2023.1",
   "zarr>=2.16",

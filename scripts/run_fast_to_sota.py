@@ -1219,6 +1219,18 @@ def main() -> None:
             # Fallback for backward compatibility
             wandb_run.finish()
 
+        # Force cleanup to ensure clean exit
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
+        # Give time for background processes to finish
+        import time
+        time.sleep(1)
+
 
 if __name__ == "__main__":
     main()

@@ -91,6 +91,13 @@ stages:
       betas: [0.9, 0.999]
       weight_decay: 0.01  # Regularization to prevent overfitting
 
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5  # Halve LR when loss plateaus
+      patience: 3  # Wait 3 epochs before reducing
+      min_lr: 1.0e-5  # Don't go below this
+
   consistency_distill:
     epochs: 10  # Increased from 3 to allow proper training
     patience: 5  # Early stopping if validation doesn't improve
@@ -100,6 +107,11 @@ stages:
       lr: 3.0e-4  # Same as diffusion to prevent overfitting
       betas: [0.9, 0.999]
       weight_decay: 0.01  # Regularization
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10  # Match max epochs
+      eta_min: 1.0e-5  # Minimum LR at end
 
 checkpoint:
   dir: checkpoints
@@ -132,10 +144,11 @@ ttc:
     momentum_field: []
 
     weights:
-      # ✅ ARM FIX: Disable conservation penalties for dissipative Burgers PDE
-      mass: 0.0  # Burgers does NOT conserve mass (was 1.0)
-      energy: 0.0  # Burgers does NOT conserve energy (was 1.0)
-      penalty_negative: 0.0  # CRITICAL: rho is velocity, not density! Negative velocity is valid! (was 1.0)
+      # ✅ ARM FIX: Moderate penalties provide guidance signal for dissipative PDE
+      # (Not perfect physics, but better than zero signal which gives random selection)
+      mass: 0.5  # Moderate penalty for mass changes (provides useful guidance)
+      energy: 0.1  # Small penalty for energy changes
+      penalty_negative: 0.0  # CRITICAL: rho is velocity, not density! Negative velocity is valid!
 
     critic:
       weight: 0.0
