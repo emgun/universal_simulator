@@ -81,10 +81,24 @@ stages:
       weight_decay: 0.03
 
   diff_residual:
-    epochs: 3  # Reduced from 8 (less overfitting)
+    epochs: 15  # Increased from 3 to allow proper training
+    patience: 5  # Early stopping if validation doesn't improve
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-4  # 3.3x lower than operator (was implicitly 0.001)
+      betas: [0.9, 0.999]
+      weight_decay: 0.01  # Regularization to prevent overfitting
 
   consistency_distill:
-    epochs: 3  # Reduced from 8
+    epochs: 10  # Increased from 3 to allow proper training
+    patience: 5  # Early stopping if validation doesn't improve
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-4  # Same as diffusion to prevent overfitting
+      betas: [0.9, 0.999]
+      weight_decay: 0.01  # Regularization
 
 checkpoint:
   dir: checkpoints
