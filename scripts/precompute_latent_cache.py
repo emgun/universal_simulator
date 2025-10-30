@@ -219,6 +219,15 @@ def check_cache_valid(cache_dir: Path, cfg: Dict[str, Any]) -> bool:
 
 
 def main() -> None:
+    # Set multiprocessing start method to 'spawn' for CUDA compatibility
+    # Must be done before any CUDA initialization
+    import multiprocessing
+    try:
+        multiprocessing.set_start_method('spawn', force=True)
+    except RuntimeError:
+        # Already set, ignore
+        pass
+
     parser = argparse.ArgumentParser(description="Precompute latent caches for PDEBench tasks")
     parser.add_argument("--config", default="configs/train_pdebench_scale.yaml", help="Training config to read defaults from")
     parser.add_argument("--tasks", nargs="+", default=["burgers1d"], help="One or more PDEBench tasks to process")
