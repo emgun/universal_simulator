@@ -116,7 +116,67 @@ class CheckpointManager:
             raise ValueError(f"No checkpoints were successfully downloaded from run '{run_id}'")
 
         print(f"\n✓ Downloaded {len(downloaded_files)} checkpoint files")
+
+        # Generate stage_status.json based on downloaded checkpoints
+        self._generate_stage_status_from_checkpoints(downloaded_files)
+
         return downloaded_files
+
+    def _generate_stage_status_from_checkpoints(self, downloaded_files: list) -> None:
+        """Generate stage_status.json based on which checkpoint files exist.
+
+        This allows auto-resume to work even when resuming from runs that don't
+        have stage_status.json (e.g., crashed runs or runs before tracking was added).
+        """
+        from datetime import UTC, datetime
+        import json
+
+        # Map checkpoint files to stages
+        stage_map = {
+            "operator": ["operator.pt", "operator_ema.pt"],
+            "diff_residual": ["diffusion_residual.pt", "diffusion_residual_ema.pt"],
+            "consistency_distill": ["consistency_distill.pt"],
+            "steady_prior": ["steady_prior.pt"],
+        }
+
+        # Determine which stages are complete based on checkpoint files
+        completed_stages = {}
+        for stage, checkpoint_files in stage_map.items():
+            # Check if any of the expected checkpoints exist
+            stage_complete = any(
+                any(str(f).endswith(ckpt) for f in downloaded_files)
+                for ckpt in checkpoint_files
+            )
+
+            if stage_complete:
+                # Mark as completed with current timestamp
+                completed_stages[stage] = {
+                    "status": "completed",
+                    "checkpoint": checkpoint_files[0],  # Use first expected checkpoint
+                    "completed_at": datetime.now(UTC).isoformat(),
+                }
+            else:
+                completed_stages[stage] = {
+                    "status": "not_started"
+                }
+
+        # Create stage_status.json
+        stage_status = {
+            "schema_version": 1,
+            "created_at": datetime.now(UTC).isoformat(),
+            "stages": completed_stages
+        }
+
+        status_file = self.checkpoint_dir / "stage_status.json"
+        status_file.write_text(json.dumps(stage_status, indent=2))
+
+        # Report which stages were marked as complete
+        complete_count = sum(1 for s in completed_stages.values() if s["status"] == "completed")
+        if complete_count > 0:
+            stage_names = [name for name, info in completed_stages.items() if info["status"] == "completed"]
+            print(f"✓ Generated stage_status.json: {complete_count} stages marked as completed ({', '.join(stage_names)})")
+        else:
+            print(f"✓ Generated stage_status.json: no completed stages detected")
 
     def setup_wandb_resume(
         self,
