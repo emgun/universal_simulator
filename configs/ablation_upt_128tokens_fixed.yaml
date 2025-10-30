@@ -1,6 +1,8 @@
-# Ablation: 128 tokens (FIXED)
-# Purpose: Fixed configuration for UPT Phase 2 with proper inverse loss weights
+# Ablation: 128 tokens (FIXED + MUON)
+# Purpose: Fixed configuration for UPT Phase 2 with Muon optimizer
 # Changes from original:
+#   - Optimizer: AdamW → Muon hybrid (2-3x faster convergence expected)
+#   - Gradient clipping: disabled (Muon has bounded updates)
 #   - Inverse loss weights: 0.5 → 0.01 (50x reduction)
 #   - Inverse loss frequency: 10 → 1 (every iteration)
 #   - Warmup epochs: 15 → 5 (faster ramp-up)
@@ -55,7 +57,7 @@ training:
 
   amp: true
   compile: true
-  grad_clip: 1.0
+  grad_clip: null  # CHANGED: Disabled (Muon has bounded updates)
   ema_decay: 0.999
   accum_steps: 4
 
@@ -75,20 +77,32 @@ stages:
     epochs: 40  # Increased from 25 for proper inverse loss training
 
     optimizer:
-      name: adamw
-      lr: 1.4e-3  # Increased from 5e-4 (scaled with sqrt(128/32))
-      betas: [0.9, 0.999]
+      name: muon_hybrid  # CHANGED: Use Muon+AdamW hybrid
+      lr: 1.4e-3  # Scaled with sqrt(128/32)
       weight_decay: 0.03
+
+      # Muon-specific parameters (for 2D+ matrix params)
+      muon_momentum: 0.95    # Nesterov momentum
+      muon_ns_steps: 5       # Newton-Schulz iterations
+      muon_backend: auto     # auto, flash, or torch
+
+      # AdamW-specific parameters (for 1D vector params)
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
 
   diff_residual:
     epochs: 15  # Increased from 3 to allow proper training
     patience: 5  # Early stopping if validation doesn't improve
 
     optimizer:
-      name: adamw
-      lr: 3.0e-4  # 4.7x lower than operator (was implicitly 0.001)
+      name: muon_hybrid
+      lr: 3.0e-4  # 4.7x lower than operator
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
       betas: [0.9, 0.999]
-      weight_decay: 0.01  # Regularization to prevent overfitting
+      eps: 1.0e-8
 
     scheduler:
       name: ReduceLROnPlateau
@@ -102,10 +116,14 @@ stages:
     patience: 5  # Early stopping if validation doesn't improve
 
     optimizer:
-      name: adamw
-      lr: 3.0e-4  # Same as diffusion to prevent overfitting
+      name: muon_hybrid
+      lr: 3.0e-4  # Same as diffusion
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
       betas: [0.9, 0.999]
-      weight_decay: 0.01  # Regularization
+      eps: 1.0e-8
 
     scheduler:
       name: CosineAnnealingLR
@@ -171,6 +189,6 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: burgers-ablation-128tokens-fixed
-    tags: [ablation, 128tokens, 128dim, phase2, fixed, inverse-losses-fixed]
-    group: upt-ablation-fixed
+    run_name: burgers-ablation-128tokens-muon
+    tags: [ablation, 128tokens, 128dim, phase2, fixed, inverse-losses-fixed, muon, muon-hybrid]
+    group: upt-ablation-muon
