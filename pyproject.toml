@@ -12,7 +12,9 @@ authors = [{name = "Universal Physics Stack Devs"}]
 dependencies = [
   "torch>=2.9",
   "triton>=2.1",
-  "flash-muon>=0.1",  # Triton-optimized Muon (35% faster optimizer step)
+  # NOTE: flash-muon must be installed from GitHub (not on PyPI)
+  # git clone https://github.com/nil0x9/flash-muon.git && pip install -e ./
+  # If not available, will fall back to torch.optim.Muon
   "einops>=0.7",
   "xarray>=2023.1",
   "zarr>=2.16",

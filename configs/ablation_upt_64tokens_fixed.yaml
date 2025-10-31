@@ -12,12 +12,12 @@
 #   - Learning rate: 6e-4 → 1e-3 (scaled with model size)
 #
 # Speed Optimizations (NEW):
-#   - flash-muon: Triton-optimized Muon for 35% faster optimizer step
-#   - torch.compile: max-autotune mode for aggressive forward/backward optimization
-#   - num_workers: 4 → 8 for better data pipeline parallelism
+#   - Muon optimizer: Falls back to torch.optim.Muon (flash-muon requires manual install)
+#   - torch.compile: max-autotune mode for aggressive forward/backward optimization (~15-25% speedup)
+#   - num_workers: 4 → 8 for better data pipeline parallelism (~3-5% speedup)
 #   - prefetch_factor: 2 → 4 for better GPU utilization
 #
-# Expected speedup: 1.3-1.5x total training time vs baseline
+# Expected speedup: 1.2-1.3x total training time vs baseline (without flash-muon)
 
 seed: 42
 deterministic: false

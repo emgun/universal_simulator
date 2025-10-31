@@ -12,11 +12,11 @@
 #   - Learning rate: scaled with sqrt(d_model)
 #
 # Speed Optimizations (NEW):
-#   - flash-muon: Triton-optimized Muon for 35% faster optimizer step
-#   - torch.compile: max-autotune mode for aggressive forward/backward optimization
-#   - prefetch_factor: 2 → 4 for better GPU utilization
+#   - Muon optimizer: Falls back to torch.optim.Muon (flash-muon requires manual install)
+#   - torch.compile: max-autotune mode for aggressive forward/backward optimization (~15-25% speedup)
+#   - prefetch_factor: 2 → 4 for better GPU utilization (~2-3% speedup)
 #
-# Expected speedup: 1.3-1.5x total training time vs baseline
+# Expected speedup: 1.2-1.3x total training time vs baseline (without flash-muon)
 # Note: This is a large model and may require an A100 or larger GPU
 
 seed: 42
