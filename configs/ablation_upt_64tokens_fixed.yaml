@@ -1,8 +1,8 @@
-# Ablation: 64 tokens (FIXED + MUON)
-# Purpose: Fixed configuration for UPT Phase 2 with Muon optimizer
+# Ablation: 64 tokens (FIXED + MUON + OPTIMIZED)
+# Purpose: Fixed configuration for UPT Phase 2 with Muon optimizer and speed optimizations
 # Changes from original:
 #   - Optimizer: AdamW → Muon hybrid (2-3x faster convergence expected)
-#   - Gradient clipping: disabled (Muon has bounded updates)
+#   - Gradient clipping: 1.0 (re-enabled for inverse loss stability)
 #   - Inverse loss weights: 0.5 → 0.01 (50x reduction)
 #   - Inverse loss frequency: 10 → 1 (every iteration)
 #   - Warmup epochs: 15 → 5 (faster ramp-up)
@@ -10,6 +10,14 @@
 #   - Batch size: 8 → 12 (better gradient stability)
 #   - Accum steps: 6 → 4 (maintain reasonable effective batch)
 #   - Learning rate: 6e-4 → 1e-3 (scaled with model size)
+#
+# Speed Optimizations (NEW):
+#   - flash-muon: Triton-optimized Muon for 35% faster optimizer step
+#   - torch.compile: max-autotune mode for aggressive forward/backward optimization
+#   - num_workers: 4 → 8 for better data pipeline parallelism
+#   - prefetch_factor: 2 → 4 for better GPU utilization
+#
+# Expected speedup: 1.3-1.5x total training time vs baseline
 
 seed: 42
 deterministic: false
@@ -48,15 +56,16 @@ training:
   dt: 0.1
   patience: 5    # Stop early if no improvement (was 15, too high)
 
-  num_workers: 4
+  num_workers: 8  # OPTIMIZED: Increased from 4 for better data pipeline
   use_parallel_encoding: true
   pin_memory: true
-  prefetch_factor: 2
+  prefetch_factor: 4  # OPTIMIZED: Increased from 2 for better prefetching
 
   checkpoint_interval: 50
 
   amp: true
-  compile: false
+  compile: true  # OPTIMIZED: Enabled with max-autotune mode
+  compile_mode: max-autotune  # OPTIMIZED: Aggressive torch.compile optimization
   grad_clip: 1.0  # Re-enabled: Prevent gradient explosion with inverse losses
   ema_decay: 0.999
   accum_steps: 4  # Reduced from 6

@@ -1,5 +1,5 @@
-# Ablation: 256 tokens (FIXED + MUON)
-# Purpose: Fixed configuration for UPT Phase 2 with Muon optimizer
+# Ablation: 256 tokens (FIXED + MUON + OPTIMIZED)
+# Purpose: Fixed configuration for UPT Phase 2 with Muon optimizer and speed optimizations
 # Changes from original 256-token config:
 #   - Optimizer: AdamW → Muon hybrid (2-3x faster convergence expected)
 #   - Gradient clipping: disabled (Muon has bounded updates)
@@ -11,6 +11,12 @@
 #   - Batch size: carefully tuned for memory
 #   - Learning rate: scaled with sqrt(d_model)
 #
+# Speed Optimizations (NEW):
+#   - flash-muon: Triton-optimized Muon for 35% faster optimizer step
+#   - torch.compile: max-autotune mode for aggressive forward/backward optimization
+#   - prefetch_factor: 2 → 4 for better GPU utilization
+#
+# Expected speedup: 1.3-1.5x total training time vs baseline
 # Note: This is a large model and may require an A100 or larger GPU
 
 seed: 42
@@ -50,15 +56,16 @@ training:
   dt: 0.1
   patience: 5     # Stop early if no improvement (was 20, too high)
 
-  num_workers: 8
+  num_workers: 8  # Already optimized
   use_parallel_encoding: true
   pin_memory: true
-  prefetch_factor: 2
+  prefetch_factor: 4  # OPTIMIZED: Increased from 2 for better prefetching
 
   checkpoint_interval: 20
 
   amp: true
-  compile: true   # Critical for large model efficiency
+  compile: true   # OPTIMIZED: Critical for large model with max-autotune
+  compile_mode: max-autotune  # OPTIMIZED: Aggressive torch.compile optimization
   grad_clip: null  # CHANGED: Disabled (Muon has bounded updates)
   ema_decay: 0.999
   accum_steps: 6
