@@ -210,6 +210,7 @@ def build_reward_model_from_config(
         momentum=float(weights_cfg.get("momentum", 0.0)),
         energy=float(weights_cfg.get("energy", 0.0)),
         penalty_negative=float(weights_cfg.get("penalty_negative", 0.0)),
+        smoothness=float(weights_cfg.get("smoothness", 0.0)),
     )
 
     decoder_config = AnyPointDecoderConfig(

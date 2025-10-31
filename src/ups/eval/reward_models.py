@@ -43,6 +43,7 @@ class AnalyticalRewardWeights:
     momentum: float = 0.0
     energy: float = 0.0
     penalty_negative: float = 0.0
+    smoothness: float = 0.0  # NEW: Reward smooth solutions (good for dissipative PDEs)
 
 
 def _decode_fields(
@@ -163,6 +164,32 @@ class AnalyticalRewardModel(RewardModel):
             rewards = rewards - neg_penalty
             components['negativity'] = penalty.mean().item()
             components['negativity_penalty'] = neg_penalty.mean().item()
+
+        # NEW: Smoothness reward (good for dissipative PDEs)
+        if self.weights.smoothness > 0 and self.mass_field:
+            # Compute spatial gradients (measure roughness)
+            field = next_fields[self.mass_field]  # Shape: (batch, height, width, channels)
+
+            # Compute gradients along spatial dimensions
+            # Using simple finite differences
+            grad_x = field[:, :, 1:, :] - field[:, :, :-1, :]  # Gradient in x
+            grad_y = field[:, 1:, :, :] - field[:, :-1, :, :]  # Gradient in y
+
+            # Compute gradient magnitude (roughness)
+            roughness_x = torch.abs(grad_x).sum(dim=(1, 2, 3))
+            roughness_y = torch.abs(grad_y).sum(dim=(1, 2, 3))
+            total_roughness = roughness_x + roughness_y
+
+            # Normalize by field size to make it scale-invariant
+            normalization = self.height * self.width
+            normalized_roughness = total_roughness / normalization
+
+            # Smoothness reward = negative roughness (smoother is better)
+            smoothness_reward = -self.weights.smoothness * normalized_roughness
+            rewards = rewards + smoothness_reward
+
+            components['roughness'] = normalized_roughness.mean().item()
+            components['smoothness_reward'] = smoothness_reward.mean().item()
 
         # Store components for external logging
         components['reward_mean'] = rewards.mean().item()

@@ -91,7 +91,7 @@ stages:
       eps: 1.0e-8
 
   diff_residual:
-    epochs: 15  # Increased from 3 to allow proper training
+    epochs: 0  # DISABLED: Skip diffusion for faster testing
     patience: 5  # Early stopping if validation doesn't improve
 
     optimizer:
@@ -112,7 +112,7 @@ stages:
       min_lr: 1.0e-5  # Don't go below this
 
   consistency_distill:
-    epochs: 10  # Increased from 3 to allow proper training
+    epochs: 0  # DISABLED: Skip consistency for faster testing
     patience: 5  # Early stopping if validation doesn't improve
 
     optimizer:
@@ -161,11 +161,12 @@ ttc:
     momentum_field: []
 
     weights:
-      # ✅ ARM FIX: Moderate penalties provide guidance signal for dissipative PDE
-      # (Not perfect physics, but better than zero signal which gives random selection)
-      mass: 0.5  # Moderate penalty for mass changes (provides useful guidance)
-      energy: 0.1  # Small penalty for energy changes
-      penalty_negative: 0.0  # CRITICAL: rho is velocity, not density! Negative velocity is valid!
+      # ✅ ARM FIX: Use smoothness reward for dissipative PDE (physically correct!)
+      # Burgers is dissipative - viscosity naturally smooths the solution
+      mass: 0.0  # Don't penalize dissipation (Burgers doesn't conserve mass)
+      energy: 0.0  # Don't penalize dissipation (Burgers dissipates energy)
+      penalty_negative: 0.0  # Velocity can be negative (backward flow is valid)
+      smoothness: 1.0  # NEW: Reward smooth solutions (correct for dissipative PDEs)
 
     critic:
       weight: 0.0
