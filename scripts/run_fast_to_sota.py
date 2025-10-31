@@ -1233,7 +1233,6 @@ def main() -> None:
 
         # Force exit to ensure shell script continues
         import sys
-        import os
         os._exit(0)  # Nuclear option - terminates immediately
 
 

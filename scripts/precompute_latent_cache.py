@@ -99,25 +99,31 @@ def _iter_dataset(
     """
     if use_parallel and num_workers > 0:
         # Use parallel cache system for 4-8× speedup
-        from ups.data.parallel_cache import build_parallel_latent_loader
-        
-        loader = build_parallel_latent_loader(
-            dataset.base,
-            dataset.encoder,
-            dataset.coords,
-            dataset.grid_shape,
-            dataset.field_name,
-            dataset.device,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            cache_dir=dataset.cache_dir,
-            cache_dtype=dataset.cache_dtype,
-            time_stride=dataset.time_stride,
-            rollout_horizon=dataset.rollout_horizon,
-            pin_memory=pin_memory,
-            prefetch_factor=2,
-        )
-    else:
+        try:
+            from ups.data.parallel_cache import build_parallel_latent_loader
+
+            loader = build_parallel_latent_loader(
+                dataset.base,
+                dataset.encoder,
+                dataset.coords,
+                dataset.grid_shape,
+                dataset.field_name,
+                dataset.device,
+                batch_size=batch_size,
+                num_workers=num_workers,
+                cache_dir=dataset.cache_dir,
+                cache_dtype=dataset.cache_dtype,
+                time_stride=dataset.time_stride,
+                rollout_horizon=dataset.rollout_horizon,
+                pin_memory=pin_memory,
+                prefetch_factor=2,
+            )
+        except (AttributeError, TypeError) as e:
+            # Fall back to legacy mode if parallel fails (e.g., pickle errors)
+            print(f"⚠️  Parallel encoding failed ({e.__class__.__name__}), using legacy mode")
+            use_parallel = False
+
+    if not use_parallel or num_workers == 0:
         # Legacy mode (slower, but stable)
         loader = DataLoader(
             dataset,
@@ -131,13 +137,41 @@ def _iter_dataset(
     
     total_batches = len(loader)
     iterator = _maybe_tqdm(loader, total_batches, desc="encoding")
-    for batch in iterator:
-        # Accessing the batch ensures __getitem__ executes and caches samples.
-        if isinstance(batch, list):
-            # Explicitly drop tensors to free GPU memory quickly.
-            for item in batch:
-                del item
-        del batch
+
+    try:
+        for batch in iterator:
+            # Accessing the batch ensures __getitem__ executes and caches samples.
+            if isinstance(batch, list):
+                # Explicitly drop tensors to free GPU memory quickly.
+                for item in batch:
+                    del item
+            del batch
+    except (AttributeError, TypeError) as e:
+        # If parallel mode fails during iteration, fall back to legacy
+        if use_parallel and num_workers > 0:
+            print(f"⚠️  Parallel encoding failed during iteration ({e.__class__.__name__})")
+            print("   Falling back to legacy mode (num_workers=0)")
+
+            # Recreate loader in legacy mode
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=pin_memory,
+                persistent_workers=False,
+                collate_fn=lambda items: items,
+            )
+
+            total_batches = len(loader)
+            iterator = _maybe_tqdm(loader, total_batches, desc="encoding (legacy)")
+            for batch in iterator:
+                if isinstance(batch, list):
+                    for item in batch:
+                        del item
+                del batch
+        else:
+            raise
 
 
 def _summarise_cache(cache_dir: Path) -> Dict[str, float]:
