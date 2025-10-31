@@ -57,7 +57,7 @@ training:
 
   amp: true
   compile: false
-  grad_clip: null  # CHANGED: Disabled (Muon has bounded updates)
+  grad_clip: 1.0  # Re-enabled: Prevent gradient explosion with inverse losses
   ema_decay: 0.999
   accum_steps: 4  # Reduced from 6
 
