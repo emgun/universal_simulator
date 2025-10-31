@@ -289,13 +289,20 @@ def validate_hyperparameters(cfg: Dict) -> List[Tuple[str, bool, str]]:
             f"epochs = {op_epochs} (typical: 5-50)"
         ))
     
-    # Check gradient clipping if present
+    # Check gradient clipping if present (None is valid for Muon optimizer)
     grad_clip = cfg.get("training", {}).get("grad_clip", 1.0)
-    checks.append((
-        "grad_clip in reasonable range",
-        0.1 <= grad_clip <= 10.0,
-        f"grad_clip = {grad_clip} (typical: 0.5-2.0)"
-    ))
+    if grad_clip is not None:
+        checks.append((
+            "grad_clip in reasonable range",
+            0.1 <= grad_clip <= 10.0,
+            f"grad_clip = {grad_clip} (typical: 0.5-2.0)"
+        ))
+    else:
+        checks.append((
+            "grad_clip is None (valid for Muon)",
+            True,
+            "grad_clip = None (Muon has bounded updates)"
+        ))
     
     # Check time_stride
     time_stride = cfg.get("training", {}).get("time_stride", 1)
