@@ -139,19 +139,19 @@ evaluation:
 
 ttc:
   enabled: true
-  debug: true  # ✅ ARM FIX: Enable detailed logging
-  steps: 3  # Increased from 1 for actual TTC
-  candidates: 8  # Small model: fewer candidates
-  beam_width: 3
-  horizon: 2  # ✅ ARM FIX: Enable lookahead (was 1)
+  debug: true
+  steps: 1  # Oct 15 setting (was 3)
+  candidates: 6  # Oct 15 setting (was 8)
+  beam_width: 2  # Oct 15 setting (was 3)
+  horizon: 2
   residual_threshold: 0.35
   gamma: 1.0
-  max_evaluations: 150
+  max_evaluations: 100  # Oct 15 setting (was 150)
 
   sampler:
-    tau_range: [0.05, 0.95]  # ✅ ARM FIX: Wider range for diversity (was [0.15, 0.85])
-    noise_std: 0.12  # ✅ ARM FIX: Higher noise for small model (more exploration needed)
-    noise_schedule: [0.15, 0.12, 0.08]  # Updated for higher noise
+    tau_range: [0.2, 0.8]  # Oct 15 setting (was [0.05, 0.95])
+    noise_std: 0.01  # Oct 15 setting (was 0.12) - much less noise!
+    noise_schedule: [0.02, 0.01]  # Oct 15 setting
 
   reward:
     analytical_weight: 1.0
@@ -161,12 +161,11 @@ ttc:
     momentum_field: []
 
     weights:
-      # ✅ ARM FIX: Use smoothness reward for dissipative PDE (physically correct!)
-      # Burgers is dissipative - viscosity naturally smooths the solution
-      mass: 0.0  # Don't penalize dissipation (Burgers doesn't conserve mass)
-      energy: 0.0  # Don't penalize dissipation (Burgers dissipates energy)
-      penalty_negative: 0.0  # Velocity can be negative (backward flow is valid)
-      smoothness: 1.0  # NEW: Reward smooth solutions (correct for dissipative PDEs)
+      # Oct 15 settings - conservation penalties
+      mass: 1.0  # Oct 15 setting (was 0.0)
+      energy: 0.1  # Oct 15 setting (was 0.0)
+      penalty_negative: 0.5  # Oct 15 setting (was 0.0)
+      smoothness: 0.0  # Oct 15 setting (was 1.0)
 
     critic:
       weight: 0.0
