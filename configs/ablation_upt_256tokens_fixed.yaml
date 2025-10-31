@@ -141,19 +141,19 @@ evaluation:
 
 ttc:
   enabled: true
-  debug: true  # ✅ ARM FIX: Enable detailed logging
-  steps: 5  # More steps for large model
-  candidates: 16  # Large model: more candidates
-  beam_width: 5
-  horizon: 2  # ✅ ARM FIX: Enable lookahead (was 1)
-  residual_threshold: 0.3  # Slightly tighter threshold for large model
+  debug: true
+  steps: 1  # Oct 15 setting: minimal exploration for good baseline
+  candidates: 6  # Oct 15 setting
+  beam_width: 2  # Oct 15 setting
+  horizon: 2
+  residual_threshold: 0.35
   gamma: 1.0
-  max_evaluations: 200
+  max_evaluations: 100  # Oct 15 setting
 
   sampler:
-    tau_range: [0.05, 0.95]  # ✅ ARM FIX: Wider range for diversity (was [0.15, 0.85])
-    noise_std: 0.08  # ✅ ARM FIX: Moderate noise for large model (was 0.03)
-    noise_schedule: [0.10, 0.08, 0.05]  # Updated for higher noise
+    tau_range: [0.2, 0.8]  # Oct 15 setting: narrow range
+    noise_std: 0.01  # Oct 15 setting: minimal noise
+    noise_schedule: [0.02, 0.01]  # Oct 15 setting
 
   reward:
     analytical_weight: 1.0
@@ -163,11 +163,10 @@ ttc:
     momentum_field: []
 
     weights:
-      # ✅ ARM FIX: Moderate penalties provide guidance signal for dissipative PDE
-      # (Not perfect physics, but better than zero signal which gives random selection)
-      mass: 0.5  # Moderate penalty for mass changes (provides useful guidance)
-      energy: 0.1  # Small penalty for energy changes
-      penalty_negative: 0.0  # CRITICAL: rho is velocity, not density! Negative velocity is valid!
+      # Oct 15 settings: conservation penalties (validated on 64 tokens: +30.5%)
+      mass: 1.0  # Oct 15 setting
+      energy: 0.1  # Oct 15 setting
+      penalty_negative: 0.5  # Oct 15 setting
 
     critic:
       weight: 0.0
