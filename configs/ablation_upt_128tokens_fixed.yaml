@@ -12,13 +12,13 @@
 #   - Learning rate: 5e-4 → 1.4e-3 (scaled with sqrt(d_model))
 #
 # Speed Optimizations (NEW):
-#   - Muon optimizer: Falls back to torch.optim.Muon (flash-muon requires manual install)
-#   - torch.compile: reduce-overhead mode for balanced optimization (~10-15% speedup)
-#   - num_workers: 6 → 8 for better data pipeline parallelism (~3-5% speedup)
+#   - Muon optimizer: Faster convergence, similar per-epoch time vs AdamW
+#   - torch.compile: DISABLED (CUDA graphs incompatible with time embedding)
+#   - num_workers: 6 → 8 for better data pipeline parallelism (~2-3% speedup)
 #   - prefetch_factor: 2 → 4 for better GPU utilization
 #
-# Expected speedup: 1.15-1.2x total training time vs baseline (without flash-muon)
-# Note: max-autotune incompatible with CUDA graphs due to tensor mutation in time_embed
+# Expected speedup: 1.17x total time (from better convergence, not per-epoch speed)
+# Note: Per-epoch time similar to AdamW baseline (~66-68s)
 
 seed: 42
 deterministic: false
@@ -65,8 +65,8 @@ training:
   checkpoint_interval: 25
 
   amp: true
-  compile: true  # OPTIMIZED: Enabled with reduce-overhead mode
-  compile_mode: reduce-overhead  # OPTIMIZED: Balanced torch.compile (max-autotune incompatible with CUDA graphs)
+  compile: false  # DISABLED: CUDA graphs incompatible with dt tensor operations in time_embed
+  compile_mode: reduce-overhead  # Would be used if compile enabled
   grad_clip: null  # CHANGED: Disabled (Muon has bounded updates)
   ema_decay: 0.999
   accum_steps: 4
