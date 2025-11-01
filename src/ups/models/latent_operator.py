@@ -31,6 +31,9 @@ class TimeEmbedding(nn.Module):
         )
 
     def forward(self, dt: torch.Tensor) -> torch.Tensor:
+        # Clone to avoid CUDA graphs error when using torch.compile
+        # (CUDA graphs require tensors not to be overwritten between runs)
+        dt = dt.clone()
         if dt.dim() == 0:
             dt = dt.unsqueeze(0)
         dt = dt.view(-1, 1)
