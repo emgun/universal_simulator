@@ -13,10 +13,11 @@
 #
 # Speed Optimizations (NEW):
 #   - Muon optimizer: Falls back to torch.optim.Muon (flash-muon requires manual install)
-#   - torch.compile: max-autotune mode for aggressive forward/backward optimization (~15-25% speedup)
+#   - torch.compile: reduce-overhead mode for balanced optimization (~10-15% speedup)
 #   - prefetch_factor: 2 → 4 for better GPU utilization (~2-3% speedup)
 #
-# Expected speedup: 1.2-1.3x total training time vs baseline (without flash-muon)
+# Expected speedup: 1.12-1.18x total training time vs baseline (without flash-muon)
+# Note: max-autotune incompatible with CUDA graphs due to tensor mutation in time_embed
 # Note: This is a large model and may require an A100 or larger GPU
 
 seed: 42
@@ -64,8 +65,8 @@ training:
   checkpoint_interval: 20
 
   amp: true
-  compile: true   # OPTIMIZED: Critical for large model with max-autotune
-  compile_mode: max-autotune  # OPTIMIZED: Aggressive torch.compile optimization
+  compile: true   # OPTIMIZED: Critical for large model
+  compile_mode: reduce-overhead  # OPTIMIZED: Balanced torch.compile (max-autotune incompatible with CUDA graphs)
   grad_clip: null  # CHANGED: Disabled (Muon has bounded updates)
   ema_decay: 0.999
   accum_steps: 6
