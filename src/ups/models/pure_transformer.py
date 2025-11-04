@@ -14,8 +14,8 @@ from typing import Literal
 import torch
 from torch import nn
 
-from src.ups.core.attention import ChannelSeparatedSelfAttention, StandardSelfAttention
-from src.ups.core.drop_path import DropPath
+from ups.core.attention import ChannelSeparatedSelfAttention, StandardSelfAttention
+from ups.core.drop_path import DropPath
 
 
 @dataclass
