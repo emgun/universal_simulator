@@ -3,7 +3,7 @@ from __future__ import annotations
 """Latent space evolution operator driven by the PDE-Transformer core."""
 
 from dataclasses import dataclass
-from typing import Mapping, Optional
+from typing import Literal, Mapping, Optional, Union
 
 import torch
 from torch import nn
@@ -11,12 +11,26 @@ from torch import nn
 from ups.core.blocks_pdet import PDETransformerBlock, PDETransformerConfig
 from ups.core.conditioning import AdaLNConditioner, ConditioningConfig
 from ups.core.latent_state import LatentState
+from ups.models.pure_transformer import PureTransformer, PureTransformerConfig
 
 
 @dataclass
 class LatentOperatorConfig:
+    """Configuration for latent space operator.
+
+    Args:
+        latent_dim: Latent token dimension.
+        pdet: Configuration for approximator (PDETransformerConfig or PureTransformerConfig).
+        architecture_type: Type of approximator architecture.
+            - "pdet_unet": U-shaped PDE-Transformer (default, current production)
+            - "pdet_stack": Pure stacked transformer (new, UPT-style)
+        conditioning: Optional adaptive conditioning config.
+        time_embed_dim: Time embedding dimension. Default: 64.
+    """
+
     latent_dim: int
-    pdet: PDETransformerConfig
+    pdet: Union[PDETransformerConfig, PureTransformerConfig]
+    architecture_type: Literal["pdet_unet", "pdet_stack"] = "pdet_unet"
     conditioning: Optional[ConditioningConfig] = None
     time_embed_dim: int = 64
 
@@ -41,21 +55,39 @@ class TimeEmbedding(nn.Module):
 
 
 class LatentOperator(nn.Module):
-    """Advance latent state by one time step using PDE-Transformer backbone."""
+    """Advance latent state by one time step using approximator backbone.
+
+    Supports both U-shaped PDE-Transformer and pure stacked transformer architectures.
+    """
 
     def __init__(self, cfg: LatentOperatorConfig) -> None:
         super().__init__()
         self.cfg = cfg
         self.time_embed = TimeEmbedding(cfg.time_embed_dim)
         self.time_to_latent = nn.Linear(cfg.time_embed_dim, cfg.latent_dim)
+
+        # Validate dimension match
         pdet_cfg = cfg.pdet
         if pdet_cfg.input_dim != cfg.latent_dim:
-            raise ValueError("PDETransformer input_dim must match latent_dim")
-        self.core = PDETransformerBlock(pdet_cfg)
+            raise ValueError(
+                f"Approximator input_dim ({pdet_cfg.input_dim}) "
+                f"must match latent_dim ({cfg.latent_dim})"
+            )
+
+        # Instantiate core approximator based on architecture type
+        if cfg.architecture_type == "pdet_unet":
+            self.core = PDETransformerBlock(pdet_cfg)
+        elif cfg.architecture_type == "pdet_stack":
+            self.core = PureTransformer(pdet_cfg)
+        else:
+            raise ValueError(f"Unknown architecture_type: {cfg.architecture_type}")
+
+        # Optional conditioning
         if cfg.conditioning is not None:
             self.conditioner = AdaLNConditioner(cfg.conditioning)
         else:
             self.conditioner = None
+
         self.output_norm = nn.LayerNorm(cfg.latent_dim)
 
     def forward(self, state: LatentState, dt: torch.Tensor) -> LatentState:
@@ -88,7 +120,9 @@ class LatentOperator(nn.Module):
         residual = self.output_norm(residual)
         return residual
 
-    def apply_conditioning(self, tokens: torch.Tensor, cond: Mapping[str, torch.Tensor]) -> torch.Tensor:
+    def apply_conditioning(
+        self, tokens: torch.Tensor, cond: Mapping[str, torch.Tensor]
+    ) -> torch.Tensor:
         normed = torch.nn.functional.layer_norm(tokens, tokens.shape[-1:])
         assert self.conditioner is not None
         return self.conditioner.modulate(normed, cond)

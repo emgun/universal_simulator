@@ -25,29 +25,77 @@ def load_config(config_path: str) -> Dict:
 def validate_architecture(cfg: Dict) -> List[Tuple[str, bool, str]]:
     """Validate architecture consistency."""
     checks = []
-    
+
     latent_dim = cfg.get("latent", {}).get("dim")
-    op_input = cfg.get("operator", {}).get("pdet", {}).get("input_dim")
-    op_hidden = cfg.get("operator", {}).get("pdet", {}).get("hidden_dim")
+    arch_type = cfg.get("operator", {}).get("architecture_type", "pdet_unet")
+    op_pdet = cfg.get("operator", {}).get("pdet", {})
+    op_input = op_pdet.get("input_dim")
+    op_hidden = op_pdet.get("hidden_dim")
     diff_latent = cfg.get("diffusion", {}).get("latent_dim")
     diff_hidden = cfg.get("diffusion", {}).get("hidden_dim")
     ttc_decoder_latent = cfg.get("ttc", {}).get("decoder", {}).get("latent_dim")
     ttc_decoder_hidden = cfg.get("ttc", {}).get("decoder", {}).get("hidden_dim")
-    
+
     # Check 1: latent.dim is set
     checks.append((
         "latent.dim defined",
         latent_dim is not None,
         f"latent.dim = {latent_dim}" if latent_dim else "Missing latent.dim"
     ))
-    
+
+    # Check 1b: architecture_type is valid
+    valid_arch_types = ["pdet_unet", "pdet_stack"]
+    checks.append((
+        "operator.architecture_type valid",
+        arch_type in valid_arch_types,
+        f"architecture_type = {arch_type} (valid: {valid_arch_types})"
+    ))
+
+    # Check 1c: Phase 3 - validate pdet config based on architecture type
+    if arch_type == "pdet_unet":
+        # U-shaped: requires depths
+        depths = op_pdet.get("depths")
+        checks.append((
+            "operator.pdet.depths defined (pdet_unet)",
+            depths is not None,
+            f"depths = {depths}" if depths else "Missing depths for pdet_unet"
+        ))
+    elif arch_type == "pdet_stack":
+        # Pure transformer: requires depth, attention_type
+        depth = op_pdet.get("depth")
+        attention_type = op_pdet.get("attention_type", "standard")
+        checks.append((
+            "operator.pdet.depth defined (pdet_stack)",
+            depth is not None and isinstance(depth, int) and depth > 0,
+            f"depth = {depth}" if depth else "Missing depth for pdet_stack"
+        ))
+
+        valid_attention_types = ["standard", "channel_separated"]
+        checks.append((
+            "operator.pdet.attention_type valid",
+            attention_type in valid_attention_types,
+            f"attention_type = {attention_type} (valid: {valid_attention_types})"
+        ))
+
+        # If channel_separated, check group_size
+        if attention_type == "channel_separated":
+            group_size = op_pdet.get("group_size")
+            num_heads = op_pdet.get("num_heads")
+            if group_size and num_heads and op_hidden:
+                group_valid = (op_hidden % group_size == 0) and (group_size % num_heads == 0)
+                checks.append((
+                    "channel_separated: hidden_dim % group_size == 0 and group_size % num_heads == 0",
+                    group_valid,
+                    f"hidden_dim={op_hidden}, group_size={group_size}, num_heads={num_heads}"
+                ))
+
     # Check 2: operator.pdet.input_dim matches latent.dim
     checks.append((
         "operator.pdet.input_dim == latent.dim",
         op_input == latent_dim if op_input and latent_dim else False,
         f"{op_input} == {latent_dim}" if op_input else "Missing operator.pdet.input_dim"
     ))
-    
+
     # Check 3: operator.pdet.hidden_dim is defined
     checks.append((
         "operator.pdet.hidden_dim defined",

@@ -32,6 +32,30 @@ These are the **canonical, recommended configurations** for production use:
 | `eval_burgers_32dim_practical.yaml` | Practical evaluation config | ✅ Active | 2025-01-21 |
 | `small_eval_burgers_32dim_practical.yaml` | Practical small eval | ✅ Active | 2025-01-21 |
 
+### UPT Phase 3 Configs (Architecture Simplification)
+
+**Pure Stacked Transformer** - Alternative to U-shaped architecture, recommended for 256+ tokens:
+
+| Config | Tokens | Architecture | Attention | Purpose |
+|--------|--------|--------------|-----------|---------|
+| `train_burgers_upt_128tokens_pure.yaml` | 128 | pdet_stack | standard | Test pure transformer at Phase 2 winner token count |
+| `train_burgers_upt_256tokens_pure.yaml` | 256 | pdet_stack | standard | UPT recommendation threshold (256-512 tokens) |
+| `train_burgers_upt_128tokens_channel_sep.yaml` | 128 | pdet_stack | channel_separated | Compare attention mechanisms |
+
+**Key Features**:
+- **Architecture type**: `pdet_stack` (pure stacked transformer) vs `pdet_unet` (U-shaped, default)
+- **Drop-path regularization**: Stochastic depth (0.1 for 8-layer networks)
+- **Standard attention**: Multi-head self-attention with optional QK normalization
+- **Fixed token count**: No pooling/unpooling throughout network
+- **Linear drop-path schedule**: Increases from 0 at layer 0 to max at final layer
+
+**Architecture Selection Guidelines**:
+- **16-128 tokens**: Use U-shaped (`pdet_unet`) - current golden config
+- **128 tokens** (transition): Test both U-shaped and pure (`pdet_stack`)
+- **256-512 tokens**: Use pure stacked transformer (`pdet_stack`) - UPT recommendation
+
+See Phase 3 implementation plan for detailed architecture comparison and ablation study design.
+
 ### Inference Configs
 
 | Config | Description | Status |

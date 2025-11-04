@@ -1,0 +1,189 @@
+# UPT Phase 3: Pure Transformer with 256 Tokens
+# UPT recommendation: 256-512 tokens for pure transformer
+# Expected: Significant improvement over U-shaped at same token count
+#
+# KEY FEATURES:
+# - Architecture: pdet_stack (pure stacked transformer)
+# - Tokens: 256 (UPT recommendation threshold)
+# - Attention: standard multi-head
+# - Drop-path: 0.1 (regularize 8-layer network)
+# - Dimensions: 192 (UPT-17M equivalent scale)
+#
+# UPT GUIDELINES:
+# - Pure transformer recommended for 256-512 tokens
+# - Fixed token count (no pooling/unpooling)
+# - Standard attention with QK normalization
+# - Linear drop-path schedule
+#
+# EXPECTED RESULTS:
+# - Better than Phase 2 256-token U-shaped (NRMSE 0.0596)
+# - Validate UPT recommendation at this scale
+# - Clearer latent space semantics
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 192          # UPT-17M equivalent
+  tokens: 256       # UPT recommendation threshold
+
+# Pure stacked transformer architecture
+operator:
+  architecture_type: pdet_stack
+  pdet:
+    input_dim: 192                 # Match latent.dim
+    hidden_dim: 384                # 2x latent.dim
+    depth: 8                       # 8 layers (medium depth)
+    num_heads: 6
+    attention_type: standard       # Standard attention
+    qk_norm: true                  # Stabilize for 8 layers
+    mlp_ratio: 4.0                 # Standard expansion
+    drop_path: 0.1                 # Regularize 8-layer network
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 192
+  hidden_dim: 384
+
+training:
+  batch_size: 6                    # Larger model
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 4
+
+  checkpoint_interval: 30
+
+  amp: true
+  compile: false
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 8                   # Effective batch = 48
+
+  # Phase 1 inverse losses
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+  use_inverse_losses: true
+  inverse_loss_frequency: 10
+
+  lambda_spectral: 0.01
+  lambda_rollout: 0.1
+
+stages:
+  operator:
+    epochs: 30
+
+    optimizer:
+      name: adamw
+      lr: 8.0e-4                   # Slightly lower for larger model
+      betas: [0.9, 0.999]
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 8
+    grad_clip: 1.0
+    ema_decay: 0.999
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 1.5e-5
+
+  consistency_distill:
+    epochs: 8
+    batch_size: 3
+    accum_steps: 4
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-6
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8
+  beam_width: 3
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 150
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.08, 0.05, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 192
+    query_dim: 2
+    hidden_dim: 384                # Must match operator.pdet.hidden_dim
+    mlp_hidden_dim: 384
+    num_layers: 3
+    num_heads: 6
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt-256tokens-pure
+    tags: [upt, phase3, pure-transformer, 256tokens, upt-17m, standard-attention]
+    group: upt-phase3-architecture
+    notes: "Phase 3: Pure stacked transformer with 256 tokens (UPT recommendation). Expected to significantly outperform U-shaped at this token count."

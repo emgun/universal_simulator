@@ -1,0 +1,181 @@
+# UPT Phase 3: Pure Transformer with Channel-Separated Attention
+# Test existing attention mechanism in pure transformer architecture
+#
+# KEY FEATURES:
+# - Architecture: pdet_stack (pure transformer)
+# - Tokens: 128 (Phase 2 winner token count)
+# - Attention: channel_separated (existing mechanism)
+# - Purpose: Compare standard vs channel-separated attention in pure architecture
+#
+# COMPARISON:
+# - vs train_burgers_upt_128tokens_pure.yaml (standard attention)
+# - Both use same architecture (pdet_stack), differ only in attention_type
+# - Expected: Similar performance, validates attention mechanism choice
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 64
+  tokens: 128
+
+# Pure stacked transformer with channel-separated attention
+operator:
+  architecture_type: pdet_stack    # Pure transformer
+  pdet:
+    input_dim: 64                  # Must match latent.dim
+    hidden_dim: 192                # 3x latent.dim
+    depth: 8                       # 8 layers
+    num_heads: 6
+    attention_type: channel_separated  # Use existing attention mechanism
+    group_size: 24                     # Must be divisible by num_heads (24 % 6 = 0)
+    mlp_ratio: 4.0
+    drop_path: 0.1
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 64
+  hidden_dim: 192
+
+training:
+  batch_size: 8
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 4
+
+  checkpoint_interval: 25
+
+  amp: true
+  compile: false
+  grad_clip: 1.0
+  ema_decay: 0.999
+  accum_steps: 6                   # Effective batch = 48
+
+  # Phase 1 inverse losses
+  lambda_inv_enc: 0.5
+  lambda_inv_dec: 0.5
+  use_inverse_losses: true
+  inverse_loss_frequency: 10
+
+  lambda_spectral: 0.01
+  lambda_rollout: 0.1
+
+stages:
+  operator:
+    epochs: 25
+
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      betas: [0.9, 0.999]
+      weight_decay: 0.03
+
+  diff_residual:
+    epochs: 8
+    grad_clip: 1.0
+    ema_decay: 0.999
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 1.5e-5
+
+  consistency_distill:
+    epochs: 8
+    batch_size: 4
+    accum_steps: 3
+
+    optimizer:
+      name: adamw
+      lr: 3.0e-4
+      weight_decay: 0.015
+      betas: [0.9, 0.999]
+
+    scheduler:
+      name: cosineannealinglr
+      t_max: 8
+      eta_min: 2.0e-6
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 8
+  beam_width: 3
+  horizon: 1
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 150
+
+  sampler:
+    tau_range: [0.15, 0.85]
+    noise_std: 0.05
+    noise_schedule: [0.08, 0.05, 0.02]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 1.0
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 64
+    query_dim: 2
+    hidden_dim: 192
+    mlp_hidden_dim: 256
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt-128tokens-channel-sep
+    tags: [upt, phase3, pure-transformer, 128tokens, channel-separated-attention]
+    group: upt-phase3-architecture
+    notes: "Phase 3: Pure transformer with channel-separated attention. Compare against standard attention to validate mechanism choice."
