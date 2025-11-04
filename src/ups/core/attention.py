@@ -10,7 +10,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from src.ups.core.blocks_pdet import ChannelSeparatedSelfAttention
+from ups.core.blocks_pdet import ChannelSeparatedSelfAttention
 
 
 class StandardSelfAttention(nn.Module):
@@ -61,7 +61,7 @@ class StandardSelfAttention(nn.Module):
         # Optional Q/K normalization (UPT recommendation for stability)
         self.qk_norm = qk_norm
         if qk_norm:
-            from src.ups.core.blocks_pdet import RMSNorm
+            from ups.core.blocks_pdet import RMSNorm
             self.q_norm = RMSNorm(self.head_dim)
             self.k_norm = RMSNorm(self.head_dim)
 
