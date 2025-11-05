@@ -299,6 +299,65 @@ def cmd_launch(args: argparse.Namespace) -> None:
     # Auto-detect branch if not specified
     branch = args.branch if args.branch else git_current_branch()
 
+    # Pre-flight checks: Ensure config file is committed to git
+    print("🔍 Pre-flight checks...")
+
+    config_path = Path(args.config)
+    if not config_path.is_absolute():
+        config_path = REPO_ROOT / config_path
+
+    # Check if config file exists locally
+    if not config_path.exists():
+        print(f"❌ ERROR: Config file not found: {args.config}")
+        sys.exit(1)
+
+    # Check if config is tracked in git
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", str(config_path.relative_to(REPO_ROOT))],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        print(f"⚠️  WARNING: Config file is not tracked in git: {args.config}")
+        print("   The VastAI instance will not have access to this file!")
+        print(f"   Please run: git add {config_path.relative_to(REPO_ROOT)}")
+        response = input("   Abort launch? [Y/n]: ")
+        if response.lower() != 'n':
+            print("❌ Aborting launch")
+            sys.exit(1)
+
+    # Check for uncommitted changes to config
+    result = subprocess.run(
+        ["git", "diff", "--quiet", str(config_path.relative_to(REPO_ROOT))],
+        cwd=REPO_ROOT
+    )
+    if result.returncode != 0:
+        print(f"⚠️  WARNING: Config file has uncommitted changes: {args.config}")
+        print("   VastAI will use the committed version, not your local changes!")
+        print(f"   Please run: git commit -am 'Update config' && git push origin {branch}")
+        response = input("   Continue anyway? [y/N]: ")
+        if response.lower() != 'y':
+            print("❌ Aborting launch")
+            sys.exit(1)
+        print("⚠️  Continuing with committed version (local changes will be ignored)")
+
+    # Check if config has been pushed to remote
+    result = subprocess.run(
+        ["git", "diff", "--quiet", f"origin/{branch}", "HEAD", "--", str(config_path.relative_to(REPO_ROOT))],
+        cwd=REPO_ROOT
+    )
+    if result.returncode != 0:
+        print(f"⚠️  WARNING: Config file has unpushed commits: {args.config}")
+        print(f"   Please run: git push origin {branch}")
+        response = input("   Continue anyway? [y/N]: ")
+        if response.lower() != 'y':
+            print("❌ Aborting launch")
+            sys.exit(1)
+        print("⚠️  Continuing (VastAI will use older remote version)")
+
+    print("✅ Pre-flight checks passed\n")
+
     # Generate onstart script
     ONSTART_DIR.mkdir(exist_ok=True)
     onstart_path = ONSTART_DIR / "onstart.sh"
