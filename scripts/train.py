@@ -225,7 +225,10 @@ def dataset_loader(cfg: dict) -> DataLoader:
 def make_operator(cfg: dict) -> LatentOperator:
     latent_cfg = cfg.get("latent", {})
     dim = latent_cfg.get("dim", 32)
-    pdet_cfg = cfg.get("operator", {}).get("pdet", {})
+    operator_cfg = cfg.get("operator", {})
+    pdet_cfg = operator_cfg.get("pdet", {})
+    architecture_type = operator_cfg.get("architecture_type", "pdet_unet")
+
     if not pdet_cfg:
         pdet_cfg = {
             "input_dim": dim,
@@ -234,9 +237,18 @@ def make_operator(cfg: dict) -> LatentOperator:
             "group_size": max(dim // 2, 4),
             "num_heads": 4,
         }
+
+    # Create appropriate config based on architecture type
+    if architecture_type == "pdet_stack":
+        from ups.models.pure_transformer import PureTransformerConfig
+        pdet_config = PureTransformerConfig(**pdet_cfg)
+    else:  # pdet_unet (default)
+        pdet_config = PDETransformerConfig(**pdet_cfg)
+
     config = LatentOperatorConfig(
         latent_dim=dim,
-        pdet=PDETransformerConfig(**pdet_cfg),
+        pdet=pdet_config,
+        architecture_type=architecture_type,
         time_embed_dim=dim,
     )
     return LatentOperator(config)
