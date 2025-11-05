@@ -1,0 +1,120 @@
+# Test config for Phase 4.1 query sampling (1 epoch quick test)
+# Based on: train_burgers_128tokens_queries.yaml (Phase 4.1)
+# Purpose: Quick smoke test to verify query sampling implementation works
+#
+# Changes from production config:
+#   - epochs: 1 (quick test)
+#   - batch_size: 2 (faster iteration)
+#   - num_workers: 0 (simpler setup)
+#   - amp: false (clearer errors)
+#   - compile: false (faster startup)
+#   - wandb: false (local test)
+#   - skip diff/distill stages (operator only)
+
+seed: 42
+deterministic: true
+benchmark: false
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 128
+  tokens: 128
+
+operator:
+  architecture_type: pdet_stack
+
+  pdet:
+    input_dim: 128
+    hidden_dim: 256
+    depth: 8
+    num_heads: 8
+    attention_type: standard
+    qk_norm: true
+    mlp_ratio: 4.0
+    drop_path: 0.1
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 256
+
+training:
+  batch_size: 2          # Small batch for quick test
+  time_stride: 2
+  dt: 0.1
+  patience: 5
+
+  num_workers: 0         # No workers for simpler test
+  use_parallel_encoding: false
+  pin_memory: false
+  prefetch_factor: 2
+
+  latent_cache_dir: null
+  checkpoint_interval: 1
+
+  amp: false             # Disable AMP for clearer error messages
+  compile: false
+  grad_clip: null
+  ema_decay: null        # Disable EMA for faster test
+  accum_steps: 1
+
+  # UPT Inverse Losses
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1
+  inverse_loss_warmup_epochs: 0  # No warmup for test
+  inverse_loss_max_weight: 0.05
+
+  # Query sampling (Phase 4.1)
+  query_sampling:
+    enabled: true
+    num_queries: 1024    # Sample 25% of 4096 points (64×64 grid)
+    strategy: uniform
+
+  lambda_spectral: 0.0
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 1            # Just 1 epoch for smoke test
+
+    optimizer:
+      name: adamw        # Use simpler optimizer for test
+      lr: 0.001
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+
+  diff_residual:
+    epochs: 0            # Skip diffusion for test
+
+  consistency_distill:
+    epochs: 0            # Skip distill for test
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: false         # Skip eval for test
+
+ttc:
+  enabled: false         # Skip TTC for test
+
+logging:
+  wandb:
+    enabled: false       # Disable WandB for local test
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: test-queries-1epoch
+    tags: [test, phase4.1, query-sampling]
+    group: test

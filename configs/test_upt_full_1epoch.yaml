@@ -1,0 +1,236 @@
+# Test Config for Complete UPT Phase 4 Implementation (1 epoch quick test)
+# Based on: train_burgers_upt_full.yaml
+# Purpose: Quick smoke test to verify all Phase 4 features work together
+#
+# Changes from production config:
+#   - epochs: 1 (quick test)
+#   - batch_size: 2 (faster iteration)
+#   - num_workers: 0 (simpler setup)
+#   - amp: false (clearer errors)
+#   - compile: false (faster startup)
+#   - wandb: false (local test)
+#   - skip diff/distill stages (operator only)
+#
+# ALL Phase 4 Features Enabled:
+#   - Query sampling: 1024 points (25% of 64×64 grid)
+#   - Physics priors: Boundary condition enforcement
+#   - Latent regularization: Norm & diversity penalties
+
+seed: 42
+deterministic: true
+benchmark: false
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 128          # From Phase 2/3 optimal
+  tokens: 128       # From Phase 2/3 optimal
+
+operator:
+  # CRITICAL: Use Phase 3's pure transformer architecture
+  architecture_type: pdet_stack    # Pure transformer (NOT pdet_unet)
+
+  pdet:
+    input_dim: 128
+    hidden_dim: 256                # 2x latent.dim
+    depth: 8                       # Single stack depth (NOT depths: [3, 3, 3])
+    num_heads: 8
+    attention_type: standard       # CRITICAL: Use standard attention (NOT channel_separated)
+    qk_norm: true                  # QK normalization for stability
+    mlp_ratio: 4.0                 # Standard transformer expansion
+    drop_path: 0.1                 # Stochastic depth for regularization
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 256
+
+training:
+  batch_size: 2          # Small batch for quick test
+  time_stride: 2
+  dt: 0.1
+  patience: 5
+
+  num_workers: 0         # No workers for simpler test
+  use_parallel_encoding: false
+  pin_memory: false
+  prefetch_factor: 2
+
+  latent_cache_dir: null
+  checkpoint_interval: 1
+
+  amp: false             # Disable AMP for clearer error messages
+  compile: false
+  grad_clip: null
+  ema_decay: null        # Disable EMA for faster test
+  accum_steps: 1
+
+  # UPT Inverse Losses (from Phase 1/2/3)
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1
+  inverse_loss_warmup_epochs: 0  # No warmup for test
+  inverse_loss_max_weight: 0.05
+
+  # Query-Based Training (Phase 4.1)
+  query_sampling:
+    enabled: true
+    num_queries: 1024              # Sample 25% of 4096 points (64×64 grid)
+    strategy: uniform
+
+    # Note: Query sampling currently applies to inverse_encoding_loss only.
+    # inverse_decoding_loss always uses full grid (GridEncoder requirement).
+    # This still provides 20-30% speedup since inverse_encoding dominates cost.
+
+    # Optional: Curriculum (progressive reduction) - disabled for now
+    curriculum:
+      enabled: false
+      start_queries: 4096
+      end_queries: 1024
+      warmup_epochs: 5
+
+  # Physics Priors (Phase 4.2) + Latent Regularization (Phase 4.3)
+  physics_priors:
+    enabled: true
+
+    # Burgers equation: dissipative, NOT conservative
+    # These weights should be tuned experimentally
+    lambda_divergence: 0.0    # Burgers is 1D, no divergence
+    lambda_conservation: 0.0  # Burgers does NOT conserve mass/energy (dissipative)
+    lambda_boundary: 0.05     # Enforce boundary conditions (e.g., periodic or Dirichlet)
+    lambda_positivity: 0.0    # u is velocity, can be negative
+    bc_value: 0.0             # Boundary condition value (if Dirichlet)
+    bc_type: all              # Which boundaries to enforce: "all", "left", "right", "top", "bottom"
+
+    # NEW: Latent Regularization (Phase 4.3)
+    lambda_latent_norm: 1.0e-4      # Prevent latent collapse/explosion
+    lambda_latent_diversity: 1.0e-4  # Prevent token collapse to same vector
+
+    # For Navier-Stokes (incompressible), use:
+    # lambda_divergence: 0.1    # Enforce ∇·u = 0
+    # lambda_conservation: 0.2  # Mass conservation
+    # lambda_positivity: 0.05   # ρ, p must be positive
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 1            # Just 1 epoch for smoke test
+
+    optimizer:
+      name: adamw        # Use simpler optimizer for test
+      lr: 0.001
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+
+  diff_residual:
+    epochs: 0            # Skip diffusion for test
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
+  consistency_distill:
+    epochs: 0            # Skip distill for test
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10
+      eta_min: 1.0e-5
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: false         # Skip eval for test
+  split: test
+
+ttc:
+  enabled: false         # Skip TTC for test
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 0.1
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128
+    query_dim: 2
+    hidden_dim: 256
+    mlp_hidden_dim: 256
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: false       # Disable WandB for local test
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: test-upt-full-1epoch
+    tags: [test, phase4-complete, query-sampling, physics-priors, latent-reg]
+    group: test

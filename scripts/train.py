@@ -568,6 +568,33 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
     lam_rollout = float(cfg.get("training", {}).get("lambda_rollout", 0.0) or 0.0)
+
+    # Extract query sampling config
+    query_sample_cfg = train_cfg.get("query_sampling", {})
+    use_query_sampling = query_sample_cfg.get("enabled", False)
+    num_queries = query_sample_cfg.get("num_queries", None) if use_query_sampling else None
+    query_strategy = query_sample_cfg.get("strategy", "uniform")
+
+    # Extract physics prior config
+    physics_cfg = train_cfg.get("physics_priors", {})
+    use_physics_priors = physics_cfg.get("enabled", False)
+
+    # Physics loss weights (Phase 4.2 + 4.3)
+    physics_weights = {
+        "lambda_divergence": physics_cfg.get("lambda_divergence", 0.0),
+        "lambda_conservation": physics_cfg.get("lambda_conservation", 0.0),
+        "lambda_boundary": physics_cfg.get("lambda_boundary", 0.0),
+        "lambda_positivity": physics_cfg.get("lambda_positivity", 0.0),
+        "bc_value": physics_cfg.get("bc_value", 0.0),
+        "bc_type": physics_cfg.get("bc_type", "all"),
+        # Latent regularization (Phase 4.3)
+        "lambda_latent_norm": physics_cfg.get("lambda_latent_norm", 0.0),
+        "lambda_latent_diversity": physics_cfg.get("lambda_latent_diversity", 0.0),
+    }
+
+    # Reference fields storage (for conservation checks)
+    reference_fields_storage = {}
+
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -643,37 +670,99 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                         rollout_tgt = rollout_targets
 
                     # Compute loss bundle (handles optional inverse losses)
-                    from ups.training.losses import compute_operator_loss_bundle
-
                     # Optionally subsample inverse loss computation to reduce overhead
                     inv_freq = int(train_cfg.get("inverse_loss_frequency", 1) or 1)
                     use_inv_now = use_inverse_losses and (inv_freq > 0) and (i % inv_freq == 0)
 
-                    loss_bundle = compute_operator_loss_bundle(
-                        # Inverse encoding inputs (optional)
-                        input_fields=input_fields_physical if use_inv_now else None,
-                        encoded_latent=state.z if use_inv_now else None,
-                        decoder=decoder if use_inv_now else None,
-                        input_positions=coords if use_inv_now else None,
-                        # Inverse decoding inputs (optional)
-                        encoder=encoder if use_inv_now else None,
-                        query_positions=coords if use_inv_now else None,
-                        coords=coords if use_inv_now else None,
-                        meta=meta if use_inv_now else None,
-                        # Forward prediction (always)
-                        pred_next=next_state.z,
-                        target_next=target,
-                        # Rollout (optional)
-                        pred_rollout=rollout_pred,
-                        target_rollout=rollout_tgt,
-                        # Spectral (optional)
-                        spectral_pred=next_state.z if lam_spec > 0 else None,
-                        spectral_target=target if lam_spec > 0 else None,
-                        # Weights
-                        weights=loss_weights,
-                        # Curriculum learning
-                        current_epoch=epoch,
-                    )
+                    # Get grid shape from meta if available
+                    grid_shape = meta.get("grid_shape", None) if meta else None
+
+                    # Decode fields for physics checks if physics priors enabled
+                    decoded_fields = None
+                    reference_fields = None
+                    if use_physics_priors and any(physics_weights[k] > 0 for k in ["lambda_divergence", "lambda_conservation", "lambda_boundary", "lambda_positivity"]):
+                        # Decode current latent state to physical space
+                        if decoder is not None and coords is not None:
+                            with torch.no_grad():
+                                decoded_fields = decoder(coords, state.z)
+
+                            # Store reference fields at first batch (for conservation checks)
+                            if not reference_fields_storage and input_fields_physical is not None:
+                                reference_fields_storage.update({
+                                    k: v.detach().clone() for k, v in input_fields_physical.items()
+                                })
+                            reference_fields = reference_fields_storage
+
+                    # Use physics-aware loss bundle if physics priors enabled, otherwise standard
+                    if use_physics_priors:
+                        from ups.training.losses import compute_operator_loss_bundle_with_physics
+
+                        loss_bundle = compute_operator_loss_bundle_with_physics(
+                            # Inverse encoding inputs (optional)
+                            input_fields=input_fields_physical if use_inv_now else None,
+                            encoded_latent=state.z if use_inv_now else None,
+                            decoder=decoder if use_inv_now else None,
+                            input_positions=coords if use_inv_now else None,
+                            # Inverse decoding inputs (optional)
+                            encoder=encoder if use_inv_now else None,
+                            query_positions=coords if use_inv_now else None,
+                            coords=coords if use_inv_now else None,
+                            meta=meta if use_inv_now else None,
+                            # Forward prediction (always)
+                            pred_next=next_state.z,
+                            target_next=target,
+                            # Rollout (optional)
+                            pred_rollout=rollout_pred,
+                            target_rollout=rollout_tgt,
+                            # Spectral (optional)
+                            spectral_pred=next_state.z if lam_spec > 0 else None,
+                            spectral_target=target if lam_spec > 0 else None,
+                            # Weights
+                            weights=loss_weights,
+                            # Curriculum learning
+                            current_epoch=epoch,
+                            # Query sampling parameters
+                            num_queries=num_queries,
+                            query_strategy=query_strategy,
+                            grid_shape=grid_shape,
+                            # Physics prior arguments
+                            decoded_fields=decoded_fields,
+                            decoded_coords=coords,
+                            reference_fields=reference_fields,
+                            physics_weights=physics_weights,
+                        )
+                    else:
+                        from ups.training.losses import compute_operator_loss_bundle
+
+                        loss_bundle = compute_operator_loss_bundle(
+                            # Inverse encoding inputs (optional)
+                            input_fields=input_fields_physical if use_inv_now else None,
+                            encoded_latent=state.z if use_inv_now else None,
+                            decoder=decoder if use_inv_now else None,
+                            input_positions=coords if use_inv_now else None,
+                            # Inverse decoding inputs (optional)
+                            encoder=encoder if use_inv_now else None,
+                            query_positions=coords if use_inv_now else None,
+                            coords=coords if use_inv_now else None,
+                            meta=meta if use_inv_now else None,
+                            # Forward prediction (always)
+                            pred_next=next_state.z,
+                            target_next=target,
+                            # Rollout (optional)
+                            pred_rollout=rollout_pred,
+                            target_rollout=rollout_tgt,
+                            # Spectral (optional)
+                            spectral_pred=next_state.z if lam_spec > 0 else None,
+                            spectral_target=target if lam_spec > 0 else None,
+                            # Weights
+                            weights=loss_weights,
+                            # Curriculum learning
+                            current_epoch=epoch,
+                            # Query sampling parameters
+                            num_queries=num_queries,
+                            query_strategy=query_strategy,
+                            grid_shape=grid_shape,
+                        )
 
                     loss = loss_bundle.total
 

@@ -43,6 +43,11 @@ class AnyPointDecoderConfig:
     mlp_hidden_dim: int = 128
     output_channels: Mapping[str, int] = None  # type: ignore[assignment]
 
+    # Phase 4.3: Optional decoder output clamping
+    use_log_clamp: bool = False
+    clamp_threshold: float = 10.0
+    clamp_fields: Optional[Tuple[str, ...]] = None  # None = clamp all fields
+
     def __post_init__(self) -> None:
         if self.output_channels is None or len(self.output_channels) == 0:
             raise ValueError("output_channels must specify at least one field name -> channel count")
@@ -130,7 +135,26 @@ class AnyPointDecoder(nn.Module):
 
         outputs: Dict[str, torch.Tensor] = {}
         for name, head in self.heads.items():
-            outputs[name] = head(queries)
+            x = head(queries)
+
+            # Apply log-clamping if enabled (Phase 4.3)
+            if self.cfg.use_log_clamp:
+                # Check if this field should be clamped
+                should_clamp = (
+                    self.cfg.clamp_fields is None or
+                    name in self.cfg.clamp_fields
+                )
+
+                if should_clamp:
+                    # Log-clamping: prevents extreme values while preserving gradients
+                    # Formula: sign(x) * log(1 + |x| / threshold) * threshold
+                    # Effect: Maps (-∞, ∞) → (-threshold * log(∞), threshold * log(∞))
+                    threshold = self.cfg.clamp_threshold
+                    sign_x = torch.sign(x)
+                    abs_x = torch.abs(x)
+                    x = sign_x * torch.log(1.0 + abs_x / threshold) * threshold
+
+            outputs[name] = x
         return outputs
 
     decode = forward

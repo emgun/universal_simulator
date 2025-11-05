@@ -1,0 +1,222 @@
+# UPT Phase 4.1: Query-Based Training
+# Based on: train_burgers_upt_128tokens_pure_corrected.yaml (Phase 3 winner: NRMSE 0.0593 - NEW SOTA)
+#
+# Architecture: Pure stacked transformer with standard attention (from Phase 3)
+# New feature: Query sampling for inverse losses
+# Expected: 20-30% training speedup, zero-shot super-resolution
+#
+# Phase 4.1 Changes:
+#   - training.query_sampling.enabled: true (NEW)
+#   - training.query_sampling.num_queries: 2048 (NEW - sample 50% of 64×64 grid)
+#   - training.query_sampling.strategy: uniform (NEW)
+#
+# Everything else KEPT FROM PHASE 3:
+#   - latent.dim: 128
+#   - latent.tokens: 128
+#   - operator.architecture_type: pdet_stack (pure transformer)
+#   - operator.pdet.attention_type: standard
+#   - All other hyperparameters
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 128          # From Phase 2/3 optimal
+  tokens: 128       # From Phase 2/3 optimal
+
+operator:
+  # CRITICAL: Use Phase 3's pure transformer architecture
+  architecture_type: pdet_stack    # Pure transformer (NOT pdet_unet)
+
+  pdet:
+    input_dim: 128
+    hidden_dim: 256                # 2x latent.dim
+    depth: 8                       # Single stack depth (NOT depths: [3, 3, 3])
+    num_heads: 8
+    attention_type: standard       # CRITICAL: Use standard attention (NOT channel_separated)
+    qk_norm: true                  # QK normalization for stability
+    mlp_ratio: 4.0                 # Standard transformer expansion
+    drop_path: 0.1                 # Stochastic depth for regularization
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 256
+
+training:
+  batch_size: 10
+  time_stride: 2
+  dt: 0.1
+  patience: 5
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 4
+
+  checkpoint_interval: 25
+
+  amp: true
+  compile: false
+  compile_mode: reduce-overhead
+  grad_clip: null
+  ema_decay: 0.999
+  accum_steps: 4
+
+  # UPT Inverse Losses (from Phase 1/2/3)
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1      # Every batch (no longer 10)
+  inverse_loss_warmup_epochs: 5
+  inverse_loss_max_weight: 0.05
+
+  # NEW: Query-Based Training (Phase 4.1)
+  query_sampling:
+    enabled: true
+    num_queries: 2048              # Sample 2k points per batch (vs. 4096 dense for 64×64 grid)
+    strategy: uniform              # Start with uniform, can try "stratified"
+
+    # Note: Query sampling currently applies to inverse_encoding_loss only.
+    # inverse_decoding_loss always uses full grid (GridEncoder requirement).
+    # This still provides 20-30% speedup since inverse_encoding dominates cost.
+
+    # Optional: Curriculum (progressive reduction) - disabled for now
+    curriculum:
+      enabled: false
+      start_queries: 4096
+      end_queries: 1024
+      warmup_epochs: 5
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 40                     # Same as Phase 3
+
+    optimizer:
+      name: muon_hybrid
+      lr: 1.4e-3
+      weight_decay: 0.03
+
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+  diff_residual:
+    epochs: 15
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
+  consistency_distill:
+    epochs: 10
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10
+      eta_min: 1.0e-5
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 0.1
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128
+    query_dim: 2
+    hidden_dim: 256
+    mlp_hidden_dim: 256
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-128tok-queries
+    tags: [upt, phase4.1, query-sampling, 128tokens, pure-transformer]
+    group: upt-phase4
+    notes: "Phase 4.1: Query-based training on Phase 3 pure transformer baseline. 50% query sampling for 20-30% speedup."
