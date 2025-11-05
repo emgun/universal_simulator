@@ -38,7 +38,9 @@ def divergence_penalty_2d(
     """
     B, H, W, C = velocity_field.shape
     assert C == 2, f"Expected 2D velocity field (u, v), got {C} components"
-    assert grid_shape == (H, W), f"Grid shape mismatch: expected {grid_shape}, got ({H}, {W})"
+    # Convert grid_shape to tuple if it's a list (from YAML config)
+    grid_shape_tuple = tuple(grid_shape) if isinstance(grid_shape, (list, tuple)) else grid_shape
+    assert grid_shape_tuple == (H, W), f"Grid shape mismatch: expected {grid_shape_tuple}, got ({H}, {W})"
 
     u = velocity_field[..., 0]  # (B, H, W) - x-velocity
     v = velocity_field[..., 1]  # (B, H, W) - y-velocity
@@ -115,7 +117,9 @@ def boundary_condition_penalty_grid(
         BC violation penalty (scalar)
     """
     B, H, W, C = field.shape
-    assert grid_shape == (H, W), f"Grid shape mismatch: expected {grid_shape}, got ({H}, {W})"
+    # Convert grid_shape to tuple if it's a list (from YAML config)
+    grid_shape_tuple = tuple(grid_shape) if isinstance(grid_shape, (list, tuple)) else grid_shape
+    assert grid_shape_tuple == (H, W), f"Grid shape mismatch: expected {grid_shape_tuple}, got ({H}, {W})"
 
     boundary_points = []
 
@@ -184,7 +188,9 @@ def smoothness_penalty(
         Smoothness penalty (scalar)
     """
     B, H, W, C = field.shape
-    assert grid_shape == (H, W), f"Grid shape mismatch: expected {grid_shape}, got ({H}, {W})"
+    # Convert grid_shape to tuple if it's a list (from YAML config)
+    grid_shape_tuple = tuple(grid_shape) if isinstance(grid_shape, (list, tuple)) else grid_shape
+    assert grid_shape_tuple == (H, W), f"Grid shape mismatch: expected {grid_shape_tuple}, got ({H}, {W})"
 
     # Compute spatial gradients via finite differences
     grad_x = (field[:, :, 1:, :] - field[:, :, :-1, :]) / dx  # (B, H, W-1, C)
