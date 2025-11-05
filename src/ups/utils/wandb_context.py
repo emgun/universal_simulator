@@ -316,10 +316,14 @@ def create_wandb_context(
         "latent_tokens": config["latent"]["tokens"],
 
         # Operator architecture
+        "operator_architecture_type": config["operator"].get("architecture_type", "pdet_unet"),
         "operator_hidden_dim": config["operator"]["pdet"]["hidden_dim"],
         "operator_num_heads": config["operator"]["pdet"]["num_heads"],
-        "operator_depths": config["operator"]["pdet"]["depths"],
+        "operator_depths": config["operator"]["pdet"].get("depths"),  # U-shaped: list
+        "operator_depth": config["operator"]["pdet"].get("depth"),     # Pure: int
         "operator_group_size": config["operator"]["pdet"].get("group_size"),
+        "operator_attention_type": config["operator"]["pdet"].get("attention_type"),
+        "operator_drop_path": config["operator"]["pdet"].get("drop_path"),
 
         # Diffusion architecture
         "diffusion_latent_dim": config.get("diffusion", {}).get("latent_dim"),
