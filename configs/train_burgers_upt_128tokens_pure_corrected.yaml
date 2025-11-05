@@ -1,0 +1,209 @@
+# UPT Phase 3: Pure Transformer with 128 Tokens (CORRECTED)
+# Based on: ablation_upt_128tokens_fixed.yaml (Phase 2 winner: NRMSE 0.0577)
+#
+# ONLY CHANGES: Architecture type and pdet structure
+# Everything else IDENTICAL to Phase 2 baseline for proper ablation
+#
+# Changed from Phase 2:
+#   - operator.architecture_type: pdet_unet → pdet_stack (NEW)
+#   - operator.pdet.depths: [3,3,2] → depth: 8 (flatten hierarchy, same total)
+#   - operator.pdet.attention_type: channel_separated → standard (NEW)
+#   - operator.pdet.qk_norm: added (true)
+#   - operator.pdet.drop_path: added (0.1)
+#   - operator.pdet.mlp_ratio: added (4.0)
+#
+# Everything else KEPT FROM PHASE 2:
+#   - latent.dim: 128 (SAME)
+#   - latent.tokens: 128 (SAME)
+#   - hidden_dim: 256 (SAME)
+#   - num_heads: 8 (SAME)
+#   - batch_size: 10 (SAME)
+#   - optimizer: muon_hybrid (SAME)
+#   - lr: 1.4e-3 (SAME)
+#   - All training hyperparameters (SAME)
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 128          # KEPT from Phase 2
+  tokens: 128       # KEPT from Phase 2
+
+# ONLY ARCHITECTURE CHANGE
+operator:
+  architecture_type: pdet_stack    # CHANGED: Pure transformer (was pdet_unet)
+  pdet:
+    input_dim: 128                 # KEPT from Phase 2
+    hidden_dim: 256                # KEPT from Phase 2
+    depth: 8                       # CHANGED: Flattened [3,3,2] → 8 total layers
+    num_heads: 8                   # KEPT from Phase 2
+    attention_type: standard       # CHANGED: Standard attention (was channel_separated)
+    qk_norm: true                  # NEW: QK normalization for stability
+    mlp_ratio: 4.0                 # NEW: Standard transformer expansion
+    drop_path: 0.1                 # NEW: Stochastic depth regularization
+    dropout: 0.0                   # KEPT (implicitly 0.0 in Phase 2)
+
+diffusion:
+  latent_dim: 128   # KEPT from Phase 2
+  hidden_dim: 256   # KEPT from Phase 2
+
+# ALL TRAINING PARAMS KEPT FROM PHASE 2
+training:
+  batch_size: 10
+  time_stride: 2
+  dt: 0.1
+  patience: 5
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 4
+
+  checkpoint_interval: 25
+
+  amp: true
+  compile: false
+  compile_mode: reduce-overhead
+  grad_clip: null
+  ema_decay: 0.999
+  accum_steps: 4
+
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1
+  inverse_loss_warmup_epochs: 5
+  inverse_loss_max_weight: 0.05
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 40
+
+    optimizer:
+      name: muon_hybrid
+      lr: 1.4e-3
+      weight_decay: 0.03
+
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+  diff_residual:
+    epochs: 15
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
+  consistency_distill:
+    epochs: 10
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10
+      eta_min: 1.0e-5
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 0.1
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128       # KEPT from Phase 2
+    query_dim: 2
+    hidden_dim: 256       # KEPT from Phase 2
+    mlp_hidden_dim: 256
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt-128tokens-pure-standard
+    tags: [upt, phase3, pure-transformer, 128tokens, standard-attention, corrected-ablation]
+    group: upt-phase3-corrected
+    notes: "Phase 3 CORRECTED: Pure transformer with standard attention, all other params identical to Phase 2 winner"
