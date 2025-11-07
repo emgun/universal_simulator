@@ -78,30 +78,30 @@ download_pids=()
 
 for task in $TASKS; do
   (
-    # IMPORTANT: cd into PDEBench for each subshell (CSV file location)
-    cd /tmp/PDEBench || exit 1
+    # IMPORTANT: cd into data_download directory where CSV file lives
+    cd /tmp/PDEBench/pdebench/data_download || exit 1
 
     echo "→ Downloading $task..."
     # Map UPS task names to PDEBench download names
     case $task in
       advection1d)
-        python pdebench/data_download/download_direct.py \
+        python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name advection
         ;;
       burgers1d)
-        python pdebench/data_download/download_direct.py \
+        python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name burgers
         ;;
       darcy2d)
-        python pdebench/data_download/download_direct.py \
+        python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name darcy
         ;;
       reaction_diffusion2d)
-        python pdebench/data_download/download_direct.py \
+        python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name 2d_reacdiff
         ;;
       navier_stokes2d)
-        python pdebench/data_download/download_direct.py \
+        python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name ns_incom
         ;;
       *)
