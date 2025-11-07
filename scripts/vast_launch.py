@@ -543,6 +543,87 @@ sleep 10
         os.unlink(script_path)
 
 
+def cmd_preprocess(args: argparse.Namespace) -> None:
+    """Launch remote preprocessing job for PDEBench datasets."""
+    branch = args.branch if args.branch else git_current_branch()
+
+    # Build task list
+    tasks_str = " ".join(args.tasks)
+    cache_args = ""
+    if args.cache_dim and args.cache_tokens:
+        cache_args = f"{args.cache_dim} {args.cache_tokens}"
+
+    # Generate preprocessing script
+    ONSTART_DIR.mkdir(exist_ok=True)
+    onstart_path = ONSTART_DIR / "preprocess.sh"
+
+    script_content = f"""#!/bin/bash
+set -euo pipefail
+
+cd /workspace
+if [ ! -d universal_simulator ]; then
+  git clone {git_remote_url()} universal_simulator
+fi
+cd universal_simulator
+git fetch origin
+git checkout {branch}
+git pull origin {branch}
+
+# Activate venv if it exists (vastai/pytorch), otherwise use system Python
+if [ -f /venv/main/bin/activate ]; then
+  source /venv/main/bin/activate
+fi
+
+pip install -e .[dev]
+
+# Run preprocessing pipeline
+bash scripts/remote_preprocess_pdebench.sh "{tasks_str}" {cache_args}
+
+echo "✓ Preprocessing complete, auto-stopping instance..."
+pip install -q vastai 2>&1 || true
+sleep 10
+[ -n "${{CONTAINER_ID:-}}" ] && vastai stop instance $CONTAINER_ID || true
+exit 0
+"""
+
+    onstart_path.write_text(script_content)
+    onstart_path.chmod(0o755)
+
+    print(f"✅ Generated preprocessing script: {onstart_path}")
+    print(f"   Tasks: {tasks_str}")
+    if cache_args:
+        print(f"   Latent cache: {args.cache_dim}d × {args.cache_tokens}tok")
+    print()
+
+    # Build launch command
+    if args.offer_id:
+        cmd = [
+            "vastai", "create", "instance",
+            args.offer_id,
+            "--image", args.image,
+            "--disk", str(args.disk),
+            "--ssh",
+            "--onstart", str(onstart_path)
+        ]
+    else:
+        print("❌ ERROR: --offer-id required for preprocessing jobs")
+        print("   Search for offers: vastai search offers 'reliability > 0.95'")
+        sys.exit(1)
+
+    if args.dry_run:
+        print("DRY RUN: would execute ->", " ".join(cmd))
+        print("\nGenerated script:\n", onstart_path.read_text())
+        return
+
+    print("🚀 Launching preprocessing job...")
+    rc = run(cmd, check=False)
+    if rc == 0:
+        print("✅ Job launched! Monitor with: vastai logs <instance_id>")
+    else:
+        print(f"❌ Launch failed with code {rc}")
+        sys.exit(rc)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build argument parser."""
     parser = argparse.ArgumentParser(
@@ -604,6 +685,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_resume.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_resume.add_argument("--auto-shutdown", action="store_true", help="Auto-shutdown after completion")
     p_resume.set_defaults(func=cmd_resume)
+
+    # preprocess command
+    p_preprocess = sub.add_parser("preprocess", help="Launch remote preprocessing job for PDEBench")
+    p_preprocess.add_argument("--tasks", nargs="+", required=True,
+                             help="Tasks to preprocess (e.g., advection1d darcy2d)")
+    p_preprocess.add_argument("--cache-dim", type=int,
+                             help="Latent dimension for cache precomputation (optional)")
+    p_preprocess.add_argument("--cache-tokens", type=int,
+                             help="Latent tokens for cache precomputation (optional)")
+    p_preprocess.add_argument("--offer-id", required=True,
+                             help="VastAI offer ID to use for preprocessing")
+    p_preprocess.add_argument("--image", default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
+                             help="Docker image")
+    p_preprocess.add_argument("--disk", type=int, default=128,
+                             help="Disk size in GB (default: 128 for preprocessing)")
+    p_preprocess.add_argument("--branch", help="Git branch (default: current)")
+    p_preprocess.add_argument("--dry-run", action="store_true", help="Print commands without executing")
+    p_preprocess.set_defaults(func=cmd_preprocess)
 
     return parser
 

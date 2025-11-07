@@ -342,17 +342,11 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     profile_entries = "\n".join(
         f"export {key}={shlex.quote(value)}" for key, value in env_exports.items() if value
     ) or "true"
-    profile_cmd = (
-        "cat > /etc/profile.d/ups_env.sh <<'EOF_ENV'\n"
-        f"{profile_entries}\n"
-        "EOF_ENV"
-    )
-
     data_root = f"{DEFAULT_VOLUME_MOUNT}/data"
-    rclone_cmd = "true"
+    rclone_config_content = ""
     sync_cmd = "true"
     if all(k in b2_env for k in ("B2_KEY_ID", "B2_APP_KEY", "B2_S3_ENDPOINT", "B2_S3_REGION", "B2_BUCKET")):
-        rclone_config = textwrap.dedent(
+        rclone_config_content = textwrap.dedent(
             f"""
             [B2TRAIN]
             type = s3
@@ -365,12 +359,6 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
             no_check_bucket = true
             """
         ).strip()
-        rclone_cmd = (
-            "mkdir -p /root/.config/rclone && "
-            "cat > /root/.config/rclone/rclone.conf <<'EOF_RCLONE'\n"
-            f"{rclone_config}\n"
-            "EOF_RCLONE"
-        )
         rclone_env = {
             "RCLONE_CONFIG_B2TRAIN_TYPE": "s3",
             "RCLONE_CONFIG_B2TRAIN_PROVIDER": "Other",
@@ -386,12 +374,10 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
             f"{env_assignment_str(rclone_env)} rclone sync B2TRAIN:{bucket} {data_root} "
             "--fast-list --progress --create-empty-src-dirs || true"
         )
+    else:
+        rclone_config_content = ""
 
-    cmd_parts = []
-    if wandb_env:
-        cmd_parts.append(env_assignment_str(wandb_env))
-    cmd_parts = [
-        *cmd_parts,
+    cmd_parts: list[str] = [
         "WANDB_MODE=online",
         "python",
         "scripts/run_fast_to_sota.py",
@@ -415,30 +401,96 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     for arg in config.run_args:
         cmd_parts.append(shlex.quote(arg))
     run_command = " ".join(cmd_parts)
+    sync_section = sync_cmd if sync_cmd != "true" else "true"
+    rclone_config_block = rclone_config_content if rclone_config_content else ""
+
+    bootstrap_body = textwrap.dedent(
+        f"""
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        export DEBIAN_FRONTEND=noninteractive
+
+        apt-get update
+        apt-get install -y git build-essential python3 python3-pip python3-venv python3-dev python-is-python3 rclone nvidia-driver-550 nvidia-cuda-toolkit jq || true
+
+        cat <<'EOF_ENV' >/etc/profile.d/ups_env.sh
+        {profile_entries}
+        EOF_ENV
+
+        source /etc/profile.d/ups_env.sh || true
+
+        mkdir -p {workdir}
+        cd {workdir}
+
+        if [ ! -d universal_simulator ]; then
+            git clone {repo_url} universal_simulator
+        fi
+        cd universal_simulator
+        git fetch origin
+        git checkout {branch}
+        git pull --ff-only origin {branch} || true
+
+        python3 -m venv /opt/ups-venv
+        source /opt/ups-venv/bin/activate
+        python -m pip install --upgrade pip wheel
+        python -m pip install -e .[dev] psutil
+
+        mkdir -p {DEFAULT_VOLUME_MOUNT}
+        if [ -b {mount_device} ]; then
+            if ! blkid {mount_device} >/dev/null 2>&1; then
+                mkfs.ext4 -F {mount_device}
+            fi
+            mount {mount_device} {DEFAULT_VOLUME_MOUNT}
+            if ! grep -q {mount_device} /etc/fstab; then
+                echo '{mount_device} {DEFAULT_VOLUME_MOUNT} ext4 defaults,nofail 0 2' >> /etc/fstab
+            fi
+        fi
+
+        mkdir -p {DEFAULT_VOLUME_MOUNT}/data {DEFAULT_VOLUME_MOUNT}/checkpoints {DEFAULT_VOLUME_MOUNT}/artifacts
+
+        mkdir -p /root/.config/rclone
+        cat <<'EOF_RCLONE' >/root/.config/rclone/rclone.conf
+{rclone_config_block}
+        EOF_RCLONE
+
+        {sync_section}
+
+        cd {workdir}/universal_simulator
+        mkdir -p reports artifacts/runs
+        ln -snf {DEFAULT_VOLUME_MOUNT}/data data
+        ln -snf {DEFAULT_VOLUME_MOUNT}/checkpoints checkpoints
+        ln -snf {DEFAULT_VOLUME_MOUNT}/artifacts artifacts
+
+        if [ -f data/pdebench/burgers1d_train.h5 ]; then rm -f data/pdebench/burgers1d_train.h5; fi
+        if [ -f data/pdebench/burgers1d_valid.h5 ]; then rm -f data/pdebench/burgers1d_valid.h5; fi
+        if [ -f data/pdebench/burgers1d_val.h5 ]; then rm -f data/pdebench/burgers1d_val.h5; fi
+
+        mkdir -p data/pdebench
+        if [ -f {DEFAULT_VOLUME_MOUNT}/data/full/burgers1d/burgers1d_train_000.h5 ]; then
+            ln -snf {DEFAULT_VOLUME_MOUNT}/data/full/burgers1d/burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5
+        fi
+        if [ -f {DEFAULT_VOLUME_MOUNT}/data/pdebench/burgers1d_full_v1/burgers1d_val.h5 ]; then
+            ln -snf {DEFAULT_VOLUME_MOUNT}/data/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/burgers1d_valid.h5
+            ln -snf data/pdebench/burgers1d_valid.h5 data/pdebench/burgers1d_val.h5
+        fi
+
+        nvidia-smi || true
+        dd if=/dev/zero of={DEFAULT_VOLUME_MOUNT}/.nvme_test bs=1M count=512 oflag=direct status=none && rm -f {DEFAULT_VOLUME_MOUNT}/.nvme_test || true
+        find {DEFAULT_VOLUME_MOUNT}/data -maxdepth 2 -type f | head || true
+
+        source /opt/ups-venv/bin/activate
+        {run_command}
+        """
+    ).strip()
+
     script = textwrap.dedent(
         f"""\
         #cloud-config
         runcmd:
-          - [ bash, -lc, "set -euo pipefail" ]
-          - [ bash, -lc, "export DEBIAN_FRONTEND=noninteractive" ]
-          - [ bash, -lc, "apt-get update" ]
-          - [ bash, -lc, "apt-get install -y git build-essential python3 python3-pip python3-venv awscli rclone nvidia-driver-550 nvidia-cuda-toolkit || true" ]
-          - [ bash, -lc, "{profile_cmd}" ]
-          - [ bash, -lc, "mkdir -p {workdir}" ]
-          - [ bash, -lc, "cd {workdir} && if [ ! -d universal_simulator ]; then git clone {repo_url} universal_simulator; fi" ]
-          - [ bash, -lc, "cd {workdir}/universal_simulator && git fetch origin && git checkout {branch} && git pull origin {branch}" ]
-          - [ bash, -lc, "python3 -m pip install --upgrade pip && python3 -m pip install -e .[dev]" ]
-          - [ bash, -lc, "mkdir -p {DEFAULT_VOLUME_MOUNT}" ]
-          - [ bash, -lc, "if [ -b {mount_device} ]; then if ! blkid {mount_device}; then mkfs.ext4 -F {mount_device}; fi; mount {mount_device} {DEFAULT_VOLUME_MOUNT}; grep -q {mount_device} /etc/fstab || echo '{mount_device} {DEFAULT_VOLUME_MOUNT} ext4 defaults,nofail 0 2' >> /etc/fstab; fi" ]
-          - [ bash, -lc, "mkdir -p {DEFAULT_VOLUME_MOUNT}/data {DEFAULT_VOLUME_MOUNT}/checkpoints {DEFAULT_VOLUME_MOUNT}/artifacts" ]
-          - [ bash, -lc, "{rclone_cmd}" ]
-          - [ bash, -lc, "cd {workdir}/universal_simulator && mkdir -p reports artifacts/runs" ]
-          - [ bash, -lc, "cd {workdir}/universal_simulator && ln -snf {DEFAULT_VOLUME_MOUNT}/data data && ln -snf {DEFAULT_VOLUME_MOUNT}/checkpoints checkpoints && ln -snf {DEFAULT_VOLUME_MOUNT}/artifacts artifacts" ]
-          - [ bash, -lc, "cd {workdir}/universal_simulator && {sync_cmd}" ]
-          - [ bash, -lc, "nvidia-smi || true" ]
-          - [ bash, -lc, "dd if=/dev/zero of={DEFAULT_VOLUME_MOUNT}/.nvme_test bs=1M count=512 oflag=direct status=none && rm -f {DEFAULT_VOLUME_MOUNT}/.nvme_test" ]
-          - [ bash, -lc, "find {DEFAULT_VOLUME_MOUNT}/data -maxdepth 2 -type f | head" ]
-          - [ bash, -lc, "cd {workdir}/universal_simulator && {run_command}" ]
+          - [ bash, -lc, "cat <<'EOF_BOOT' >/root/ups_bootstrap.sh\\n{bootstrap_body}\\nEOF_BOOT" ]
+          - [ bash, -lc, "chmod +x /root/ups_bootstrap.sh" ]
+          - [ bash, -lc, "/root/ups_bootstrap.sh" ]
         """
     ).strip()
     return script
@@ -724,6 +776,151 @@ def cmd_teardown(args: argparse.Namespace) -> None:
                 print("✓ Volume deleted.")
 
 
+def cmd_preprocess(args: argparse.Namespace) -> None:
+    """Launch remote preprocessing job on Vultr."""
+    api_key = resolve_key()
+    provider = VultrProvider(api_key)
+
+    # Build task list
+    tasks_str = " ".join(args.tasks)
+    cache_args = ""
+    if args.cache_dim and args.cache_tokens:
+        cache_args = f"{args.cache_dim} {args.cache_tokens}"
+
+    # Generate launch args
+    launch_args = LaunchArgs(
+        instance_label=args.label or "ups-preprocess",
+        plan_id=args.plan_id,
+        region=args.region or "sjc1",
+        os_id=args.os_id,
+        volume_size=args.volume_size,
+        keep_volume=False,
+        config="",  # Not used for preprocessing
+        stage="",
+        repo_url=args.repo_url,
+        branch=args.branch or auto_branch(),
+        workdir=args.workdir,
+        run_args=[],
+        precompute=False,
+        dry_run=args.dry_run,
+        wandb_tag="vultr-preprocess",
+        env_exports=collect_env_exports(),
+    )
+
+    # Build bootstrap script for preprocessing
+    repo_url = launch_args.repo_url or auto_repo_url()
+    branch = launch_args.branch
+    workdir = launch_args.workdir
+    env_exports = launch_args.env_exports
+
+    # Setup environment variables for script
+    profile_entries = "\n".join(
+        f"export {key}={shlex.quote(value)}" for key, value in env_exports.items() if value
+    ) or "true"
+
+    # Build preprocessing script
+    preprocess_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+# Setup environment
+{profile_entries}
+
+apt-get update > /dev/null 2>&1
+apt-get install -y git build-essential python3 python3-pip python3-venv python3-dev python-is-python3 rclone > /dev/null 2>&1
+
+mkdir -p {workdir}
+cd {workdir}
+
+if [ ! -d universal_simulator ]; then
+    git clone {repo_url} universal_simulator
+fi
+cd universal_simulator
+git fetch origin
+git checkout {branch}
+git pull --ff-only origin {branch} || true
+
+python3 -m venv /opt/ups-venv
+source /opt/ups-venv/bin/activate
+python -m pip install --upgrade pip wheel > /dev/null 2>&1
+python -m pip install -e .[dev] > /dev/null 2>&1
+
+# Run preprocessing pipeline
+bash scripts/remote_preprocess_pdebench.sh "{tasks_str}" {cache_args}
+
+echo "✓ Preprocessing complete, shutting down in 5 minutes..."
+shutdown -h +5
+"""
+
+    # Use write_files + runcmd for proper cloud-init
+    cloud_init = f"""#cloud-config
+write_files:
+  - path: /root/ups_preprocess.sh
+    permissions: '0755'
+    content: |
+{textwrap.indent(preprocess_script, '      ')}
+
+runcmd:
+  - [ nohup, /root/ups_preprocess.sh, '>', /root/preprocess.log, '2>&1', '&' ]
+"""
+
+    user_data = base64.b64encode(cloud_init.encode("utf-8")).decode("ascii")
+
+    if args.dry_run:
+        print("──── Vultr Preprocessing Dry Run ────")
+        print(f"Tasks: {tasks_str}")
+        if cache_args:
+            print(f"Cache: {args.cache_dim}d × {args.cache_tokens}tok")
+        print("\nBootstrap script:\n", cloud_init)
+        return
+
+    # Create volume if requested
+    volume_id = None
+    if args.volume_size > 0:
+        volume_spec = VolumeSpec(
+            size_gb=args.volume_size,
+            label=f"{launch_args.instance_label}-storage",
+            mount_path=DEFAULT_VOLUME_MOUNT,
+            filesystem="ext4",
+            extra={"region": launch_args.region},
+        )
+        print("Creating block volume…")
+        volume_id = provider.provision_volume(volume_spec)
+        provider.wait_for_volume(volume_id)
+        print(f"✓ Volume {volume_id} active.")
+
+    # Create instance
+    launch_spec = LaunchSpec(
+        plan_id=launch_args.plan_id,
+        region=launch_args.region,
+        os_id=launch_args.os_id,
+        label=launch_args.instance_label,
+        gpu_ram_gb=0,
+        vcpus=0,
+        hourly_cost=0.0,
+    )
+    print("🚀 Launching preprocessing job...")
+    instance_id = provider.create_instance(launch_spec, user_data=user_data)
+    print(f"✓ Instance ID: {instance_id}")
+
+    if volume_id:
+        print("Waiting for instance to boot…")
+        provider.wait_for_instance(instance_id)
+        print("Attaching block volume…")
+        provider.attach_volume(instance_id, volume_id)
+        print("✓ Volume attached.")
+
+    print("\n✅ Preprocessing job launched!")
+    print(f"   Instance ID: {instance_id}")
+    if volume_id:
+        print(f"   Volume ID: {volume_id}")
+    print(f"   Tasks: {tasks_str}")
+    print("\nMonitor with:")
+    print(f"   python scripts/vultr_launch.py status --instance {instance_id}")
+    print(f"   python scripts/vultr_launch.py logs --instance {instance_id}")
+    print("\nNote: Instance will auto-shutdown 5 minutes after completion.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Vultr GPU launcher for Universal Simulator runs",
@@ -781,6 +978,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_teardown.add_argument("--volume", help="Volume identifier")
     p_teardown.add_argument("--keep-volume", action="store_true", help="Skip volume deletion")
     p_teardown.set_defaults(func=cmd_teardown)
+
+    # preprocess command
+    p_preprocess = sub.add_parser("preprocess", help="Launch remote preprocessing job for PDEBench")
+    p_preprocess.add_argument("--tasks", nargs="+", required=True,
+                             help="Tasks to preprocess (e.g., advection1d darcy2d)")
+    p_preprocess.add_argument("--cache-dim", type=int,
+                             help="Latent dimension for cache precomputation (optional)")
+    p_preprocess.add_argument("--cache-tokens", type=int,
+                             help="Latent tokens for cache precomputation (optional)")
+    p_preprocess.add_argument("--plan-id", required=True,
+                             help="Vultr plan ID to use for preprocessing")
+    p_preprocess.add_argument("--region", default="sjc1",
+                             help="Region code (default: sjc1)")
+    p_preprocess.add_argument("--os-id", type=int, default=DEFAULT_OS_ID,
+                             help="Operating system ID (default: Ubuntu 22.04 LTS)")
+    p_preprocess.add_argument("--volume-size", type=int, default=128,
+                             help="Volume size in GB (default: 128 for preprocessing)")
+    p_preprocess.add_argument("--label", help="Instance label (default: ups-preprocess)")
+    p_preprocess.add_argument("--repo-url", help="Git remote URL (default: current origin)")
+    p_preprocess.add_argument("--branch", help="Git branch (default: current branch)")
+    p_preprocess.add_argument("--workdir", default="/workspace", help="Remote work directory")
+    p_preprocess.add_argument("--dry-run", action="store_true", help="Print commands without executing")
+    p_preprocess.set_defaults(func=cmd_preprocess)
 
     return parser
 
