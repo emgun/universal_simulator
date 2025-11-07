@@ -257,6 +257,7 @@ class LatentPair:
     input_fields: Optional[Dict[str, torch.Tensor]] = None
     coords: Optional[torch.Tensor] = None
     meta: Optional[Dict] = None
+    task_name: Optional[str] = None  # Track source task for multi-task training
 
 
 class GridLatentPairDataset(Dataset):
@@ -270,6 +271,7 @@ class GridLatentPairDataset(Dataset):
         grid_shape: Tuple[int, int],
         field_name: str = "u",
         *,
+        task: Optional[str] = None,
         device: torch.device | None = None,
         cache_dir: Optional[Path] = None,
         cache_dtype: Optional[torch.dtype] = torch.float16,
@@ -284,6 +286,7 @@ class GridLatentPairDataset(Dataset):
         self.coords = coords.to(self.device)
         self.grid_shape = grid_shape
         self.field_name = field_name
+        self.task_name = task  # Store task name for multi-task training
         self.cache_dir = Path(cache_dir) if cache_dir else None
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -414,7 +417,7 @@ class GridLatentPairDataset(Dataset):
             coords = self.coords.cpu().expand(base_len, -1, -1)  # (base_len, N, 2)
             meta = {"grid_shape": self.grid_shape}
 
-        return LatentPair(z0, z1, cond, future=future, input_fields=input_fields, coords=coords, meta=meta)
+        return LatentPair(z0, z1, cond, future=future, input_fields=input_fields, coords=coords, meta=meta, task_name=self.task_name)
 
 
 class GridZarrLatentPairDataset(Dataset):
@@ -484,6 +487,7 @@ class GraphLatentPairDataset(Dataset):
         kind: str = "mesh",
         rollout_horizon: int = 1,
         *,
+        task: Optional[str] = None,
         cache_dir: Optional[Path] = None,
         cache_dtype: Optional[torch.dtype] = torch.float16,
         time_stride: int = 1,
@@ -492,6 +496,7 @@ class GraphLatentPairDataset(Dataset):
         self.base = base
         self.encoder = encoder
         self.kind = kind
+        self.task_name = task  # Store task name for multi-task training
         params = list(encoder.parameters())
         self.device = params[0].device if params else torch.device("cpu")
         self.rollout_horizon = max(1, int(rollout_horizon))
@@ -658,7 +663,7 @@ class GraphLatentPairDataset(Dataset):
         target_stack = torch.stack(targets, dim=1)
         z1 = target_stack[:, 0]
         future = target_stack[:, 1:] if self.rollout_horizon > 1 else None
-        return LatentPair(z0, z1, cond, future=future)
+        return LatentPair(z0, z1, cond, future=future, task_name=self.task_name)
 
 
 def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
@@ -792,6 +797,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 coords,
                 grid_shape,
                 field_name=field_name,
+                task=task_name,
                 device=device,
                 cache_dir=ds_cache,
                 cache_dtype=cache_dtype,
@@ -823,7 +829,7 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 use_coords=data_cfg.get("use_coords", True),
             )
             graph_encoder = MeshParticleEncoder(encoder_cfg).eval().to(device)
-            return GraphLatentPairDataset(base_dataset, graph_encoder, kind=spec_kind, rollout_horizon=rollout_horizon)
+            return GraphLatentPairDataset(base_dataset, graph_encoder, kind=spec_kind, rollout_horizon=rollout_horizon, task=task_name)
 
         for task_name in task_list:
             spec = get_pdebench_spec(task_name)
@@ -936,6 +942,23 @@ def latent_pair_collate(batch):
     if meta_list:
         meta = meta_list[0]
 
+    # Collect task names per sample (replicate for each pair in trajectory)
+    # Each item may have multiple pairs (z0 shape: (num_pairs, tokens, dim))
+    # We need task_name repeated for each pair to match concatenated z0
+    task_names = []
+    for item in batch:
+        if item.task_name is not None:
+            num_pairs = item.z0.shape[0]  # Number of pairs in this trajectory
+            task_names.extend([item.task_name] * num_pairs)
+        else:
+            # Backward compatibility: if task_name is None, add None for each pair
+            num_pairs = item.z0.shape[0]
+            task_names.extend([None] * num_pairs)
+
+    # If all task names are None, set to None for backward compatibility
+    if all(name is None for name in task_names):
+        task_names = None
+
     # Return as dict for easy unpacking in training loop
     return {
         "z0": z0,
@@ -945,6 +968,7 @@ def latent_pair_collate(batch):
         "input_fields": input_fields,
         "coords": coords,
         "meta": meta,
+        "task_names": task_names,
     }
 
 

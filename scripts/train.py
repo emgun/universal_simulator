@@ -7,6 +7,7 @@ import argparse
 import copy
 import json
 import random
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -602,6 +603,10 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         batches = 0
         grad_steps = 0
         num_batches = len(loader)
+
+        # Per-task metric tracking
+        task_metrics = defaultdict(lambda: {"loss": [], "count": 0})
+
         optimizer.zero_grad(set_to_none=True)
         for i, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
@@ -616,17 +621,21 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 input_fields_physical = unpacked.get("input_fields")
                 coords = unpacked.get("coords")
                 meta = unpacked.get("meta")
+                # Extract task names for per-task metrics
+                task_names = unpacked.get("task_names")
             elif len(unpacked) == 4:
                 z0, z1, cond, future = unpacked
                 input_fields_physical = None
                 coords = None
                 meta = None
+                task_names = None
             else:
                 z0, z1, cond = unpacked
                 future = None
                 input_fields_physical = None
                 coords = None
                 meta = None
+                task_names = None
 
             cond_device = {k: v.to(device) for k, v in cond.items()}
             state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
@@ -776,6 +785,20 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
             loss_value = loss.detach().item()
 
+            # Accumulate per-task metrics (if enabled and task_names available)
+            if task_names is not None and train_cfg.get("log_per_task_metrics", False):
+                # Count samples per task in this batch
+                task_counts = defaultdict(int)
+                for task_name in task_names:
+                    if task_name:
+                        task_counts[task_name] += 1
+
+                # Attribute loss to each task (simple approach: batch loss weighted by sample count)
+                batch_size = len(task_names)
+                for task_name, count in task_counts.items():
+                    task_metrics[task_name]["loss"].append(loss_value)
+                    task_metrics[task_name]["count"] += count
+
             # Log individual loss components to WandB
             if wandb_ctx and i % 10 == 0:  # Log every 10 batches
                 for name, value in loss_bundle.components.items():
@@ -807,7 +830,7 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -817,6 +840,16 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             epoch_time=epoch_time,
             best_loss=best_loss,
         )
+
+        # Log per-task metrics at epoch end (if enabled)
+        if wandb_ctx and train_cfg.get("log_per_task_metrics", False):
+            for task_name, metrics in task_metrics.items():
+                if metrics["count"] > 0:
+                    # Average loss for this task across the epoch
+                    avg_loss = sum(metrics["loss"]) / len(metrics["loss"]) if metrics["loss"] else 0.0
+                    wandb_ctx.log_training_metric("operator", f"{task_name}/loss", avg_loss, step=epoch)
+                    wandb_ctx.log_training_metric("operator", f"{task_name}/sample_count", metrics["count"], step=epoch)
+
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
             best_state = copy.deepcopy(operator.state_dict())

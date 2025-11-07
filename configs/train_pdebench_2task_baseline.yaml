@@ -1,0 +1,119 @@
+# 2-Task Baseline: advection1d (simple 1D) + darcy2d (simple 2D)
+# Purpose: Validate multi-task infrastructure and capacity at 128d
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: [advection1d, darcy2d]  # Multi-task list
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+  # Task sampling strategy
+  task_sampling:
+    strategy: "balanced"  # Equal samples per task per epoch
+    # Alternative: "proportional" (sample by dataset size)
+
+latent:
+  dim: 128          # Keep golden config size
+  tokens: 128       # Keep golden config size
+
+operator:
+  architecture_type: pdet_stack    # Pure transformer (from Phase 4)
+  pdet:
+    input_dim: 128
+    hidden_dim: 384  # 3× latent_dim (current golden)
+    depth: 12        # Increase from 10 (more capacity for 2 tasks)
+    num_heads: 8
+    attention_type: standard
+    qk_norm: true
+    mlp_ratio: 4.0
+    drop_path: 0.1   # Light regularization
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 128   # Match latent.dim
+  hidden_dim: 384   # Match operator
+
+training:
+  batch_size: 8     # Reduce from 12 (2D darcy has more tokens)
+  accum_steps: 6    # Effective batch = 48
+  time_stride: 2
+  dt: 0.1
+  patience: 10
+
+  num_workers: 8
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 4
+
+  amp: true
+  compile: false
+  grad_clip: null
+  ema_decay: 0.999
+
+  # UPT Inverse Losses (from Phase 4)
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1
+  inverse_loss_warmup_epochs: 5
+  inverse_loss_max_weight: 0.05
+
+  # Query-Based Training (Phase 4.1)
+  query_sampling:
+    enabled: true
+    num_queries: 2048
+    strategy: uniform
+
+  # Physics Priors + Latent Regularization (Phase 4.2 + 4.3)
+  physics_priors:
+    enabled: true
+    lambda_divergence: 0.0
+    lambda_conservation: 0.0
+    lambda_boundary: 0.05
+    lambda_positivity: 0.0
+    lambda_latent_norm: 1.0e-4
+    lambda_latent_diversity: 1.0e-4
+
+  lambda_spectral: 0.05
+
+  # Per-task metric logging (NEW)
+  log_per_task_metrics: true
+
+stages:
+  operator:
+    epochs: 40      # Match golden config
+
+    optimizer:
+      name: muon_hybrid
+      lr: 1.4e-3
+      weight_decay: 0.03
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+
+  diff_residual:
+    epochs: 15
+    patience: 5
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+
+  consistency_distill:
+    epochs: 10
+    patience: 5
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    tags: [pdebench, multi-task, 2task-baseline, 128d]

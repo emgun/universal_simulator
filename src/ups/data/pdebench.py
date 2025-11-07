@@ -25,12 +25,15 @@ TASK_SPECS: Dict[str, PDEBenchSpec] = {
     # Grid-based PDEBench tasks (HDF5)
     "burgers1d": PDEBenchSpec(field_key="data"),
     "advection1d": PDEBenchSpec(field_key="data"),
+    "diffusion_sorption1d": PDEBenchSpec(field_key="data"),
     "darcy2d": PDEBenchSpec(field_key="data"),
     "navier_stokes2d": PDEBenchSpec(field_key="data"),
     "allen_cahn2d": PDEBenchSpec(field_key="data"),
     "cahn_hilliard2d": PDEBenchSpec(field_key="data"),
     "reaction_diffusion2d": PDEBenchSpec(field_key="data"),
     "shallow_water2d": PDEBenchSpec(field_key="data"),
+    "compressible_ns1d": PDEBenchSpec(field_key="data"),
+    "compressible_ns3d": PDEBenchSpec(field_key="data"),
     # Mesh / particle variants (Zarr)
     "darcy2d_mesh": PDEBenchSpec(field_key="data", kind="mesh"),
     "particles_advect": PDEBenchSpec(field_key="data", kind="particles"),
