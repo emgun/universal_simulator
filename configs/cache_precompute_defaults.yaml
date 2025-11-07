@@ -1,0 +1,51 @@
+# Minimal config for PDEBench latent cache precomputation
+# Used by scripts/remote_preprocess_pdebench.sh
+#
+# Architecture follows configs/train_pdebench_2task_baseline.yaml from Phase 1 plan
+# (128d latent, 384d hidden, proven architecture)
+#
+# NOTE: This is NOT for training! Only provides encoder architecture defaults.
+# Actual cache parameters (dim, tokens, tasks) come from CLI args.
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d  # Placeholder, overridden by CLI args
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 128  # Overridden by --latent-dim CLI arg
+  tokens: 128  # Overridden by --latent-len CLI arg
+
+# Grid encoder architecture (matches Phase 1 baseline)
+encoder:
+  grid:
+    architecture_type: grid_cnn  # Simple CNN encoder for grid data
+    hidden_channels: [64, 128, 256]  # Progressive channel growth
+    kernel_size: 3
+    stride: 2
+    padding: 1
+
+# Operator architecture (used for encoder if no dedicated encoder)
+operator:
+  architecture_type: pdet_stack
+  pdet:
+    input_dim: 128  # Must match latent.dim
+    hidden_dim: 384  # 3× latent_dim (from Phase 1 baseline)
+    depth: 12  # Matches 2-task baseline
+    num_heads: 8
+    attention_type: standard
+    qk_norm: true
+    mlp_ratio: 4.0
+    drop_path: 0.1
+    dropout: 0.0
+
+training:
+  batch_size: 16
+  num_workers: 4
+  pin_memory: true
+  device: cuda

@@ -194,6 +194,7 @@ if [ -n "$CACHE_DIM" ] && [ -n "$CACHE_TOKENS" ]; then
   echo "──────────────────────────────────────────────────────"
 
   PYTHONPATH=src python scripts/precompute_latent_cache.py \
+    --config configs/cache_precompute_defaults.yaml \
     --tasks $TASKS \
     --splits train val test \
     --cache-dir data/latent_cache \
