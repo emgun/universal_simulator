@@ -47,36 +47,50 @@ fi
 cd /tmp/PDEBench
 pip install -e .
 
-# Download each task's raw data
+# Download each task's raw data IN PARALLEL
+echo "Starting parallel downloads..."
+download_pids=()
+
 for task in $TASKS; do
-  echo "→ Downloading $task..."
-  # Map UPS task names to PDEBench download names
-  case $task in
-    advection1d)
-      python pdebench/data_download/download_direct.py \
-        --root_folder /workspace/data/pdebench_raw --pde_name advection
-      ;;
-    burgers1d)
-      python pdebench/data_download/download_direct.py \
-        --root_folder /workspace/data/pdebench_raw --pde_name burgers
-      ;;
-    darcy2d)
-      python pdebench/data_download/download_direct.py \
-        --root_folder /workspace/data/pdebench_raw --pde_name darcy
-      ;;
-    reaction_diffusion2d)
-      python pdebench/data_download/download_direct.py \
-        --root_folder /workspace/data/pdebench_raw --pde_name 2d_reacdiff
-      ;;
-    navier_stokes2d)
-      python pdebench/data_download/download_direct.py \
-        --root_folder /workspace/data/pdebench_raw --pde_name ns_incom
-      ;;
-    *)
-      echo "⚠️  Unknown task: $task (skipping)"
-      ;;
-  esac
+  (
+    echo "→ Downloading $task..."
+    # Map UPS task names to PDEBench download names
+    case $task in
+      advection1d)
+        python pdebench/data_download/download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name advection
+        ;;
+      burgers1d)
+        python pdebench/data_download/download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name burgers
+        ;;
+      darcy2d)
+        python pdebench/data_download/download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name darcy
+        ;;
+      reaction_diffusion2d)
+        python pdebench/data_download/download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name 2d_reacdiff
+        ;;
+      navier_stokes2d)
+        python pdebench/data_download/download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name ns_incom
+        ;;
+      *)
+        echo "⚠️  Unknown task: $task (skipping)"
+        ;;
+    esac
+    echo "✓ Download complete: $task"
+  ) &
+  download_pids+=($!)
 done
+
+# Wait for all downloads to complete
+echo "Waiting for ${#download_pids[@]} parallel downloads..."
+for pid in "${download_pids[@]}"; do
+  wait $pid || echo "⚠️  Download process $pid failed (continuing)"
+done
+echo "✓ All downloads complete"
 
 cd /workspace/universal_simulator
 
@@ -85,44 +99,70 @@ echo "────────────────────────�
 echo "Step 2: Convert to UPS Format"
 echo "──────────────────────────────────────────────────────"
 
-# Convert each task using convert_pdebench_multimodal.py
+# Convert each task using convert_pdebench_multimodal.py IN PARALLEL
+echo "Starting parallel conversions..."
+convert_pids=()
+
 for task in $TASKS; do
-  echo "→ Converting $task to UPS format..."
+  (
+    echo "→ Converting $task to UPS format..."
 
-  PYTHONPATH=src python scripts/convert_pdebench_multimodal.py $task \
-    --root /workspace/data/pdebench_raw \
-    --out data/pdebench \
-    --limit 100 \
-    --samples 1000 || echo "⚠️  Conversion failed for $task (continuing)"
+    PYTHONPATH=src python scripts/convert_pdebench_multimodal.py $task \
+      --root /workspace/data/pdebench_raw \
+      --out data/pdebench \
+      --limit 100 \
+      --samples 1000 || echo "⚠️  Conversion failed for $task (continuing)"
 
-  # Verify output files exist
-  if [ -f "data/pdebench/${task}_train.h5" ]; then
-    echo "  ✓ ${task}_train.h5 created"
-  else
-    echo "  ✗ ${task}_train.h5 MISSING"
-  fi
+    # Verify output files exist
+    if [ -f "data/pdebench/${task}_train.h5" ]; then
+      echo "  ✓ ${task}_train.h5 created"
+    else
+      echo "  ✗ ${task}_train.h5 MISSING"
+    fi
+  ) &
+  convert_pids+=($!)
 done
+
+# Wait for all conversions to complete
+echo "Waiting for ${#convert_pids[@]} parallel conversions..."
+for pid in "${convert_pids[@]}"; do
+  wait $pid || echo "⚠️  Conversion process $pid failed (continuing)"
+done
+echo "✓ All conversions complete"
 
 echo ""
 echo "──────────────────────────────────────────────────────"
 echo "Step 3: Upload Converted Data to B2"
 echo "──────────────────────────────────────────────────────"
 
-# Upload each converted dataset to B2
-for task in $TASKS; do
-  echo "→ Uploading $task to B2..."
+# Upload each converted dataset to B2 IN PARALLEL
+echo "Starting parallel uploads to B2..."
+upload_pids=()
 
-  # Upload all splits (train, val, test)
-  for split in train val test; do
-    file="data/pdebench/${task}_${split}.h5"
-    if [ -f "$file" ]; then
-      rclone copy "$file" \
-        "B2TRAIN:pdebench/full/${task}/" \
-        --progress --transfers 4
-      echo "  ✓ Uploaded ${task}_${split}.h5"
-    fi
-  done
+for task in $TASKS; do
+  (
+    echo "→ Uploading $task to B2..."
+
+    # Upload all splits (train, val, test)
+    for split in train val test; do
+      file="data/pdebench/${task}_${split}.h5"
+      if [ -f "$file" ]; then
+        rclone copy "$file" \
+          "B2TRAIN:pdebench/full/${task}/" \
+          --progress --transfers 4
+        echo "  ✓ Uploaded ${task}_${split}.h5"
+      fi
+    done
+  ) &
+  upload_pids+=($!)
 done
+
+# Wait for all uploads to complete
+echo "Waiting for ${#upload_pids[@]} parallel uploads..."
+for pid in "${upload_pids[@]}"; do
+  wait $pid || echo "⚠️  Upload process $pid failed (continuing)"
+done
+echo "✓ All uploads complete"
 
 echo ""
 echo "──────────────────────────────────────────────────────"
