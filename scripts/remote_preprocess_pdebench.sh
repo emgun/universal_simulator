@@ -105,6 +105,9 @@ convert_pids=()
 
 for task in $TASKS; do
   (
+    # IMPORTANT: cd into workspace for each subshell
+    cd /workspace/universal_simulator || exit 1
+
     echo "→ Converting $task to UPS format..."
 
     PYTHONPATH=src python scripts/convert_pdebench_multimodal.py $task \
@@ -141,6 +144,9 @@ upload_pids=()
 
 for task in $TASKS; do
   (
+    # IMPORTANT: cd into workspace for each subshell
+    cd /workspace/universal_simulator || exit 1
+
     echo "→ Uploading $task to B2..."
 
     # Upload all splits (train, val, test)
