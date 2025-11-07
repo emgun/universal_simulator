@@ -876,6 +876,21 @@ export DEBIAN_FRONTEND=noninteractive
 # Setup environment
 {profile_entries}
 
+# Kill and disable unattended-upgrades to prevent dpkg lock contention
+echo "→ Disabling unattended-upgrades..."
+systemctl stop unattended-upgrades || true
+systemctl mask unattended-upgrades || true
+pkill -9 unattended-upgr || true
+
+# Wait for dpkg lock to be released
+for i in {{1..30}}; do
+  if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+    break
+  fi
+  echo "  Waiting for dpkg lock... ($i/30)"
+  sleep 2
+done
+
 apt-get update > /dev/null 2>&1
 apt-get install -y git build-essential python3 python3-pip python3-venv python3-dev python-is-python3 rclone > /dev/null 2>&1
 
