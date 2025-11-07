@@ -19,6 +19,15 @@ echo ""
 
 # Install dependencies
 apt-get update && apt-get install -y git rclone build-essential python3-dev
+
+# Use venv if it exists, otherwise system python
+if [ -f /opt/ups-venv/bin/activate ]; then
+  source /opt/ups-venv/bin/activate
+  echo "→ Using existing venv at /opt/ups-venv"
+fi
+
+# Upgrade pip and setuptools to support PEP 660 editable installs
+pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 pip install -e .[dev]
 
 # Setup B2 rclone

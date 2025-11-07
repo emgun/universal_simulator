@@ -1065,7 +1065,8 @@ def cmd_rerun(args: argparse.Namespace) -> None:
         print("Starting preprocessing pipeline...")
         print("═══════════════════════════════════════════════════════")
 
-        cmd = f"cd /workspace/universal_simulator && nohup bash scripts/remote_preprocess_pdebench.sh {tasks_str} {cache_args} > /root/preprocess.log 2>&1 &"
+        # Properly quote tasks_str to pass as single argument
+        cmd = f'cd /workspace/universal_simulator && nohup bash scripts/remote_preprocess_pdebench.sh "{tasks_str}" {cache_args} > /root/preprocess.log 2>&1 &'
         client.exec_command(cmd)
 
         # Give it a moment to start
