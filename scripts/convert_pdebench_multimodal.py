@@ -52,15 +52,15 @@ DEFAULT_TASKS: Dict[str, TaskConfig] = {
     },
     "advection1d": {
         "kind": "grid",
-        "pattern": "1D/Advection/{split}/*.h5",
+        "pattern": "1D/Advection/Train/*.hdf5",  # PDEBench uses capital 'Train' and .hdf5
     },
     "navier_stokes2d": {
         "kind": "grid",
-        "pattern": "2D/NavierStokes/{split}/*.h5",
+        "pattern": "2D/NavierStokes/Train/*.hdf5",  # PDEBench uses capital 'Train' and .hdf5
     },
     "darcy2d": {
         "kind": "grid",
-        "pattern": "2D/DarcyFlow/regular/{split}/*.h5",
+        "pattern": "2D/DarcyFlow/*.hdf5",  # No subdirectory, .hdf5 extension
     },
     "darcy2d_mesh": {
         "kind": "mesh",
