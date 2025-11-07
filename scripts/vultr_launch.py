@@ -9,6 +9,8 @@ Commands:
   status      Show instance status and public IP
   logs        Fetch boot log metadata or print SSH instructions
   teardown    Destroy instance and optionally delete block storage
+  preprocess  Launch remote preprocessing job for PDEBench datasets
+  rerun       Rerun preprocessing on existing instance with latest code fixes
 
 All API calls require `VULTR_KEY` (preferably stored in .env) and the
 originating IP must be allow-listed in the Vultr control panel.
@@ -31,6 +33,12 @@ import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Iterator
+
+try:
+    import paramiko
+    PARAMIKO_AVAILABLE = True
+except ImportError:
+    PARAMIKO_AVAILABLE = False
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -963,6 +971,119 @@ runcmd:
     print("\nNote: Instance will auto-shutdown 5 minutes after completion.")
 
 
+def cmd_rerun(args: argparse.Namespace) -> None:
+    """Rerun preprocessing on existing instance with latest code."""
+    if not PARAMIKO_AVAILABLE:
+        print("ERROR: paramiko library not installed.", file=sys.stderr)
+        print("Install with: pip install paramiko", file=sys.stderr)
+        sys.exit(1)
+
+    api_key = resolve_key()
+    provider = VultrProvider(api_key)
+
+    # Get instance details
+    instance_info = provider.get_instance(args.instance)
+    instance_ip = instance_info.get("main_ip")
+    password = args.password or instance_info.get("default_password")
+
+    if not instance_ip:
+        print(f"ERROR: Could not get IP for instance {args.instance}", file=sys.stderr)
+        sys.exit(1)
+
+    if not password:
+        print("⚠️  Password not available from API.")
+        password = input(f"Enter root password for {instance_ip}: ")
+
+    # Build task string
+    tasks_str = " ".join(args.tasks)
+    cache_args = ""
+    if args.cache_dim and args.cache_tokens:
+        cache_args = f"{args.cache_dim} {args.cache_tokens}"
+
+    print("═══════════════════════════════════════════════════════")
+    print("Rerunning preprocessing on existing instance")
+    print("═══════════════════════════════════════════════════════")
+    print(f"Instance IP: {instance_ip}")
+    print(f"Tasks: {tasks_str}")
+    if cache_args:
+        print(f"Cache: {args.cache_dim}d × {args.cache_tokens}tok")
+    print("")
+
+    # SSH and rerun
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        print("→ Connecting to instance...")
+        client.connect(instance_ip, username="root", password=password, timeout=10)
+        print("✓ Connected!")
+
+        # Check if preprocessing is currently running
+        stdin, stdout, stderr = client.exec_command("pgrep -f remote_preprocess_pdebench")
+        pid = stdout.read().decode().strip()
+
+        if pid:
+            print(f"\n⚠️  Preprocessing is already running (PID: {pid})")
+            if not args.kill_existing:
+                response = input("Kill existing process and restart? [y/N]: ")
+                if response.lower() != 'y':
+                    print("Aborted.")
+                    return
+            print("→ Killing existing preprocessing process...")
+            client.exec_command(f"kill {pid}")
+            time.sleep(2)
+
+        # Pull latest code
+        print("→ Pulling latest code from feature--UPT branch...")
+        stdin, stdout, stderr = client.exec_command(
+            "cd /workspace/universal_simulator && git fetch origin && "
+            "git reset --hard origin/feature--UPT"
+        )
+        stdout.channel.recv_exit_status()  # Wait for completion
+
+        # Set executable permission
+        print("→ Setting executable permissions...")
+        client.exec_command("chmod +x /workspace/universal_simulator/scripts/remote_preprocess_pdebench.sh")
+
+        # Rerun preprocessing
+        print("\n═══════════════════════════════════════════════════════")
+        print("Starting preprocessing pipeline...")
+        print("═══════════════════════════════════════════════════════")
+
+        cmd = f"cd /workspace/universal_simulator && nohup bash scripts/remote_preprocess_pdebench.sh {tasks_str} {cache_args} > /root/preprocess.log 2>&1 &"
+        client.exec_command(cmd)
+
+        # Give it a moment to start
+        time.sleep(2)
+
+        # Check if it started
+        stdin, stdout, stderr = client.exec_command("pgrep -f remote_preprocess_pdebench")
+        new_pid = stdout.read().decode().strip()
+
+        if new_pid:
+            print(f"\n✓ Preprocessing started successfully (PID: {new_pid})")
+            print(f"\nMonitor logs with:")
+            print(f"  python scripts/vultr_launch.py logs --instance {args.instance}")
+            print(f"\nOr directly via SSH:")
+            print(f"  ssh root@{instance_ip} 'tail -f /root/preprocess.log'")
+        else:
+            print("\n⚠️  Preprocessing may not have started. Check logs:")
+            print(f"  ssh root@{instance_ip} 'cat /root/preprocess.log'")
+
+    except paramiko.AuthenticationException:
+        print(f"\nERROR: Authentication failed for root@{instance_ip}", file=sys.stderr)
+        print("Check that the password is correct.", file=sys.stderr)
+        sys.exit(1)
+    except paramiko.SSHException as e:
+        print(f"\nERROR: SSH connection failed: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        client.close()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Vultr GPU launcher for Universal Simulator runs",
@@ -1043,6 +1164,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_preprocess.add_argument("--workdir", default="/workspace", help="Remote work directory")
     p_preprocess.add_argument("--dry-run", action="store_true", help="Print commands without executing")
     p_preprocess.set_defaults(func=cmd_preprocess)
+
+    # rerun command
+    p_rerun = sub.add_parser("rerun", help="Rerun preprocessing on existing instance with latest code")
+    p_rerun.add_argument("--instance", required=True, help="Instance identifier")
+    p_rerun.add_argument("--tasks", nargs="+", default=["advection1d", "darcy2d"],
+                        help="Tasks to preprocess (default: advection1d darcy2d)")
+    p_rerun.add_argument("--cache-dim", type=int,
+                        help="Latent dimension for cache precomputation (optional)")
+    p_rerun.add_argument("--cache-tokens", type=int,
+                        help="Latent tokens for cache precomputation (optional)")
+    p_rerun.add_argument("--password", help="Root password (if not available from API)")
+    p_rerun.add_argument("--kill-existing", action="store_true",
+                        help="Kill existing preprocessing process if running")
+    p_rerun.set_defaults(func=cmd_rerun)
 
     return parser
 
