@@ -258,6 +258,12 @@ stages:                      # staged training recipe
   operator:
     epochs: 25
     optimizer: {name: adamw, lr: 1.0e-3, weight_decay: 0.03}
+
+> **Data pipeline helpers**
+> - Convert PDEBench shards (grid, mesh, particles) with `scripts/convert_pdebench_multimodal.py <task> --root <raw> --out <dst>`.
+> - Synthesize tiny mesh/particle Zarr fixtures for tests via `scripts/prepare_data.py {mesh_poisson,particles_advect} --out <path>`.
+> - Precompute latent caches once with `scripts/precompute_latent_cache.py --tasks <tasks> --root <dst> --cache-dir data/latent_cache`.
+> - Validate converted datasets before training using `scripts/validate_data.py --data-root <dst> --task <task> --split <split>`.
     scheduler: {name: cosineannealinglr, t_max: 40, eta_min: 2.5e-5}
   diff_residual:
     epochs: 8

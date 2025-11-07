@@ -1,0 +1,260 @@
+==============================================================================
+                    ENCODER RESEARCH - QUICK REFERENCE
+==============================================================================
+
+LOCATION: /Users/emerygunselman/Code/universal_simulator/src/ups/io/
+
+FILE 1: enc_grid.py (232 lines)
+  - Class: GridEncoder
+  - Purpose: Structured grids (Burgers, shallow water on regular meshes)
+  - Key Methods:
+    * __init__() lines 34-76      → Setup patch stems, projections
+    * forward() lines 81-107       → Encode fields to latent tokens
+    * _adaptive_token_pool() lines 216-221 → SIMPLE AVG POOLING
+    * _fourier_features() lines 183-214    → Coordinate augmentation
+  - Pooling: F.adaptive_avg_pool1d (non-learned, basic average)
+  - CFD Gaps: No irregular mesh support, no BC encoding, no physics-aware pooling
+
+FILE 2: enc_mesh_particle.py (171 lines)
+  - Class: MeshParticleEncoder
+  - Purpose: Irregular grids, particles, unstructured domains
+  - Key Methods:
+    * forward() lines 87-141          → Main forward pass
+    * _build_adjacency() lines 39-48  → Graph connectivity
+    * _pool_supernodes() lines 155-163 → CHUNK-BASED POOLING (hard assignment)
+    * _perceiver_pool() lines 165-170 → ADAPTIVE AVG POOLING (second stage)
+  - Message Passing: lines 114-123 (3 steps default, learnable)
+    * index_add_ for neighbor aggregation
+    * Degree-normalized averaging
+    * Residual connections
+  - Two-stage pooling: N nodes → S supernodes → latent_len tokens
+  - CFD Capabilities: Graph-aware, handles irregular meshes, message passing
+  - CFD Gaps: No learned pooling, no BC/boundary-aware aggregation
+
+FILE 3: decoder_anypoint.py (137 lines)
+  - Class: AnyPointDecoder
+  - Purpose: Query-based decoding at arbitrary spatial points
+  - Key Methods:
+    * forward() lines 89-134         → Decode latent tokens to queries
+    * _fourier_encode() lines 11-32  → Fourier-encode query coordinates
+  - Cross-attention based (Perceiver-IO style)
+  - Per-field prediction heads
+
+FILE 4: __init__.py (14 lines)
+  - Exports: GridEncoder, MeshParticleEncoder, AnyPointDecoder
+
+==============================================================================
+                           POOLING STRATEGIES
+==============================================================================
+
+GridEncoder Pooling (Line 216-221):
+  Input: (B, T, D) token sequence
+  Method: F.adaptive_avg_pool1d on (B, D, T)
+  Output: (B, target_len, D)
+  Cost: O(T) but simple, non-learned
+
+MeshParticleEncoder Stage 1 - Supernode (Line 155-163):
+  Input: (B, N, D) node features
+  Method: Chunk nodes into S groups, reshape, average
+  Output: (B, S, D)
+  Cost: O(N) but non-learned, no spatial awareness
+  Issue: Breaks spatial coherence
+
+MeshParticleEncoder Stage 2 - Perceiver (Line 165-170):
+  Input: (B, current_tokens, D)
+  Method: F.adaptive_avg_pool1d like GridEncoder
+  Output: (B, latent_len, D)
+  Cost: O(current_tokens)
+
+Combined Flow: N nodes → S supernodes → latent_len tokens (2-stage)
+
+==============================================================================
+                      GNN/GRAPH CAPABILITIES
+==============================================================================
+
+Currently Implemented:
+  - Basic message passing (degree-normalized aggregation)
+  - Undirected edge support (symmetric adjacency)
+  - Learnable linear projections per GNN layer
+  - Residual connections in GNN
+
+NOT Implemented:
+  - Learned pooling (TopKPool, DiffPool, SAGPool)
+  - Graph attention (GAT-style)
+  - Edge feature propagation
+  - Multi-head message passing
+  - Hierarchical coarsening
+  - Physics-aware graph operations
+  - Boundary condition encoding in graph
+
+==============================================================================
+                     MESH/PARTICLE HANDLING
+==============================================================================
+
+MeshParticleEncoder Approach:
+  1. Flatten all fields (lines 21-36)
+  2. Concatenate coordinates (lines 99-103)
+  3. Project to hidden dimension (lines 105-107)
+  4. Message passing loop (lines 114-123):
+     - Aggregate features from neighbors
+     - Degree normalize
+     - Learnable transform + residual
+  5. Two-stage pooling (lines 125-131)
+
+Adjacency Building (lines 39-48):
+  - Takes edges as (num_nodes, 2) tensor
+  - Makes undirected (A→B and B→A)
+  - Falls back to self-loops if empty edges
+  - Used for neighbor aggregation
+
+Field Concatenation (lines 21-36):
+  - Handles 2D, 3D, 4D tensors
+  - Concatenates along feature dimension
+  - Averages over time if 4D
+
+Limitations:
+  - No time-varying connectivity
+  - No multi-resolution mesh support
+  - No boundary layer refinement awareness
+  - No mesh quality metrics
+
+==============================================================================
+                      PERCEIVER-BASED POOLING
+==============================================================================
+
+Current Implementation (NOT true Perceiver-IO):
+  - Uses F.adaptive_avg_pool1d
+  - No learned basis (latents)
+  - No cross-attention for selection
+  - Pure average pooling
+
+Missing Perceiver-IO Features:
+  - Learnable latent vectors
+  - Cross-attention based selection
+  - Token importance weighting
+  - Soft assignment vs hard bins
+
+Where to Add:
+  - File: enc_mesh_particle.py
+  - After line 123 (after message passing)
+  - New method: _learned_pool() with learned latent vectors
+
+==============================================================================
+                    CFD-SPECIFIC GAPS ANALYSIS
+==============================================================================
+
+Missing Features:
+  1. Boundary Condition Encoding
+     - No distinction between Dirichlet/Neumann/Robin/Periodic
+     - No edge type information
+     - Location: Add to enc_mesh_particle.py forward()
+
+  2. Physics-Aware Pooling
+     - No conservation-aware merging
+     - No mass/energy preservation
+     - Location: New method in enc_mesh_particle.py
+
+  3. Multi-Physics Integration
+     - MultiphysicsFactorGraph exists but not used in encoders
+     - Location: Integrate with enc_mesh_particle.py
+
+  4. Reynolds Number Awareness
+     - No Re-dependent normalization
+     - Location: Preprocessing in forward()
+
+  5. Turbulence/Subscale Modeling
+     - No eddy viscosity encoding
+     - Location: New feature channels
+
+  6. Mesh Adaptation
+     - No refinement level tracking
+     - No aspect ratio awareness
+     - Location: New config parameters
+
+==============================================================================
+                   WHERE TO ADD GNN-BASED POOLING
+==============================================================================
+
+Option 1: Replace Supernode Pooling (RECOMMENDED)
+  File: enc_mesh_particle.py
+  Location: Lines 125-131, replace _pool_supernodes call
+  Approach: TopKPool or learned selection based on node importance
+  Implementation:
+    - Compute node importance scores (energy, gradient magnitude, etc.)
+    - Select top-k nodes or learn selection with attention
+    - Maintain edge connectivity in pooled graph
+
+Option 2: Add Learnable Perceiver Pooling
+  File: enc_mesh_particle.py
+  Location: New method after _perceiver_pool (line 170)
+  Approach: Cross-attention pooling with learned latent vectors
+  Benefits: Learned importance weighting, interpretable selection
+
+Option 3: Multi-Head Message Passing
+  File: enc_mesh_particle.py
+  Location: Lines 64-66, modify message_layers
+  Approach: Split hidden_dim into heads, each head for different aspects
+  CFD-specific: Separate heads for velocity, pressure, vorticity
+
+Option 4: Physics-Aware Pooling Layer
+  File: New file src/ups/io/pool_physics.py
+  Approach:
+    - Compute conservation metrics per node
+    - Pool nodes with lowest variance
+    - Preserve global integrals
+
+==============================================================================
+                        TESTING REFERENCE
+==============================================================================
+
+Test File: tests/unit/test_enc_mesh_particle.py
+
+Test 1: test_encoder_identity_path (lines 15-32)
+  - Verifies: encoder + reconstruction = identity
+  - Requirements: latent_len=node_count, no pooling
+
+Test 2: test_encoder_reduces_tokens (lines 35-49)
+  - Verifies: output shape matches config
+  - Tests: full pooling pipeline
+
+==============================================================================
+                        PERFORMANCE NOTES
+==============================================================================
+
+Memory Complexity:
+  - GridEncoder: O(H*W) for grid fields
+  - MeshParticleEncoder: O(N + E) for mesh (N nodes, E edges)
+
+Time Complexity:
+  - GridEncoder: O(H*W) convolutions + O(T) pooling
+  - MeshParticleEncoder: O(steps * (N + E)) message passing + O(N) pooling
+
+Compression Ratios:
+  - GridEncoder: 128×128 → 256 tokens (64× compression)
+  - MeshParticleEncoder: 10,000 nodes → 256 tokens (39× compression)
+
+==============================================================================
+                         RECOMMENDATIONS
+==============================================================================
+
+Priority 1: Learned Pooling
+  - Replace chunk-based supernode pooling with TopKPool
+  - Benefits: Better token selection, physics-aware importance weighting
+  - Location: enc_mesh_particle.py, new _learned_pool_supernodes() method
+
+Priority 2: Boundary Condition Encoding
+  - Add bc parameter to forward()
+  - Embed BC types in token features
+  - Location: enc_mesh_particle.py, after line 103
+
+Priority 3: Physics Preservation
+  - Conservation-aware pooling
+  - Preserve mass/energy/momentum integrals
+  - Location: New pool_physics.py module
+
+Priority 4: Reynolds Number Handling
+  - Re-dependent feature scaling
+  - Different normalization for different flow regimes
+  - Location: enc_mesh_particle.py __init__() config extension
+
+==============================================================================

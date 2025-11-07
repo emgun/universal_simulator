@@ -13,7 +13,12 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data import ConcatDataset
 
 from ups.data.datasets import GridZarrDataset, MeshZarrDataset, ParticleZarrDataset
-from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
+from ups.data.pdebench import (
+    PDEBenchConfig,
+    PDEBenchDataset,
+    get_pdebench_spec,
+    resolve_pdebench_root,
+)
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.io.enc_mesh_particle import MeshParticleEncoder, MeshParticleEncoderConfig
 
@@ -478,6 +483,10 @@ class GraphLatentPairDataset(Dataset):
         encoder: MeshParticleEncoder,
         kind: str = "mesh",
         rollout_horizon: int = 1,
+        *,
+        cache_dir: Optional[Path] = None,
+        cache_dtype: Optional[torch.dtype] = torch.float16,
+        time_stride: int = 1,
     ) -> None:
         super().__init__()
         self.base = base
@@ -486,52 +495,161 @@ class GraphLatentPairDataset(Dataset):
         params = list(encoder.parameters())
         self.device = params[0].device if params else torch.device("cpu")
         self.rollout_horizon = max(1, int(rollout_horizon))
+        self.cache_dir = Path(cache_dir) if cache_dir else None
+        if self.cache_dir:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dtype = cache_dtype
+        self.time_stride = max(1, int(time_stride))
 
     def __len__(self) -> int:
         return len(self.base)
 
+    def _load_cached_latent(self, idx: int) -> Optional[Dict[str, Any]]:
+        if not self.cache_dir:
+            return None
+        cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
+        if not cache_path.exists():
+            return None
+        try:
+            data = torch.load(cache_path, map_location="cpu")
+        except (RuntimeError, EOFError):
+            cache_path.unlink(missing_ok=True)
+            return None
+        data["cache_path"] = cache_path
+        return data
+
+    def _store_cached_latent(
+        self,
+        idx: int,
+        latent_seq: torch.Tensor,
+        *,
+        params: Optional[Dict[str, torch.Tensor]],
+        bc: Optional[Dict[str, torch.Tensor]],
+        time: Optional[torch.Tensor],
+        dt: Optional[torch.Tensor],
+    ) -> None:
+        if not self.cache_dir:
+            return
+        cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
+        tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+        tmp_path.unlink(missing_ok=True)
+        to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+        payload = {
+            "latent": to_store.cpu(),
+            "params": params,
+            "bc": bc,
+            "time": time,
+            "dt": dt,
+        }
+        buffer = io.BytesIO()
+        torch.save(payload, buffer)
+        tmp_path.write_bytes(buffer.getvalue())
+        tmp_path.replace(cache_path)
+
     def __getitem__(self, idx: int) -> LatentPair:
-        sample = self.base[idx]
-        fields = sample.get("fields", {})
-        if not fields:
-            raise ValueError("Graph samples must provide fields with time dimension")
+        cached = self._load_cached_latent(idx)
+        sample = None
+        params_cpu = None
+        bc_cpu = None
+        time_cpu = None
+        dt_cpu = None
+        if cached is not None:
+            latent_seq = cached["latent"].float()
+            params_cpu = cached.get("params")
+            bc_cpu = cached.get("bc")
+            time_cpu = cached.get("time")
+            dt_cpu = cached.get("dt")
+        else:
+            sample = self.base[idx]
+            fields = sample.get("fields", {})
+            if not fields:
+                raise ValueError("Graph samples must provide fields with time dimension")
 
-        step_fields: Dict[str, torch.Tensor] = {}
-        time_dim: Optional[int] = None
-        for name, tensor in fields.items():
-            if tensor.dim() == 2:
-                tensor = tensor.unsqueeze(0)
-            if tensor.dim() != 3:
-                raise ValueError(f"Field '{name}' must have shape (T, N, C); got {tensor.shape}")
-            if time_dim is None:
-                time_dim = tensor.shape[0]
-            elif tensor.shape[0] != time_dim:
-                raise ValueError("All fields must share the same time dimension")
-            step_fields[name] = tensor.float().to(self.device, non_blocking=True)
+            step_fields: Dict[str, torch.Tensor] = {}
+            time_dim: Optional[int] = None
+            for name, tensor in fields.items():
+                if tensor.dim() == 2:
+                    tensor = tensor.unsqueeze(0)
+                if tensor.dim() != 3:
+                    raise ValueError(f"Field '{name}' must have shape (T, N, C); got {tensor.shape}")
+                if time_dim is None:
+                    time_dim = tensor.shape[0]
+                elif tensor.shape[0] != time_dim:
+                    raise ValueError("All fields must share the same time dimension")
+                step_fields[name] = tensor.float().to(self.device, non_blocking=True)
 
-        if time_dim is None or time_dim <= self.rollout_horizon:
+            if time_dim is None or time_dim <= self.rollout_horizon:
+                raise ValueError("Need more time steps than rollout horizon to form latent pairs")
+
+            latents: List[torch.Tensor] = []
+            for step in range(time_dim):
+                field_batch = {name: tensor[step].unsqueeze(0) for name, tensor in step_fields.items()}
+                coords = _graph_coords_at_time(sample, step_fields, step).to(self.device, non_blocking=True)
+                connect = sample.get("connect")
+                if connect is not None:
+                    connect = connect.to(self.device, dtype=torch.long, non_blocking=True)
+                meta = sample.get("meta")
+                with torch.no_grad():
+                    latent_step = self.encoder(field_batch, coords, connect=connect, meta=meta)
+                latents.append(latent_step.squeeze(0).cpu())
+
+            latent_seq = torch.stack(latents, dim=0)
+            params_cpu = None
+            sample_params = sample.get("params")
+            if sample_params:
+                params_cpu = {}
+                for k, v in sample_params.items():
+                    if torch.is_tensor(v):
+                        params_cpu[k] = v.detach().cpu()
+                    else:
+                        tensor = _to_float_tensor(v)
+                        if tensor is not None:
+                            params_cpu[k] = tensor.detach().cpu()
+                if not params_cpu:
+                    params_cpu = None
+            bc_cpu = None
+            sample_bc = sample.get("bc")
+            if sample_bc:
+                bc_cpu = {}
+                for k, v in sample_bc.items():
+                    if torch.is_tensor(v):
+                        bc_cpu[k] = v.detach().cpu()
+                    else:
+                        tensor = _to_float_tensor(v)
+                        if tensor is not None:
+                            bc_cpu[k] = tensor.detach().cpu()
+                if not bc_cpu:
+                    bc_cpu = None
+            time_val = sample.get("time")
+            if torch.is_tensor(time_val):
+                time_cpu = time_val.detach().cpu()
+            elif time_val is not None:
+                time_cpu = torch.as_tensor(time_val, dtype=torch.float32)
+            else:
+                time_cpu = None
+            dt_val = sample.get("dt")
+            if torch.is_tensor(dt_val):
+                dt_cpu = dt_val.detach().cpu()
+            elif dt_val is not None:
+                dt_cpu = torch.as_tensor(dt_val, dtype=torch.float32)
+            else:
+                dt_cpu = None
+
+            if self.cache_dir:
+                self._store_cached_latent(idx, latent_seq, params=params_cpu, bc=bc_cpu, time=time_cpu, dt=dt_cpu)
+
+        if self.time_stride > 1:
+            latent_seq = latent_seq[:: self.time_stride]
+        time_dim = latent_seq.shape[0]
+        if time_dim <= self.rollout_horizon:
             raise ValueError("Need more time steps than rollout horizon to form latent pairs")
-
-        latents: List[torch.Tensor] = []
-        for step in range(time_dim):
-            field_batch = {name: tensor[step].unsqueeze(0) for name, tensor in step_fields.items()}
-            coords = _graph_coords_at_time(sample, step_fields, step).to(self.device, non_blocking=True)
-            connect = sample.get("connect")
-            if connect is not None:
-                connect = connect.to(self.device, dtype=torch.long, non_blocking=True)
-            meta = sample.get("meta")
-            with torch.no_grad():
-                latent_step = self.encoder(field_batch, coords, connect=connect, meta=meta)
-            latents.append(latent_step.squeeze(0).cpu())
-
-        latent_seq = torch.stack(latents, dim=0)
         base_len = time_dim - self.rollout_horizon
         cond = prepare_conditioning(
-            sample.get("params"),
-            sample.get("bc"),
+            params_cpu,
+            bc_cpu,
             base_len,
-            time=sample.get("time"),
-            dt=sample.get("dt"),
+            time=time_cpu,
+            dt=dt_cpu,
         )
         z0 = latent_seq[:base_len]
         targets = []
@@ -617,99 +735,106 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     if prefetch_factor is not None and num_workers > 0:
         loader_kwargs["prefetch_factor"] = prefetch_factor
 
-    # Import helper functions for PreloadedCacheDataset
-    from ups.data.parallel_cache import (
-        check_cache_complete,
-        estimate_cache_size_mb,
-        check_sufficient_ram,
-        PreloadedCacheDataset,
-    )
-
-    # Support single task or a list of tasks for multi-dataset mixing
+    # Support single task or multi-task mixing
     tasks = data_cfg.get("task")
     if tasks:
-        if isinstance(tasks, (list, tuple)):
-            datasets: List[Dataset] = []
-            for task_name in tasks:
-                ds_cfg = {**data_cfg, "task": task_name}
-                dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
-                    {**ds_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
-                )
-                encoder = encoder.to(device)
-                coords = make_grid_coords(grid_shape, device)
-                ds_cache = cache_root / f"{task_name}_{split_name}" if cache_root else None
-                latent_ds = GridLatentPairDataset(
-                    dataset,
-                    encoder,
-                    coords,
-                    grid_shape,
-                    field_name=field_name,
-                    device=device,
-                    cache_dir=ds_cache,
-                    cache_dtype=cache_dtype,
-                    time_stride=time_stride,
-                    rollout_horizon=rollout_horizon,
-                    use_inverse_losses=use_inverse_losses,
-                )
-                datasets.append(latent_ds)
-            mixed = ConcatDataset(datasets)
-            loader_kwargs["collate_fn"] = latent_pair_collate
-            return DataLoader(mixed, **loader_kwargs)
-        else:
+        from ups.data.parallel_cache import (
+            check_cache_complete,
+            estimate_cache_size_mb,
+            check_sufficient_ram,
+            PreloadedCacheDataset,
+        )
+
+        task_list = list(tasks) if isinstance(tasks, (list, tuple)) else [tasks]
+        latent_datasets: List[Dataset] = []
+
+        def _make_grid_latent_dataset(task_name: str) -> Dataset:
             dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
-                {**data_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
+                {
+                    **data_cfg,
+                    "task": task_name,
+                    "latent_dim": latent_cfg.get("dim", 32),
+                    "latent_len": latent_cfg.get("tokens", 16),
+                }
             )
             encoder = encoder.to(device)
             coords = make_grid_coords(grid_shape, device)
-            ds_cache = cache_root / f"{tasks}_{split_name}" if cache_root and isinstance(tasks, str) else cache_root
+            ds_cache = cache_root / f"{task_name}_{split_name}" if cache_root else None
 
-            # Check if we can use PreloadedCacheDataset for better performance
             use_preloaded = False
             if ds_cache and ds_cache.exists():
                 num_samples = len(dataset)
                 cache_complete, num_cached = check_cache_complete(ds_cache, num_samples)
-
                 if cache_complete:
-                    # Check cache size and RAM availability
                     cache_size_mb = estimate_cache_size_mb(ds_cache, num_samples=min(10, num_samples))
-                    has_sufficient_ram = check_sufficient_ram(cache_size_mb)
-
-                    if has_sufficient_ram:
-                        print(f"✅ Using PreloadedCacheDataset for {tasks}_{split_name}")
+                    if check_sufficient_ram(cache_size_mb):
+                        print(f"✅ Using PreloadedCacheDataset for {task_name}_{split_name}")
                         print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB")
                         use_preloaded = True
                     else:
                         print(f"⚠️  Insufficient RAM for PreloadedCacheDataset ({cache_size_mb:.0f} MB required)")
-                        print(f"   Falling back to disk I/O mode (slower but memory-efficient)")
+                        print("   Falling back to disk I/O mode (slower but memory-efficient)")
                 else:
-                    print(f"⚠️  Cache incomplete for {tasks}_{split_name} ({num_cached}/{num_samples} samples)")
-                    print(f"   Falling back to on-demand encoding (will populate cache)")
+                    print(f"⚠️  Cache incomplete for {task_name}_{split_name} ({num_cached}/{num_samples} samples)")
+                    print("   Falling back to on-demand encoding (will populate cache)")
 
-            # Use PreloadedCacheDataset if cache is complete and RAM is sufficient
             if use_preloaded and ds_cache:
-                latent_dataset = PreloadedCacheDataset(
+                return PreloadedCacheDataset(
                     cache_dir=ds_cache,
                     num_samples=len(dataset),
                     time_stride=time_stride,
                     rollout_horizon=rollout_horizon,
                 )
+
+            return GridLatentPairDataset(
+                dataset,
+                encoder,
+                coords,
+                grid_shape,
+                field_name=field_name,
+                device=device,
+                cache_dir=ds_cache,
+                cache_dtype=cache_dtype,
+                time_stride=time_stride,
+                rollout_horizon=rollout_horizon,
+                use_inverse_losses=use_inverse_losses,
+            )
+
+        def _make_graph_latent_dataset(task_name: str, spec_kind: str) -> Dataset:
+            data_root = resolve_pdebench_root(data_cfg.get("root"))
+            zarr_path = data_root / f"{task_name}_{split_name}.zarr"
+            if not zarr_path.exists():
+                raise FileNotFoundError(f"Expected dataset at {zarr_path} for task '{task_name}'")
+
+            if spec_kind == "mesh":
+                base_dataset: Dataset = MeshZarrDataset(str(zarr_path), group=task_name)
+            elif spec_kind == "particles":
+                base_dataset = ParticleZarrDataset(str(zarr_path), group=task_name)
             else:
-                # Fallback to GridLatentPairDataset (original behavior)
-                latent_dataset = GridLatentPairDataset(
-                    dataset,
-                    encoder,
-                    coords,
-                    grid_shape,
-                    field_name=field_name,
-                    device=device,
-                    cache_dir=ds_cache,
-                    cache_dtype=cache_dtype,
-                    time_stride=time_stride,
-                    rollout_horizon=rollout_horizon,
-                    use_inverse_losses=use_inverse_losses,
-                )
-            loader_kwargs["collate_fn"] = latent_pair_collate
-            return DataLoader(latent_dataset, **loader_kwargs)
+                raise ValueError(f"Unsupported spec kind '{spec_kind}' for graph dataset")
+
+            hidden_dim = data_cfg.get("hidden_dim", max(latent_cfg.get("dim", 32) * 2, 64))
+            encoder_cfg = MeshParticleEncoderConfig(
+                latent_len=latent_cfg.get("tokens", 16),
+                latent_dim=latent_cfg.get("dim", 32),
+                hidden_dim=hidden_dim,
+                message_passing_steps=data_cfg.get("message_passing_steps", 3),
+                supernodes=data_cfg.get("supernodes", 2048),
+                use_coords=data_cfg.get("use_coords", True),
+            )
+            graph_encoder = MeshParticleEncoder(encoder_cfg).eval().to(device)
+            return GraphLatentPairDataset(base_dataset, graph_encoder, kind=spec_kind, rollout_horizon=rollout_horizon)
+
+        for task_name in task_list:
+            spec = get_pdebench_spec(task_name)
+            if spec.kind == "grid":
+                latent_datasets.append(_make_grid_latent_dataset(task_name))
+            else:
+                latent_datasets.append(_make_graph_latent_dataset(task_name, spec.kind))
+
+        mixed = latent_datasets[0] if len(latent_datasets) == 1 else ConcatDataset(latent_datasets)
+        loader_kwargs["collate_fn"] = latent_pair_collate
+        return DataLoader(mixed, **loader_kwargs)
 
     kind = data_cfg.get("kind")
     if kind == "grid":

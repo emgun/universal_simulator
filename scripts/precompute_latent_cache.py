@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, Dataset
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 try:
     import yaml
@@ -28,7 +32,11 @@ from ups.data.latent_pairs import (
     GridLatentPairDataset,
     _build_pdebench_dataset,
     make_grid_coords,
+    GraphLatentPairDataset,
 )
+from ups.data.pdebench import get_pdebench_spec, resolve_pdebench_root
+from ups.data.datasets import MeshZarrDataset, ParticleZarrDataset
+from ups.io.enc_mesh_particle import MeshParticleEncoder, MeshParticleEncoderConfig
 
 
 def _maybe_tqdm(iterator: Iterable, total: Optional[int], *, desc: str) -> Iterable:
@@ -48,7 +56,8 @@ def _instantiate_dataset(
     cache_dtype: Optional[torch.dtype],
     rollout_horizon: int,
     use_inverse_losses: bool = False,
-) -> GridLatentPairDataset:
+    time_stride: int = 1,
+) -> Dataset:
     ds_cfg = {
         **data_cfg,
         "task": task,
@@ -56,21 +65,58 @@ def _instantiate_dataset(
         "latent_dim": latent_cfg.get("dim", 32),
         "latent_len": latent_cfg.get("tokens", 16),
     }
-    dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(ds_cfg)
-    encoder = encoder.to(device)
-    coords = make_grid_coords(grid_shape, device)
+    spec = get_pdebench_spec(task)
     ds_cache = cache_dir / f"{task}_{split}" if cache_dir else None
-    return GridLatentPairDataset(
-        dataset,
-        encoder,
-        coords,
-        grid_shape,
-        field_name=field_name,
-        device=device,
+    if spec.kind == "grid":
+        dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(ds_cfg)
+        encoder = encoder.to(device)
+        coords = make_grid_coords(grid_shape, device)
+        return GridLatentPairDataset(
+            dataset,
+            encoder,
+            coords,
+            grid_shape,
+            field_name=field_name,
+            device=device,
+            cache_dir=ds_cache,
+            cache_dtype=cache_dtype,
+            time_stride=time_stride,
+            rollout_horizon=rollout_horizon,
+            use_inverse_losses=use_inverse_losses,
+        )
+
+    data_root = resolve_pdebench_root(data_cfg.get("root"))
+    zarr_path = data_root / f"{task}_{split}.zarr"
+    if not zarr_path.exists():
+        raise FileNotFoundError(f"Expected dataset at {zarr_path} for task '{task}'")
+
+    if spec.kind == "mesh":
+        base_dataset = MeshZarrDataset(str(zarr_path), group=task)
+    elif spec.kind == "particles":
+        base_dataset = ParticleZarrDataset(str(zarr_path), group=task)
+    else:
+        raise ValueError(f"Unsupported dataset kind '{spec.kind}' for precomputing cache")
+
+    latent_dim = latent_cfg.get("dim", 32)
+    latent_tokens = latent_cfg.get("tokens", 16)
+    hidden_dim = data_cfg.get("hidden_dim", max(latent_dim * 2, 64))
+    encoder_cfg = MeshParticleEncoderConfig(
+        latent_len=latent_tokens,
+        latent_dim=latent_dim,
+        hidden_dim=hidden_dim,
+        message_passing_steps=data_cfg.get("message_passing_steps", 3),
+        supernodes=data_cfg.get("supernodes", 2048),
+        use_coords=data_cfg.get("use_coords", True),
+    )
+    graph_encoder = MeshParticleEncoder(encoder_cfg).eval().to(device)
+    return GraphLatentPairDataset(
+        base_dataset,
+        graph_encoder,
+        kind=spec.kind,
+        rollout_horizon=rollout_horizon,
         cache_dir=ds_cache,
         cache_dtype=cache_dtype,
-        rollout_horizon=rollout_horizon,
-        use_inverse_losses=use_inverse_losses,
+        time_stride=time_stride,
     )
 
 
@@ -81,7 +127,7 @@ def _count_cached_samples(cache_dir: Path) -> int:
 
 
 def _iter_dataset(
-    dataset: GridLatentPairDataset,
+    dataset: Dataset,
     *,
     batch_size: int,
     num_workers: int,
@@ -97,7 +143,8 @@ def _iter_dataset(
         pin_memory: Enable pinned memory
         use_parallel: Use parallel encoding (4-8× faster)
     """
-    if use_parallel and num_workers > 0:
+    use_parallel_loader = use_parallel and num_workers > 0 and isinstance(dataset, GridLatentPairDataset)
+    if use_parallel_loader:
         # Use parallel cache system for 4-8× speedup
         try:
             from ups.data.parallel_cache import build_parallel_latent_loader
@@ -323,10 +370,11 @@ def main() -> None:
         device = torch.device("cpu")
 
     torch.set_grad_enabled(False)
-    rollout_horizon = max(1, int(cfg.get("training", {}).get("rollout_horizon", 1)))
+    training_cfg = cfg.get("training", {})
+    rollout_horizon = max(1, int(training_cfg.get("rollout_horizon", 1)))
+    time_stride = max(1, int(training_cfg.get("time_stride", 1)))
 
     # Read UPT inverse losses flag from config
-    training_cfg = cfg.get("training", {})
     use_inverse_losses = (
         training_cfg.get("use_inverse_losses", False) or
         training_cfg.get("lambda_inv_enc", 0.0) > 0 or
@@ -339,19 +387,30 @@ def main() -> None:
     start_time = time.time()
     for task in args.tasks:
         for split in args.splits:
+            spec = get_pdebench_spec(task)
+            if spec.kind == "mesh":
+                print(f"[{task}:{split}] Mesh datasets are steady-state; latent caches are not applicable. Skipping.")
+                summary[f"{task}_{split}"] = {"num_samples": 0, "total_mb": 0.0, "skipped": "mesh dataset"}
+                continue
             ds_cache_dir = cache_root / f"{task}_{split}"
             existing = _count_cached_samples(ds_cache_dir)
-            dataset = _instantiate_dataset(
-                task=task,
-                split=split,
-                data_cfg=data_cfg,
-                latent_cfg=latent_cfg,
-                device=device,
-                cache_dir=cache_root,
-                cache_dtype=cache_dtype,
-                rollout_horizon=rollout_horizon,
-                use_inverse_losses=use_inverse_losses,
-            )
+            try:
+                dataset = _instantiate_dataset(
+                    task=task,
+                    split=split,
+                    data_cfg=data_cfg,
+                    latent_cfg=latent_cfg,
+                    device=device,
+                    cache_dir=cache_root,
+                    cache_dtype=cache_dtype,
+                    rollout_horizon=rollout_horizon,
+                    use_inverse_losses=use_inverse_losses,
+                    time_stride=time_stride,
+                )
+            except ValueError as exc:
+                print(f"[{task}:{split}] skipping cache generation: {exc}")
+                summary[f"{task}_{split}"] = {"num_samples": 0, "total_mb": 0.0, "skipped": str(exc)}
+                continue
             total_samples = len(dataset)
             target_samples = total_samples if args.limit <= 0 else min(args.limit, total_samples)
             if args.limit > 0:

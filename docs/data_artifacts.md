@@ -23,7 +23,7 @@ PYTHONPATH=src python scripts/convert_pdebench.py \
 ```
 
 ### Mesh / Particle datasets
-Mesh/particle subsets are exported to Zarr:
+Mesh/particle subsets are exported to Zarr stores that match the UPS loaders:
 ```
 PYTHONPATH=src python scripts/convert_pdebench_multimodal.py darcy2d_mesh \
   --root data/pdebench/raw --out data/pdebench --limit 10
@@ -31,7 +31,7 @@ PYTHONPATH=src python scripts/convert_pdebench_multimodal.py darcy2d_mesh \
 PYTHONPATH=src python scripts/convert_pdebench_multimodal.py particles_advect \
   --root data/pdebench/raw --out data/pdebench --limit 10
 ```
-The converter expects each `.npz` file to contain consistent keys (e.g., `points`, `cells`, `fields` or `positions`, `velocities`). All arrays are stacked along the first axis and stored with zstd compression.
+Mesh tasks expect `.npz` shards that provide `coords`, `cells`, `edges`, and Laplacian CSR arrays (`laplacian_data`, `laplacian_indices`, `laplacian_indptr`). Particle tasks expect `.npz` shards containing `positions`, `velocities`, and neighbour graph CSR data (`indices`, `indptr`, `edges`). The converter checks for these keys and materialises Zarr groups compatible with `MeshZarrDataset` and `ParticleZarrDataset`.
 
 ## 3. (Optional) Precompute latent caches
 

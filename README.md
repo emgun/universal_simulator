@@ -40,7 +40,7 @@ Repository Structure (namespaced under `ups`)
 
 Runbook (PoC)
 1) `bash scripts/prepare_env.sh && pre-commit run --all-files`
-2) `python scripts/prepare_data.py +dataset=poc_trio out=data/poc_trio.zarr`
+2) `python scripts/prepare_data.py mesh_poisson --out data/mesh_poisson.zarr`
 3) `python scripts/train.py +config=train_multi_pde.yaml stage=operator`
 4) `python scripts/train.py +config=train_multi_pde.yaml stage=diff_residual`
 5) `python scripts/train.py +config=train_multi_pde.yaml stage=consistency_distill`
@@ -52,7 +52,7 @@ Runbook (PoC)
 
 Artifact Workflow (scaling)
 - Package datasets with conversion scripts and upload once: `python scripts/upload_artifact.py <name> dataset artifacts/<file>.tar.gz` (metadata resides in `docs/dataset_registry.yaml`).
-- Convert raw PDEBench shards with `python scripts/convert_pdebench_multimodal.py burgers1d ...` (see `docs/data_artifacts.md`).
+- Convert raw PDEBench shards with `python scripts/convert_pdebench_multimodal.py burgers1d ...` (see `docs/data_artifacts.md` for task-specific options).
 - Hydrate datasets on any machine via registry helper: `python scripts/fetch_datasets.py burgers1d_subset_v1 --root data/pdebench --cache artifacts/cache`.
 - Remote scale run: `WANDB_DATASETS="burgers1d_subset_v1" bash scripts/run_remote_scale.sh` (downloads datasets, runs staged training/eval).
 - Reproduce published checkpoints: `bash scripts/repro_pdebench.sh` with `DATASETS`, `CHECKPOINT`, and `DIFFUSION_CHECKPOINT` env vars pointing to W&B artifacts.

@@ -16,11 +16,12 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Callable
 import warnings
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from ups.data.pdebench import get_pdebench_spec  # type: ignore
 
 def check_file_exists(filepath: Path) -> Tuple[bool, str]:
     """Check if file exists and is accessible."""
@@ -165,8 +166,21 @@ def validate_data_shapes(filepath: Path, expected_task: str) -> Tuple[bool, str]
         return False, f"Error checking shapes: {e}"
 
 
-def validate_dataset(data_root: Path, task: str, split: str) -> bool:
-    """Validate entire dataset for a task/split."""
+def check_path_exists(path: Path) -> Tuple[bool, str]:
+    if not path.exists():
+        return False, f"Path does not exist: {path}"
+    return True, f"Path exists ({path})"
+
+
+def _require_zarr() -> Tuple[bool, Optional[str], Optional["object"]]:
+    try:
+        import zarr  # type: ignore
+        return True, None, zarr
+    except ImportError:
+        return False, "zarr not installed; `pip install zarr` to validate this dataset type.", None
+
+
+def _validate_grid_dataset(data_root: Path, task: str, split: str) -> bool:
     print(f"\n{'='*70}")
     print(f"🔍 Validating Dataset: {task} ({split} split)")
     print(f"{'='*70}")
@@ -220,6 +234,119 @@ def validate_dataset(data_root: Path, task: str, split: str) -> bool:
         all_passed = False
     
     return all_passed
+
+
+def _validate_mesh_dataset(data_root: Path, task: str, split: str) -> bool:
+    print(f"\n{'='*70}")
+    print(f"🔍 Validating Mesh Dataset: {task} ({split} split)")
+    print(f"{'='*70}")
+    path = data_root / f"{task}_{split}.zarr"
+    exists, msg = check_path_exists(path)
+    status = "✅" if exists else "❌"
+    print(f"\n📁 Check 1: Path Existence\n{'─'*70}\n{status} {msg}")
+    if not exists:
+        return False
+
+    ok, err, zarr_module = _require_zarr()
+    if not ok or zarr_module is None:
+        print(f"\n❌ {err}")
+        return False
+
+    all_passed = True
+    try:
+        store = zarr_module.open(str(path), mode="r")
+        if task not in store:
+            print(f"\n❌ Group '{task}' not found inside Zarr store.")
+            return False
+        group = store[task]
+        sample_names = list(group.group_keys())
+        if not sample_names:
+            print("\n❌ No mesh samples found in Zarr store.")
+            return False
+        sample = group[sample_names[0]]
+        print(f"\n🔬 Sample '{sample_names[0]}' summary")
+        coords = sample["coords"][:]
+        edges = sample["edges"][:]
+        cells = sample["cells"][:]
+        lap_group = sample.get("laplacian")
+        if lap_group is None:
+            print("❌ Missing 'laplacian' group for mesh sample.")
+            return False
+        print(f"   coords shape: {coords.shape}")
+        print(f"   edges shape: {edges.shape}")
+        print(f"   cells shape: {cells.shape}")
+        if coords.ndim != 2 or coords.shape[1] not in (2, 3):
+            print("❌ Mesh coordinates must be 2D arrays of XY or XYZ positions.")
+            all_passed = False
+        if edges.shape[-1] != 2:
+            print("❌ Mesh edges must be pairs of node indices.")
+            all_passed = False
+        if cells.shape[-1] not in (3, 4):
+            print("⚠️ Mesh cells usually have 3 or 4 nodes; verify upstream data.")
+        print("✅ Laplacian CSR arrays present")
+    except Exception as exc:
+        print(f"❌ Failed to inspect mesh dataset: {exc}")
+        return False
+    return all_passed
+
+
+def _validate_particle_dataset(data_root: Path, task: str, split: str) -> bool:
+    print(f"\n{'='*70}")
+    print(f"🔍 Validating Particle Dataset: {task} ({split} split)")
+    print(f"{'='*70}")
+    path = data_root / f"{task}_{split}.zarr"
+    exists, msg = check_path_exists(path)
+    status = "✅" if exists else "❌"
+    print(f"\n📁 Check 1: Path Existence\n{'─'*70}\n{status} {msg}")
+    if not exists:
+        return False
+
+    ok, err, zarr_module = _require_zarr()
+    if not ok or zarr_module is None:
+        print(f"\n❌ {err}")
+        return False
+
+    try:
+        store = zarr_module.open(str(path), mode="r")
+        if task not in store:
+            print(f"\n❌ Group '{task}' not found inside Zarr store.")
+            return False
+        group = store[task]
+        sample_names = list(group.group_keys())
+        if not sample_names:
+            print("\n❌ No particle samples found in Zarr store.")
+            return False
+        sample = group[sample_names[0]]
+        positions = sample["positions"][:]
+        velocities = sample["velocities"][:]
+        neighbors = sample.get("neighbors")
+        if neighbors is None:
+            print("❌ Missing 'neighbors' group for particle sample.")
+            return False
+        print(f"\n🔬 Sample '{sample_names[0]}' summary")
+        print(f"   positions shape: {positions.shape}")
+        print(f"   velocities shape: {velocities.shape}")
+        print(f"   neighbor edges: {neighbors['edges'][:].shape}")
+        if positions.shape != velocities.shape:
+            print("❌ Positions/velocities must share shape.")
+            return False
+        if positions.shape[-1] not in (2, 3):
+            print("⚠️ Particle positions should include 2D or 3D coordinates.")
+        return True
+    except Exception as exc:
+        print(f"❌ Failed to inspect particle dataset: {exc}")
+        return False
+
+
+def validate_dataset(data_root: Path, task: str, split: str) -> bool:
+    spec = get_pdebench_spec(task)
+    if spec.kind == "grid":
+        return _validate_grid_dataset(data_root, task, split)
+    if spec.kind == "mesh":
+        return _validate_mesh_dataset(data_root, task, split)
+    if spec.kind == "particles":
+        return _validate_particle_dataset(data_root, task, split)
+    raise ValueError(f"Unsupported dataset kind '{spec.kind}' for task '{task}'")
 
 
 def main():
@@ -286,4 +413,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

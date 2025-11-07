@@ -18,14 +18,39 @@ class PDEBenchSpec:
     target_key: Optional[str] = None
     param_keys: Tuple[str, ...] = ()
     bc_keys: Tuple[str, ...] = ()
+    kind: str = "grid"  # one of {"grid", "mesh", "particles"}
 
 
 TASK_SPECS: Dict[str, PDEBenchSpec] = {
+    # Grid-based PDEBench tasks (HDF5)
     "burgers1d": PDEBenchSpec(field_key="data"),
     "advection1d": PDEBenchSpec(field_key="data"),
     "darcy2d": PDEBenchSpec(field_key="data"),
     "navier_stokes2d": PDEBenchSpec(field_key="data"),
+    "allen_cahn2d": PDEBenchSpec(field_key="data"),
+    "cahn_hilliard2d": PDEBenchSpec(field_key="data"),
+    "reaction_diffusion2d": PDEBenchSpec(field_key="data"),
+    "shallow_water2d": PDEBenchSpec(field_key="data"),
+    # Mesh / particle variants (Zarr)
+    "darcy2d_mesh": PDEBenchSpec(field_key="data", kind="mesh"),
+    "particles_advect": PDEBenchSpec(field_key="data", kind="particles"),
 }
+
+
+def get_pdebench_spec(task: str) -> PDEBenchSpec:
+    spec = TASK_SPECS.get(task)
+    if spec is None:
+        raise KeyError(f"Unknown PDEBench task '{task}'")
+    return spec
+
+
+def resolve_pdebench_root(root: Optional[str]) -> Path:
+    env_root = os.environ.get("PDEBENCH_ROOT")
+    if env_root:
+        return Path(env_root)
+    if root is None:
+        raise ValueError("Either specify data.root or set PDEBENCH_ROOT")
+    return Path(root)
 
 
 @dataclass
@@ -63,15 +88,10 @@ class PDEBenchDataset(Dataset):
             # Allow environment override for convenience in remote runs.
             # If PDEBENCH_ROOT is set, it takes precedence over cfg.root to
             # avoid brittle symlink requirements on remote instances.
-            env_root = os.environ.get("PDEBENCH_ROOT")
-            if env_root:
-                cfg.root = env_root
-            elif cfg.root is None:
-                raise ValueError("Either tensor_data or cfg.root must be provided")
-            spec = TASK_SPECS.get(cfg.task)
-            if spec is None:
-                raise KeyError(f"Unknown PDEBench task '{cfg.task}'")
-            base = Path(cfg.root)
+            spec = get_pdebench_spec(cfg.task)
+            if spec.kind != "grid":
+                raise ValueError(f"PDEBenchDataset only supports grid tasks; got '{cfg.task}'")
+            base = resolve_pdebench_root(cfg.root)
             file_path = base / f"{cfg.task}_{cfg.split}.h5"
             shard_paths = []
             if file_path.exists():
