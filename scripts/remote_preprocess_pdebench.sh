@@ -30,13 +30,25 @@ fi
 pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 pip install -e .[dev]
 
-# Setup B2 rclone
+# Setup B2 rclone (check if env vars are set)
+if [ -z "${B2_KEY_ID:-}" ]; then
+  echo "⚠️  B2 credentials not found in environment"
+  echo "   Checking for saved credentials..."
+  if [ -f ~/.bashrc ] && grep -q "B2_KEY_ID" ~/.bashrc; then
+    source ~/.bashrc
+    echo "   ✓ Loaded from ~/.bashrc"
+  else
+    echo "   ✗ No saved credentials found"
+    echo "   B2 uploads will fail without credentials"
+  fi
+fi
+
 export RCLONE_CONFIG_B2TRAIN_TYPE=s3
 export RCLONE_CONFIG_B2TRAIN_PROVIDER=Other
-export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="$B2_KEY_ID"
-export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY="$B2_APP_KEY"
-export RCLONE_CONFIG_B2TRAIN_ENDPOINT="$B2_S3_ENDPOINT"
-export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
+export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="${B2_KEY_ID:-}"
+export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY="${B2_APP_KEY:-}"
+export RCLONE_CONFIG_B2TRAIN_ENDPOINT="${B2_S3_ENDPOINT:-}"
+export RCLONE_CONFIG_B2TRAIN_REGION="${B2_S3_REGION:-}"
 export RCLONE_CONFIG_B2TRAIN_ACL=private
 export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 

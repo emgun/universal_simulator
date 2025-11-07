@@ -873,8 +873,14 @@ def cmd_preprocess(args: argparse.Namespace) -> None:
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-# Setup environment
+# Setup environment and persist to ~/.bashrc for future SSH sessions
 {profile_entries}
+
+# Save env vars to ~/.bashrc for persistence across SSH sessions
+cat >> ~/.bashrc << 'ENV_EOF'
+# UPS environment variables (added by bootstrap)
+{profile_entries}
+ENV_EOF
 
 # Kill and disable unattended-upgrades to prevent dpkg lock contention
 echo "→ Disabling unattended-upgrades..."
