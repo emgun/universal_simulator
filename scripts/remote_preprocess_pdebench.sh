@@ -35,7 +35,11 @@ if [ -z "${B2_KEY_ID:-}" ]; then
   echo "⚠️  B2 credentials not found in environment"
   echo "   Checking for saved credentials..."
   if [ -f ~/.bashrc ] && grep -q "B2_KEY_ID" ~/.bashrc; then
-    source ~/.bashrc
+    # Temporarily disable unset variable check when sourcing .bashrc
+    # (Ubuntu's default .bashrc may reference unset variables)
+    set +u
+    source ~/.bashrc 2>/dev/null || true
+    set -u
     echo "   ✓ Loaded from ~/.bashrc"
   else
     echo "   ✗ No saved credentials found"
