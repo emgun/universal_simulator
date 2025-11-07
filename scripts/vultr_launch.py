@@ -496,7 +496,8 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
 
         # Multi-task symlink creation (supports both single and multiple tasks)
         echo "📁 Creating symlinks for tasks: {' '.join(tasks)}"
-"""
+        """
+    ).strip()
 
     # Generate symlink commands for each task
     for task in tasks:
@@ -524,7 +525,6 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         source /opt/ups-venv/bin/activate
         {run_command}
         """
-    ).strip()
 
     script = textwrap.dedent(
         f"""\
