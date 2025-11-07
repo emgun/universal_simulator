@@ -27,6 +27,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -46,6 +47,32 @@ DEFAULT_VOLUME_MOUNT = Path("/mnt/cache")
 PREFERRED_REGIONS = ("sjc", "sea", "lax")
 DEFAULT_OS_ID = 1743  # Ubuntu 22.04 LTS x64
 VULTR_API_BASE = "https://api.vultr.com/v2"
+
+
+def extract_tasks_from_config(config_path: str) -> list[str]:
+    """Extract task list from config file. Returns list of task names."""
+    try:
+        config_file = Path(config_path)
+        if not config_file.is_absolute():
+            config_file = REPO_ROOT / config_file
+
+        if not config_file.exists():
+            print(f"⚠️  Config file not found: {config_file}, defaulting to burgers1d")
+            return ["burgers1d"]
+
+        with open(config_file) as f:
+            cfg = yaml.safe_load(f)
+
+        task_cfg = cfg.get("data", {}).get("task", "burgers1d")
+
+        # Handle both list and single task formats
+        if isinstance(task_cfg, list):
+            return task_cfg
+        else:
+            return [task_cfg]
+    except Exception as e:
+        print(f"⚠️  Failed to parse config: {e}, defaulting to burgers1d")
+        return ["burgers1d"]
 
 
 def load_env() -> dict[str, str]:
@@ -328,6 +355,9 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     branch = config.branch
     workdir = config.workdir.as_posix()
     env_exports = dict(config.env_exports)
+
+    # Extract tasks from config for multi-task support
+    tasks = extract_tasks_from_config(str(config.config_path))
     wandb_env = {
         key: env_exports[key]
         for key in ("WANDB_API_KEY", "WANDB_PROJECT", "WANDB_ENTITY")
@@ -462,18 +492,30 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         ln -snf {DEFAULT_VOLUME_MOUNT}/checkpoints checkpoints
         ln -snf {DEFAULT_VOLUME_MOUNT}/artifacts artifacts
 
-        if [ -f data/pdebench/burgers1d_train.h5 ]; then rm -f data/pdebench/burgers1d_train.h5; fi
-        if [ -f data/pdebench/burgers1d_valid.h5 ]; then rm -f data/pdebench/burgers1d_valid.h5; fi
-        if [ -f data/pdebench/burgers1d_val.h5 ]; then rm -f data/pdebench/burgers1d_val.h5; fi
-
         mkdir -p data/pdebench
-        if [ -f {DEFAULT_VOLUME_MOUNT}/data/full/burgers1d/burgers1d_train_000.h5 ]; then
-            ln -snf {DEFAULT_VOLUME_MOUNT}/data/full/burgers1d/burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5
+
+        # Multi-task symlink creation (supports both single and multiple tasks)
+        echo "📁 Creating symlinks for tasks: {' '.join(tasks)}"
+"""
+
+    # Generate symlink commands for each task
+    for task in tasks:
+        bootstrap_body += f"""
+        # Symlinks for {task}
+        if [ -f data/pdebench/{task}_train.h5 ]; then rm -f data/pdebench/{task}_train.h5; fi
+        if [ -f data/pdebench/{task}_valid.h5 ]; then rm -f data/pdebench/{task}_valid.h5; fi
+        if [ -f data/pdebench/{task}_val.h5 ]; then rm -f data/pdebench/{task}_val.h5; fi
+
+        if [ -f {DEFAULT_VOLUME_MOUNT}/data/full/{task}/{task}_train.h5 ]; then
+            ln -snf {DEFAULT_VOLUME_MOUNT}/data/full/{task}/{task}_train.h5 data/pdebench/{task}_train.h5
         fi
-        if [ -f {DEFAULT_VOLUME_MOUNT}/data/pdebench/burgers1d_full_v1/burgers1d_val.h5 ]; then
-            ln -snf {DEFAULT_VOLUME_MOUNT}/data/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/burgers1d_valid.h5
-            ln -snf data/pdebench/burgers1d_valid.h5 data/pdebench/burgers1d_val.h5
+        if [ -f {DEFAULT_VOLUME_MOUNT}/data/full/{task}/{task}_val.h5 ]; then
+            ln -snf {DEFAULT_VOLUME_MOUNT}/data/full/{task}/{task}_val.h5 data/pdebench/{task}_val.h5
         fi
+"""
+
+    bootstrap_body += """
+        echo "✓ Symlink creation complete"
 
         nvidia-smi || true
         dd if=/dev/zero of={DEFAULT_VOLUME_MOUNT}/.nvme_test bs=1M count=512 oflag=direct status=none && rm -f {DEFAULT_VOLUME_MOUNT}/.nvme_test || true

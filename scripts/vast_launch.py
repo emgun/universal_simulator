@@ -64,6 +64,32 @@ def git_current_branch() -> str:
         return "feature/sota_burgers_upgrades"  # fallback
 
 
+def extract_tasks_from_config(config_path: str) -> list[str]:
+    """Extract task list from config file. Returns list of task names."""
+    try:
+        config_file = Path(config_path)
+        if not config_file.is_absolute():
+            config_file = REPO_ROOT / config_file
+
+        if not config_file.exists():
+            print(f"⚠️  Config file not found: {config_file}, defaulting to burgers1d")
+            return ["burgers1d"]
+
+        with open(config_file) as f:
+            cfg = yaml.safe_load(f)
+
+        task_cfg = cfg.get("data", {}).get("task", "burgers1d")
+
+        # Handle both list and single task formats
+        if isinstance(task_cfg, list):
+            return task_cfg
+        else:
+            return [task_cfg]
+    except Exception as e:
+        print(f"⚠️  Failed to parse config: {e}, defaulting to burgers1d")
+        return ["burgers1d"]
+
+
 def generate_onstart_script(
     config: str,
     stage: str = "all",
@@ -107,6 +133,9 @@ def generate_onstart_script(
 
     # Use relative path for the actual config parameter in the script
     config_for_script = train_cfg_path.as_posix()
+
+    # Extract tasks from config for multi-task download support
+    tasks = extract_tasks_from_config(config)
 
     # Try to inline the training config contents so remote runs do not depend
     # on the Git branch containing local, unpushed changes.
@@ -170,26 +199,30 @@ export RCLONE_CONFIG_B2TRAIN_ACL=private
 export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 
 mkdir -p data/pdebench
-# Download all files in parallel (backgrounded with &)
-if [ ! -f data/pdebench/burgers1d_train_000.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress &
-fi
-if [ ! -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
-  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_val.h5 data/pdebench/ --progress &
-fi
-if [ ! -f data/pdebench/burgers1d_test.h5 ]; then
-  rclone copy B2TRAIN:PDEbench/pdebench/burgers1d_full_v1/burgers1d_test.h5 data/pdebench/ --progress &
-fi
 
+# Multi-task parallel download (supports both single and multiple tasks)
+echo "📥 Downloading data for tasks: {' '.join(tasks)}"
+"""
+
+    # Generate download commands for each task
+    for task in tasks:
+        script += f"""
+# Download {task}
+if [ ! -f data/pdebench/{task}_train.h5 ]; then
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress &
+fi
+if [ ! -f data/pdebench/{task}_val.h5 ]; then
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_val.h5 data/pdebench/ --progress &
+fi
+if [ ! -f data/pdebench/{task}_test.h5 ]; then
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_test.h5 data/pdebench/ --progress &
+fi
+"""
+
+    script += """
 # Wait for all downloads to complete
 wait
-
-# Continue with file management after downloads finish
-if [ -f data/pdebench/burgers1d_val.h5 ] && [ ! -f data/pdebench/burgers1d_valid.h5 ]; then
-  mv -f data/pdebench/burgers1d_val.h5 data/pdebench/burgers1d_valid.h5 || true
-fi
-ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 || true
-ln -sf burgers1d_valid.h5 data/pdebench/burgers1d_val.h5 || true
+echo "✓ Data downloads complete"
 
 # Checkpoint handling: clear for fresh start OR download from WandB for resume
 {"# RESUME MODE: Download checkpoints from WandB" if resume_from_wandb else "# FRESH START: Clear checkpoints"}
@@ -221,7 +254,7 @@ print(f'✓ Configured WandB to resume run: {{run_id}}')
 ''' if resume_from_wandb else ""}
 {inline_block}
 
-{('echo "Precomputing latent caches…"\nPYTHONPATH=src python scripts/precompute_latent_cache.py --config ' + config_for_script + ' --tasks burgers1d --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 4 --pin-memory --parallel || echo "⚠️  Latent cache precompute failed (continuing)"') if precompute else 'echo "Skipping latent cache precompute (quick-run)"'}
+{('echo "Precomputing latent caches for tasks: ' + ' '.join(tasks) + '…"\nPYTHONPATH=src python scripts/precompute_latent_cache.py --config ' + config_for_script + ' --tasks ' + ' '.join(tasks) + ' --splits train val --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 4 --pin-memory --parallel || echo "⚠️  Latent cache precompute failed (continuing)"') if precompute else 'echo "Skipping latent cache precompute (quick-run)"'}
 
 export WANDB_MODE=online
 
