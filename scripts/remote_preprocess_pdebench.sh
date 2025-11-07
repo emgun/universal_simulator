@@ -53,6 +53,9 @@ download_pids=()
 
 for task in $TASKS; do
   (
+    # IMPORTANT: cd into PDEBench for each subshell (CSV file location)
+    cd /tmp/PDEBench || exit 1
+
     echo "→ Downloading $task..."
     # Map UPS task names to PDEBench download names
     case $task in
