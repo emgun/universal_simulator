@@ -924,18 +924,34 @@ def latent_pair_collate(batch):
     fields_list = [item.input_fields for item in batch if item.input_fields is not None]
     if fields_list:
         # Collate input_fields dicts
-        field_names = set()
-        for f in fields_list:
-            field_names.update(f.keys())
-        input_fields = {}
-        for name in field_names:
-            tensors = [f[name] for f in fields_list if name in f]
-            if tensors:
-                input_fields[name] = torch.cat(tensors, dim=0)
+        # For multi-task batches, tasks may have different spatial dimensions
+        # Skip collation if dimension mismatch (input_fields only used for inverse losses)
+        try:
+            field_names = set()
+            for f in fields_list:
+                field_names.update(f.keys())
+            input_fields = {}
+            for name in field_names:
+                tensors = [f[name] for f in fields_list if name in f]
+                if tensors:
+                    input_fields[name] = torch.cat(tensors, dim=0)
+        except RuntimeError as e:
+            if "Sizes of tensors must match" in str(e):
+                # Mixed task batch with different spatial dims - skip input_fields
+                input_fields = None
+            else:
+                raise
 
     coords_list = [item.coords for item in batch if item.coords is not None]
     if coords_list:
-        coords = torch.cat(coords_list, dim=0)
+        try:
+            coords = torch.cat(coords_list, dim=0)
+        except RuntimeError as e:
+            if "Sizes of tensors must match" in str(e):
+                # Mixed task batch with different spatial dims - skip coords
+                coords = None
+            else:
+                raise
 
     # Meta is typically the same for all samples, just take the first
     meta_list = [item.meta for item in batch if item.meta is not None]
