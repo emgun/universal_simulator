@@ -523,7 +523,7 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         fi
 """
 
-    bootstrap_body += """
+    bootstrap_body += f"""
         echo "✓ Symlink creation complete"
 
         nvidia-smi || true
@@ -534,16 +534,18 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         {run_command}
         """
 
-    script = textwrap.dedent(
-        f"""\
-        #cloud-config
-        runcmd:
-          - [ bash, -lc, "cat <<'EOF_BOOT' >/root/ups_bootstrap.sh\\n{bootstrap_body}\\nEOF_BOOT" ]
-          - [ bash, -lc, "chmod +x /root/ups_bootstrap.sh" ]
-          - [ bash, -lc, "/root/ups_bootstrap.sh" ]
-        """
-    ).strip()
-    return script
+    # Use write_files + runcmd for more reliable cloud-init (avoids nested heredoc issues)
+    script = f"""#cloud-config
+write_files:
+  - path: /root/ups_bootstrap.sh
+    permissions: '0755'
+    content: |
+{textwrap.indent(bootstrap_body, '      ')}
+
+runcmd:
+  - [ nohup, /root/ups_bootstrap.sh, '>', /root/bootstrap.log, '2>&1', '&' ]
+"""
+    return script.strip()
 
 
 # -------------------- CLI commands -------------------- #
@@ -745,10 +747,15 @@ def cmd_launch(args: argparse.Namespace) -> None:
         print(cloud_init)
         return
 
-    print("Creating block volume…")
-    volume_id = provider.provision_volume(volume_spec)
-    provider.wait_for_volume(volume_id)
-    print(f"✓ Volume {volume_id} active.")
+    # Create volume only if size > 0
+    volume_id = None
+    if launch_args.volume_size > 0:
+        print("Creating block volume…")
+        volume_id = provider.provision_volume(volume_spec)
+        provider.wait_for_volume(volume_id)
+        print(f"✓ Volume {volume_id} active.")
+    else:
+        print("⏩ Skipping block volume (volume_size=0)")
 
     launch_spec = LaunchSpec(
         plan_id=spec.plan_id,
@@ -765,13 +772,15 @@ def cmd_launch(args: argparse.Namespace) -> None:
     print("Waiting for instance to boot…")
     provider.wait_for_instance(instance_id)
 
-    print("Attaching block volume…")
-    provider.attach_volume(instance_id, volume_id)
-    print("✓ Attach request submitted.")
+    if volume_id:
+        print("Attaching block volume…")
+        provider.attach_volume(instance_id, volume_id)
+        print("✓ Attach request submitted.")
 
     print("Launch complete.")
     print(f"Instance ID: {instance_id}")
-    print(f"Volume ID:   {volume_id}")
+    if volume_id:
+        print(f"Volume ID:   {volume_id}")
     print("Use `python scripts/vultr_launch.py status --instance <id>` to monitor.")
 
 
