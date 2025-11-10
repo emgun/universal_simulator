@@ -445,7 +445,7 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     # Build env setup without heredoc to avoid indentation issues in cloud-init
     env_setup_lines = "\n".join(
         f"echo {shlex.quote(f'export {key}={shlex.quote(value)}')} >> /etc/profile.d/ups_env.sh"
-        for key, value in cfg.env_exports.items() if value
+        for key, value in env_exports.items() if value
     )
 
     bootstrap_body = textwrap.dedent(
