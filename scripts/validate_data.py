@@ -364,7 +364,7 @@ def main():
             from ups.utils.config_loader import load_config_with_includes
             cfg = load_config_with_includes(args.config)
             data_root = Path(cfg.get("data", {}).get("root", "data/pdebench"))
-            task = cfg.get("data", {}).get("task", "burgers1d")
+            task_config = cfg.get("data", {}).get("task", "burgers1d")
             split = args.split if not args.all_splits else None
         except Exception as e:
             print(f"❌ Failed to load config: {e}")
@@ -377,14 +377,20 @@ def main():
             sys.exit(1)
         
         data_root = Path(args.data_root)
-        task = args.task
+        task_config = args.task
         split = args.split if not args.all_splits else None
-    
+
+    # Normalize into list for multi-task configs
+    if isinstance(task_config, (list, tuple)):
+        task_list = list(task_config)
+    else:
+        task_list = [task_config]
+
     print(f"\n{'='*70}")
     print("🔍 DATA VALIDATION")
     print(f"{'='*70}")
     print(f"Data Root: {data_root}")
-    print(f"Task: {task}")
+    print(f"Task(s): {', '.join(task_list)}")
     
     # Validate requested splits
     if args.all_splits:
@@ -393,9 +399,10 @@ def main():
         splits = [split]
     
     all_passed = True
-    for split_name in splits:
-        passed = validate_dataset(data_root, task, split_name)
-        all_passed = all_passed and passed
+    for task in task_list:
+        for split_name in splits:
+            passed = validate_dataset(data_root, task, split_name)
+            all_passed = all_passed and passed
     
     # Final summary
     print(f"\n{'='*70}")
