@@ -442,6 +442,12 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     sync_section = sync_cmd if sync_cmd != "true" else "true"
     rclone_config_block = rclone_config_content if rclone_config_content else ""
 
+    # Build env setup without heredoc to avoid indentation issues in cloud-init
+    env_setup_lines = "\n".join(
+        f"echo {shlex.quote(f'export {key}={shlex.quote(value)}')} >> /etc/profile.d/ups_env.sh"
+        for key, value in cfg.env_exports.items() if value
+    )
+
     bootstrap_body = textwrap.dedent(
         f"""
         #!/usr/bin/env bash
@@ -450,11 +456,17 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         export DEBIAN_FRONTEND=noninteractive
 
         apt-get update
-        apt-get install -y git build-essential python3 python3-pip python3-venv python3-dev python-is-python3 rclone nvidia-driver-550 nvidia-cuda-toolkit jq || true
+        apt-get install -y git build-essential python3 python3-pip python3-venv python3-dev python-is-python3 rclone jq || true
 
-        cat <<'EOF_ENV' >/etc/profile.d/ups_env.sh
-        {profile_entries}
-        EOF_ENV
+        # Workaround for Vultr's incompatible NVIDIA driver
+        # Remove Vultr's installed driver and install compatible version
+        apt-get remove --purge -y 'nvidia-*' || true
+        apt-get autoremove -y || true
+        apt-get install -y nvidia-driver-550 nvidia-cuda-toolkit || true
+        modprobe nvidia || true
+
+        # Setup environment variables
+        {env_setup_lines}
 
         source /etc/profile.d/ups_env.sh || true
 
@@ -488,9 +500,9 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         mkdir -p {DEFAULT_VOLUME_MOUNT}/data {DEFAULT_VOLUME_MOUNT}/checkpoints {DEFAULT_VOLUME_MOUNT}/artifacts
 
         mkdir -p /root/.config/rclone
-        cat <<'EOF_RCLONE' >/root/.config/rclone/rclone.conf
+        cat >/root/.config/rclone/rclone.conf <<'EOF_RCLONE'
 {rclone_config_block}
-        EOF_RCLONE
+EOF_RCLONE
 
         {sync_section}
 
@@ -534,13 +546,16 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         {run_command}
         """
 
-    # Use write_files + runcmd for more reliable cloud-init (avoids nested heredoc issues)
+    # Use write_files with base64 encoding to avoid heredoc indentation issues
+    import base64
+    bootstrap_b64 = base64.b64encode(bootstrap_body.encode('utf-8')).decode('ascii')
+
     script = f"""#cloud-config
 write_files:
   - path: /root/ups_bootstrap.sh
     permissions: '0755'
-    content: |
-{textwrap.indent(bootstrap_body, '      ')}
+    encoding: b64
+    content: {bootstrap_b64}
 
 runcmd:
   - [ nohup, /root/ups_bootstrap.sh, '>', /root/bootstrap.log, '2>&1', '&' ]
