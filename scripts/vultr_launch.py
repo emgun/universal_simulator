@@ -551,6 +551,13 @@ EOF_RCLONE
     bootstrap_b64 = base64.b64encode(bootstrap_body.encode('utf-8')).decode('ascii')
 
     script = f"""#cloud-config
+bootcmd:
+  - [ sh, -c, 'chmod -x /var/lib/vultr/gpuhook.sh 2>/dev/null || true' ]
+  - [ sh, -c, 'mv /var/lib/vultr/gpuhook.sh /var/lib/vultr/gpuhook.sh.disabled 2>/dev/null || true' ]
+  - [ sh, -c, 'export DEBIAN_FRONTEND=noninteractive && apt-mark hold nvidia-driver-580 2>/dev/null || true' ]
+  - [ sh, -c, 'export DEBIAN_FRONTEND=noninteractive && apt-get remove --purge -y nvidia-driver-580 2>/dev/null || true' ]
+  - [ sh, -c, 'export DEBIAN_FRONTEND=noninteractive && apt-get autoremove -y 2>/dev/null || true' ]
+
 write_files:
   - path: /root/ups_bootstrap.sh
     permissions: '0755'
