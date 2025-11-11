@@ -1,6 +1,7 @@
-# 2-Task 192d: advection1d + darcy2d with increased latent capacity
+# 2-Task 192d: advection1d + darcy2d with increased latent capacity (OPTIMIZED)
 # Purpose: Scale from 128d (NRMSE 0.1925) to 192d for < 0.15 target
 # Capacity: 2.25× increase vs 128d baseline
+# Optimizations: Reduced queries, reduced inverse loss freq, simpler physics priors
 
 seed: 42
 deterministic: false
@@ -38,54 +39,54 @@ diffusion:
   hidden_dim: 576   # Match operator
 
 training:
-  batch_size: 6     # Reduce from 8 (larger latent size)
-  accum_steps: 8    # Effective batch = 48
+  batch_size: 8     # Optimized: increase batch size for speed
+  accum_steps: 6    # Effective batch = 48 (same)
   time_stride: 2
   dt: 0.1
   patience: 10
 
-  num_workers: 0  # Avoid deadlock with PreloadedCache
+  num_workers: 4  # OPTIMIZED: Increase for faster data loading (cache disabled)
   use_parallel_encoding: true
   pin_memory: true
   prefetch_factor: 4
 
   amp: true
-  compile: false
+  compile: true  # OPTIMIZED: Enable for ~20-30% speedup
   grad_clip: null
   ema_decay: 0.999
 
-  # UPT Inverse Losses (from Phase 4)
+  # UPT Inverse Losses (from Phase 4) - OPTIMIZED
   lambda_inv_enc: 0.01
   lambda_inv_dec: 0.01
   use_inverse_losses: true
-  inverse_loss_frequency: 1
+  inverse_loss_frequency: 3     # Every 3 epochs (was 1) - 3x faster
   inverse_loss_warmup_epochs: 5
   inverse_loss_max_weight: 0.05
 
-  # Query-Based Training (Phase 4.1)
+  # Query-Based Training (Phase 4.1) - OPTIMIZED
   query_sampling:
     enabled: true
-    num_queries: 2048
+    num_queries: 1024  # Reduced from 2048 - 2x faster
     strategy: uniform
 
-  # Physics Priors + Latent Regularization (Phase 4.2 + 4.3)
+  # Physics Priors + Latent Regularization (Phase 4.2 + 4.3) - OPTIMIZED
   physics_priors:
-    enabled: true
+    enabled: false    # Disabled for speed (was true)
     lambda_divergence: 0.0
     lambda_conservation: 0.0
-    lambda_boundary: 0.05
+    lambda_boundary: 0.0   # Disabled (was 0.05)
     lambda_positivity: 0.0
-    lambda_latent_norm: 1.0e-4
-    lambda_latent_diversity: 1.0e-4
+    lambda_latent_norm: 0.0      # Disabled (was 1.0e-4)
+    lambda_latent_diversity: 0.0  # Disabled (was 1.0e-4)
 
-  lambda_spectral: 0.05
+  lambda_spectral: 0.05  # Keep spectral loss (important)
 
   # Per-task metric logging
   log_per_task_metrics: true
 
 stages:
   operator:
-    epochs: 40      # Match golden config
+    epochs: 30      # Reduced from 40 for speed (1.33x faster)
 
     optimizer:
       name: muon_hybrid
@@ -117,7 +118,7 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    tags: [pdebench, multi-task, 2task-192d, capacity-scaling]
+    tags: [pdebench, multi-task, 2task-192d, capacity-scaling, optimized]
 
 evaluation:
   enabled: true
