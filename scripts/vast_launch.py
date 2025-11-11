@@ -219,7 +219,7 @@ if [ ! -f data/pdebench/{task}_test.h5 ]; then
 fi
 """
 
-    script += """
+    script += f"""
 # Wait for all downloads to complete
 wait
 echo "✓ Data downloads complete"
@@ -265,7 +265,7 @@ PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_sc
         cache_cmd = 'echo "Skipping latent cache precompute (quick-run)"\n'
 
     script += cache_cmd
-    script += """
+    script += f"""
 
 export WANDB_MODE=online
 
