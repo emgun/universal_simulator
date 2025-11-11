@@ -51,7 +51,7 @@ training:
   prefetch_factor: 4
 
   amp: true
-  compile: true  # OPTIMIZED: Enable for ~20-30% speedup
+  compile: false  # Disabled to avoid torch compile disk space issues (saves ~10-20GB /tmp)
   grad_clip: null
   ema_decay: 0.999
 
