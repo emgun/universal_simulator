@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import io
 import os
-from pathlib import Path
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from pathlib import Path
+from typing import Any
 
 import torch
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data import ConcatDataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 from ups.data.datasets import GridZarrDataset, MeshZarrDataset, ParticleZarrDataset
 from ups.data.pdebench import (
@@ -23,7 +23,7 @@ from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.io.enc_mesh_particle import MeshParticleEncoder, MeshParticleEncoderConfig
 
 
-def infer_grid_shape(fields: torch.Tensor) -> Tuple[int, int]:
+def infer_grid_shape(fields: torch.Tensor) -> tuple[int, int]:
     """Return (H, W) for a PDEBench sample tensor."""
 
     if fields.dim() == 4:  # (T, H, W, C) or (T, C, H, W)
@@ -41,7 +41,7 @@ def infer_grid_shape(fields: torch.Tensor) -> Tuple[int, int]:
     raise ValueError(f"Unsupported PDEBench field shape {tuple(fields.shape)}")
 
 
-def infer_channel_count(fields: torch.Tensor, grid_shape: Tuple[int, int]) -> int:
+def infer_channel_count(fields: torch.Tensor, grid_shape: tuple[int, int]) -> int:
     """Derive channel count from a sample tensor and grid shape."""
 
     if fields.dim() < 2:
@@ -57,7 +57,7 @@ def infer_channel_count(fields: torch.Tensor, grid_shape: Tuple[int, int]) -> in
     return int(total // area)
 
 
-def make_grid_coords(grid_shape: Tuple[int, int], device: torch.device) -> torch.Tensor:
+def make_grid_coords(grid_shape: tuple[int, int], device: torch.device) -> torch.Tensor:
     """Create normalised grid coordinates shaped (1, N, 2)."""
 
     H, W = grid_shape
@@ -90,7 +90,7 @@ def _broadcast_condition_tensor(tensor: torch.Tensor, seq_len: int) -> torch.Ten
     return data.contiguous()
 
 
-def _to_float_tensor(value: Any) -> Optional[torch.Tensor]:
+def _to_float_tensor(value: Any) -> torch.Tensor | None:
     if torch.is_tensor(value):
         return value.float()
     try:
@@ -103,17 +103,17 @@ def _to_float_tensor(value: Any) -> Optional[torch.Tensor]:
 
 
 def prepare_conditioning(
-    params: Optional[Dict[str, Any]],
-    bc: Optional[Dict[str, Any]],
+    params: dict[str, Any] | None,
+    bc: dict[str, Any] | None,
     seq_len: int,
     *,
-    time: Optional[Any] = None,
-    dt: Optional[Any] = None,
-    extras: Optional[Dict[str, Any]] = None,
-) -> Dict[str, torch.Tensor]:
-    cond: Dict[str, torch.Tensor] = {}
+    time: Any | None = None,
+    dt: Any | None = None,
+    extras: dict[str, Any] | None = None,
+) -> dict[str, torch.Tensor]:
+    cond: dict[str, torch.Tensor] = {}
 
-    def ingest(prefix: str, mapping: Optional[Dict[str, Any]]) -> None:
+    def ingest(prefix: str, mapping: dict[str, Any] | None) -> None:
         if not mapping:
             return
         for key, value in mapping.items():
@@ -144,11 +144,11 @@ def prepare_conditioning(
     return cond
 
 
-def collate_conditions(conditions: Iterable[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+def collate_conditions(conditions: Iterable[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     keys = set()
     for cond in conditions:
         keys.update(cond.keys())
-    collated: Dict[str, torch.Tensor] = {}
+    collated: dict[str, torch.Tensor] = {}
     for key in keys:
         tensors = [cond[key] for cond in conditions if key in cond]
         if not tensors:
@@ -161,11 +161,11 @@ def _fields_to_latent_batch(
     encoder: GridEncoder,
     fields: torch.Tensor,
     coords: torch.Tensor,
-    grid_shape: Tuple[int, int],
+    grid_shape: tuple[int, int],
     *,
     field_name: str,
-    params: Optional[Dict[str, torch.Tensor]] = None,
-    bc: Optional[Dict[str, torch.Tensor]] = None,
+    params: dict[str, torch.Tensor] | None = None,
+    bc: dict[str, torch.Tensor] | None = None,
 ) -> torch.Tensor:
     T = fields.shape[0]
 
@@ -198,8 +198,8 @@ def _fields_to_latent_batch(
     if coord_batch.device != encoder_device:
         coord_batch = coord_batch.to(encoder_device, non_blocking=True)
 
-    params_device: Optional[Dict[str, torch.Tensor]] = None
-    bc_device: Optional[Dict[str, torch.Tensor]] = None
+    params_device: dict[str, torch.Tensor] | None = None
+    bc_device: dict[str, torch.Tensor] | None = None
     if params is not None:
         params_device = {k: v.to(encoder_device, non_blocking=True) for k, v in params.items()}
     if bc is not None:
@@ -213,13 +213,15 @@ def _fields_to_latent_batch(
     return latent.cpu()
 
 
-def _encode_grid_sample(encoder: GridEncoder, sample: Dict[str, Any], device: Optional[torch.device] = None) -> torch.Tensor:
+def _encode_grid_sample(
+    encoder: GridEncoder, sample: dict[str, Any], device: torch.device | None = None
+) -> torch.Tensor:
     meta = dict(sample.get("meta", {}))
     if "grid_shape" not in meta:
         raise ValueError("Grid sample meta must include 'grid_shape'")
     H, W = map(int, meta["grid_shape"])
 
-    field_batches: Dict[str, torch.Tensor] = {}
+    field_batches: dict[str, torch.Tensor] = {}
     fields = sample.get("fields", {})
     if not fields:
         raise ValueError("Grid sample requires non-empty fields for encoding")
@@ -251,13 +253,13 @@ def _encode_grid_sample(encoder: GridEncoder, sample: Dict[str, Any], device: Op
 class LatentPair:
     z0: torch.Tensor
     z1: torch.Tensor
-    cond: Dict[str, torch.Tensor]
-    future: Optional[torch.Tensor] = None
+    cond: dict[str, torch.Tensor]
+    future: torch.Tensor | None = None
     # Optional fields for UPT inverse losses (Phase 1.5)
-    input_fields: Optional[Dict[str, torch.Tensor]] = None
-    coords: Optional[torch.Tensor] = None
-    meta: Optional[Dict] = None
-    task_name: Optional[str] = None  # Track source task for multi-task training
+    input_fields: dict[str, torch.Tensor] | None = None
+    coords: torch.Tensor | None = None
+    meta: dict | None = None
+    task_name: str | None = None  # Track source task for multi-task training
 
 
 class GridLatentPairDataset(Dataset):
@@ -268,13 +270,13 @@ class GridLatentPairDataset(Dataset):
         base: PDEBenchDataset,
         encoder: GridEncoder,
         coords: torch.Tensor,
-        grid_shape: Tuple[int, int],
+        grid_shape: tuple[int, int],
         field_name: str = "u",
         *,
-        task: Optional[str] = None,
+        task: str | None = None,
         device: torch.device | None = None,
-        cache_dir: Optional[Path] = None,
-        cache_dtype: Optional[torch.dtype] = torch.float16,
+        cache_dir: Path | None = None,
+        cache_dtype: torch.dtype | None = torch.float16,
         time_stride: int = 1,
         rollout_horizon: int = 1,
         use_inverse_losses: bool = False,
@@ -300,7 +302,7 @@ class GridLatentPairDataset(Dataset):
 
     def __getitem__(self, idx: int) -> LatentPair:
         cache_hit = False
-        latent_seq: Optional[torch.Tensor] = None
+        latent_seq: torch.Tensor | None = None
         params_cpu = None
         bc_cpu = None
         fields_cpu = None  # For inverse losses
@@ -330,7 +332,9 @@ class GridLatentPairDataset(Dataset):
             fields = fields_cpu.to(self.device, non_blocking=True)
             params_device = None
             if params_cpu is not None:
-                params_device = {k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()}
+                params_device = {
+                    k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()
+                }
             bc_device = None
             if bc_cpu is not None:
                 bc_device = {k: v.to(self.device, non_blocking=True) for k, v in bc_cpu.items()}
@@ -344,7 +348,9 @@ class GridLatentPairDataset(Dataset):
                 field_name=self.field_name,
             )
             if self.cache_dir and not cache_hit:
-                to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+                to_store = (
+                    latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+                )
                 tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
                 tmp_path.unlink(missing_ok=True)
                 payload = {
@@ -403,13 +409,19 @@ class GridLatentPairDataset(Dataset):
                     formatted = fields_for_pairs
                 else:  # Likely (base_len, H, W) - flatten spatial
                     base_len_actual, H, W = fields_for_pairs.shape
-                    formatted = fields_for_pairs.reshape(base_len_actual, H * W, 1)  # (base_len, H*W, 1)
+                    formatted = fields_for_pairs.reshape(
+                        base_len_actual, H * W, 1
+                    )  # (base_len, H*W, 1)
             elif fields_for_pairs.dim() == 4:  # (base_len, H, W, C)
                 base_len_actual, H, W, C = fields_for_pairs.shape
-                formatted = fields_for_pairs.reshape(base_len_actual, H * W, C)  # (base_len, H*W, C)
+                formatted = fields_for_pairs.reshape(
+                    base_len_actual, H * W, C
+                )  # (base_len, H*W, C)
             else:
                 # Flatten spatial dims, keep channel dim
-                formatted = fields_for_pairs.reshape(fields_for_pairs.shape[0], -1, fields_for_pairs.shape[-1])
+                formatted = fields_for_pairs.reshape(
+                    fields_for_pairs.shape[0], -1, fields_for_pairs.shape[-1]
+                )
 
             input_fields = {self.field_name: formatted}
 
@@ -417,13 +429,24 @@ class GridLatentPairDataset(Dataset):
             coords = self.coords.cpu().expand(base_len, -1, -1)  # (base_len, N, 2)
             meta = {"grid_shape": self.grid_shape}
 
-        return LatentPair(z0, z1, cond, future=future, input_fields=input_fields, coords=coords, meta=meta, task_name=self.task_name)
+        return LatentPair(
+            z0,
+            z1,
+            cond,
+            future=future,
+            input_fields=input_fields,
+            coords=coords,
+            meta=meta,
+            task_name=self.task_name,
+        )
 
 
 class GridZarrLatentPairDataset(Dataset):
     """Encode consecutive time steps from a GridZarrDataset into latent pairs."""
 
-    def __init__(self, base: GridZarrDataset, encoder: GridEncoder, rollout_horizon: int = 1) -> None:
+    def __init__(
+        self, base: GridZarrDataset, encoder: GridEncoder, rollout_horizon: int = 1
+    ) -> None:
         super().__init__()
         self.base = base
         self.encoder = encoder
@@ -459,8 +482,8 @@ class GridZarrLatentPairDataset(Dataset):
 
 
 def _graph_coords_at_time(
-    sample: Dict[str, Any],
-    step_fields: Dict[str, torch.Tensor],
+    sample: dict[str, Any],
+    step_fields: dict[str, torch.Tensor],
     step: int,
 ) -> torch.Tensor:
     if "positions" in step_fields:
@@ -487,9 +510,9 @@ class GraphLatentPairDataset(Dataset):
         kind: str = "mesh",
         rollout_horizon: int = 1,
         *,
-        task: Optional[str] = None,
-        cache_dir: Optional[Path] = None,
-        cache_dtype: Optional[torch.dtype] = torch.float16,
+        task: str | None = None,
+        cache_dir: Path | None = None,
+        cache_dtype: torch.dtype | None = torch.float16,
         time_stride: int = 1,
     ) -> None:
         super().__init__()
@@ -509,7 +532,7 @@ class GraphLatentPairDataset(Dataset):
     def __len__(self) -> int:
         return len(self.base)
 
-    def _load_cached_latent(self, idx: int) -> Optional[Dict[str, Any]]:
+    def _load_cached_latent(self, idx: int) -> dict[str, Any] | None:
         if not self.cache_dir:
             return None
         cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
@@ -528,10 +551,10 @@ class GraphLatentPairDataset(Dataset):
         idx: int,
         latent_seq: torch.Tensor,
         *,
-        params: Optional[Dict[str, torch.Tensor]],
-        bc: Optional[Dict[str, torch.Tensor]],
-        time: Optional[torch.Tensor],
-        dt: Optional[torch.Tensor],
+        params: dict[str, torch.Tensor] | None,
+        bc: dict[str, torch.Tensor] | None,
+        time: torch.Tensor | None,
+        dt: torch.Tensor | None,
     ) -> None:
         if not self.cache_dir:
             return
@@ -570,13 +593,15 @@ class GraphLatentPairDataset(Dataset):
             if not fields:
                 raise ValueError("Graph samples must provide fields with time dimension")
 
-            step_fields: Dict[str, torch.Tensor] = {}
-            time_dim: Optional[int] = None
+            step_fields: dict[str, torch.Tensor] = {}
+            time_dim: int | None = None
             for name, tensor in fields.items():
                 if tensor.dim() == 2:
                     tensor = tensor.unsqueeze(0)
                 if tensor.dim() != 3:
-                    raise ValueError(f"Field '{name}' must have shape (T, N, C); got {tensor.shape}")
+                    raise ValueError(
+                        f"Field '{name}' must have shape (T, N, C); got {tensor.shape}"
+                    )
                 if time_dim is None:
                     time_dim = tensor.shape[0]
                 elif tensor.shape[0] != time_dim:
@@ -586,10 +611,14 @@ class GraphLatentPairDataset(Dataset):
             if time_dim is None or time_dim <= self.rollout_horizon:
                 raise ValueError("Need more time steps than rollout horizon to form latent pairs")
 
-            latents: List[torch.Tensor] = []
+            latents: list[torch.Tensor] = []
             for step in range(time_dim):
-                field_batch = {name: tensor[step].unsqueeze(0) for name, tensor in step_fields.items()}
-                coords = _graph_coords_at_time(sample, step_fields, step).to(self.device, non_blocking=True)
+                field_batch = {
+                    name: tensor[step].unsqueeze(0) for name, tensor in step_fields.items()
+                }
+                coords = _graph_coords_at_time(sample, step_fields, step).to(
+                    self.device, non_blocking=True
+                )
                 connect = sample.get("connect")
                 if connect is not None:
                     connect = connect.to(self.device, dtype=torch.long, non_blocking=True)
@@ -641,7 +670,9 @@ class GraphLatentPairDataset(Dataset):
                 dt_cpu = None
 
             if self.cache_dir:
-                self._store_cached_latent(idx, latent_seq, params=params_cpu, bc=bc_cpu, time=time_cpu, dt=dt_cpu)
+                self._store_cached_latent(
+                    idx, latent_seq, params=params_cpu, bc=bc_cpu, time=time_cpu, dt=dt_cpu
+                )
 
         if self.time_stride > 1:
             latent_seq = latent_seq[:: self.time_stride]
@@ -666,11 +697,13 @@ class GraphLatentPairDataset(Dataset):
         return LatentPair(z0, z1, cond, future=future, task_name=self.task_name)
 
 
-def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
+def collate_latent_pairs(
+    batch_items: Iterable[LatentPair],
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
     z0_chunks = []
     z1_chunks = []
     cond_list = []
-    future_chunks: List[torch.Tensor] = []
+    future_chunks: list[torch.Tensor] = []
     future_available = True
     for item in batch_items:
         z0_chunks.append(item.z0)
@@ -689,9 +722,13 @@ def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple[torch.Tenso
     return z0, z1, cond
 
 
-def _build_pdebench_dataset(data_cfg: Dict[str, Any]) -> Tuple[Dataset, GridEncoder, Tuple[int, int], str]:
+def _build_pdebench_dataset(
+    data_cfg: dict[str, Any],
+) -> tuple[Dataset, GridEncoder, tuple[int, int], str]:
     dataset = PDEBenchDataset(
-        PDEBenchConfig(task=data_cfg["task"], split=data_cfg.get("split", "train"), root=data_cfg.get("root")),
+        PDEBenchConfig(
+            task=data_cfg["task"], split=data_cfg.get("split", "train"), root=data_cfg.get("root")
+        ),
     )
 
     sample_fields = dataset.fields[0]
@@ -708,7 +745,7 @@ def _build_pdebench_dataset(data_cfg: Dict[str, Any]) -> Tuple[Dataset, GridEnco
     return dataset, grid_encoder, grid_shape, field_name
 
 
-def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
+def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
     """Construct a DataLoader that yields latent pairs from data config."""
 
     data_cfg = cfg.get("data", {})
@@ -722,14 +759,18 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     pin_memory = bool(train_cfg.get("pin_memory", torch.cuda.is_available()))
     prefetch_factor = train_cfg.get("prefetch_factor")
     cache_dir_cfg = train_cfg.get("latent_cache_dir")
-    cache_root: Optional[Path] = Path(cache_dir_cfg) if cache_dir_cfg else None
+    cache_root: Path | None = Path(cache_dir_cfg) if cache_dir_cfg else None
     cache_dtype_str = train_cfg.get("latent_cache_dtype", "float16") or None
-    cache_dtype = getattr(torch, cache_dtype_str) if cache_dtype_str and hasattr(torch, cache_dtype_str) else None
+    cache_dtype = (
+        getattr(torch, cache_dtype_str)
+        if cache_dtype_str and hasattr(torch, cache_dtype_str)
+        else None
+    )
     split_name = data_cfg.get("split", "train")
     time_stride = int(train_cfg.get("time_stride", 1))
     rollout_horizon = max(1, int(train_cfg.get("rollout_horizon", 1)))
 
-    loader_kwargs: Dict[str, Any] = {
+    loader_kwargs: dict[str, Any] = {
         "batch_size": batch,
         "shuffle": True,
         "collate_fn": latent_pair_collate,
@@ -744,14 +785,14 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
     tasks = data_cfg.get("task")
     if tasks:
         from ups.data.parallel_cache import (
-            check_cache_complete,
-            estimate_cache_size_mb,
-            check_sufficient_ram,
             PreloadedCacheDataset,
+            check_cache_complete,
+            check_sufficient_ram,
+            estimate_cache_size_mb,
         )
 
         task_list = list(tasks) if isinstance(tasks, (list, tuple)) else [tasks]
-        latent_datasets: List[Dataset] = []
+        latent_datasets: list[Dataset] = []
 
         def _make_grid_latent_dataset(task_name: str) -> Dataset:
             dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
@@ -771,16 +812,22 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 num_samples = len(dataset)
                 cache_complete, num_cached = check_cache_complete(ds_cache, num_samples)
                 if cache_complete:
-                    cache_size_mb = estimate_cache_size_mb(ds_cache, num_samples=min(10, num_samples))
+                    cache_size_mb = estimate_cache_size_mb(
+                        ds_cache, num_samples=min(10, num_samples)
+                    )
                     if check_sufficient_ram(cache_size_mb):
                         print(f"✅ Using PreloadedCacheDataset for {task_name}_{split_name}")
                         print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB")
                         use_preloaded = True
                     else:
-                        print(f"⚠️  Insufficient RAM for PreloadedCacheDataset ({cache_size_mb:.0f} MB required)")
+                        print(
+                            f"⚠️  Insufficient RAM for PreloadedCacheDataset ({cache_size_mb:.0f} MB required)"
+                        )
                         print("   Falling back to disk I/O mode (slower but memory-efficient)")
                 else:
-                    print(f"⚠️  Cache incomplete for {task_name}_{split_name} ({num_cached}/{num_samples} samples)")
+                    print(
+                        f"⚠️  Cache incomplete for {task_name}_{split_name} ({num_cached}/{num_samples} samples)"
+                    )
                     print("   Falling back to on-demand encoding (will populate cache)")
 
             if use_preloaded and ds_cache:
@@ -829,7 +876,13 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
                 use_coords=data_cfg.get("use_coords", True),
             )
             graph_encoder = MeshParticleEncoder(encoder_cfg).eval().to(device)
-            return GraphLatentPairDataset(base_dataset, graph_encoder, kind=spec_kind, rollout_horizon=rollout_horizon, task=task_name)
+            return GraphLatentPairDataset(
+                base_dataset,
+                graph_encoder,
+                kind=spec_kind,
+                rollout_horizon=rollout_horizon,
+                task=task_name,
+            )
 
         for task_name in task_list:
             spec = get_pdebench_spec(task_name)
@@ -840,13 +893,52 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
 
         mixed = latent_datasets[0] if len(latent_datasets) == 1 else ConcatDataset(latent_datasets)
         loader_kwargs["collate_fn"] = latent_pair_collate
+
+        # Check if distributed training is active
+        import torch.distributed as dist
+
+        is_distributed = dist.is_initialized()
+
+        # For multi-task, use task-aware sampler in distributed mode
+        if len(task_list) > 1 and is_distributed:
+            from ups.data.task_samplers import MultiTaskDistributedSampler
+
+            # Extract per-task sizes
+            task_sizes = [len(ds) for ds in latent_datasets]
+            sampler = MultiTaskDistributedSampler(
+                task_sizes=task_sizes,
+                num_replicas=dist.get_world_size(),
+                rank=dist.get_rank(),
+                shuffle=True,
+                seed=train_cfg.get("seed", 0),
+                drop_last=False,
+            )
+            loader_kwargs["shuffle"] = False  # Sampler handles shuffling
+            loader_kwargs["sampler"] = sampler
+        elif is_distributed:
+            # Single-task distributed training
+            from torch.utils.data.distributed import DistributedSampler
+
+            sampler = DistributedSampler(
+                mixed,
+                num_replicas=dist.get_world_size(),
+                rank=dist.get_rank(),
+                shuffle=True,
+                seed=train_cfg.get("seed", 0),
+            )
+            loader_kwargs["shuffle"] = False
+            loader_kwargs["sampler"] = sampler
+        # else: Single-GPU mode, use default shuffle=True
+
         return DataLoader(mixed, **loader_kwargs)
 
     kind = data_cfg.get("kind")
     if kind == "grid":
         dataset = GridZarrDataset(data_cfg["path"], group=data_cfg.get("group"))
         if len(dataset) < 2:
-            raise ValueError("GridZarrDataset must contain at least two time steps to form latent pairs")
+            raise ValueError(
+                "GridZarrDataset must contain at least two time steps to form latent pairs"
+            )
         sample0 = dataset[0]
         field_channels = {name: tensor.shape[1] for name, tensor in sample0["fields"].items()}
         encoder_cfg = GridEncoderConfig(
@@ -856,7 +948,9 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
             field_channels=field_channels,
         )
         grid_encoder = GridEncoder(encoder_cfg).eval().to(device)
-        latent_dataset = GridZarrLatentPairDataset(dataset, grid_encoder, rollout_horizon=rollout_horizon)
+        latent_dataset = GridZarrLatentPairDataset(
+            dataset, grid_encoder, rollout_horizon=rollout_horizon
+        )
         return DataLoader(latent_dataset, **loader_kwargs)
 
     if kind in {"mesh", "particles"}:
@@ -886,7 +980,9 @@ def build_latent_pair_loader(cfg: Dict[str, Any]) -> DataLoader:
             use_coords=data_cfg.get("use_coords", True),
         )
         graph_encoder = MeshParticleEncoder(encoder_cfg).eval().to(device)
-        latent_dataset = GraphLatentPairDataset(base_dataset, graph_encoder, kind=kind, rollout_horizon=rollout_horizon)
+        latent_dataset = GraphLatentPairDataset(
+            base_dataset, graph_encoder, kind=kind, rollout_horizon=rollout_horizon
+        )
         return DataLoader(latent_dataset, **loader_kwargs)
 
     raise ValueError("Data configuration must specify either 'task' or 'kind'")
