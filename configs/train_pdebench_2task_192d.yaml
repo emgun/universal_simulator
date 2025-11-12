@@ -208,7 +208,7 @@ ttc:
   decoder:
     latent_dim: 192       # Match training latent dim (scaled from 128)
     query_dim: 2          # 2D max (advection is 1D, darcy is 2D)
-    hidden_dim: 432       # 2.25× latent_dim (vs 288 for 128d baseline)
+    hidden_dim: 576       # Match operator.pdet.hidden_dim (required by validation)
     mlp_hidden_dim: 576   # 3× latent_dim (vs 384 for 128d baseline)
     num_layers: 3
     num_heads: 4
