@@ -202,26 +202,28 @@ export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 rm -rf data/pdebench || true
 mkdir -p data/pdebench
 
-# Multi-task parallel download (supports both single and multiple tasks)
+# Multi-task sequential download (reliable, prevents parallel rclone conflicts)
 echo "📥 Downloading data for tasks: {' '.join(tasks)}"
 """
 
-    # Generate download commands for each task
+    # Generate download commands for each task (sequential for reliability)
     for task in tasks:
         script += f"""
-# Download {task}
+# Download {task} (sequential)
+echo "📥 Downloading {task} files..."
 if [ ! -f data/pdebench/{task}_train.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress &
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress
 fi
 if [ ! -f data/pdebench/{task}_val.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_val.h5 data/pdebench/ --progress &
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_val.h5 data/pdebench/ --progress
 fi
 if [ ! -f data/pdebench/{task}_test.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_test.h5 data/pdebench/ --progress &
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_test.h5 data/pdebench/ --progress
 fi
+echo "✓ {task} files downloaded"
 """
 
-    # Add file verification after wait
+    # Add file verification (no wait needed for sequential downloads)
     expected_files = []
     for task in tasks:
         expected_files.extend([
@@ -232,9 +234,6 @@ fi
     files_check = " ".join(f'[ -f "{f}" ]' for f in expected_files)
 
     script += f"""
-# Wait for all downloads to complete
-wait
-
 # Verify all data files are present before proceeding
 echo "🔍 Verifying {len(expected_files)} data files..."
 for i in {{1..60}}; do
