@@ -289,6 +289,18 @@ PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_sc
 
     script += cache_cmd
 
+    # Strategy 1: Delete raw data after successful caching to save disk space
+    if precompute and tasks:
+        cleanup_cmd = "\n# Cleanup: Remove raw data files after successful caching\n"
+        for task in tasks:
+            cleanup_cmd += f"""if [ -d "data/latent_cache/{task}_train" ]; then
+  echo "✓ Cache created for {task}, removing raw data to save space..."
+  rm -f data/pdebench/{task}_train.h5 && echo "  Freed disk space from {task}_train.h5"
+fi
+"""
+        script += cleanup_cmd
+        script += '\necho "✓ Disk cleanup completed"\n'
+
     # Build training command with torchrun for multi-GPU or python for single-GPU
     if num_gpus > 1:
         # Distributed training with torchrun
