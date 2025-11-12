@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
+
 import wandb
 
 
@@ -128,8 +129,8 @@ class CheckpointManager:
         This allows auto-resume to work even when resuming from runs that don't
         have stage_status.json (e.g., crashed runs or runs before tracking was added).
         """
-        from datetime import UTC, datetime
         import json
+        from datetime import UTC, datetime
 
         # Map checkpoint files to stages
         stage_map = {
@@ -144,8 +145,7 @@ class CheckpointManager:
         for stage, checkpoint_files in stage_map.items():
             # Check if any of the expected checkpoints exist
             stage_complete = any(
-                any(str(f).endswith(ckpt) for f in downloaded_files)
-                for ckpt in checkpoint_files
+                any(str(f).endswith(ckpt) for f in downloaded_files) for ckpt in checkpoint_files
             )
 
             if stage_complete:
@@ -156,15 +156,13 @@ class CheckpointManager:
                     "completed_at": datetime.now(UTC).isoformat(),
                 }
             else:
-                completed_stages[stage] = {
-                    "status": "not_started"
-                }
+                completed_stages[stage] = {"status": "not_started"}
 
         # Create stage_status.json
         stage_status = {
             "schema_version": 1,
             "created_at": datetime.now(UTC).isoformat(),
-            "stages": completed_stages
+            "stages": completed_stages,
         }
 
         status_file = self.checkpoint_dir / "stage_status.json"
@@ -173,8 +171,12 @@ class CheckpointManager:
         # Report which stages were marked as complete
         complete_count = sum(1 for s in completed_stages.values() if s["status"] == "completed")
         if complete_count > 0:
-            stage_names = [name for name, info in completed_stages.items() if info["status"] == "completed"]
-            print(f"✓ Generated stage_status.json: {complete_count} stages marked as completed ({', '.join(stage_names)})")
+            stage_names = [
+                name for name, info in completed_stages.items() if info["status"] == "completed"
+            ]
+            print(
+                f"✓ Generated stage_status.json: {complete_count} stages marked as completed ({', '.join(stage_names)})"
+            )
         else:
             print(f"✓ Generated stage_status.json: no completed stages detected")
 
@@ -290,3 +292,79 @@ class CheckpointManager:
                 checkpoint_files.append(file.name)
 
         return checkpoint_files
+
+
+# DDP-aware checkpoint save/load functions (Phase 5: Production Hardening)
+
+
+def save_checkpoint(
+    model: "torch.nn.Module",  # type: ignore
+    optimizer: "torch.optim.Optimizer",  # type: ignore
+    epoch: int,
+    path: str | Path,
+    is_distributed: bool = False,
+    rank: int = 0,
+) -> None:
+    """Save checkpoint (rank 0 only in distributed mode).
+
+    Args:
+        model: Model to save (may be DDP-wrapped)
+        optimizer: Optimizer to save
+        epoch: Current epoch
+        path: Path to save checkpoint
+        is_distributed: Whether running in distributed mode
+        rank: Current process rank
+    """
+    import torch
+
+    if is_distributed and rank != 0:
+        return  # Only rank 0 saves
+
+    # Unwrap DDP if needed
+    model_state = model.module.state_dict() if is_distributed else model.state_dict()
+
+    checkpoint = {
+        "model": model_state,
+        "optimizer": optimizer.state_dict(),
+        "epoch": epoch,
+    }
+
+    torch.save(checkpoint, path)
+    if rank == 0:
+        print(f"Checkpoint saved to {path}")
+
+
+def load_checkpoint(
+    model: "torch.nn.Module",  # type: ignore
+    optimizer: "torch.optim.Optimizer",  # type: ignore
+    path: str | Path,
+    device: "torch.device",  # type: ignore
+    is_distributed: bool = False,
+) -> int:
+    """Load checkpoint (all ranks in distributed mode).
+
+    Args:
+        model: Model to load into (may be DDP-wrapped)
+        optimizer: Optimizer to load into
+        path: Path to load checkpoint from
+        device: Device to map checkpoint to
+        is_distributed: Whether running in distributed mode
+
+    Returns:
+        Epoch number from checkpoint
+    """
+    import torch
+
+    checkpoint = torch.load(path, map_location=device)
+
+    # Load into DDP-wrapped or unwrapped model
+    if is_distributed:
+        model.module.load_state_dict(checkpoint["model"])
+    else:
+        model.load_state_dict(checkpoint["model"])
+
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    epoch = checkpoint["epoch"]
+
+    print(f"Checkpoint loaded from {path} (epoch {epoch})")
+    return epoch

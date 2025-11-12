@@ -84,6 +84,40 @@ def setup_distributed():
         return device, False, 0, 1, None
 
 
+def aggregate_metrics(
+    metrics: dict[str, float],
+    world_size: int,
+    rank: int,
+) -> dict[str, float]:
+    """Aggregate metrics across all ranks (mean).
+
+    Args:
+        metrics: Dictionary of metric name to value
+        world_size: Number of distributed processes
+        rank: Current process rank
+
+    Returns:
+        Dictionary of aggregated metrics (mean across all ranks)
+    """
+    if world_size == 1:
+        return metrics  # Single-GPU, no aggregation needed
+
+    import torch.distributed as dist
+
+    aggregated = {}
+    for key, value in metrics.items():
+        # Convert to tensor
+        tensor = torch.tensor(value, device=f"cuda:{rank}")
+
+        # All-reduce (sum)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+
+        # Average
+        aggregated[key] = (tensor / world_size).item()
+
+    return aggregated
+
+
 # ---- Auxiliary training losses ----
 def _nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     mse = torch.mean((pred - target) ** 2)
@@ -870,7 +904,19 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
-                    print("Warning: OOM encountered in operator step, skipping batch")
+
+                    # In distributed mode, all ranks must skip together
+                    if is_distributed:
+                        import torch.distributed as dist
+
+                        # Broadcast skip signal from rank 0
+                        skip_flag = torch.tensor(1, device=device)
+                        dist.broadcast(skip_flag, src=0)
+
+                    if rank == 0:
+                        print(
+                            "Warning: OOM encountered in operator step, skipping batch (all ranks)"
+                        )
                     continue
                 raise
 
@@ -928,6 +974,20 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
 
+        # Aggregate metrics across ranks in distributed mode
+        metrics = aggregate_metrics(
+            {
+                "loss": mean_loss,
+                "grad_norm": mean_grad_norm,
+                "epoch_time": epoch_time,
+            },
+            world_size,
+            rank,
+        )
+        mean_loss = metrics["loss"]
+        mean_grad_norm = metrics["grad_norm"]
+        epoch_time = metrics["epoch_time"]
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -968,27 +1028,38 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 scheduler.step(mean_loss)
             else:
                 scheduler.step()
-    operator.load_state_dict(best_state)
+    # Load best state (DDP-aware)
+    if is_distributed:
+        operator.module.load_state_dict(best_state)
+    else:
+        operator.load_state_dict(best_state)
+
     logger.close()
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    operator_path = checkpoint_dir / "operator.pt"
-    torch.save(operator.state_dict(), operator_path)
-    print(f"Saved operator checkpoint to {operator_path}")
-    if ema_model is not None:
-        operator_ema_path = checkpoint_dir / "operator_ema.pt"
-        to_save = best_ema_state if best_ema_state is not None else ema_model.state_dict()
-        torch.save(to_save, operator_ema_path)
-        print(f"Saved operator EMA checkpoint to {operator_ema_path}")
 
-    # Upload checkpoint to W&B (clean way!)
-    if wandb_ctx:
+    # Save checkpoints (rank 0 only in distributed mode)
+    if not is_distributed or rank == 0:
+        operator_path = checkpoint_dir / "operator.pt"
+        # Unwrap DDP if needed
+        model_state = operator.module.state_dict() if is_distributed else operator.state_dict()
+        torch.save(model_state, operator_path)
+        print(f"Saved operator checkpoint to {operator_path}")
+
+        if ema_model is not None:
+            operator_ema_path = checkpoint_dir / "operator_ema.pt"
+            to_save = best_ema_state if best_ema_state is not None else ema_model.state_dict()
+            torch.save(to_save, operator_ema_path)
+            print(f"Saved operator EMA checkpoint to {operator_ema_path}")
+
+    # Upload checkpoint to W&B (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.save_file(operator_path)
         print("Uploaded operator checkpoint to W&B")
         if ema_model is not None:
             wandb_ctx.save_file(operator_ema_path)
 
-    # Send W&B alert
-    if wandb_ctx:
+    # Send W&B alert (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.alert(
             title="✅ Operator Training Complete",
             text=f"Final loss: {best_loss:.6f} | Ready for diffusion stage",
@@ -1112,7 +1183,19 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
-                    print("Warning: OOM encountered in operator forward (teacher), skipping batch")
+
+                    # In distributed mode, all ranks must skip together
+                    if is_distributed:
+                        import torch.distributed as dist
+
+                        # Broadcast skip signal from rank 0
+                        skip_flag = torch.tensor(1, device=device)
+                        dist.broadcast(skip_flag, src=0)
+
+                    if rank == 0:
+                        print(
+                            "Warning: OOM encountered in operator forward (teacher), skipping batch (all ranks)"
+                        )
                     continue
                 raise
             residual_target = target - predicted.z
@@ -1134,7 +1217,19 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
-                    print("Warning: OOM encountered in diffusion step, skipping batch")
+
+                    # In distributed mode, all ranks must skip together
+                    if is_distributed:
+                        import torch.distributed as dist
+
+                        # Broadcast skip signal from rank 0
+                        skip_flag = torch.tensor(1, device=device)
+                        dist.broadcast(skip_flag, src=0)
+
+                    if rank == 0:
+                        print(
+                            "Warning: OOM encountered in diffusion step, skipping batch (all ranks)"
+                        )
                     continue
                 raise
             loss_value = loss.detach().item()
@@ -1170,6 +1265,20 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
 
+        # Aggregate metrics across ranks in distributed mode
+        metrics = aggregate_metrics(
+            {
+                "loss": mean_loss,
+                "grad_norm": mean_grad_norm,
+                "epoch_time": epoch_time,
+            },
+            world_size,
+            rank,
+        )
+        mean_loss = metrics["loss"]
+        mean_grad_norm = metrics["grad_norm"]
+        epoch_time = metrics["epoch_time"]
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1195,34 +1304,48 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             else:
                 scheduler.step()
 
+        # Intermediate checkpoints (rank 0 only)
         if checkpoint_interval and (epoch + 1) % checkpoint_interval == 0:
-            epoch_ckpt = checkpoint_dir / f"diffusion_residual_epoch_{epoch + 1}.pt"
-            torch.save(diff.state_dict(), epoch_ckpt)
-            if ema_model is not None:
-                ema_epoch_ckpt = checkpoint_dir / f"diffusion_residual_ema_epoch_{epoch + 1}.pt"
-                torch.save(ema_model.state_dict(), ema_epoch_ckpt)
-    diff.load_state_dict(best_state)
-    logger.close()
-    diffusion_path = checkpoint_dir / "diffusion_residual.pt"
-    torch.save(diff.state_dict(), diffusion_path)
-    print(f"Saved diffusion residual checkpoint to {diffusion_path}")
-    if ema_model is not None:
-        diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
-        torch.save(
-            best_ema_state if best_ema_state is not None else ema_model.state_dict(),
-            diffusion_ema_path,
-        )
-        print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
+            if not is_distributed or rank == 0:
+                epoch_ckpt = checkpoint_dir / f"diffusion_residual_epoch_{epoch + 1}.pt"
+                model_state = diff.module.state_dict() if is_distributed else diff.state_dict()
+                torch.save(model_state, epoch_ckpt)
+                if ema_model is not None:
+                    ema_epoch_ckpt = checkpoint_dir / f"diffusion_residual_ema_epoch_{epoch + 1}.pt"
+                    torch.save(ema_model.state_dict(), ema_epoch_ckpt)
 
-    # Upload checkpoint to W&B (clean way!)
-    if wandb_ctx:
+    # Load best state (DDP-aware)
+    if is_distributed:
+        diff.module.load_state_dict(best_state)
+    else:
+        diff.load_state_dict(best_state)
+
+    logger.close()
+
+    # Save final checkpoints (rank 0 only)
+    if not is_distributed or rank == 0:
+        diffusion_path = checkpoint_dir / "diffusion_residual.pt"
+        model_state = diff.module.state_dict() if is_distributed else diff.state_dict()
+        torch.save(model_state, diffusion_path)
+        print(f"Saved diffusion residual checkpoint to {diffusion_path}")
+
+        if ema_model is not None:
+            diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
+            torch.save(
+                best_ema_state if best_ema_state is not None else ema_model.state_dict(),
+                diffusion_ema_path,
+            )
+            print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
+
+    # Upload checkpoint to W&B (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.save_file(diffusion_path)
         print("Uploaded diffusion checkpoint to W&B")
         if ema_model is not None:
             wandb_ctx.save_file(diffusion_ema_path)
 
-    # Send W&B alert
-    if wandb_ctx:
+    # Send W&B alert (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.alert(
             title="✅ Diffusion Residual Training Complete",
             text=f"Final loss: {best_loss:.6f} | Ready for consistency distillation",
@@ -1516,7 +1639,19 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     if "out of memory" in str(e).lower():
                         if torch.cuda.is_available():
                             torch.cuda.empty_cache()
-                        print("Warning: OOM in consistency distill chunk, skipping chunk")
+
+                        # In distributed mode, all ranks must skip together
+                        if is_distributed:
+                            import torch.distributed as dist
+
+                            # Broadcast skip signal from rank 0
+                            skip_flag = torch.tensor(1, device=device)
+                            dist.broadcast(skip_flag, src=0)
+
+                        if rank == 0:
+                            print(
+                                "Warning: OOM in consistency distill chunk, skipping chunk (all ranks)"
+                            )
                         continue
                     raise
                 if use_amp:
@@ -1548,6 +1683,20 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(batches, 1)
 
+        # Aggregate metrics across ranks in distributed mode
+        metrics = aggregate_metrics(
+            {
+                "loss": mean_loss,
+                "grad_norm": mean_grad_norm,
+                "epoch_time": epoch_time,
+            },
+            world_size,
+            rank,
+        )
+        mean_loss = metrics["loss"]
+        mean_grad_norm = metrics["grad_norm"]
+        epoch_time = metrics["epoch_time"]
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1572,18 +1721,28 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             break
         if scheduler is not None:
             scheduler.step()
-    diff.load_state_dict(best_state)
-    logger.close()
-    diffusion_path = checkpoint_dir / "diffusion_residual.pt"
-    torch.save(diff.state_dict(), diffusion_path)
-    print(f"Updated diffusion residual via consistency distillation to {diffusion_path}")
-    if ema_model is not None:
-        diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
-        torch.save(ema_model.state_dict(), diffusion_ema_path)
-        print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
+    # Load best state (DDP-aware)
+    if is_distributed:
+        diff.module.load_state_dict(best_state)
+    else:
+        diff.load_state_dict(best_state)
 
-    # Upload updated checkpoint to W&B (clean way!)
-    if wandb_ctx:
+    logger.close()
+
+    # Save checkpoints (rank 0 only)
+    if not is_distributed or rank == 0:
+        diffusion_path = checkpoint_dir / "diffusion_residual.pt"
+        model_state = diff.module.state_dict() if is_distributed else diff.state_dict()
+        torch.save(model_state, diffusion_path)
+        print(f"Updated diffusion residual via consistency distillation to {diffusion_path}")
+
+        if ema_model is not None:
+            diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
+            torch.save(ema_model.state_dict(), diffusion_ema_path)
+            print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
+
+    # Upload updated checkpoint to W&B (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.save_file(diffusion_path)
         print("Uploaded updated diffusion checkpoint to W&B")
         if ema_model is not None:
@@ -1691,6 +1850,20 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
 
+        # Aggregate metrics across ranks in distributed mode
+        metrics = aggregate_metrics(
+            {
+                "loss": mean_loss,
+                "grad_norm": mean_grad_norm,
+                "epoch_time": epoch_time,
+            },
+            world_size,
+            rank,
+        )
+        mean_loss = metrics["loss"]
+        mean_grad_norm = metrics["grad_norm"]
+        epoch_time = metrics["epoch_time"]
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1713,20 +1886,29 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 scheduler.step(mean_loss)
             else:
                 scheduler.step()
-    prior.load_state_dict(best_state)
+    # Load best state (DDP-aware)
+    if is_distributed:
+        prior.module.load_state_dict(best_state)
+    else:
+        prior.load_state_dict(best_state)
+
     logger.close()
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    prior_path = checkpoint_dir / "steady_prior.pt"
-    torch.save(prior.state_dict(), prior_path)
-    print(f"Saved steady prior checkpoint to {prior_path}")
 
-    # Upload checkpoint to W&B (clean way!)
-    if wandb_ctx:
+    # Save checkpoint (rank 0 only)
+    if not is_distributed or rank == 0:
+        prior_path = checkpoint_dir / "steady_prior.pt"
+        model_state = prior.module.state_dict() if is_distributed else prior.state_dict()
+        torch.save(model_state, prior_path)
+        print(f"Saved steady prior checkpoint to {prior_path}")
+
+    # Upload checkpoint to W&B (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.save_file(prior_path)
         print("Uploaded steady prior checkpoint to W&B")
 
-    # Send W&B alert
-    if wandb_ctx:
+    # Send W&B alert (rank 0 only)
+    if wandb_ctx and (not is_distributed or rank == 0):
         wandb_ctx.alert(
             title="🎉 All Training Stages Complete!",
             text=f"Steady prior final loss: {best_loss:.6f} | Full pipeline ready for evaluation",
