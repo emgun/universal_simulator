@@ -99,7 +99,7 @@ training:
     # Advection & Darcy: Both CONSERVATIVE PDEs (conserve mass/quantity)
     # Unlike Burgers which is dissipative
     lambda_divergence: 0.0         # 1D advection has no divergence; 2D Darcy is pressure (not velocity field)
-    lambda_conservation: 0.1       # CRITICAL: Enforce mass conservation (vs 0.0 for dissipative Burgers)
+    lambda_conservation: 0.0       # DISABLED: Multi-task bug causes tensor size mismatch (different spatial dims)
     lambda_boundary: 0.05          # Enforce boundary conditions
     lambda_positivity: 0.0         # u and p can be negative
     bc_value: 0.0                  # Boundary condition value (if Dirichlet)
