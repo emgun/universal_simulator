@@ -29,13 +29,15 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
+import yaml
+
 try:
     import paramiko
+
     PARAMIKO_AVAILABLE = True
 except ImportError:
     PARAMIKO_AVAILABLE = False
@@ -160,7 +162,9 @@ class VultrProvider:
         try:
             return json.loads(body)
         except json.JSONDecodeError as exc:
-            raise CloudLaunchError(f"Unexpected non-JSON response from Vultr API: {body!r}") from exc
+            raise CloudLaunchError(
+                f"Unexpected non-JSON response from Vultr API: {body!r}"
+            ) from exc
 
     # -------------------- CloudProvider interface -------------------- #
 
@@ -187,10 +191,7 @@ class VultrProvider:
                 hourly = monthly / (30 * 24)
 
             gpu_ram_gb = (
-                plan.get("gpu_vram_gb")
-                or plan.get("gpu_ram")
-                or plan.get("gpu_memory_gb")
-                or 0
+                plan.get("gpu_vram_gb") or plan.get("gpu_ram") or plan.get("gpu_memory_gb") or 0
             )
             if isinstance(gpu_ram_gb, str):
                 try:
@@ -285,7 +286,9 @@ class VultrProvider:
         payload = {"instance_id": instance_id}
         self._request("POST", f"/blocks/{volume_id}/attach", payload=payload)
 
-    def run_bootstrap(self, instance_id: str, script: str) -> None:  # pragma: no cover - placeholder
+    def run_bootstrap(
+        self, instance_id: str, script: str
+    ) -> None:  # pragma: no cover - placeholder
         # Bootstrap runs via user_data; no additional action required.
         _ = (instance_id, script)
 
@@ -366,6 +369,22 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
 
     # Extract tasks from config for multi-task support
     tasks = extract_tasks_from_config(str(config.config_path))
+
+    # Extract num_gpus from config for distributed training support (Phase 4: DDP)
+    num_gpus = 1
+    try:
+        local_cfg_path = (
+            (REPO_ROOT / config.config_path)
+            if not Path(config.config_path).is_absolute()
+            else Path(config.config_path)
+        )
+        if local_cfg_path.exists():
+            with open(local_cfg_path) as f:
+                cfg = yaml.safe_load(f)
+            num_gpus = cfg.get("training", {}).get("num_gpus", 1)
+    except Exception:
+        num_gpus = 1
+
     wandb_env = {
         key: env_exports[key]
         for key in ("WANDB_API_KEY", "WANDB_PROJECT", "WANDB_ENTITY")
@@ -377,13 +396,19 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
         if key in env_exports and env_exports[key]
     }
 
-    profile_entries = "\n".join(
-        f"export {key}={shlex.quote(value)}" for key, value in env_exports.items() if value
-    ) or "true"
+    profile_entries = (
+        "\n".join(
+            f"export {key}={shlex.quote(value)}" for key, value in env_exports.items() if value
+        )
+        or "true"
+    )
     data_root = f"{DEFAULT_VOLUME_MOUNT}/data"
     rclone_config_content = ""
     sync_cmd = "true"
-    if all(k in b2_env for k in ("B2_KEY_ID", "B2_APP_KEY", "B2_S3_ENDPOINT", "B2_S3_REGION", "B2_BUCKET")):
+    if all(
+        k in b2_env
+        for k in ("B2_KEY_ID", "B2_APP_KEY", "B2_S3_ENDPOINT", "B2_S3_REGION", "B2_BUCKET")
+    ):
         rclone_config_content = textwrap.dedent(
             f"""
             [B2TRAIN]
@@ -415,27 +440,63 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     else:
         rclone_config_content = ""
 
-    cmd_parts: list[str] = [
-        "WANDB_MODE=online",
-        "python",
-        "scripts/run_fast_to_sota.py",
-        "--train-config",
-        shlex.quote(config_path),
-        "--train-stage",
-        shlex.quote(config.stage),
-        "--skip-small-eval",
-        "--eval-device",
-        "cuda",
-        "--run-dir",
-        "artifacts/runs",
-        "--leaderboard-csv",
-        "reports/leaderboard.csv",
-        "--wandb-mode",
-        "online",
-        "--wandb-sync",
-    ]
-    for tag in config.wandb_tags + [f"environment={config.environment_tag}"]:
-        cmd_parts.extend(["--wandb-tags", shlex.quote(tag)])
+    # Build training command with torchrun for multi-GPU or python for single-GPU (Phase 4: DDP)
+    if num_gpus > 1:
+        # Distributed training with torchrun
+        cmd_parts: list[str] = [
+            "WANDB_MODE=online",
+            "torchrun",
+            f"--nproc_per_node={num_gpus}",
+            "--nnodes=1",
+            "--node_rank=0",
+            "--master_addr=localhost",
+            "--master_port=29500",
+            "scripts/run_fast_to_sota.py",
+            "--train-config",
+            shlex.quote(config_path),
+            "--train-stage",
+            shlex.quote(config.stage),
+            "--skip-small-eval",
+            "--eval-device",
+            "cuda",
+            "--run-dir",
+            "artifacts/runs",
+            "--leaderboard-csv",
+            "reports/leaderboard.csv",
+            "--wandb-mode",
+            "online",
+            "--wandb-sync",
+        ]
+        for tag in config.wandb_tags + [
+            f"environment={config.environment_tag}",
+            f"ddp",
+            f"{num_gpus}gpu",
+        ]:
+            cmd_parts.extend(["--wandb-tags", shlex.quote(tag)])
+    else:
+        # Single-GPU training
+        cmd_parts: list[str] = [
+            "WANDB_MODE=online",
+            "python",
+            "scripts/run_fast_to_sota.py",
+            "--train-config",
+            shlex.quote(config_path),
+            "--train-stage",
+            shlex.quote(config.stage),
+            "--skip-small-eval",
+            "--eval-device",
+            "cuda",
+            "--run-dir",
+            "artifacts/runs",
+            "--leaderboard-csv",
+            "reports/leaderboard.csv",
+            "--wandb-mode",
+            "online",
+            "--wandb-sync",
+        ]
+        for tag in config.wandb_tags + [f"environment={config.environment_tag}"]:
+            cmd_parts.extend(["--wandb-tags", shlex.quote(tag)])
+
     for arg in config.run_args:
         cmd_parts.append(shlex.quote(arg))
     run_command = " ".join(cmd_parts)
@@ -445,7 +506,8 @@ def build_bootstrap_script(config: BootstrapConfig, *, mount_device: str = "/dev
     # Build env setup without heredoc to avoid indentation issues in cloud-init
     env_setup_lines = "\n".join(
         f"echo {shlex.quote(f'export {key}={shlex.quote(value)}')} >> /etc/profile.d/ups_env.sh"
-        for key, value in env_exports.items() if value
+        for key, value in env_exports.items()
+        if value
     )
 
     bootstrap_body = textwrap.dedent(
@@ -548,7 +610,8 @@ EOF_RCLONE
 
     # Use write_files with base64 encoding to avoid heredoc indentation issues
     import base64
-    bootstrap_b64 = base64.b64encode(bootstrap_body.encode('utf-8')).decode('ascii')
+
+    bootstrap_b64 = base64.b64encode(bootstrap_body.encode("utf-8")).decode("ascii")
 
     script = f"""#cloud-config
 bootcmd:
@@ -571,6 +634,7 @@ runcmd:
 
 
 # -------------------- CLI commands -------------------- #
+
 
 def cmd_setup_env(_: argparse.Namespace) -> None:
     values = load_env()
@@ -895,9 +959,12 @@ def cmd_preprocess(args: argparse.Namespace) -> None:
     env_exports = launch_args.env_exports
 
     # Setup environment variables for script
-    profile_entries = "\n".join(
-        f"export {key}={shlex.quote(value)}" for key, value in env_exports.items() if value
-    ) or "true"
+    profile_entries = (
+        "\n".join(
+            f"export {key}={shlex.quote(value)}" for key, value in env_exports.items() if value
+        )
+        or "true"
+    )
 
     # Build preprocessing script
     preprocess_script = f"""#!/usr/bin/env bash
@@ -1078,7 +1145,7 @@ def cmd_rerun(args: argparse.Namespace) -> None:
             print(f"\n⚠️  Preprocessing is already running (PID: {pid})")
             if not args.kill_existing:
                 response = input("Kill existing process and restart? [y/N]: ")
-                if response.lower() != 'y':
+                if response.lower() != "y":
                     print("Aborted.")
                     return
             print("→ Killing existing preprocessing process...")
@@ -1095,7 +1162,9 @@ def cmd_rerun(args: argparse.Namespace) -> None:
 
         # Set executable permission
         print("→ Setting executable permissions...")
-        client.exec_command("chmod +x /workspace/universal_simulator/scripts/remote_preprocess_pdebench.sh")
+        client.exec_command(
+            "chmod +x /workspace/universal_simulator/scripts/remote_preprocess_pdebench.sh"
+        )
 
         # Rerun preprocessing
         print("\n═══════════════════════════════════════════════════════")
@@ -1156,9 +1225,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # launch
     p_launch = sub.add_parser("launch", help="Provision a Vultr instance and kick off training")
-    p_launch.add_argument("--plan-id", help="Explicit plan identifier (e.g., vcg-3-32-1c-a100-80gb)")
+    p_launch.add_argument(
+        "--plan-id", help="Explicit plan identifier (e.g., vcg-3-32-1c-a100-80gb)"
+    )
     p_launch.add_argument("--region", help="Region code (sjc1, sea1, lax1, etc.)")
-    p_launch.add_argument("--min-gpu-ram", type=int, default=40, help="Minimum GPU RAM (GB) required")
+    p_launch.add_argument(
+        "--min-gpu-ram", type=int, default=40, help="Minimum GPU RAM (GB) required"
+    )
     p_launch.add_argument("--volume-size", type=int, default=1024, help="Block volume size in GB")
     p_launch.add_argument("--label", help="Instance label")
     p_launch.add_argument("--config", required=True, help="Training config path")
@@ -1168,14 +1241,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_OS_ID,
         help="Operating system ID to install on the instance (default: Ubuntu 22.04 LTS x64)",
     )
-    p_launch.add_argument("--stage", default="all", choices=["all", "operator", "diffusion", "distill"])
+    p_launch.add_argument(
+        "--stage", default="all", choices=["all", "operator", "diffusion", "distill"]
+    )
     p_launch.add_argument("--repo-url", help="Git remote URL (default: current origin)")
     p_launch.add_argument("--branch", help="Git branch (default: current branch)")
     p_launch.add_argument("--workdir", default="/workspace", help="Remote work directory")
-    p_launch.add_argument("--run-arg", action="append", default=[], help="Extra args for run_fast_to_sota.py")
-    p_launch.add_argument("--no-precompute", action="store_true", help="Skip latent cache precompute")
-    p_launch.add_argument("--keep-volume", action="store_true", help="Keep block volume on teardown")
-    p_launch.add_argument("--dry-run", action="store_true", help="Print planned actions without contacting Vultr")
+    p_launch.add_argument(
+        "--run-arg", action="append", default=[], help="Extra args for run_fast_to_sota.py"
+    )
+    p_launch.add_argument(
+        "--no-precompute", action="store_true", help="Skip latent cache precompute"
+    )
+    p_launch.add_argument(
+        "--keep-volume", action="store_true", help="Keep block volume on teardown"
+    )
+    p_launch.add_argument(
+        "--dry-run", action="store_true", help="Print planned actions without contacting Vultr"
+    )
     p_launch.set_defaults(func=cmd_launch)
 
     # status
@@ -1197,39 +1280,63 @@ def build_parser() -> argparse.ArgumentParser:
 
     # preprocess command
     p_preprocess = sub.add_parser("preprocess", help="Launch remote preprocessing job for PDEBench")
-    p_preprocess.add_argument("--tasks", nargs="+", required=True,
-                             help="Tasks to preprocess (e.g., advection1d darcy2d)")
-    p_preprocess.add_argument("--cache-dim", type=int,
-                             help="Latent dimension for cache precomputation (optional)")
-    p_preprocess.add_argument("--cache-tokens", type=int,
-                             help="Latent tokens for cache precomputation (optional)")
-    p_preprocess.add_argument("--plan-id", required=True,
-                             help="Vultr plan ID to use for preprocessing")
-    p_preprocess.add_argument("--region", default="sjc1",
-                             help="Region code (default: sjc1)")
-    p_preprocess.add_argument("--os-id", type=int, default=DEFAULT_OS_ID,
-                             help="Operating system ID (default: Ubuntu 22.04 LTS)")
-    p_preprocess.add_argument("--volume-size", type=int, default=128,
-                             help="Volume size in GB (default: 128 for preprocessing)")
+    p_preprocess.add_argument(
+        "--tasks", nargs="+", required=True, help="Tasks to preprocess (e.g., advection1d darcy2d)"
+    )
+    p_preprocess.add_argument(
+        "--cache-dim", type=int, help="Latent dimension for cache precomputation (optional)"
+    )
+    p_preprocess.add_argument(
+        "--cache-tokens", type=int, help="Latent tokens for cache precomputation (optional)"
+    )
+    p_preprocess.add_argument(
+        "--plan-id", required=True, help="Vultr plan ID to use for preprocessing"
+    )
+    p_preprocess.add_argument("--region", default="sjc1", help="Region code (default: sjc1)")
+    p_preprocess.add_argument(
+        "--os-id",
+        type=int,
+        default=DEFAULT_OS_ID,
+        help="Operating system ID (default: Ubuntu 22.04 LTS)",
+    )
+    p_preprocess.add_argument(
+        "--volume-size",
+        type=int,
+        default=128,
+        help="Volume size in GB (default: 128 for preprocessing)",
+    )
     p_preprocess.add_argument("--label", help="Instance label (default: ups-preprocess)")
     p_preprocess.add_argument("--repo-url", help="Git remote URL (default: current origin)")
     p_preprocess.add_argument("--branch", help="Git branch (default: current branch)")
     p_preprocess.add_argument("--workdir", default="/workspace", help="Remote work directory")
-    p_preprocess.add_argument("--dry-run", action="store_true", help="Print commands without executing")
+    p_preprocess.add_argument(
+        "--dry-run", action="store_true", help="Print commands without executing"
+    )
     p_preprocess.set_defaults(func=cmd_preprocess)
 
     # rerun command
-    p_rerun = sub.add_parser("rerun", help="Rerun preprocessing on existing instance with latest code")
+    p_rerun = sub.add_parser(
+        "rerun", help="Rerun preprocessing on existing instance with latest code"
+    )
     p_rerun.add_argument("--instance", required=True, help="Instance identifier")
-    p_rerun.add_argument("--tasks", nargs="+", default=["advection1d", "darcy2d"],
-                        help="Tasks to preprocess (default: advection1d darcy2d)")
-    p_rerun.add_argument("--cache-dim", type=int,
-                        help="Latent dimension for cache precomputation (optional)")
-    p_rerun.add_argument("--cache-tokens", type=int,
-                        help="Latent tokens for cache precomputation (optional)")
+    p_rerun.add_argument(
+        "--tasks",
+        nargs="+",
+        default=["advection1d", "darcy2d"],
+        help="Tasks to preprocess (default: advection1d darcy2d)",
+    )
+    p_rerun.add_argument(
+        "--cache-dim", type=int, help="Latent dimension for cache precomputation (optional)"
+    )
+    p_rerun.add_argument(
+        "--cache-tokens", type=int, help="Latent tokens for cache precomputation (optional)"
+    )
     p_rerun.add_argument("--password", help="Root password (if not available from API)")
-    p_rerun.add_argument("--kill-existing", action="store_true",
-                        help="Kill existing preprocessing process if running")
+    p_rerun.add_argument(
+        "--kill-existing",
+        action="store_true",
+        help="Kill existing preprocessing process if running",
+    )
     p_rerun.set_defaults(func=cmd_rerun)
 
     return parser
