@@ -51,7 +51,7 @@ training:
   accum_steps: 6    # Effective batch = 48 (vs 40 for single-task)
   time_stride: 2
   dt: 0.1
-  patience: 5
+  patience: 3
 
   num_workers: 8
   use_parallel_encoding: true
@@ -132,8 +132,8 @@ stages:
       eps: 1.0e-8
 
   diff_residual:
-    epochs: 15
-    patience: 5
+    epochs: 0
+    patience: 3
 
     optimizer:
       name: muon_hybrid
@@ -153,8 +153,8 @@ stages:
       min_lr: 1.0e-5
 
   consistency_distill:
-    epochs: 10
-    patience: 5
+    epochs: 0
+    patience: 3
 
     optimizer:
       name: muon_hybrid
