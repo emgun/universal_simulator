@@ -198,6 +198,8 @@ export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
 export RCLONE_CONFIG_B2TRAIN_ACL=private
 export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 
+# Clear old/partial data files for fresh start
+rm -rf data/pdebench || true
 mkdir -p data/pdebench
 
 # Multi-task parallel download (supports both single and multiple tasks)
