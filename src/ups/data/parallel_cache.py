@@ -166,19 +166,33 @@ class PreloadedCacheDataset(Dataset):
         return LatentPair(z0, z1, cond, future=future)
 
 
-def make_collate_with_encoding(
-    encoder: GridEncoder,
-    coords: torch.Tensor,
-    grid_shape: Tuple[int, int],
-    field_name: str,
-    device: torch.device,
-    cache_dtype: Optional[torch.dtype] = torch.float16,
-    time_stride: int = 1,
-    rollout_horizon: int = 1,
-):
-    """Create a collate function that encodes in the main process on GPU."""
+class CollateFnWithEncoding:
+    """Picklable collate function that encodes in the main process on GPU.
 
-    def collate_with_encoding(batch):
+    This class is picklable (unlike closures) and can be used with multiprocessing DataLoader.
+    """
+
+    def __init__(
+        self,
+        encoder: GridEncoder,
+        coords: torch.Tensor,
+        grid_shape: Tuple[int, int],
+        field_name: str,
+        device: torch.device,
+        cache_dtype: Optional[torch.dtype] = torch.float16,
+        time_stride: int = 1,
+        rollout_horizon: int = 1,
+    ):
+        self.encoder = encoder
+        self.coords = coords
+        self.grid_shape = grid_shape
+        self.field_name = field_name
+        self.device = device
+        self.cache_dtype = cache_dtype
+        self.time_stride = time_stride
+        self.rollout_horizon = rollout_horizon
+
+    def __call__(self, batch):
         """Encode raw fields on GPU and return latent pairs."""
         from ups.data.latent_pairs import _fields_to_latent_batch
 
@@ -190,33 +204,33 @@ def make_collate_with_encoding(
                 latent_seq = item["latent"]
             else:
                 # Encode in main process on GPU
-                fields = item["fields"].to(device, non_blocking=True)
+                fields = item["fields"].to(self.device, non_blocking=True)
                 params_cpu = item["params"]
                 bc_cpu = item["bc"]
 
                 # Move params/bc to device
                 params_device = None
                 if params_cpu is not None:
-                    params_device = {k: v.to(device, non_blocking=True) for k, v in params_cpu.items()}
+                    params_device = {k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()}
                 bc_device = None
                 if bc_cpu is not None:
-                    bc_device = {k: v.to(device, non_blocking=True) for k, v in bc_cpu.items()}
+                    bc_device = {k: v.to(self.device, non_blocking=True) for k, v in bc_cpu.items()}
 
                 # Encode on GPU in main process
                 latent_seq = _fields_to_latent_batch(
-                    encoder,
+                    self.encoder,
                     fields,
-                    coords,
-                    grid_shape,
+                    self.coords,
+                    self.grid_shape,
                     params=params_device,
                     bc=bc_device,
-                    field_name=field_name,
+                    field_name=self.field_name,
                 )
 
                 # Save to cache
                 if item["cache_path"] is not None:
                     cache_path = item["cache_path"]
-                    to_store = latent_seq.to(cache_dtype) if cache_dtype is not None else latent_seq
+                    to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
                     tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
                     tmp_path.unlink(missing_ok=True)
                     payload = {
@@ -230,29 +244,27 @@ def make_collate_with_encoding(
                     tmp_path.replace(cache_path)
 
             # Apply time stride
-            if time_stride > 1:
-                latent_seq = latent_seq[::time_stride]
+            if self.time_stride > 1:
+                latent_seq = latent_seq[::self.time_stride]
 
-            if latent_seq.shape[0] <= rollout_horizon:
+            if latent_seq.shape[0] <= self.rollout_horizon:
                 raise ValueError("Need more time steps than rollout horizon to form latent pairs")
 
             # Create latent pairs
-            base_len = latent_seq.shape[0] - rollout_horizon
+            base_len = latent_seq.shape[0] - self.rollout_horizon
             z0 = latent_seq[:base_len]
             targets = []
-            for step in range(1, rollout_horizon + 1):
+            for step in range(1, self.rollout_horizon + 1):
                 targets.append(latent_seq[step : step + base_len])
             target_stack = torch.stack(targets, dim=1)
             z1 = target_stack[:, 0]
-            future = target_stack[:, 1:] if rollout_horizon > 1 else None
+            future = target_stack[:, 1:] if self.rollout_horizon > 1 else None
 
             cond = prepare_conditioning(item.get("params"), item.get("bc"), base_len)
             latent_pairs.append(LatentPair(z0, z1, cond, future=future))
 
         # Collate latent pairs
         return latent_pair_collate(latent_pairs)
-
-    return collate_with_encoding
 
 
 def build_parallel_latent_loader(
@@ -285,7 +297,7 @@ def build_parallel_latent_loader(
         rollout_horizon=rollout_horizon,
     )
 
-    collate_fn = make_collate_with_encoding(
+    collate_fn = CollateFnWithEncoding(
         encoder=encoder,
         coords=coords,
         grid_shape=grid_shape,
