@@ -219,8 +219,8 @@ ttc:
   decoder:
     latent_dim: 128       # Match training latent dim
     query_dim: 2          # 2D max (advection is 1D, darcy is 2D)
-    hidden_dim: 288       # 2.25× latent_dim (vs 2× for Burgers)
-    mlp_hidden_dim: 384   # 3× latent_dim (vs 2× for Burgers)
+    hidden_dim: 384       # Match operator.pdet.hidden_dim (required by validation)
+    mlp_hidden_dim: 384   # 3× latent_dim
     num_layers: 3
     num_heads: 4
     frequencies: [1.0, 2.0, 4.0, 8.0]
