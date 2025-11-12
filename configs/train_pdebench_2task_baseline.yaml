@@ -47,8 +47,8 @@ diffusion:
   hidden_dim: 384   # Match operator
 
 training:
-  batch_size: 8     # Reduced from 10 (2D darcy has more tokens)
-  accum_steps: 6    # Effective batch = 48 (vs 40 for single-task)
+  batch_size: 4     # Reduced from 8 to fit 80GB A100 with UPT inverse losses
+  accum_steps: 12   # Effective batch = 48 (maintained)
   time_stride: 2
   dt: 0.1
   patience: 3
