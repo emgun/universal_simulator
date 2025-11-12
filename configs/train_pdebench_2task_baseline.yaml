@@ -231,7 +231,7 @@ logging:
   wandb:
     enabled: true
     project: universal-simulator
-    entity: emgun-morphus-space
+    entity: emgun-morpheus-space
     run_name: pdebench-2task-baseline-upt
     tags: [upt, phase4-complete, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, conservative-pdes]
     group: upt-phase4-pdebench

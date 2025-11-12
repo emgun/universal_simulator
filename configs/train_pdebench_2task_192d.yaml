@@ -48,8 +48,8 @@ diffusion:
   hidden_dim: 576   # Match operator
 
 training:
-  batch_size: 8     # Optimized: increased from baseline for better GPU util
-  accum_steps: 6    # Effective batch = 48 (vs 40 for single-task)
+  batch_size: 4     # Reduced from 8 to fit in 80GB VRAM (192d needs ~70-75GB at bs=8)
+  accum_steps: 12   # Effective batch = 48 (maintained, vs 40 for single-task)
   time_stride: 2
   dt: 0.1
   patience: 3       # Reduced from 5 for faster early stopping
