@@ -407,7 +407,7 @@ def main() -> None:
                     use_inverse_losses=use_inverse_losses,
                     time_stride=time_stride,
                 )
-            except ValueError as exc:
+            except (ValueError, FileNotFoundError) as exc:
                 print(f"[{task}:{split}] skipping cache generation: {exc}")
                 summary[f"{task}_{split}"] = {"num_samples": 0, "total_mb": 0.0, "skipped": str(exc)}
                 continue
