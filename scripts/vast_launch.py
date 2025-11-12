@@ -203,27 +203,19 @@ mkdir -p data/pdebench
 """
 
     # Generate download commands for each task (sequential for reliability)
+    # NOTE: Only downloading train files - val/test splits not yet available on B2
     for task in tasks:
         script += f"""
 if [ ! -f data/pdebench/{task}_train.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress
 fi
-if [ ! -f data/pdebench/{task}_val.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_val.h5 data/pdebench/ --progress
-fi
-if [ ! -f data/pdebench/{task}_test.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_test.h5 data/pdebench/ --progress
-fi
 """
 
     # Add file verification (no wait needed for sequential downloads)
+    # NOTE: Only verifying train files - val/test splits not yet available on B2
     expected_files = []
     for task in tasks:
-        expected_files.extend([
-            f"data/pdebench/{task}_train.h5",
-            f"data/pdebench/{task}_val.h5",
-            f"data/pdebench/{task}_test.h5",
-        ])
+        expected_files.append(f"data/pdebench/{task}_train.h5")
     files_check = " ".join(f'[ -f "{f}" ]' for f in expected_files)
 
     script += f"""
