@@ -219,10 +219,34 @@ if [ ! -f data/pdebench/{task}_test.h5 ]; then
 fi
 """
 
+    # Add file verification after wait
+    expected_files = []
+    for task in tasks:
+        expected_files.extend([
+            f"data/pdebench/{task}_train.h5",
+            f"data/pdebench/{task}_val.h5",
+            f"data/pdebench/{task}_test.h5",
+        ])
+    files_check = " ".join(f'[ -f "{f}" ]' for f in expected_files)
+
     script += f"""
 # Wait for all downloads to complete
 wait
-echo "✓ Data downloads complete"
+
+# Verify all data files are present before proceeding
+echo "🔍 Verifying {len(expected_files)} data files..."
+for i in {{1..60}}; do
+  if {' && '.join(f'[ -f "{f}" ]' for f in expected_files)}; then
+    echo "✓ All data files downloaded successfully"
+    break
+  fi
+  if [ $i -eq 60 ]; then
+    echo "❌ ERROR: Not all data files downloaded after 5 minutes"
+    ls -lh data/pdebench/
+    exit 1
+  fi
+  sleep 5
+done
 
 # Checkpoint handling: clear for fresh start OR download from WandB for resume
 {"# RESUME MODE: Download checkpoints from WandB" if resume_from_wandb else "# FRESH START: Clear checkpoints"}
