@@ -202,7 +202,7 @@ ttc:
     # PDEBench field names (task-specific)
     # Advection1D: 'u' field (velocity/quantity)
     # Darcy2D: 'p' field (pressure)
-    mass_field: null       # Will use first available field
+    mass_field: "u"        # Use 'u' field for mass/quantity conservation
     energy_field: null     # Not applicable (conservative PDEs don't have energy concept like Burgers)
     momentum_field: []
 
