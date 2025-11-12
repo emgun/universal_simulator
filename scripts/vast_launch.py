@@ -26,11 +26,12 @@ Usage:
 
 import argparse
 import os
-import time
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
+
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,9 @@ def run(cmd: list[str], *, check: bool = True) -> int:
 def git_remote_url() -> str:
     """Get git remote URL."""
     try:
-        out = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], cwd=REPO_ROOT)
+        out = subprocess.check_output(
+            ["git", "config", "--get", "remote.origin.url"], cwd=REPO_ROOT
+        )
         return out.decode().strip()
     except subprocess.CalledProcessError:
         return "https://github.com/emgun/universal_simulator.git"
@@ -137,11 +140,26 @@ def generate_onstart_script(
     # Extract tasks from config for multi-task download support
     tasks = extract_tasks_from_config(config)
 
+    # Extract num_gpus from config for distributed training support
+    num_gpus = 1
+    try:
+        local_cfg_path = (
+            (REPO_ROOT / train_cfg_path) if not train_cfg_path.is_absolute() else train_cfg_path
+        )
+        if local_cfg_path.exists():
+            with open(local_cfg_path) as f:
+                cfg = yaml.safe_load(f)
+            num_gpus = cfg.get("training", {}).get("num_gpus", 1)
+    except Exception:
+        num_gpus = 1
+
     # Try to inline the training config contents so remote runs do not depend
     # on the Git branch containing local, unpushed changes.
     config_inline = None
     try:
-        local_cfg_path = (REPO_ROOT / train_cfg_path) if not train_cfg_path.is_absolute() else train_cfg_path
+        local_cfg_path = (
+            (REPO_ROOT / train_cfg_path) if not train_cfg_path.is_absolute() else train_cfg_path
+        )
         if local_cfg_path.exists():
             # Only inline very small configs to keep VastAI args under limits
             max_inline_bytes = 800
@@ -154,7 +172,7 @@ def generate_onstart_script(
             config_inline = None
     except Exception:
         config_inline = None
-    
+
     # Build optional inline block for config
     inline_block = ""
     if config_inline is not None:
@@ -261,7 +279,7 @@ print(f'✓ Configured WandB to resume run: {{run_id}}')
 
     # Build cache precomputation command
     if precompute:
-        tasks_str = ' '.join(tasks)
+        tasks_str = " ".join(tasks)
         # Only cache train split - val/test data is downloaded from WandB artifacts later in pipeline
         cache_cmd = f"""echo "Precomputing latent caches for tasks: {tasks_str}…"
 PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks {tasks_str} --splits train --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 4 --pin-memory --parallel || echo "⚠️  Latent cache precompute failed (continuing)"
@@ -270,14 +288,35 @@ PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_sc
         cache_cmd = 'echo "Skipping latent cache precompute (quick-run)"\n'
 
     script += cache_cmd
-    script += f"""
 
+    # Build training command with torchrun for multi-GPU or python for single-GPU
+    if num_gpus > 1:
+        # Distributed training with torchrun
+        training_cmd = f"""
+export WANDB_MODE=online
+
+echo "Starting distributed training with {num_gpus} GPUs..."
+torchrun \\
+  --nproc_per_node={num_gpus} \\
+  --nnodes=1 \\
+  --node_rank=0 \\
+  --master_addr=localhost \\
+  --master_port=29500 \\
+  scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast,ddp,{num_gpus}gpu --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args} || echo "⚠️  Training exited with code $?"
+
+echo "✓ Training pipeline completed"
+"""
+    else:
+        # Single-GPU training
+        training_cmd = f"""
 export WANDB_MODE=online
 
 python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args} || echo "⚠️  Training exited with code $?"
 
 echo "✓ Training pipeline completed"
 """
+
+    script += training_cmd
 
     if auto_shutdown:
         script += """
@@ -299,7 +338,7 @@ def cmd_setup_env(args: argparse.Namespace) -> None:
         print("❌ ERROR: .env file not found")
         print("   Please create .env with B2 and WandB credentials")
         sys.exit(1)
-    
+
     # Parse .env file
     env_vars = {}
     for line in env_file.read_text().splitlines():
@@ -307,26 +346,26 @@ def cmd_setup_env(args: argparse.Namespace) -> None:
         if line and not line.startswith("#") and "=" in line:
             key, value = line.split("=", 1)
             env_vars[key.strip()] = value.strip().strip('"').strip("'")
-    
+
     print("═══════════════════════════════════════════════════════════")
     print("Setting up VastAI Environment Variables")
     print("═══════════════════════════════════════════════════════════")
     print()
-    
+
     # B2 credentials
     print("📦 Setting B2 credentials...")
     for key in ["B2_KEY_ID", "B2_APP_KEY", "B2_S3_ENDPOINT", "B2_S3_REGION", "B2_BUCKET"]:
         if key in env_vars:
             value = env_vars[key]
             run(["vastai", "create", "env-var", key, value], check=False)
-    
+
     # WandB credentials
     print("🔬 Setting WandB credentials...")
     for key in ["WANDB_API_KEY", "WANDB_PROJECT", "WANDB_ENTITY"]:
         if key in env_vars:
             value = env_vars[key]
             run(["vastai", "create", "env-var", key, value], check=False)
-    
+
     print()
     print("✅ All environment variables configured!")
     print()
@@ -365,42 +404,49 @@ def cmd_launch(args: argparse.Namespace) -> None:
         ["git", "ls-files", "--error-unmatch", str(config_path.relative_to(REPO_ROOT))],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True
+        text=True,
     )
     if result.returncode != 0:
         print(f"⚠️  WARNING: Config file is not tracked in git: {args.config}")
         print("   The VastAI instance will not have access to this file!")
         print(f"   Please run: git add {config_path.relative_to(REPO_ROOT)}")
         response = input("   Abort launch? [Y/n]: ")
-        if response.lower() != 'n':
+        if response.lower() != "n":
             print("❌ Aborting launch")
             sys.exit(1)
 
     # Check for uncommitted changes to config
     result = subprocess.run(
-        ["git", "diff", "--quiet", str(config_path.relative_to(REPO_ROOT))],
-        cwd=REPO_ROOT
+        ["git", "diff", "--quiet", str(config_path.relative_to(REPO_ROOT))], cwd=REPO_ROOT
     )
     if result.returncode != 0:
         print(f"⚠️  WARNING: Config file has uncommitted changes: {args.config}")
         print("   VastAI will use the committed version, not your local changes!")
         print(f"   Please run: git commit -am 'Update config' && git push origin {branch}")
         response = input("   Continue anyway? [y/N]: ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("❌ Aborting launch")
             sys.exit(1)
         print("⚠️  Continuing with committed version (local changes will be ignored)")
 
     # Check if config has been pushed to remote
     result = subprocess.run(
-        ["git", "diff", "--quiet", f"origin/{branch}", "HEAD", "--", str(config_path.relative_to(REPO_ROOT))],
-        cwd=REPO_ROOT
+        [
+            "git",
+            "diff",
+            "--quiet",
+            f"origin/{branch}",
+            "HEAD",
+            "--",
+            str(config_path.relative_to(REPO_ROOT)),
+        ],
+        cwd=REPO_ROOT,
     )
     if result.returncode != 0:
         print(f"⚠️  WARNING: Config file has unpushed commits: {args.config}")
         print(f"   Please run: git push origin {branch}")
         response = input("   Continue anyway? [y/N]: ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("❌ Aborting launch")
             sys.exit(1)
         print("⚠️  Continuing (VastAI will use older remote version)")
@@ -423,38 +469,48 @@ def cmd_launch(args: argparse.Namespace) -> None:
         resume_from_wandb=getattr(args, "resume_from_wandb", None),
         resume_mode=getattr(args, "resume_mode", "allow"),
     )
-    
+
     onstart_path.write_text(script_content)
     onstart_path.chmod(0o755)
-    
+
     print(f"✅ Generated onstart script: {onstart_path}")
-    
+
     # Build launch command
     if args.offer_id:
         cmd = [
-            "vastai", "create", "instance",
+            "vastai",
+            "create",
+            "instance",
             str(args.offer_id),
-            "--image", args.image,
-            "--disk", str(args.disk),
+            "--image",
+            args.image,
+            "--disk",
+            str(args.disk),
         ]
     else:
         cmd = [
-            "vastai", "launch", "instance",
-            "-g", args.gpu,
-            "-n", str(args.num_gpus),
-            "-i", args.image,
-            "-d", str(args.disk),
+            "vastai",
+            "launch",
+            "instance",
+            "-g",
+            args.gpu,
+            "-n",
+            str(args.num_gpus),
+            "-i",
+            args.image,
+            "-d",
+            str(args.disk),
         ]
         if args.region:
             cmd.extend(["-r", args.region])
-    
+
     cmd.extend(["--ssh", "--onstart", str(onstart_path)])
-    
+
     if args.dry_run:
         print("DRY RUN: would execute ->", " ".join(cmd))
         print("\nGenerated onstart script:\n" + onstart_path.read_text())
         return
-    
+
     attempts = max(1, int(getattr(args, "retries", 0)) + 1)
     wait_s = max(0, int(getattr(args, "retry_wait", 20)))
     for i in range(attempts):
@@ -471,10 +527,11 @@ def cmd_resume(args: argparse.Namespace) -> None:
     """Resume training on existing instance with checkpoint resumption."""
     # Get SSH connection details for the instance
     import json
+
     result = subprocess.run(
         ["vastai", "show", "instance", str(args.instance_id), "--raw"],
         capture_output=True,
-        text=True
+        text=True,
     )
     if result.returncode != 0:
         print(f"❌ Failed to get instance info for {args.instance_id}")
@@ -507,7 +564,7 @@ def cmd_resume(args: argparse.Namespace) -> None:
     # Build training command with checkpoint resumption
     resume_args = [
         f"--resume-from-wandb {args.resume_from_wandb}",
-        f"--resume-mode {args.resume_mode}"
+        f"--resume-mode {args.resume_mode}",
     ]
 
     script = f"""#!/bin/bash
@@ -552,7 +609,8 @@ sleep 10
 
     # Write script to temp file
     import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
         f.write(script)
         script_path = f.name
 
@@ -561,10 +619,12 @@ sleep 10
         print(f"📤 Uploading resume script to instance...")
         scp_cmd = [
             "scp",
-            "-o", "StrictHostKeyChecking=no",
-            "-P", str(ssh_port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-P",
+            str(ssh_port),
             script_path,
-            f"root@{ssh_host}:/tmp/resume_training.sh"
+            f"root@{ssh_host}:/tmp/resume_training.sh",
         ]
         run(scp_cmd)
 
@@ -572,10 +632,12 @@ sleep 10
         print(f"🚀 Starting training resumption on instance {args.instance_id}...")
         ssh_cmd = [
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-p", str(ssh_port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-p",
+            str(ssh_port),
             f"root@{ssh_host}",
-            "chmod +x /tmp/resume_training.sh && nohup /tmp/resume_training.sh > /tmp/resume_training.log 2>&1 &"
+            "chmod +x /tmp/resume_training.sh && nohup /tmp/resume_training.sh > /tmp/resume_training.log 2>&1 &",
         ]
         run(ssh_cmd)
 
@@ -647,12 +709,17 @@ exit 0
     # Build launch command
     if args.offer_id:
         cmd = [
-            "vastai", "create", "instance",
+            "vastai",
+            "create",
+            "instance",
             args.offer_id,
-            "--image", args.image,
-            "--disk", str(args.disk),
+            "--image",
+            args.image,
+            "--disk",
+            str(args.disk),
             "--ssh",
-            "--onstart", str(onstart_path)
+            "--onstart",
+            str(onstart_path),
         ]
     else:
         print("❌ ERROR: --offer-id required for preprocessing jobs")
@@ -678,7 +745,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="VastAI launcher for training runs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -696,61 +763,119 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--offer-id", help="Explicit offer ID to create from")
     p_launch.add_argument("--gpu", default="A100_PCIE", help="GPU model (default: A100_PCIE)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
-    p_launch.add_argument("--image", default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
-                         help="Docker image (default: PyTorch 2.7 CUDA 12.8 for Blackwell support)")
+    p_launch.add_argument(
+        "--image",
+        default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
+        help="Docker image (default: PyTorch 2.7 CUDA 12.8 for Blackwell support)",
+    )
     p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
     p_launch.add_argument("--region", help="Region filter")
-    p_launch.add_argument("--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)")
-    p_launch.add_argument("--stage", default="all", choices=["all", "operator", "diffusion", "distill"],
-                         help="Training stage (default: all)")
+    p_launch.add_argument(
+        "--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)"
+    )
+    p_launch.add_argument(
+        "--stage",
+        default="all",
+        choices=["all", "operator", "diffusion", "distill"],
+        help="Training stage (default: all)",
+    )
     p_launch.add_argument("--repo-url", help="Git remote URL (default: auto-detect)")
-    p_launch.add_argument("--branch", default=None, help="Git branch (default: auto-detect from current branch)")
+    p_launch.add_argument(
+        "--branch", default=None, help="Git branch (default: auto-detect from current branch)"
+    )
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
-    p_launch.add_argument("--auto-shutdown", action="store_true", help="Auto-shutdown after completion")
+    p_launch.add_argument(
+        "--auto-shutdown", action="store_true", help="Auto-shutdown after completion"
+    )
     p_launch.add_argument("--dry-run", action="store_true", help="Print commands without launching")
-    p_launch.add_argument("--retries", type=int, default=0, help="Retries for failed launch attempts")
-    p_launch.add_argument("--retry-wait", type=int, default=20, help="Seconds to wait between retries")
+    p_launch.add_argument(
+        "--retries", type=int, default=0, help="Retries for failed launch attempts"
+    )
+    p_launch.add_argument(
+        "--retry-wait", type=int, default=20, help="Seconds to wait between retries"
+    )
     p_launch.add_argument(
         "--run-arg",
         action="append",
         default=[],
         help="Additional argument to append to run_fast_to_sota.py command (may repeat)",
     )
-    p_launch.add_argument("--no-precompute", action="store_true", help="Skip latent cache precompute in onstart (faster startup)")
-    p_launch.add_argument("--resume-from-wandb", type=str, metavar="RUN_ID", help="Resume from WandB run (downloads checkpoints and resumes training)")
-    p_launch.add_argument("--resume-mode", type=str, choices=["allow", "must", "never"], default="allow", help="WandB resume mode (default: allow)")
+    p_launch.add_argument(
+        "--no-precompute",
+        action="store_true",
+        help="Skip latent cache precompute in onstart (faster startup)",
+    )
+    p_launch.add_argument(
+        "--resume-from-wandb",
+        type=str,
+        metavar="RUN_ID",
+        help="Resume from WandB run (downloads checkpoints and resumes training)",
+    )
+    p_launch.add_argument(
+        "--resume-mode",
+        type=str,
+        choices=["allow", "must", "never"],
+        default="allow",
+        help="WandB resume mode (default: allow)",
+    )
     p_launch.set_defaults(func=cmd_launch)
 
     # resume command
     p_resume = sub.add_parser("resume", help="Resume training on existing instance with checkpoint")
     p_resume.add_argument("--instance-id", required=True, type=int, help="VastAI instance ID")
-    p_resume.add_argument("--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)")
-    p_resume.add_argument("--resume-from-wandb", required=True, help="WandB run ID to resume from (e.g., train-20251027_193043)")
-    p_resume.add_argument("--resume-mode", default="allow", choices=["allow", "must", "never"],
-                         help="WandB resume mode (default: allow)")
-    p_resume.add_argument("--stage", default="all", choices=["all", "operator", "diffusion", "distill"],
-                         help="Training stage (default: all)")
-    p_resume.add_argument("--branch", default=None, help="Git branch (default: auto-detect from current branch)")
+    p_resume.add_argument(
+        "--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)"
+    )
+    p_resume.add_argument(
+        "--resume-from-wandb",
+        required=True,
+        help="WandB run ID to resume from (e.g., train-20251027_193043)",
+    )
+    p_resume.add_argument(
+        "--resume-mode",
+        default="allow",
+        choices=["allow", "must", "never"],
+        help="WandB resume mode (default: allow)",
+    )
+    p_resume.add_argument(
+        "--stage",
+        default="all",
+        choices=["all", "operator", "diffusion", "distill"],
+        help="Training stage (default: all)",
+    )
+    p_resume.add_argument(
+        "--branch", default=None, help="Git branch (default: auto-detect from current branch)"
+    )
     p_resume.add_argument("--workdir", default="/workspace", help="Remote working directory")
-    p_resume.add_argument("--auto-shutdown", action="store_true", help="Auto-shutdown after completion")
+    p_resume.add_argument(
+        "--auto-shutdown", action="store_true", help="Auto-shutdown after completion"
+    )
     p_resume.set_defaults(func=cmd_resume)
 
     # preprocess command
     p_preprocess = sub.add_parser("preprocess", help="Launch remote preprocessing job for PDEBench")
-    p_preprocess.add_argument("--tasks", nargs="+", required=True,
-                             help="Tasks to preprocess (e.g., advection1d darcy2d)")
-    p_preprocess.add_argument("--cache-dim", type=int,
-                             help="Latent dimension for cache precomputation (optional)")
-    p_preprocess.add_argument("--cache-tokens", type=int,
-                             help="Latent tokens for cache precomputation (optional)")
-    p_preprocess.add_argument("--offer-id", required=True,
-                             help="VastAI offer ID to use for preprocessing")
-    p_preprocess.add_argument("--image", default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
-                             help="Docker image")
-    p_preprocess.add_argument("--disk", type=int, default=128,
-                             help="Disk size in GB (default: 128 for preprocessing)")
+    p_preprocess.add_argument(
+        "--tasks", nargs="+", required=True, help="Tasks to preprocess (e.g., advection1d darcy2d)"
+    )
+    p_preprocess.add_argument(
+        "--cache-dim", type=int, help="Latent dimension for cache precomputation (optional)"
+    )
+    p_preprocess.add_argument(
+        "--cache-tokens", type=int, help="Latent tokens for cache precomputation (optional)"
+    )
+    p_preprocess.add_argument(
+        "--offer-id", required=True, help="VastAI offer ID to use for preprocessing"
+    )
+    p_preprocess.add_argument(
+        "--image", default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel", help="Docker image"
+    )
+    p_preprocess.add_argument(
+        "--disk", type=int, default=128, help="Disk size in GB (default: 128 for preprocessing)"
+    )
     p_preprocess.add_argument("--branch", help="Git branch (default: current)")
-    p_preprocess.add_argument("--dry-run", action="store_true", help="Print commands without executing")
+    p_preprocess.add_argument(
+        "--dry-run", action="store_true", help="Print commands without executing"
+    )
     p_preprocess.set_defaults(func=cmd_preprocess)
 
     return parser
