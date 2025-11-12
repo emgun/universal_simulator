@@ -1,37 +1,46 @@
-# 2-Task 192d: advection1d + darcy2d with increased latent capacity (OPTIMIZED)
-# Purpose: Scale from 128d (NRMSE 0.1925) to 192d for < 0.15 target
-# Capacity: 2.25× increase vs 128d baseline
-# Optimizations: Reduced queries, reduced inverse loss freq, simpler physics priors
+# 2-Task 192d (OPTIMIZED): advection1d + darcy2d with UPT Phase 4 + Speed Optimizations
+# Based on: train_burgers_upt_full.yaml
+# Purpose: Scale from 128d (NRMSE 0.1925) to 192d for < 0.15 target with 3-4× speedup
+#
+# Key Differences from Burgers UPT:
+#   - Multi-task: [advection1d, darcy2d] vs single-task burgers1d
+#   - Latent capacity: 192d (1.5× increase from 128d baseline)
+#   - Operator capacity: 3× latent (576 vs 256) for multi-task + higher dimensions
+#   - Operator depth: 12 vs 8 (more capacity for 2 tasks)
+#   - Physics: Conservative PDEs (mass conservation) vs dissipative Burgers
+#   - Optimizations: Reduced queries, reduced inverse loss freq, disabled physics priors for speed
 
 seed: 42
 deterministic: false
 benchmark: true
 
 data:
-  task: [advection1d, darcy2d]  # Multi-task list
+  task: [advection1d, darcy2d]  # Multi-task: 1D advection + 2D Darcy flow
   split: train
   root: data/pdebench
   patch_size: 1
 
-  # Task sampling strategy
+  # Task sampling strategy (multi-task specific)
   task_sampling:
     strategy: "balanced"  # Equal samples per task per epoch
 
 latent:
-  dim: 192          # Scaled from 128 (1.5× increase)
-  tokens: 192       # Scaled from 128 (1.5× increase)
+  dim: 192          # Scaled from 128d (1.5× increase for capacity)
+  tokens: 192       # Scaled from 128d (1.5× increase)
 
 operator:
-  architecture_type: pdet_stack    # Pure transformer (from Phase 4)
+  # CRITICAL: Use Phase 3's pure transformer architecture
+  architecture_type: pdet_stack    # Pure transformer (NOT pdet_unet)
+
   pdet:
     input_dim: 192                 # Match latent.dim
-    hidden_dim: 576                # 3× latent_dim (192 × 3 = 576)
-    depth: 12                      # Keep same depth
+    hidden_dim: 576                # 3× latent.dim (vs 2× for single-task, more capacity for 2 tasks + higher dims)
+    depth: 12                      # Increased from 8 (more capacity for 2 tasks)
     num_heads: 8
-    attention_type: standard
-    qk_norm: true
-    mlp_ratio: 4.0
-    drop_path: 0.1
+    attention_type: standard       # CRITICAL: Use standard attention (NOT channel_separated)
+    qk_norm: true                  # QK normalization for stability
+    mlp_ratio: 4.0                 # Standard transformer expansion
+    drop_path: 0.1                 # Stochastic depth for regularization
     dropout: 0.0
 
 diffusion:
@@ -39,87 +48,180 @@ diffusion:
   hidden_dim: 576   # Match operator
 
 training:
-  batch_size: 8     # Optimized: increase batch size for speed
-  accum_steps: 6    # Effective batch = 48 (same)
+  batch_size: 8     # Optimized: increased from baseline for better GPU util
+  accum_steps: 6    # Effective batch = 48 (vs 40 for single-task)
   time_stride: 2
   dt: 0.1
-  patience: 10
+  patience: 3       # Reduced from 5 for faster early stopping
 
-  num_workers: 8  # OPTIMIZED: Increase for faster data loading
+  num_workers: 8
   use_parallel_encoding: true
   pin_memory: true
   prefetch_factor: 4
-  cache_dir: data/latent_cache  # CRITICAL: Use precomputed 111GB cache for 4-8x speedup
+  cache_dir: data/latent_cache  # CRITICAL: Use precomputed cache for 4-8x speedup
+
+  checkpoint_interval: 25
 
   amp: true
-  compile: false  # Disabled to avoid torch compile disk space issues (saves ~10-20GB /tmp)
+  compile: false    # Disabled to save disk space
+  compile_mode: reduce-overhead
   grad_clip: null
   ema_decay: 0.999
 
-  # UPT Inverse Losses (from Phase 4) - OPTIMIZED
+  # UPT Inverse Losses (from Phase 1/2/3) - OPTIMIZED
   lambda_inv_enc: 0.01
   lambda_inv_dec: 0.01
   use_inverse_losses: true
-  inverse_loss_frequency: 3     # Every 3 epochs (was 1) - 3x faster
+  inverse_loss_frequency: 3      # OPTIMIZED: Every 3 epochs (vs 1) for 3x speedup
   inverse_loss_warmup_epochs: 5
   inverse_loss_max_weight: 0.05
 
   # Query-Based Training (Phase 4.1) - OPTIMIZED
   query_sampling:
     enabled: true
-    num_queries: 1024  # Reduced from 2048 - 2x faster
-    strategy: uniform
+    num_queries: 1024              # OPTIMIZED: Reduced from 2048 for 2x speedup
+    strategy: uniform              # Start with uniform, can try "stratified"
 
-  # Physics Priors + Latent Regularization (Phase 4.2 + 4.3) - OPTIMIZED
+    # Note: Query sampling currently applies to inverse_encoding_loss only.
+    # inverse_decoding_loss always uses full grid (GridEncoder requirement).
+    # This still provides 20-30% speedup since inverse_encoding dominates cost.
+
+    # Optional: Curriculum (progressive reduction) - disabled for now
+    curriculum:
+      enabled: false
+      start_queries: 4096
+      end_queries: 1024
+      warmup_epochs: 5
+
+  # Physics Priors (Phase 4.2) + Latent Regularization (Phase 4.3) - OPTIMIZED
   physics_priors:
-    enabled: false    # Disabled for speed (was true)
-    lambda_divergence: 0.0
-    lambda_conservation: 0.0
-    lambda_boundary: 0.0   # Disabled (was 0.05)
-    lambda_positivity: 0.0
-    lambda_latent_norm: 0.0      # Disabled (was 1.0e-4)
-    lambda_latent_diversity: 0.0  # Disabled (was 1.0e-4)
+    enabled: false    # OPTIMIZED: Disabled for speed (was true in baseline)
 
-  lambda_spectral: 0.05  # Keep spectral loss (important)
+    # Advection & Darcy: Both CONSERVATIVE PDEs (conserve mass/quantity)
+    # Unlike Burgers which is dissipative
+    lambda_divergence: 0.0         # Disabled for speed
+    lambda_conservation: 0.0       # Disabled for speed (baseline: 0.1)
+    lambda_boundary: 0.0           # Disabled for speed (baseline: 0.05)
+    lambda_positivity: 0.0         # u and p can be negative
+    bc_value: 0.0                  # Boundary condition value (if Dirichlet)
+    bc_type: all                   # Which boundaries to enforce
 
-  # Per-task metric logging
+    # NEW: Latent Regularization (Phase 4.3) - Disabled for speed
+    lambda_latent_norm: 0.0        # Disabled for speed (baseline: 1.0e-4)
+    lambda_latent_diversity: 0.0   # Disabled for speed (baseline: 1.0e-4)
+
+  lambda_spectral: 0.05            # Keep spectral loss (important for stability)
+  lambda_relative: 0.0
+
+  # Per-task metric logging (multi-task specific)
   log_per_task_metrics: true
 
 stages:
   operator:
-    epochs: 30      # Reduced from 40 for speed (1.33x faster)
+    epochs: 30                     # OPTIMIZED: Reduced from 40 for 1.33x speedup
 
     optimizer:
       name: muon_hybrid
       lr: 1.4e-3
       weight_decay: 0.03
+
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+  diff_residual:
+    epochs: 0         # OPTIMIZED: Disabled for speed (baseline: 15)
+    patience: 3
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
       muon_momentum: 0.95
       muon_ns_steps: 5
       muon_backend: auto
       betas: [0.9, 0.999]
-
-  diff_residual:
-    epochs: 15
-    patience: 5
-    optimizer:
-      name: muon_hybrid
-      lr: 3.0e-4
-      weight_decay: 0.01
+      eps: 1.0e-8
 
   consistency_distill:
-    epochs: 10
-    patience: 5
+    epochs: 0         # OPTIMIZED: Disabled for speed (baseline: 10)
+    patience: 3
+
     optimizer:
       name: muon_hybrid
       lr: 3.0e-4
       weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+# Test-Time Conditioning (TTC) - Adapted for PDEBench tasks
+ttc:
+  enabled: true
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+
+    # PDEBench field names (task-specific)
+    # Advection1D: 'u' field (velocity/quantity)
+    # Darcy2D: 'p' field (pressure)
+    mass_field: null       # Will use first available field
+    energy_field: null     # Not applicable (conservative PDEs don't have energy concept like Burgers)
+    momentum_field: []
+
+    weights:
+      mass: 1.0                     # PRIMARY: Mass/quantity conservation
+      energy: 0.0                   # Not applicable (vs Burgers which uses 0.1)
+      penalty_negative: 0.0         # Allow negative values (vs Burgers which uses 0.5)
+
+    critic:
+      weight: 0.0         # Use analytical rewards only
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 192       # Match training latent dim (scaled from 128)
+    query_dim: 2          # 2D max (advection is 1D, darcy is 2D)
+    hidden_dim: 432       # 2.25× latent_dim (vs 288 for 128d baseline)
+    mlp_hidden_dim: 576   # 3× latent_dim (vs 384 for 128d baseline)
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      u: 1                # Generic field name for PDEBench single-channel tasks
 
 logging:
   wandb:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    tags: [pdebench, multi-task, 2task-192d, capacity-scaling, optimized]
-
-evaluation:
-  enabled: true
+    run_name: pdebench-2task-192d-optimized
+    tags: [upt, phase4-complete, pdebench, multi-task, 2task-192d, capacity-scaling, optimized, advection1d, darcy2d, conservative-pdes]
+    group: upt-phase4-pdebench
+    notes: "Complete UPT Phase 4 implementation for 2-task PDEBench (advection1d + darcy2d) with 192d latent capacity scaling. Based on train_burgers_upt_full.yaml with multi-task adaptations, 1.5× capacity increase, and speed optimizations (reduced queries, reduced inverse loss freq, disabled physics priors) for 3-4× faster training. Target: NRMSE < 0.15 (vs 0.1925 baseline at 128d)."
