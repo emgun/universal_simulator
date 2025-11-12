@@ -700,6 +700,20 @@ def generate_launch_args(
 ) -> LaunchArgs:
     branch = args.branch or auto_branch()
     repo_url = args.repo_url or auto_repo_url()
+
+    # Extract num_gpus from config for distributed training (Phase 4: DDP)
+    num_gpus_from_config = 1
+    try:
+        config_file = Path(args.config)
+        if not config_file.is_absolute():
+            config_file = REPO_ROOT / config_file
+        if config_file.exists():
+            with open(config_file) as f:
+                cfg = yaml.safe_load(f)
+            num_gpus_from_config = cfg.get("training", {}).get("num_gpus", 1)
+    except Exception:
+        num_gpus_from_config = 1
+
     region = args.region
     if not region:
         if dry_run:
@@ -716,13 +730,17 @@ def generate_launch_args(
         if dry_run:
             plan_id = "vcg-placeholder"
         else:
+            # Filter plans by both GPU RAM and num_gpus from config
             for spec in provider.list_offers(region=region):
-                if spec.gpu_ram_gb >= args.min_gpu_ram:
+                # Extract num_gpus from raw plan data
+                plan_num_gpus = spec.extra.get("raw", {}).get("gpu_count", 1)
+                if spec.gpu_ram_gb >= args.min_gpu_ram and plan_num_gpus == num_gpus_from_config:
                     plan_id = spec.plan_id
+                    print(f"📊 Selected plan {plan_id} with {plan_num_gpus} GPUs (from config)")
                     break
             if not plan_id:
                 raise CloudLaunchError(
-                    f"No plans in region {region!r} satisfy minimum GPU RAM requirement ({args.min_gpu_ram} GB)."
+                    f"No plans in region {region!r} with {num_gpus_from_config} GPUs and >= {args.min_gpu_ram} GB GPU RAM."
                 )
     label = args.label or f"ups-{plan_id}-{region}"
     return LaunchArgs(
