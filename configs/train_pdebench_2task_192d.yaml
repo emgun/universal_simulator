@@ -45,7 +45,7 @@ training:
   dt: 0.1
   patience: 10
 
-  num_workers: 4  # OPTIMIZED: Increase for faster data loading (cache disabled)
+  num_workers: 8  # OPTIMIZED: Increase for faster data loading
   use_parallel_encoding: true
   pin_memory: true
   prefetch_factor: 4
