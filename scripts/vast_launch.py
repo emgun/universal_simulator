@@ -453,6 +453,22 @@ def cmd_launch(args: argparse.Namespace) -> None:
 
     print("✅ Pre-flight checks passed\n")
 
+    # Extract num_gpus from config for distributed training (Phase 4: DDP)
+    num_gpus_from_config = 1
+    try:
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f)
+        num_gpus_from_config = cfg.get("training", {}).get("num_gpus", 1)
+    except Exception:
+        num_gpus_from_config = 1
+
+    # Use config's num_gpus if not explicitly overridden via CLI
+    effective_num_gpus = args.num_gpus if args.num_gpus != 1 else num_gpus_from_config
+    if effective_num_gpus != args.num_gpus:
+        print(
+            f"📊 Using num_gpus={effective_num_gpus} from config (overrides default --num-gpus={args.num_gpus})\n"
+        )
+
     # Generate onstart script
     ONSTART_DIR.mkdir(exist_ok=True)
     onstart_path = ONSTART_DIR / "onstart.sh"
@@ -495,7 +511,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
             "-g",
             args.gpu,
             "-n",
-            str(args.num_gpus),
+            str(effective_num_gpus),  # Use config's num_gpus for distributed training
             "-i",
             args.image,
             "-d",
