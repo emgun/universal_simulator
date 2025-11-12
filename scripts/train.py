@@ -5,24 +5,21 @@ from __future__ import annotations
 
 import argparse
 import copy
-import json
+import os
 import random
+import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Optional
-
-import sys
 
 import numpy as np
 import torch
+import torch.multiprocessing as mp
+import yaml
 from torch import nn
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
-import yaml
-import os
-import torch.multiprocessing as mp
 
 try:
     import wandb
@@ -32,6 +29,7 @@ except ImportError:
 # Safer compile defaults: compile in main process and fall back to eager on failures
 try:
     import torch._dynamo as _dynamo
+
     _dynamo.config.suppress_errors = True  # Avoid hard-crash on backend failures
     _dynamo.config.error_on_recompile = False
 except Exception:
@@ -46,24 +44,56 @@ try:
 except RuntimeError:
     pass
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ups.core.latent_state import LatentState
-from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.core.blocks_pdet import PDETransformerConfig
-from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
-from ups.training.consistency_distill import DistillationConfig, distillation_loss
-from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
+from ups.core.latent_state import LatentState
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
-from ups.utils.monitoring import init_monitoring_session, MonitoringSession
+from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
+from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
+from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
+
+
+# ---- Distributed Training Setup ----
+def setup_distributed():
+    """Initialize distributed training if RANK environment variable is set.
+
+    Returns:
+        tuple: (device, is_distributed, rank, world_size, local_rank)
+    """
+    import torch.distributed as dist
+
+    if "RANK" in os.environ:
+        # torchrun sets these automatically
+        dist.init_process_group(backend="nccl")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+
+        if rank == 0:
+            print(f"Distributed training initialized: {world_size} GPUs")
+
+        return device, True, rank, world_size, local_rank
+    else:
+        # Single-GPU mode (backward compatible)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {device} (single-GPU mode)")
+        return device, False, 0, 1, None
+
 
 # ---- Auxiliary training losses ----
 def _nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     mse = torch.mean((pred - target) ** 2)
-    denom = torch.mean(target ** 2) + eps
+    denom = torch.mean(target**2) + eps
     return torch.sqrt(mse / denom)
 
-def _spectral_energy_loss(pred: torch.Tensor, target: torch.Tensor, dim: int = 1, eps: float = 1e-8) -> torch.Tensor:
+
+def _spectral_energy_loss(
+    pred: torch.Tensor, target: torch.Tensor, dim: int = 1, eps: float = 1e-8
+) -> torch.Tensor:
     """Relative spectral energy difference along the given axis (default: token axis).
 
     cuFFT requires power-of-two signal sizes when using half precision. Temporarily
@@ -90,11 +120,11 @@ def _strip_compiled_prefix(state_dict: dict) -> dict:
 
 
 def load_config(path: str) -> dict:
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
 
 
-def set_seed(cfg: Dict) -> None:
+def set_seed(cfg: dict) -> None:
     """Set random seed and configure determinism settings.
 
     Args:
@@ -114,7 +144,8 @@ def set_seed(cfg: Dict) -> None:
     if deterministic:
         # Set CUBLAS workspace config for deterministic CuBLAS operations
         import os
-        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
         torch.use_deterministic_algorithms(True, warn_only=True)
         torch.backends.cudnn.deterministic = True
@@ -133,7 +164,9 @@ def ensure_checkpoint_dir(cfg: dict) -> Path:
 
 
 class TrainingLogger:
-    def __init__(self, cfg: Dict[str, Dict], stage: str, global_step: int = 0, wandb_ctx=None) -> None:
+    def __init__(
+        self, cfg: dict[str, dict], stage: str, global_step: int = 0, wandb_ctx=None
+    ) -> None:
         """Training logger that writes to file and optionally to WandB.
 
         Args:
@@ -159,10 +192,10 @@ class TrainingLogger:
         epoch: int,
         loss: float,
         optimizer: torch.optim.Optimizer,
-        patience_counter: Optional[int] = None,
-        grad_norm: Optional[float] = None,
-        epoch_time: Optional[float] = None,
-        best_loss: Optional[float] = None,
+        patience_counter: int | None = None,
+        grad_norm: float | None = None,
+        epoch_time: float | None = None,
+        best_loss: float | None = None,
     ) -> None:
         lr = optimizer.param_groups[0].get("lr") if optimizer.param_groups else None
         self.global_step += 1
@@ -188,6 +221,7 @@ class TrainingLogger:
             try:
                 with self.log_path.open("a", encoding="utf-8") as fh:
                     import json
+
                     fh.write(json.dumps(entry) + "\n")
             except Exception:
                 pass
@@ -198,13 +232,21 @@ class TrainingLogger:
             if lr is not None:
                 self.wandb_ctx.log_training_metric(self.stage, "lr", lr, step=self.global_step)
             if patience_counter is not None:
-                self.wandb_ctx.log_training_metric(self.stage, "epochs_since_improve", patience_counter, step=self.global_step)
+                self.wandb_ctx.log_training_metric(
+                    self.stage, "epochs_since_improve", patience_counter, step=self.global_step
+                )
             if grad_norm is not None:
-                self.wandb_ctx.log_training_metric(self.stage, "grad_norm", grad_norm, step=self.global_step)
+                self.wandb_ctx.log_training_metric(
+                    self.stage, "grad_norm", grad_norm, step=self.global_step
+                )
             if epoch_time is not None:
-                self.wandb_ctx.log_training_metric(self.stage, "epoch_time_sec", epoch_time, step=self.global_step)
+                self.wandb_ctx.log_training_metric(
+                    self.stage, "epoch_time_sec", epoch_time, step=self.global_step
+                )
             if best_loss is not None:
-                self.wandb_ctx.log_training_metric(self.stage, "best_loss", best_loss, step=self.global_step)
+                self.wandb_ctx.log_training_metric(
+                    self.stage, "best_loss", best_loss, step=self.global_step
+                )
 
     def close(self) -> None:
         # No longer owns wandb run - orchestrator manages it
@@ -242,6 +284,7 @@ def make_operator(cfg: dict) -> LatentOperator:
     # Create appropriate config based on architecture type
     if architecture_type == "pdet_stack":
         from ups.models.pure_transformer import PureTransformerConfig
+
         pdet_config = PureTransformerConfig(**pdet_cfg)
     else:  # pdet_unet (default)
         pdet_config = PDETransformerConfig(**pdet_cfg)
@@ -270,19 +313,23 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     if name == "sgd":
         momentum = opt_cfg.get("momentum", 0.9)
-        return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+        return torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay
+        )
 
     # NEW: Hybrid Muon+AdamW optimizer
     if name == "muon_hybrid" or name == "muon":
-        from ups.training.param_groups import build_param_groups, print_param_split_summary
         from ups.training.hybrid_optimizer import HybridOptimizer
         from ups.training.muon_factory import create_muon_optimizer, get_available_backends
+        from ups.training.param_groups import build_param_groups, print_param_split_summary
 
         # Log available backends
         backends = get_available_backends()
         if not backends:
             print("WARNING: No Muon implementation available, falling back to AdamW")
-            print("  Install: pip install torch>=2.9 or pip install git+https://github.com/nil0x9/flash-muon.git")
+            print(
+                "  Install: pip install torch>=2.9 or pip install git+https://github.com/nil0x9/flash-muon.git"
+            )
             return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
         print(f"Available Muon backends: {', '.join(backends)}")
@@ -375,11 +422,11 @@ def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: dict, stage: str):
     raise ValueError(f"Unsupported scheduler '{name}'")
 
 
-def _amp_enabled(cfg: Dict) -> bool:
+def _amp_enabled(cfg: dict) -> bool:
     return bool(cfg.get("training", {}).get("amp", False)) and torch.cuda.is_available()
 
 
-def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
+def _maybe_compile(model: nn.Module, cfg: dict, name: str) -> nn.Module:
     """Optionally compile a model with torch.compile when enabled and available.
 
     Controlled by training.compile bool. Falls back silently if unavailable.
@@ -390,11 +437,11 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
         compile_enabled = False
     if not compile_enabled:
         return model
-    
+
     # Skip compilation for teacher models (eval-only) to avoid CUDA graph issues
     if "teacher" in name:
         return model
-        
+
     try:
         import torch
 
@@ -412,7 +459,8 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
         # If torch.compile is unavailable or fails, just return the original model
         return model
 
-def _grad_clip_value(cfg: Dict, stage: str) -> Optional[float]:
+
+def _grad_clip_value(cfg: dict, stage: str) -> float | None:
     # Stage-specific override takes precedence; fallback to training.grad_clip
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     if "grad_clip" in stage_cfg:
@@ -420,7 +468,7 @@ def _grad_clip_value(cfg: Dict, stage: str) -> Optional[float]:
     return cfg.get("training", {}).get("grad_clip")
 
 
-def _get_ema_decay(cfg: Dict, stage: str) -> Optional[float]:
+def _get_ema_decay(cfg: dict, stage: str) -> float | None:
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     if "ema_decay" in stage_cfg:
         return stage_cfg.get("ema_decay")
@@ -437,11 +485,11 @@ def _init_ema(model: nn.Module) -> nn.Module:
 
 @torch.no_grad()
 def _update_ema(ema_model: nn.Module, model: nn.Module, decay: float) -> None:
-    for p_ema, p in zip(ema_model.parameters(), model.parameters()):
+    for p_ema, p in zip(ema_model.parameters(), model.parameters(), strict=False):
         p_ema.mul_(decay).add_(p.data, alpha=1.0 - decay)
 
 
-def _get_patience(cfg: dict, stage: str) -> Optional[int]:
+def _get_patience(cfg: dict, stage: str) -> int | None:
     stage_cfg = cfg.get("stages", {}).get(stage, {})
     if "patience" in stage_cfg:
         return stage_cfg["patience"]
@@ -449,7 +497,7 @@ def _get_patience(cfg: dict, stage: str) -> Optional[int]:
     return training_cfg.get("patience")
 
 
-def _sample_tau(batch_size: int, device: torch.device, cfg: Dict) -> torch.Tensor:
+def _sample_tau(batch_size: int, device: torch.device, cfg: dict) -> torch.Tensor:
     dist_cfg = cfg.get("training", {}).get("tau_distribution")
     if dist_cfg:
         dist_type = str(dist_cfg.get("type", "")).lower()
@@ -462,7 +510,7 @@ def _sample_tau(batch_size: int, device: torch.device, cfg: Dict) -> torch.Tenso
     return torch.rand(batch_size, device=device)
 
 
-def _should_stop(patience: Optional[int], epochs_since_improve: int) -> bool:
+def _should_stop(patience: int | None, epochs_since_improve: int) -> bool:
     if patience is None:
         return False
     return epochs_since_improve > patience
@@ -488,23 +536,40 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     scheduler = _create_scheduler(optimizer, cfg, "operator")
     patience = _get_patience(cfg, "operator")
     logger = TrainingLogger(cfg, stage="operator", global_step=global_step, wandb_ctx=wandb_ctx)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+
+    # Setup distributed training
+    device, is_distributed, rank, world_size, local_rank = setup_distributed()
+
     operator.to(device)
+
+    # Wrap with DDP if distributed
+    if is_distributed:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        operator = DDP(
+            operator,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,  # Required for torch.compile compatibility
+            find_unused_parameters=False,  # All params used in operator
+        )
+        if rank == 0:
+            print(f"Operator wrapped with DDP on device {local_rank}")
+
     operator = _maybe_compile(operator, cfg, "operator")
 
     # Instantiate encoder and decoder for inverse losses
     use_inverse_losses = (
-        bool(cfg.get("training", {}).get("use_inverse_losses", False)) or
-        cfg.get("training", {}).get("lambda_inv_enc", 0.0) > 0 or
-        cfg.get("training", {}).get("lambda_inv_dec", 0.0) > 0
+        bool(cfg.get("training", {}).get("use_inverse_losses", False))
+        or cfg.get("training", {}).get("lambda_inv_enc", 0.0) > 0
+        or cfg.get("training", {}).get("lambda_inv_dec", 0.0) > 0
     )
 
     encoder = None
     decoder = None
     if use_inverse_losses:
-        from ups.io.enc_grid import GridEncoder, GridEncoderConfig
         from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
+        from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 
         # Create encoder (same config as used in data preprocessing)
         data_cfg = cfg.get("data", {})
@@ -530,7 +595,11 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             # Handle ConcatDataset by peeking first child
             if hasattr(dataset_obj, "encoder"):
                 shared_encoder = dataset_obj.encoder
-            elif hasattr(dataset_obj, "datasets") and len(dataset_obj.datasets) > 0 and hasattr(dataset_obj.datasets[0], "encoder"):
+            elif (
+                hasattr(dataset_obj, "datasets")
+                and len(dataset_obj.datasets) > 0
+                and hasattr(dataset_obj.datasets[0], "encoder")
+            ):
                 shared_encoder = dataset_obj.datasets[0].encoder
         encoder = (shared_encoder or GridEncoder(encoder_cfg)).to(device)
         encoder.eval()  # Encoder is frozen during operator stage
@@ -550,7 +619,7 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         decoder = AnyPointDecoder(decoder_cfg).to(device)
         decoder.eval()  # Decoder not trained during operator stage
 
-        print(f"✓ Initialized encoder and decoder for inverse losses")
+        print("✓ Initialized encoder and decoder for inverse losses")
 
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
@@ -565,6 +634,7 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     epochs_since_improve = 0
 
     import time
+
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
@@ -597,6 +667,10 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     reference_fields_storage = {}
 
     for epoch in range(epochs):
+        # For distributed training, set epoch for sampler (enables shuffling)
+        if hasattr(loader, "sampler") and hasattr(loader.sampler, "set_epoch"):
+            loader.sampler.set_epoch(epoch)
+
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
@@ -638,7 +712,9 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 task_names = None
 
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             target = z1.to(device)
 
             # Move inverse loss fields to device if present
@@ -660,8 +736,12 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                         "lambda_spectral": lam_spec,
                         "lambda_rollout": lam_rollout,
                         # Curriculum schedule parameters (optional)
-                        "inverse_loss_warmup_epochs": int(train_cfg.get("inverse_loss_warmup_epochs", 15)),
-                        "inverse_loss_max_weight": float(train_cfg.get("inverse_loss_max_weight", 0.05)),
+                        "inverse_loss_warmup_epochs": int(
+                            train_cfg.get("inverse_loss_warmup_epochs", 15)
+                        ),
+                        "inverse_loss_max_weight": float(
+                            train_cfg.get("inverse_loss_max_weight", 0.05)
+                        ),
                     }
 
                     # Prepare rollout targets if needed
@@ -689,7 +769,15 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     # Decode fields for physics checks if physics priors enabled
                     decoded_fields = None
                     reference_fields = None
-                    if use_physics_priors and any(physics_weights[k] > 0 for k in ["lambda_divergence", "lambda_conservation", "lambda_boundary", "lambda_positivity"]):
+                    if use_physics_priors and any(
+                        physics_weights[k] > 0
+                        for k in [
+                            "lambda_divergence",
+                            "lambda_conservation",
+                            "lambda_boundary",
+                            "lambda_positivity",
+                        ]
+                    ):
                         # Decode current latent state to physical space
                         if decoder is not None and coords is not None:
                             with torch.no_grad():
@@ -697,9 +785,12 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
                             # Store reference fields at first batch (for conservation checks)
                             if not reference_fields_storage and input_fields_physical is not None:
-                                reference_fields_storage.update({
-                                    k: v.detach().clone() for k, v in input_fields_physical.items()
-                                })
+                                reference_fields_storage.update(
+                                    {
+                                        k: v.detach().clone()
+                                        for k, v in input_fields_physical.items()
+                                    }
+                                )
                             reference_fields = reference_fields_storage
 
                     # Use physics-aware loss bundle if physics priors enabled, otherwise standard
@@ -802,7 +893,9 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             # Log individual loss components to WandB
             if wandb_ctx and i % 10 == 0:  # Log every 10 batches
                 for name, value in loss_bundle.components.items():
-                    wandb_ctx.log_training_metric("operator", name, value.item(), step=logger.get_global_step())
+                    wandb_ctx.log_training_metric(
+                        "operator", name, value.item(), step=logger.get_global_step()
+                    )
             if use_amp:
                 scaler.scale(loss / accum_steps).backward()
             else:
@@ -812,12 +905,16 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 if use_amp:
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        operator.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += float(grad_norm)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        operator.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += grad_norm.item()
                     optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
@@ -826,7 +923,7 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     _update_ema(ema_model, operator, ema_decay)
             epoch_loss += loss_value
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
@@ -846,9 +943,15 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             for task_name, metrics in task_metrics.items():
                 if metrics["count"] > 0:
                     # Average loss for this task across the epoch
-                    avg_loss = sum(metrics["loss"]) / len(metrics["loss"]) if metrics["loss"] else 0.0
-                    wandb_ctx.log_training_metric("operator", f"{task_name}/loss", avg_loss, step=epoch)
-                    wandb_ctx.log_training_metric("operator", f"{task_name}/sample_count", metrics["count"], step=epoch)
+                    avg_loss = (
+                        sum(metrics["loss"]) / len(metrics["loss"]) if metrics["loss"] else 0.0
+                    )
+                    wandb_ctx.log_training_metric(
+                        "operator", f"{task_name}/loss", avg_loss, step=epoch
+                    )
+                    wandb_ctx.log_training_metric(
+                        "operator", f"{task_name}/sample_count", metrics["count"], step=epoch
+                    )
 
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
@@ -876,11 +979,11 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         to_save = best_ema_state if best_ema_state is not None else ema_model.state_dict()
         torch.save(to_save, operator_ema_path)
         print(f"Saved operator EMA checkpoint to {operator_ema_path}")
-    
+
     # Upload checkpoint to W&B (clean way!)
     if wandb_ctx:
         wandb_ctx.save_file(operator_path)
-        print(f"Uploaded operator checkpoint to W&B")
+        print("Uploaded operator checkpoint to W&B")
         if ema_model is not None:
             wandb_ctx.save_file(operator_ema_path)
 
@@ -889,18 +992,17 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         wandb_ctx.alert(
             title="✅ Operator Training Complete",
             text=f"Final loss: {best_loss:.6f} | Ready for diffusion stage",
-            level="INFO"
+            level="INFO",
         )
 
 
 def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    
-    # Determine device FIRST
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-    
+
+    # Setup distributed training
+    device, is_distributed, rank, world_size, local_rank = setup_distributed()
+
     # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
@@ -909,6 +1011,21 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         operator_state = _strip_compiled_prefix(operator_state)
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
+
+    # Wrap operator with DDP if distributed (teacher model)
+    if is_distributed:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        operator = DDP(
+            operator,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,
+            find_unused_parameters=False,
+        )
+        if rank == 0:
+            print(f"Operator (teacher) wrapped with DDP on device {local_rank}")
+
     operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
 
@@ -918,15 +1035,32 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
     _ensure_model_on_device(diff, device)
+
+    # Wrap diffusion with DDP if distributed
+    if is_distributed:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        diff = DDP(
+            diff,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,
+            find_unused_parameters=False,
+        )
+        if rank == 0:
+            print(f"Diffusion model wrapped with DDP on device {local_rank}")
+
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
-    
+
     optimizer = _create_optimizer(cfg, diff, "diff_residual")
     scheduler = _create_scheduler(optimizer, cfg, "diff_residual")
     patience = _get_patience(cfg, "diff_residual")
     dt = cfg.get("training", {}).get("dt", 0.1)
     epochs = stage_cfg.get("epochs", 1)
     checkpoint_interval = int(cfg.get("training", {}).get("checkpoint_interval", 0) or 0)
-    logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, wandb_ctx=wandb_ctx)
+    logger = TrainingLogger(
+        cfg, stage="diffusion_residual", global_step=global_step, wandb_ctx=wandb_ctx
+    )
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
@@ -938,12 +1072,17 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
     clip_val = _grad_clip_value(cfg, "diff_residual")
     epochs_since_improve = 0
-    
+
     import time
+
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
     for epoch in range(epochs):
+        # For distributed training, set epoch for sampler (enables shuffling)
+        if hasattr(loader, "sampler") and hasattr(loader.sampler, "set_epoch"):
+            loader.sampler.set_epoch(epoch)
+
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
@@ -962,7 +1101,9 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             else:
                 z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             target = z1.to(device)
             try:
                 with torch.no_grad():
@@ -983,7 +1124,9 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     base = F.mse_loss(drift, residual_target)
                     extra = 0.0
                     if lam_spec > 0.0:
-                        extra = extra + lam_spec * _spectral_energy_loss(drift, residual_target, dim=1)
+                        extra = extra + lam_spec * _spectral_energy_loss(
+                            drift, residual_target, dim=1
+                        )
                     if lam_rel > 0.0:
                         extra = extra + lam_rel * _nrmse(drift, residual_target)
                     loss = base + extra
@@ -1004,12 +1147,16 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 if use_amp:
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        diff.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += float(grad_norm)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        diff.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += grad_norm.item()
                     optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
@@ -1018,11 +1165,11 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     _update_ema(ema_model, diff, ema_decay)
             epoch_loss += loss.item()
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1061,13 +1208,16 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     print(f"Saved diffusion residual checkpoint to {diffusion_path}")
     if ema_model is not None:
         diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
-        torch.save(best_ema_state if best_ema_state is not None else ema_model.state_dict(), diffusion_ema_path)
+        torch.save(
+            best_ema_state if best_ema_state is not None else ema_model.state_dict(),
+            diffusion_ema_path,
+        )
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
-    
+
     # Upload checkpoint to W&B (clean way!)
     if wandb_ctx:
         wandb_ctx.save_file(diffusion_path)
-        print(f"Uploaded diffusion checkpoint to W&B")
+        print("Uploaded diffusion checkpoint to W&B")
         if ema_model is not None:
             wandb_ctx.save_file(diffusion_ema_path)
 
@@ -1076,7 +1226,7 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         wandb_ctx.alert(
             title="✅ Diffusion Residual Training Complete",
             text=f"Final loss: {best_loss:.6f} | Ready for consistency distillation",
-            level="INFO"
+            level="INFO",
         )
 
 
@@ -1117,10 +1267,7 @@ def _distill_forward_and_loss_compiled(
         .contiguous()
     )
 
-    cond_tiled = {
-        k: v.repeat_interleave(num_taus, dim=0)
-        for k, v in teacher_cond_chunk.items()
-    }
+    cond_tiled = {k: v.repeat_interleave(num_taus, dim=0) for k, v in teacher_cond_chunk.items()}
 
     tau_flat = tau_seed.repeat(Bc).to(z_tiled.dtype)
 
@@ -1145,21 +1292,24 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     # This stage needs both operator and diffusion models loaded
     cfg_copy = copy.deepcopy(cfg)
     original_batch_size = cfg_copy.get("training", {}).get("batch_size", 32)
-    consistency_batch_size = cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
+    consistency_batch_size = (
+        cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
+    )
     training_cfg_copy = cfg_copy.setdefault("training", {})
     training_cfg_copy["batch_size"] = consistency_batch_size
     # Enable pin_memory for faster transfers
     training_cfg_copy["pin_memory"] = True
     # OPTIMIZATION #3: Persistent workers to avoid respawning overhead
-    training_cfg_copy["persistent_workers"] = True if training_cfg_copy.get("num_workers", 0) > 0 else False
+    training_cfg_copy["persistent_workers"] = (
+        True if training_cfg_copy.get("num_workers", 0) > 0 else False
+    )
     training_cfg_copy["prefetch_factor"] = 4  # Increase prefetch
-    
+
     loader = dataset_loader(cfg_copy)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
 
-    # Determine device FIRST
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    # Setup distributed training
+    device, is_distributed, rank, world_size, local_rank = setup_distributed()
 
     # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
@@ -1169,6 +1319,21 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         operator_state = _strip_compiled_prefix(operator_state)
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
+
+    # Wrap operator with DDP if distributed (teacher model)
+    if is_distributed:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        operator = DDP(
+            operator,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,
+            find_unused_parameters=False,
+        )
+        if rank == 0:
+            print(f"Operator (teacher) wrapped with DDP on device {local_rank}")
+
     operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
 
@@ -1176,7 +1341,11 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
     tau_schedule = stage_cfg.get("tau_schedule")
-    target_loss = float(stage_cfg.get("target_loss") or cfg.get("training", {}).get("distill_target_loss", 0.0) or 0.0)
+    target_loss = float(
+        stage_cfg.get("target_loss")
+        or cfg.get("training", {}).get("distill_target_loss", 0.0)
+        or 0.0
+    )
     # Read hidden_dim from config, fallback to latent_dim * 2 for backward compatibility
     hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
@@ -1186,20 +1355,37 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         diff_state = _strip_compiled_prefix(diff_state)
         diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
+
+    # Wrap diffusion with DDP if distributed
+    if is_distributed:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        diff = DDP(
+            diff,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,
+            find_unused_parameters=False,
+        )
+        if rank == 0:
+            print(f"Diffusion model wrapped with DDP on device {local_rank}")
+
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
 
-    print(f"Consistency distillation optimizations enabled:")
-    print(f"  - Async GPU transfers: enabled")
+    print("Consistency distillation optimizations enabled:")
+    print("  - Async GPU transfers: enabled")
     print(f"  - Adaptive tau schedule: {tau_schedule if tau_schedule else 'using base num_taus'}")
     print(f"  - Micro-batch size: {cfg.get('training', {}).get('distill_micro_batch', 'auto')}")
-    
+
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
     scheduler = _create_scheduler(optimizer, cfg, "consistency_distill")
     patience = _get_patience(cfg, "consistency_distill")
-    logger = TrainingLogger(cfg, stage="consistency_distill", global_step=global_step, wandb_ctx=wandb_ctx)
+    logger = TrainingLogger(
+        cfg, stage="consistency_distill", global_step=global_step, wandb_ctx=wandb_ctx
+    )
     dt = cfg.get("training", {}).get("dt", 0.1)
-    
+
     dt_tensor = torch.tensor(dt, device=device)
 
     # Teacher/student are inlined below to enable reuse and vectorized taus
@@ -1212,7 +1398,7 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     ema_model = _init_ema(diff) if ema_decay else None
     clip_val = _grad_clip_value(cfg, "consistency_distill")
     epochs_since_improve = 0
-    
+
     # Get micro-batch size for gradient accumulation
     distill_micro = cfg.get("training", {}).get("distill_micro_batch")
     base_num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
@@ -1245,9 +1431,9 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
     # Log optimizations applied
     print("Consistency distillation optimizations:")
-    print(f"  - Teacher caching: ENABLED (computed once per batch)")
+    print("  - Teacher caching: ENABLED (computed once per batch)")
     print(f"  - AMP for teacher: {'ENABLED' if use_amp else 'DISABLED'}")
-    print(f"  - Async GPU transfers: ENABLED")
+    print("  - Async GPU transfers: ENABLED")
     print(f"  - torch.compile: {'ENABLED' if distill_compile_enabled else 'DISABLED'}")
     print(f"  - Persistent workers: {training_cfg_copy.get('persistent_workers', False)}")
     print(f"  - Prefetch factor: {training_cfg_copy.get('prefetch_factor', 2)}")
@@ -1257,12 +1443,17 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         print(f"  - Tau schedule: {tau_schedule}")
 
     import time
+
     for epoch in range(epochs):
+        # For distributed training, set epoch for sampler (enables shuffling)
+        if hasattr(loader, "sampler") and hasattr(loader.sampler, "set_epoch"):
+            loader.sampler.set_epoch(epoch)
+
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
         batches = 0
-        
+
         num_taus_epoch = base_num_taus
         if tau_schedule:
             idx = min(epoch, len(tau_schedule) - 1)
@@ -1289,7 +1480,9 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             # Expected speedup: ~2x (reduces teacher calls by 50% when micro < batch_size)
             z0_device = z0.to(device, non_blocking=True)
             cond_device = {k: v.to(device, non_blocking=True) for k, v in cond.items()}
-            full_batch_state = LatentState(z=z0_device, t=torch.tensor(0.0, device=device), cond=cond_device)
+            full_batch_state = LatentState(
+                z=z0_device, t=torch.tensor(0.0, device=device), cond=cond_device
+            )
 
             # OPTIMIZATION #6: Use AMP for teacher forward (even though no gradients)
             # Reduces teacher forward time by ~20%, overall ~8% speedup
@@ -1334,23 +1527,27 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             if use_amp:
                 if clip_val is not None:
                     scaler.unscale_(optimizer)
-                grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    diff.parameters(), float("inf") if clip_val is None else clip_val
+                )
                 total_grad_norm += float(grad_norm)
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    diff.parameters(), float("inf") if clip_val is None else clip_val
+                )
                 total_grad_norm += grad_norm.item()
                 optimizer.step()
             if ema_model is not None and ema_decay is not None:
                 _update_ema(ema_model, diff, ema_decay)
             epoch_loss += batch_loss_value
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(batches, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1369,7 +1566,9 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             if _should_stop(patience, epochs_since_improve):
                 break
         if target_loss and best_loss <= target_loss:
-            print(f"Consistency distill reached target loss {best_loss:.6f} <= {target_loss:.6f}; stopping early")
+            print(
+                f"Consistency distill reached target loss {best_loss:.6f} <= {target_loss:.6f}; stopping early"
+            )
             break
         if scheduler is not None:
             scheduler.step()
@@ -1382,11 +1581,11 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
         torch.save(ema_model.state_dict(), diffusion_ema_path)
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
-    
+
     # Upload updated checkpoint to W&B (clean way!)
     if wandb_ctx:
         wandb_ctx.save_file(diffusion_path)
-        print(f"Uploaded updated diffusion checkpoint to W&B")
+        print("Uploaded updated diffusion checkpoint to W&B")
         if ema_model is not None:
             wandb_ctx.save_file(diffusion_ema_path)
 
@@ -1400,7 +1599,7 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         wandb_ctx.alert(
             title="✅ Consistency Distillation Complete",
             text=f"Final loss: {best_loss:.6f} | Ready for steady prior training",
-            level="INFO"
+            level="INFO",
         )
 
 
@@ -1415,21 +1614,45 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         return
 
     loader = dataset_loader(cfg)
-    prior = SteadyPrior(SteadyPriorConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2, num_steps=4))
+    prior = SteadyPrior(
+        SteadyPriorConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2, num_steps=4)
+    )
     optimizer = _create_optimizer(cfg, prior, "steady_prior")
     scheduler = _create_scheduler(optimizer, cfg, "steady_prior")
     patience = _get_patience(cfg, "steady_prior")
     logger = TrainingLogger(cfg, stage="steady_prior", global_step=global_step, wandb_ctx=wandb_ctx)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+
+    # Setup distributed training
+    device, is_distributed, rank, world_size, local_rank = setup_distributed()
+
     prior.to(device)
+
+    # Wrap prior with DDP if distributed
+    if is_distributed:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+
+        prior = DDP(
+            prior,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,
+            find_unused_parameters=False,
+        )
+        if rank == 0:
+            print(f"Steady prior wrapped with DDP on device {local_rank}")
+
     best_loss = float("inf")
     best_state = copy.deepcopy(prior.state_dict())
     epochs_since_improve = 0
-    
+
     import time
+
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     for epoch in range(epochs):
+        # For distributed training, set epoch for sampler (enables shuffling)
+        if hasattr(loader, "sampler") and hasattr(loader.sampler, "set_epoch"):
+            loader.sampler.set_epoch(epoch)
+
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
@@ -1448,24 +1671,26 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             else:
                 z0, z1, cond = unpacked
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             refined = prior(state)
             loss = F.mse_loss(refined.z, z1.to(device))
             (loss / accum_steps).backward()
             do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
             if do_step:
-                grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float('inf'))
+                grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float("inf"))
                 total_grad_norm += grad_norm.item()
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
                 grad_steps += 1
             epoch_loss += loss.item()
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1494,28 +1719,30 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     prior_path = checkpoint_dir / "steady_prior.pt"
     torch.save(prior.state_dict(), prior_path)
     print(f"Saved steady prior checkpoint to {prior_path}")
-    
+
     # Upload checkpoint to W&B (clean way!)
     if wandb_ctx:
         wandb_ctx.save_file(prior_path)
-        print(f"Uploaded steady prior checkpoint to W&B")
+        print("Uploaded steady prior checkpoint to W&B")
 
     # Send W&B alert
     if wandb_ctx:
         wandb_ctx.alert(
             title="🎉 All Training Stages Complete!",
             text=f"Steady prior final loss: {best_loss:.6f} | Full pipeline ready for evaluation",
-            level="INFO"
+            level="INFO",
         )
 
 
-def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline", wandb_ctx=None) -> dict:
+def _run_evaluation(
+    cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline", wandb_ctx=None
+) -> dict:
     """Run evaluation and return metrics. Mode can be 'baseline' or 'ttc'."""
     from ups.eval.pdebench_runner import evaluate_latent_operator
     from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+
     # Load models
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
@@ -1534,18 +1761,20 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
         hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
-        diffusion = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
+        diffusion = DiffusionResidual(
+            DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim)
+        )
         diff_state = torch.load(diff_path, map_location="cpu")
         diff_state = _strip_compiled_prefix(diff_state)
         diffusion.load_state_dict(diff_state)
         diffusion = diffusion.to(device)
         diffusion.eval()
-    
+
     # Setup TTC if requested
     tau = cfg.get("training", {}).get("tau", 0.5)
     ttc_cfg = None
     reward_model = None
-    
+
     if eval_mode == "ttc" and cfg.get("ttc", {}).get("enabled"):
         ttc_dict = cfg.get("ttc", {})
         # Use direct constructor like other places in codebase (evaluate.py, pdebench_runner.py)
@@ -1555,18 +1784,22 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
             candidates=ttc_dict.get("candidates", 4),
             beam_width=ttc_dict.get("beam_width", 1),
             horizon=ttc_dict.get("horizon", 1),
-            tau_range=tuple(ttc_dict.get("tau_range", [0.3, 0.7])) if "tau_range" in ttc_dict else (0.3, 0.7),
+            tau_range=(
+                tuple(ttc_dict.get("tau_range", [0.3, 0.7]))
+                if "tau_range" in ttc_dict
+                else (0.3, 0.7)
+            ),
             residual_threshold=ttc_dict.get("residual_threshold"),
             max_evaluations=ttc_dict.get("max_evaluations"),
             gamma=ttc_dict.get("gamma", 1.0),
             device=device,
         )
         reward_model = build_reward_model_from_config(ttc_dict, latent_dim, device)
-    
+
     # Change data split to test for evaluation
     eval_cfg = copy.deepcopy(cfg)
     eval_cfg["data"]["split"] = "test"
-    
+
     # Run evaluation
     print(f"\nRunning evaluation (mode: {eval_mode})...")
     report, details = evaluate_latent_operator(
@@ -1579,10 +1812,10 @@ def _run_evaluation(cfg: dict, checkpoint_dir: Path, eval_mode: str = "baseline"
         reward_model=reward_model,
         return_details=True,
     )
-    
+
     # Add TTC flag to report
-    report.extra["ttc"] = (eval_mode == "ttc")
-    
+    report.extra["ttc"] = eval_mode == "ttc"
+
     return {"report": report, "details": details}
 
 
@@ -1640,21 +1873,23 @@ def _log_evaluation_summary(wandb_ctx, baseline_metrics: dict, ttc_metrics: dict
         ttc_improvement_pct = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
 
         wandb_ctx.log_eval_summary({"ttc_improvement_pct": ttc_improvement_pct}, prefix="eval")
-    
+
     # Create summary table
     summary_md = "## Evaluation Summary\n\n"
     summary_md += "| Metric | Baseline | TTC | Improvement |\n"
     summary_md += "|--------|----------|-----|-------------|\n"
-    
+
     for metric_name in ["mse", "mae", "rmse", "nrmse", "rel_l2"]:
         baseline_val = baseline_metrics["report"].metrics.get(metric_name, 0)
         if ttc_metrics:
             ttc_val = ttc_metrics["report"].metrics.get(metric_name, 0)
             improv = ((baseline_val - ttc_val) / baseline_val) * 100 if baseline_val > 0 else 0
-            summary_md += f"| {metric_name.upper()} | {baseline_val:.6f} | {ttc_val:.6f} | {improv:.1f}% |\n"
+            summary_md += (
+                f"| {metric_name.upper()} | {baseline_val:.6f} | {ttc_val:.6f} | {improv:.1f}% |\n"
+            )
         else:
             summary_md += f"| {metric_name.upper()} | {baseline_val:.6f} | - | - |\n"
-    
+
     # Log comprehensive comparison tables
     if wandb_ctx:
         # Accuracy metrics table
@@ -1667,24 +1902,28 @@ def _log_evaluation_summary(wandb_ctx, baseline_metrics: dict, ttc_metrics: dict
                     improvement_pct = ((base_val - ttc_val) / base_val) * 100.0
                 else:
                     improvement_pct = None
-                accuracy_rows.append([
-                    metric.upper(),
-                    f"{base_val:.6f}" if base_val is not None else "N/A",
-                    f"{ttc_val:.6f}" if ttc_val is not None else "N/A",
-                    f"{improvement_pct:.1f}%" if improvement_pct is not None else "N/A",
-                ])
+                accuracy_rows.append(
+                    [
+                        metric.upper(),
+                        f"{base_val:.6f}" if base_val is not None else "N/A",
+                        f"{ttc_val:.6f}" if ttc_val is not None else "N/A",
+                        f"{improvement_pct:.1f}%" if improvement_pct is not None else "N/A",
+                    ]
+                )
             else:
-                accuracy_rows.append([
-                    metric.upper(),
-                    f"{base_val:.6f}" if base_val is not None else "N/A",
-                    "N/A",
-                    "N/A",
-                ])
+                accuracy_rows.append(
+                    [
+                        metric.upper(),
+                        f"{base_val:.6f}" if base_val is not None else "N/A",
+                        "N/A",
+                        "N/A",
+                    ]
+                )
 
         wandb_ctx.log_table(
             "Training Evaluation Summary",
             columns=["Metric", "Baseline", "TTC", "Improvement"],
-            data=accuracy_rows
+            data=accuracy_rows,
         )
 
         # Physics metrics table (if present)
@@ -1694,23 +1933,27 @@ def _log_evaluation_summary(wandb_ctx, baseline_metrics: dict, ttc_metrics: dict
             if base_val is not None:
                 if ttc_metrics:
                     ttc_val = ttc_metrics["report"].metrics.get(physics_key)
-                    physics_rows.append([
-                        physics_key.replace("_", " ").title(),
-                        f"{base_val:.6f}",
-                        f"{ttc_val:.6f}" if ttc_val is not None else "N/A",
-                    ])
+                    physics_rows.append(
+                        [
+                            physics_key.replace("_", " ").title(),
+                            f"{base_val:.6f}",
+                            f"{ttc_val:.6f}" if ttc_val is not None else "N/A",
+                        ]
+                    )
                 else:
-                    physics_rows.append([
-                        physics_key.replace("_", " ").title(),
-                        f"{base_val:.6f}",
-                        "N/A",
-                    ])
+                    physics_rows.append(
+                        [
+                            physics_key.replace("_", " ").title(),
+                            f"{base_val:.6f}",
+                            "N/A",
+                        ]
+                    )
 
         if physics_rows:
             wandb_ctx.log_table(
                 "Training Physics Diagnostics",
                 columns=["Physics Check", "Baseline", "TTC"],
-                data=physics_rows
+                data=physics_rows,
             )
 
 
@@ -1724,11 +1967,12 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
     # Load or create WandB context
     if wandb_ctx is None:
         # Try to load from environment (subprocess mode)
-        from ups.utils.wandb_context import create_wandb_context, save_wandb_context
         import datetime
-        import os
         import json
+        import os
         from pathlib import Path
+
+        from ups.utils.wandb_context import create_wandb_context, save_wandb_context
 
         # Standalone mode: create new WandB context
         logging_cfg = cfg.get("logging", {})
@@ -1758,15 +2002,17 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
 
     # Initialize stage tracker
     from ups.utils.stage_tracker import StageTracker
+
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     tracker = StageTracker(checkpoint_dir)
 
     # Auto-resume logic (if enabled via CLI flag)
     import sys
+
     if "--auto-resume" in sys.argv:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("AUTO-RESUME ENABLED")
-        print("="*50)
+        print("=" * 50)
 
         completed_stages = tracker.get_completed_stages()
         if completed_stages:
@@ -1785,24 +2031,26 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
                 print(f"  - {stage_name}: {original_epochs} epochs → 0 epochs (skipping)")
         else:
             print("  No completed stages found, starting from beginning")
-        print("="*50 + "\n")
+        print("=" * 50 + "\n")
 
     # Log system info to config
     if wandb_ctx and wandb_ctx.enabled and torch.cuda.is_available():
-        wandb_ctx.update_config({
-            "gpu_name": torch.cuda.get_device_name(0),
-            "gpu_count": torch.cuda.device_count(),
-            "cuda_version": torch.version.cuda,
-        })
+        wandb_ctx.update_config(
+            {
+                "gpu_name": torch.cuda.get_device_name(0),
+                "gpu_count": torch.cuda.device_count(),
+                "cuda_version": torch.version.cuda,
+            }
+        )
 
     global_step = 0
-    
+
     # Stage 1: Operator
     op_epochs = _stage_epochs(cfg, "operator")
     if op_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 1/4: Training Operator")
-        print("="*50)
+        print("=" * 50)
 
         # Mark stage as started
         tracker.mark_stage_started("operator", total_epochs=op_epochs)
@@ -1819,21 +2067,21 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
 
         global_step += op_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 1/4: Skipping Operator (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Clear GPU cache between stages
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print("✓ Cleared GPU cache")
-    
+
     # Stage 2: Diffusion Residual
     diff_epochs = _stage_epochs(cfg, "diff_residual")
     if diff_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 2/4: Training Diffusion Residual")
-        print("="*50)
+        print("=" * 50)
 
         # Mark stage as started
         tracker.mark_stage_started("diff_residual", total_epochs=diff_epochs)
@@ -1850,21 +2098,21 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
 
         global_step += diff_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 2/4: Skipping Diffusion Residual (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Clear GPU cache between stages
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print("✓ Cleared GPU cache")
-    
+
     # Stage 3: Consistency Distillation
     distill_epochs = _stage_epochs(cfg, "consistency_distill")
     if distill_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 3/4: Consistency Distillation")
-        print("="*50)
+        print("=" * 50)
 
         # Mark stage as started
         tracker.mark_stage_started("consistency_distill", total_epochs=distill_epochs)
@@ -1873,7 +2121,9 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
             train_consistency(cfg, wandb_ctx=wandb_ctx, global_step=global_step)
 
             # Mark stage as completed (Consistency overwrites diffusion checkpoint)
-            tracker.mark_stage_completed("consistency_distill", checkpoint="diffusion_residual_ema.pt")
+            tracker.mark_stage_completed(
+                "consistency_distill", checkpoint="diffusion_residual_ema.pt"
+            )
         except Exception as e:
             # Mark stage as failed
             tracker.mark_stage_failed("consistency_distill", error_message=str(e))
@@ -1881,21 +2131,21 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
 
         global_step += distill_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 3/4: Skipping Consistency Distillation (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Clear GPU cache between stages
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print("✓ Cleared GPU cache")
-    
+
     # Stage 4: Steady Prior
     steady_epochs = _stage_epochs(cfg, "steady_prior")
     if steady_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 4/4: Training Steady Prior")
-        print("="*50)
+        print("=" * 50)
 
         # Mark stage as started
         tracker.mark_stage_started("steady_prior", total_epochs=steady_epochs)
@@ -1910,64 +2160,71 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
             tracker.mark_stage_failed("steady_prior", error_message=str(e))
             raise
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 4/4: Skipping Steady Prior (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Stage 5: Evaluation (optional, controlled by config)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     run_eval = cfg.get("evaluation", {}).get("enabled", True)  # Default to True for convenience
-    
+
     if run_eval:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 5/5: Evaluation on Test Set")
-        print("="*50)
-        
+        print("=" * 50)
+
         try:
             # Run baseline evaluation
             print("\n📊 Running baseline evaluation...")
-            baseline_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="baseline", wandb_ctx=wandb_ctx)
+            baseline_results = _run_evaluation(
+                cfg, checkpoint_dir, eval_mode="baseline", wandb_ctx=wandb_ctx
+            )
             baseline_report = baseline_results["report"]
-            
-            print(f"Baseline Results:")
+
+            print("Baseline Results:")
             print(f"  MSE:   {baseline_report.metrics.get('mse', 0):.6f}")
             print(f"  MAE:   {baseline_report.metrics.get('mae', 0):.6f}")
             print(f"  RMSE:  {baseline_report.metrics.get('rmse', 0):.6f}")
             print(f"  NRMSE: {baseline_report.metrics.get('nrmse', 0):.6f}")
-            
+
             # Run TTC evaluation if configured
             ttc_results = None
             if cfg.get("ttc", {}).get("enabled", False):
                 print("\n📊 Running TTC evaluation...")
-                ttc_results = _run_evaluation(cfg, checkpoint_dir, eval_mode="ttc", wandb_ctx=wandb_ctx)
+                ttc_results = _run_evaluation(
+                    cfg, checkpoint_dir, eval_mode="ttc", wandb_ctx=wandb_ctx
+                )
                 ttc_report = ttc_results["report"]
-                
-                print(f"TTC Results:")
+
+                print("TTC Results:")
                 print(f"  MSE:   {ttc_report.metrics.get('mse', 0):.6f}")
                 print(f"  MAE:   {ttc_report.metrics.get('mae', 0):.6f}")
                 print(f"  RMSE:  {ttc_report.metrics.get('rmse', 0):.6f}")
                 print(f"  NRMSE: {ttc_report.metrics.get('nrmse', 0):.6f}")
-                
+
                 # Compute improvement
-                baseline_nrmse = baseline_report.metrics.get('nrmse', 1.0)
-                ttc_nrmse = ttc_report.metrics.get('nrmse', 1.0)
+                baseline_nrmse = baseline_report.metrics.get("nrmse", 1.0)
+                ttc_nrmse = ttc_report.metrics.get("nrmse", 1.0)
                 improvement = ((baseline_nrmse - ttc_nrmse) / baseline_nrmse) * 100
                 print(f"\n  TTC Improvement: {improvement:.1f}%")
-            
+
             # Log to WandB using clean context
             if wandb_ctx:
                 _log_evaluation_summary(wandb_ctx, baseline_results, ttc_results)
-                
+
                 # Save reports as artifacts
                 import os
+
                 report_dir = Path("reports")
                 report_dir.mkdir(parents=True, exist_ok=True)
-                
+
                 # Save baseline report
                 baseline_json = report_dir / "eval_baseline.json"
                 baseline_report.to_json(baseline_json)
                 if wandb_ctx and wandb_ctx.run is not None:
-                    artifact = wandb.Artifact(name=f"eval-baseline-{wandb_ctx.run.id}", type="evaluation")
+                    artifact = wandb.Artifact(
+                        name=f"eval-baseline-{wandb_ctx.run.id}", type="evaluation"
+                    )
                     artifact.add_file(str(baseline_json))
                     wandb_ctx.log_artifact(artifact)
 
@@ -1976,46 +2233,62 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
                     ttc_json = report_dir / "eval_ttc.json"
                     ttc_report.to_json(ttc_json)
                     if wandb_ctx and wandb_ctx.run is not None:
-                        artifact = wandb.Artifact(name=f"eval-ttc-{wandb_ctx.run.id}", type="evaluation")
+                        artifact = wandb.Artifact(
+                            name=f"eval-ttc-{wandb_ctx.run.id}", type="evaluation"
+                        )
                         artifact.add_file(str(ttc_json))
                         wandb_ctx.log_artifact(artifact)
-                
+
         except Exception as e:
             print(f"\n⚠️  Evaluation failed: {e}")
             if wandb_ctx and wandb_ctx.enabled:
                 wandb_ctx.log_eval_summary({"error": str(e)}, prefix="eval")
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 5/5: Skipping Evaluation (disabled in config)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Log final summary
     if wandb_ctx and wandb_ctx.enabled:
         # Load final checkpoints to get model sizes
         import os
+
         summary = {
             "total_training_complete": 1,
-            "operator_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator.pt") / 1e6 if (checkpoint_dir / "operator.pt").exists() else 0,
-            "diffusion_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6 if (checkpoint_dir / "diffusion_residual.pt").exists() else 0,
-            "steady_prior_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6 if (checkpoint_dir / "steady_prior.pt").exists() else 0,
+            "operator_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "operator.pt") / 1e6
+                if (checkpoint_dir / "operator.pt").exists()
+                else 0
+            ),
+            "diffusion_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6
+                if (checkpoint_dir / "diffusion_residual.pt").exists()
+                else 0
+            ),
+            "steady_prior_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6
+                if (checkpoint_dir / "steady_prior.pt").exists()
+                else 0
+            ),
         }
         wandb_ctx.log_eval_summary(summary, prefix="summary")
 
         # Generate final report summary
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("📝 WandB Summary Generated")
-        print("="*50)
+        print("=" * 50)
         print(f"View full results at: {wandb_ctx.run.url}")
 
         # Training run owns its own lifecycle - call finish()
         wandb_ctx.finish()
-    
-    print("\n" + "="*50)
+
+    print("\n" + "=" * 50)
     print("✅ All training stages complete!")
-    print("="*50)
+    print("=" * 50)
 
     # Force cleanup of CUDA resources and DataLoader workers
     import gc
+
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -2029,25 +2302,25 @@ def main() -> None:
         "--stage",
         choices=["operator", "diff_residual", "consistency_distill", "steady_prior", "all"],
         required=True,
-        help="Training stage to run, or 'all' to run full pipeline"
+        help="Training stage to run, or 'all' to run full pipeline",
     )
     parser.add_argument(
         "--resume-from-wandb",
         type=str,
         default=None,
-        help="WandB run ID to resume from (e.g., 'train-20251027_193043')"
+        help="WandB run ID to resume from (e.g., 'train-20251027_193043')",
     )
     parser.add_argument(
         "--resume-mode",
         type=str,
         default="allow",
         choices=["allow", "must", "never"],
-        help="WandB resume mode (allow, must, never). Default: allow"
+        help="WandB resume mode (allow, must, never). Default: allow",
     )
     parser.add_argument(
         "--auto-resume",
         action="store_true",
-        help="Automatically detect completed stages and skip them (resume from last incomplete stage)"
+        help="Automatically detect completed stages and skip them (resume from last incomplete stage)",
     )
     args = parser.parse_args()
     cfg = load_config(args.config)
@@ -2068,14 +2341,11 @@ def main() -> None:
             downloaded_files = manager.download_checkpoints_from_run(
                 run_id=args.resume_from_wandb,
                 checkpoint_files=None,  # Download all common checkpoints
-                force=False  # Skip already-downloaded files
+                force=False,  # Skip already-downloaded files
             )
 
             # Setup WandB environment for resumption
-            manager.setup_wandb_resume(
-                run_id=args.resume_from_wandb,
-                resume_mode=args.resume_mode
-            )
+            manager.setup_wandb_resume(run_id=args.resume_from_wandb, resume_mode=args.resume_mode)
 
             # Verify critical checkpoints exist
             if stage == "all" or stage == "operator":
@@ -2088,8 +2358,9 @@ def main() -> None:
             print(f"❌ Failed to resume from WandB: {e}")
             print("Continuing with fresh training...")
             import traceback
+
             traceback.print_exc()
-    
+
     if stage == "all":
         train_all_stages(cfg)
     elif stage == "operator":
@@ -2103,6 +2374,7 @@ def main() -> None:
 
     # Final cleanup to ensure clean exit
     import gc
+
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -2110,6 +2382,7 @@ def main() -> None:
 
     # Give time for any background threads to finish
     import time
+
     time.sleep(2)
 
 

@@ -13,7 +13,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import wandb
@@ -42,9 +42,7 @@ class WandBContext:
     run_id: str
     enabled: bool = True
 
-    def log_training_metric(
-        self, stage: str, metric: str, value: float, step: int
-    ) -> None:
+    def log_training_metric(self, stage: str, metric: str, value: float, step: int) -> None:
         """Log training metrics as time series.
 
         Use this for per-epoch/per-step metrics that should appear as line charts.
@@ -64,6 +62,12 @@ class WandBContext:
             # Creates: training/operator/loss = 0.001 at step 100
             #          training/operator/step = 100 (for x-axis)
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None:
             return
 
@@ -79,9 +83,7 @@ class WandBContext:
         except Exception:
             pass
 
-    def log_eval_summary(
-        self, metrics: Dict[str, float], prefix: str = "eval"
-    ) -> None:
+    def log_eval_summary(self, metrics: dict[str, float], prefix: str = "eval") -> None:
         """Log evaluation metrics as summary (single values, not time series).
 
         Use this for final evaluation results. These appear in the Summary tab,
@@ -97,6 +99,12 @@ class WandBContext:
             # eval/baseline/nrmse = 0.09
             # eval/baseline/mse = 0.001
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None:
             return
 
@@ -108,9 +116,7 @@ class WandBContext:
                 except Exception:
                     pass
 
-    def log_table(
-        self, name: str, columns: List[str], data: List[List[Any]]
-    ) -> None:
+    def log_table(self, name: str, columns: list[str], data: list[list[Any]]) -> None:
         """Log a table for multi-value comparisons.
 
         Use this for side-by-side comparisons, leaderboard entries, or any
@@ -131,6 +137,12 @@ class WandBContext:
                 ]
             )
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None or wandb is None:
             return
 
@@ -150,6 +162,12 @@ class WandBContext:
         Example:
             ctx.log_image("eval/mse_histogram", Path("reports/mse_hist.png"))
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None or wandb is None:
             return
 
@@ -167,6 +185,12 @@ class WandBContext:
         Example:
             ctx.save_file(Path("checkpoints/operator.pt"))
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None or wandb is None:
             return
 
@@ -175,7 +199,7 @@ class WandBContext:
         except Exception:
             pass
 
-    def update_config(self, updates: Dict[str, Any]) -> None:
+    def update_config(self, updates: dict[str, Any]) -> None:
         """Update run config (for metadata, not metrics).
 
         Use this for hyperparameters and metadata that characterize the run.
@@ -191,6 +215,12 @@ class WandBContext:
                 "eval_ttc_enabled": True
             })
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None:
             return
 
@@ -199,7 +229,7 @@ class WandBContext:
         except Exception:
             pass
 
-    def add_tags(self, tags: List[str]) -> None:
+    def add_tags(self, tags: list[str]) -> None:
         """Add tags to run for organization/filtering.
 
         Args:
@@ -208,6 +238,12 @@ class WandBContext:
         Example:
             ctx.add_tags(["fast-to-sota", "production", "baseline"])
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None:
             return
 
@@ -228,6 +264,12 @@ class WandBContext:
             artifact.add_file("summary.json")
             ctx.log_artifact(artifact)
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None or wandb is None:
             return
 
@@ -251,6 +293,12 @@ class WandBContext:
                 level="WARN"
             )
         """
+        # Only rank 0 logs to WandB
+        import torch.distributed as dist
+
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
         if not self.enabled or self.run is None or wandb is None:
             return
 
@@ -272,10 +320,10 @@ class WandBContext:
 
 
 def create_wandb_context(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     run_id: str,
     mode: str = "online",
-) -> Optional[WandBContext]:
+) -> WandBContext | None:
     """Create a single WandB run context for the entire pipeline.
 
     This should be called ONCE by the orchestrator at the start of a pipeline.
@@ -310,25 +358,21 @@ def create_wandb_context(
         "seed": config.get("seed"),
         "deterministic": config.get("deterministic", False),
         "benchmark": config.get("benchmark", True),
-
         # Latent space
         "latent_dim": config["latent"]["dim"],
         "latent_tokens": config["latent"]["tokens"],
-
         # Operator architecture
         "operator_architecture_type": config["operator"].get("architecture_type", "pdet_unet"),
         "operator_hidden_dim": config["operator"]["pdet"]["hidden_dim"],
         "operator_num_heads": config["operator"]["pdet"]["num_heads"],
         "operator_depths": config["operator"]["pdet"].get("depths"),  # U-shaped: list
-        "operator_depth": config["operator"]["pdet"].get("depth"),     # Pure: int
+        "operator_depth": config["operator"]["pdet"].get("depth"),  # Pure: int
         "operator_group_size": config["operator"]["pdet"].get("group_size"),
         "operator_attention_type": config["operator"]["pdet"].get("attention_type"),
         "operator_drop_path": config["operator"]["pdet"].get("drop_path"),
-
         # Diffusion architecture
         "diffusion_latent_dim": config.get("diffusion", {}).get("latent_dim"),
         "diffusion_hidden_dim": config.get("diffusion", {}).get("hidden_dim"),
-
         # Training params
         "batch_size": config["training"]["batch_size"],
         "time_stride": config["training"]["time_stride"],
@@ -337,7 +381,6 @@ def create_wandb_context(
         "compile": config["training"].get("compile", False),
         "ema_decay": config["training"].get("ema_decay"),
         "accum_steps": config["training"].get("accum_steps", 1),
-
         # Data
         "task": config["data"]["task"],
         "split": config["data"].get("split", "train"),
@@ -407,8 +450,12 @@ def create_wandb_context(
 
             # Define all other metrics in each namespace to use their stage's step
             wandb.define_metric("training/operator/*", step_metric="training/operator/step")
-            wandb.define_metric("training/diffusion_residual/*", step_metric="training/diffusion_residual/step")
-            wandb.define_metric("training/consistency_distill/*", step_metric="training/consistency_distill/step")
+            wandb.define_metric(
+                "training/diffusion_residual/*", step_metric="training/diffusion_residual/step"
+            )
+            wandb.define_metric(
+                "training/consistency_distill/*", step_metric="training/consistency_distill/step"
+            )
             wandb.define_metric("training/steady_prior/*", step_metric="training/steady_prior/step")
 
         return WandBContext(run=run, run_id=run_id, enabled=True)
@@ -419,8 +466,8 @@ def create_wandb_context(
 
 
 def load_wandb_context(
-    run_id: str, project: str, entity: Optional[str] = None
-) -> Optional[WandBContext]:
+    run_id: str, project: str, entity: str | None = None
+) -> WandBContext | None:
     """Load an existing WandB run context (for separate processes).
 
     This is for edge cases where training runs in a separate process and needs
@@ -482,7 +529,7 @@ def save_wandb_context(ctx: WandBContext, path: Path) -> None:
     path.write_text(json.dumps(context_data, indent=2), encoding="utf-8")
 
 
-def load_wandb_context_from_file(path: Path) -> Optional[WandBContext]:
+def load_wandb_context_from_file(path: Path) -> WandBContext | None:
     """Load WandB context from file (for subprocesses).
 
     Args:
@@ -511,7 +558,7 @@ def load_wandb_context_from_file(path: Path) -> Optional[WandBContext]:
         return None
 
 
-def load_wandb_context_from_env() -> Optional[WandBContext]:
+def load_wandb_context_from_env() -> WandBContext | None:
     """Load WandB context from WANDB_CONTEXT_FILE environment variable.
 
     This is a convenience function for subprocesses to automatically load
