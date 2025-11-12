@@ -198,19 +198,13 @@ export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
 export RCLONE_CONFIG_B2TRAIN_ACL=private
 export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 
-# Clear old/partial data files for fresh start
 rm -rf data/pdebench || true
 mkdir -p data/pdebench
-
-# Multi-task sequential download (reliable, prevents parallel rclone conflicts)
-echo "📥 Downloading data for tasks: {' '.join(tasks)}"
 """
 
     # Generate download commands for each task (sequential for reliability)
     for task in tasks:
         script += f"""
-# Download {task} (sequential)
-echo "📥 Downloading {task} files..."
 if [ ! -f data/pdebench/{task}_train.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress
 fi
@@ -220,7 +214,6 @@ fi
 if [ ! -f data/pdebench/{task}_test.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/{task}/{task}_test.h5 data/pdebench/ --progress
 fi
-echo "✓ {task} files downloaded"
 """
 
     # Add file verification (no wait needed for sequential downloads)
@@ -234,18 +227,12 @@ echo "✓ {task} files downloaded"
     files_check = " ".join(f'[ -f "{f}" ]' for f in expected_files)
 
     script += f"""
-# Verify all data files are present before proceeding
-echo "🔍 Verifying {len(expected_files)} data files..."
 for i in {{1..60}}; do
   if {' && '.join(f'[ -f "{f}" ]' for f in expected_files)}; then
-    echo "✓ All data files downloaded successfully"
+    echo "Data files ready"
     break
   fi
-  if [ $i -eq 60 ]; then
-    echo "❌ ERROR: Not all data files downloaded after 5 minutes"
-    ls -lh data/pdebench/
-    exit 1
-  fi
+  [ $i -eq 60 ] && echo "Download timeout" && ls -lh data/pdebench/ && exit 1
   sleep 5
 done
 
