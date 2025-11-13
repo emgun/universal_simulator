@@ -531,14 +531,15 @@ def validate_distributed_config(cfg: Dict) -> List[Tuple[str, bool, str]]:
         )
     )
 
-    # Check 3: batch size is reasonable for GPU count
+    # Check 3: batch size is reasonable for GPU count (include gradient accumulation)
     batch_size = cfg.get("training", {}).get("batch_size", 8)
-    effective_batch = batch_size * num_gpus
+    accum_steps = cfg.get("training", {}).get("accum_steps", 1)
+    effective_batch = batch_size * num_gpus * accum_steps
     checks.append(
         (
             "effective batch size >= 16",
             effective_batch >= 16,
-            f"batch_size={batch_size} * num_gpus={num_gpus} = {effective_batch}"
+            f"batch_size={batch_size} * num_gpus={num_gpus} * accum_steps={accum_steps} = {effective_batch}"
             + (" (very small)" if effective_batch < 16 else ""),
         )
     )
