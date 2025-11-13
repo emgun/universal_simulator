@@ -50,9 +50,9 @@ training:
   # Distributed training
   num_gpus: 2  # 2×A100_SXM4 = 160GB total
 
-  # DDP-optimized for 80GB SXM4: Conservative batch_size to avoid OOM with gradient accumulation
-  batch_size: 8            # Per-GPU (safe for 80GB with inverse losses + grad accum)
-  accum_steps: 6           # Balanced DDP sync overhead (effective batch = 8*6*2 = 96)
+  # DDP-optimized for 80GB SXM4: No inverse losses/physics priors = more memory for larger batches
+  batch_size: 12           # Per-GPU (80GB can handle this without inverse losses)
+  accum_steps: 4           # Minimize DDP sync overhead (effective batch = 12*4*2 = 96)
 
   time_stride: 2
   dt: 0.1
@@ -73,10 +73,10 @@ training:
   grad_clip: null
   ema_decay: 0.999
 
-  # UPT Inverse Losses (from Phase 1/2/3)
-  lambda_inv_enc: 0.01
-  lambda_inv_dec: 0.01
-  use_inverse_losses: true
+  # UPT Inverse Losses (DISABLED for memory optimization)
+  lambda_inv_enc: 0.0
+  lambda_inv_dec: 0.0
+  use_inverse_losses: false
   inverse_loss_frequency: 1      # Every batch (same as Burgers UPT)
   inverse_loss_warmup_epochs: 5
   inverse_loss_max_weight: 0.05
@@ -98,22 +98,22 @@ training:
       end_queries: 1024
       warmup_epochs: 5
 
-  # Physics Priors (Phase 4.2) + Latent Regularization (Phase 4.3)
+  # Physics Priors (DISABLED for memory optimization)
   physics_priors:
-    enabled: true
+    enabled: false
 
     # Advection & Darcy: Both CONSERVATIVE PDEs (conserve mass/quantity)
     # Unlike Burgers which is dissipative
     lambda_divergence: 0.0         # 1D advection has no divergence; 2D Darcy is pressure (not velocity field)
     lambda_conservation: 0.0       # DISABLED: Multi-task bug causes tensor size mismatch (different spatial dims)
-    lambda_boundary: 0.05          # Enforce boundary conditions
+    lambda_boundary: 0.0           # Disabled for memory
     lambda_positivity: 0.0         # u and p can be negative
     bc_value: 0.0                  # Boundary condition value (if Dirichlet)
     bc_type: all                   # Which boundaries to enforce
 
     # NEW: Latent Regularization (Phase 4.3)
-    lambda_latent_norm: 1.0e-4      # Prevent latent collapse/explosion
-    lambda_latent_diversity: 1.0e-4  # Prevent token collapse to same vector
+    lambda_latent_norm: 0.0         # Disabled for memory
+    lambda_latent_diversity: 0.0    # Disabled for memory
 
   lambda_spectral: 0.05
   lambda_relative: 0.0
@@ -238,7 +238,7 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: pdebench-2task-baseline-ddp
-    tags: [distributed, ddp, 2gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d]
+    run_name: pdebench-2task-baseline-ddp-memopt
+    tags: [distributed, ddp, 2gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, memopt, no-inverse-losses]
     group: distributed-training
-    notes: "Distributed Data Parallel training for 2-task PDEBench (advection1d + darcy2d). Based on train_pdebench_2task_baseline.yaml with DDP infrastructure."
+    notes: "Memory-optimized DDP training: disabled inverse losses and physics priors to allow batch_size=12 (vs 4-8). Faster training with reduced DDP sync overhead."
