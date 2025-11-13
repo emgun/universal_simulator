@@ -806,7 +806,7 @@ def build_parser() -> argparse.ArgumentParser:
     # launch command
     p_launch = sub.add_parser("launch", help="Launch training instance")
     p_launch.add_argument("--offer-id", help="Explicit offer ID to create from")
-    p_launch.add_argument("--gpu", default="A100_PCIE", help="GPU model (default: A100_PCIE)")
+    p_launch.add_argument("--gpu", default="A100_SXM4", help="GPU model (default: A100_SXM4 80GB)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
     p_launch.add_argument(
         "--image",
