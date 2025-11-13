@@ -608,7 +608,18 @@ def main() -> None:
             metadata = None
     if metadata is None:
         metadata_path = _write_checkpoint_metadata(cfg, resolved_train_config, checkpoint_dir)
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"⚠️  Failed to read newly created metadata at {metadata_path}: {exc}")
+            # Create minimal fallback metadata
+            metadata = {
+                "schema_version": 1,
+                "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "config_hash": "unknown",
+                "config_path": str(resolved_train_config),
+                "trained": False,
+            }
     summary["checkpoint_metadata"] = metadata
 
     # WandB tracking - let training script create the run
