@@ -48,11 +48,11 @@ diffusion:
 
 training:
   # Distributed training
-  num_gpus: 2  # 2×A100 = 160GB total
+  num_gpus: 2  # 2×A100 = 80-160GB total (depends on VastAI availability)
 
-  # DDP-optimized: Larger batch_size, fewer accum_steps for less communication overhead
-  batch_size: 12           # Per-GPU (A100 80GB can handle this)
-  accum_steps: 4           # Minimize DDP synchronizations (effective batch = 12*4*2 = 96)
+  # DDP-optimized for 40GB GPUs: Balance batch_size and accum_steps
+  batch_size: 6            # Per-GPU (safe for 40GB A100)
+  accum_steps: 8           # Minimize DDP synchronizations (effective batch = 6*8*2 = 96)
 
   time_stride: 2
   dt: 0.1
