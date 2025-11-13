@@ -796,7 +796,9 @@ def build_parser() -> argparse.ArgumentParser:
         default="pytorch/pytorch:2.7.0-cuda12.8-cudnn9-devel",
         help="Docker image (default: PyTorch 2.7 CUDA 12.8 for Blackwell support)",
     )
-    p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
+    p_launch.add_argument(
+        "--disk", type=int, default=128, help="Disk in GB (default: 128 for multi-task training)"
+    )
     p_launch.add_argument("--region", help="Region filter")
     p_launch.add_argument(
         "--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)"
