@@ -767,7 +767,8 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
     train_cfg = cfg.get("training", {})
     use_inverse_losses = train_cfg.get("use_inverse_losses", False)
     batch = train_cfg.get("batch_size", 16)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    # Keep dataset on CPU for DDP safety - DataLoader will move batches to GPU
+    device = torch.device("cpu")
     default_workers = max(1, (os.cpu_count() or 4) // 4)
     num_workers = int(train_cfg.get("num_workers", default_workers))
     pin_memory = bool(train_cfg.get("pin_memory", torch.cuda.is_available()))
