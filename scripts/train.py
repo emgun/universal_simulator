@@ -744,7 +744,10 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
-    best_state = copy.deepcopy(operator.state_dict())
+    # Save unwrapped state to avoid DDP "module." prefix issues
+    best_state = copy.deepcopy(
+        operator.module.state_dict() if is_distributed else operator.state_dict()
+    )
     # AMP + EMA setup
     use_amp = _amp_enabled(cfg)
     scaler = GradScaler(enabled=use_amp)
@@ -1102,7 +1105,10 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
-            best_state = copy.deepcopy(operator.state_dict())
+            # Save unwrapped state to avoid DDP "module." prefix issues
+            best_state = copy.deepcopy(
+                operator.module.state_dict() if is_distributed else operator.state_dict()
+            )
             if ema_model is not None:
                 best_ema_state = copy.deepcopy(ema_model.state_dict())
             epochs_since_improve = 0
@@ -1221,7 +1227,8 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     )
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
-    best_state = copy.deepcopy(diff.state_dict())
+    # Save unwrapped state to avoid DDP "module." prefix issues
+    best_state = copy.deepcopy(diff.module.state_dict() if is_distributed else diff.state_dict())
     # AMP + EMA setup
     use_amp = _amp_enabled(cfg)
     scaler = GradScaler(enabled=use_amp)
@@ -1377,7 +1384,10 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
-            best_state = copy.deepcopy(diff.state_dict())
+            # Save unwrapped state to avoid DDP "module." prefix issues
+            best_state = copy.deepcopy(
+                diff.module.state_dict() if is_distributed else diff.state_dict()
+            )
             if ema_model is not None:
                 best_ema_state = copy.deepcopy(ema_model.state_dict())
             epochs_since_improve = 0
@@ -1601,7 +1611,8 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     # Teacher/student are inlined below to enable reuse and vectorized taus
 
     best_loss = float("inf")
-    best_state = copy.deepcopy(diff.state_dict())
+    # Save unwrapped state to avoid DDP "module." prefix issues
+    best_state = copy.deepcopy(diff.module.state_dict() if is_distributed else diff.state_dict())
     use_amp = _amp_enabled(cfg)
     scaler = GradScaler(enabled=use_amp)
     ema_decay = _get_ema_decay(cfg, "consistency_distill")
@@ -1795,7 +1806,10 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
-            best_state = copy.deepcopy(diff.state_dict())
+            # Save unwrapped state to avoid DDP "module." prefix issues
+            best_state = copy.deepcopy(
+                diff.module.state_dict() if is_distributed else diff.state_dict()
+            )
             epochs_since_improve = 0
         else:
             epochs_since_improve += 1
@@ -1888,7 +1902,8 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             print(f"Steady prior wrapped with DDP on device {local_rank}")
 
     best_loss = float("inf")
-    best_state = copy.deepcopy(prior.state_dict())
+    # Save unwrapped state to avoid DDP "module." prefix issues
+    best_state = copy.deepcopy(prior.module.state_dict() if is_distributed else prior.state_dict())
     epochs_since_improve = 0
 
     import time
@@ -1962,7 +1977,10 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         )
         if mean_loss + 1e-6 < best_loss:
             best_loss = mean_loss
-            best_state = copy.deepcopy(prior.state_dict())
+            # Save unwrapped state to avoid DDP "module." prefix issues
+            best_state = copy.deepcopy(
+                prior.module.state_dict() if is_distributed else prior.state_dict()
+            )
             epochs_since_improve = 0
         else:
             epochs_since_improve += 1
