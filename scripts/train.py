@@ -2157,9 +2157,13 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
         from ups.utils.wandb_context import create_wandb_context, save_wandb_context
 
         # Standalone mode: create new WandB context
+        # IMPORTANT: Only rank 0 should initialize WandB in DDP mode
+        is_distributed = torch.distributed.is_initialized()
+        rank = torch.distributed.get_rank() if is_distributed else 0
+
         logging_cfg = cfg.get("logging", {})
         wandb_cfg = logging_cfg.get("wandb", {})
-        if wandb_cfg.get("enabled", True):
+        if wandb_cfg.get("enabled", True) and (not is_distributed or rank == 0):
             run_id = f"train-{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
             wandb_ctx = create_wandb_context(cfg, run_id=run_id, mode="online")
 

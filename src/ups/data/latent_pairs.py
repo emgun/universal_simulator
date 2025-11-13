@@ -329,6 +329,12 @@ class GridLatentPairDataset(Dataset):
             fields_cpu = sample["fields"].float()
             params_cpu = sample.get("params")
             bc_cpu = sample.get("bc")
+
+            # For DDP safety: temporarily move encoder to device for encoding
+            encoder_was_on = next(self.encoder.parameters()).device
+            if encoder_was_on != self.device:
+                self.encoder.to(self.device)
+
             fields = fields_cpu.to(self.device, non_blocking=True)
             params_device = None
             if params_cpu is not None:
@@ -338,15 +344,23 @@ class GridLatentPairDataset(Dataset):
             bc_device = None
             if bc_cpu is not None:
                 bc_device = {k: v.to(self.device, non_blocking=True) for k, v in bc_cpu.items()}
+
+            # Move coords to device for encoding
+            coords_device = self.coords.to(self.device, non_blocking=True)
+
             latent_seq = _fields_to_latent_batch(
                 self.encoder,
                 fields,
-                self.coords,
+                coords_device,
                 self.grid_shape,
                 params=params_device,
                 bc=bc_device,
                 field_name=self.field_name,
             )
+
+            # Move encoder back to original device to avoid CUDA IPC issues in DDP
+            if encoder_was_on != self.device:
+                self.encoder.to(encoder_was_on)
             if self.cache_dir and not cache_hit:
                 to_store = (
                     latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
@@ -803,8 +817,10 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
                     "latent_len": latent_cfg.get("tokens", 16),
                 }
             )
-            encoder = encoder.to(device)
-            coords = make_grid_coords(grid_shape, device)
+            # Keep encoder on CPU to avoid CUDA IPC issues in DDP
+            # Encoder will be moved to device during encoding in __getitem__
+            encoder = encoder.to("cpu")
+            coords = make_grid_coords(grid_shape, torch.device("cpu"))
             ds_cache = cache_root / f"{task_name}_{split_name}" if cache_root else None
 
             use_preloaded = False
