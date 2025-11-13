@@ -62,25 +62,112 @@ def setup_distributed():
         tuple: (device, is_distributed, rank, world_size, local_rank)
     """
     import torch.distributed as dist
+    import traceback
+
+    # Log environment variables at entry
+    print("[DDP-DEBUG] setup_distributed() called")
+    print(f"[DDP-DEBUG] RANK={os.environ.get('RANK', 'NOT_SET')}")
+    print(f"[DDP-DEBUG] LOCAL_RANK={os.environ.get('LOCAL_RANK', 'NOT_SET')}")
+    print(f"[DDP-DEBUG] WORLD_SIZE={os.environ.get('WORLD_SIZE', 'NOT_SET')}")
+    print(f"[DDP-DEBUG] MASTER_ADDR={os.environ.get('MASTER_ADDR', 'NOT_SET')}")
+    print(f"[DDP-DEBUG] MASTER_PORT={os.environ.get('MASTER_PORT', 'NOT_SET')}")
 
     if "RANK" in os.environ:
-        # torchrun sets these automatically
-        dist.init_process_group(backend="nccl")
-        local_rank = int(os.environ["LOCAL_RANK"])
-        rank = int(os.environ["RANK"])
-        world_size = int(os.environ["WORLD_SIZE"])
+        print("[DDP-DEBUG] RANK env var detected, initializing DDP...")
 
-        torch.cuda.set_device(local_rank)
-        device = torch.device(f"cuda:{local_rank}")
+        # Parse environment variables before DDP init
+        try:
+            local_rank = int(os.environ["LOCAL_RANK"])
+            rank = int(os.environ["RANK"])
+            world_size = int(os.environ["WORLD_SIZE"])
+            print(
+                f"[DDP-DEBUG] Parsed env vars: rank={rank}, local_rank={local_rank}, world_size={world_size}"
+            )
+        except (KeyError, ValueError) as e:
+            print(f"[DDP-ERROR] Failed to parse environment variables: {e}")
+            traceback.print_exc()
+            raise
+
+        # Check GPU availability
+        try:
+            print(f"[DDP-DEBUG] Checking GPU availability...")
+            print(f"[DDP-DEBUG] torch.cuda.is_available() = {torch.cuda.is_available()}")
+            print(f"[DDP-DEBUG] torch.cuda.device_count() = {torch.cuda.device_count()}")
+            if torch.cuda.is_available():
+                print(f"[DDP-DEBUG] CUDA version: {torch.version.cuda}")
+                print(
+                    f"[DDP-DEBUG] NCCL available: {torch.cuda.nccl.is_available() if hasattr(torch.cuda, 'nccl') else 'N/A'}"
+                )
+                if hasattr(torch.cuda, "nccl") and torch.cuda.nccl.is_available():
+                    print(f"[DDP-DEBUG] NCCL version: {torch.cuda.nccl.version()}")
+        except Exception as e:
+            print(f"[DDP-WARNING] Error checking GPU info: {e}")
+
+        # Initialize process group with error handling and fallback
+        # Allow backend override via DDP_BACKEND env var (e.g., export DDP_BACKEND=gloo)
+        preferred_backend = os.environ.get("DDP_BACKEND", "nccl").lower()
+        backend_to_use = None
+
+        # Try preferred backend first
+        for backend in [preferred_backend, "gloo"]:
+            if backend_to_use is not None:
+                break  # Already succeeded
+
+            try:
+                print(f"[DDP-DEBUG] Attempting dist.init_process_group(backend='{backend}')...")
+                dist.init_process_group(backend=backend)
+                print(
+                    f"[DDP-DEBUG] dist.init_process_group(backend='{backend}') completed successfully"
+                )
+                backend_to_use = backend
+                print(f"[DDP-DEBUG] dist.is_initialized() = {dist.is_initialized()}")
+                print(f"[DDP-DEBUG] dist.get_backend() = {dist.get_backend()}")
+                print(f"[DDP-DEBUG] dist.get_rank() = {dist.get_rank()}")
+                print(f"[DDP-DEBUG] dist.get_world_size() = {dist.get_world_size()}")
+
+                if backend == "gloo" and preferred_backend == "nccl":
+                    print(f"[DDP-WARNING] Fell back to Gloo backend (NCCL failed)")
+                    print(f"[DDP-WARNING] Gloo is CPU-based and slower - for debugging only!")
+                break
+
+            except Exception as e:
+                print(f"[DDP-ERROR] dist.init_process_group(backend='{backend}') failed: {e}")
+                print(f"[DDP-ERROR] Exception type: {type(e).__name__}")
+                traceback.print_exc()
+
+                if backend == preferred_backend and backend != "gloo":
+                    print(f"[DDP-WARNING] {backend.upper()} failed, trying Gloo fallback...")
+                    print("[DDP-DEBUG] Printing NCCL/CUDA environment variables:")
+                    for key in sorted(os.environ.keys()):
+                        if "NCCL" in key or "CUDA" in key:
+                            print(f"[DDP-DEBUG]   {key}={os.environ[key]}")
+                else:
+                    # All backends failed
+                    print(f"[DDP-ERROR] All backends failed (tried: {preferred_backend}, gloo)")
+                    raise
+
+        # Set CUDA device
+        try:
+            print(f"[DDP-DEBUG] Setting CUDA device to {local_rank}...")
+            torch.cuda.set_device(local_rank)
+            device = torch.device(f"cuda:{local_rank}")
+            print(f"[DDP-DEBUG] Device set to {device}")
+            print(f"[DDP-DEBUG] torch.cuda.current_device() = {torch.cuda.current_device()}")
+        except Exception as e:
+            print(f"[DDP-ERROR] Failed to set CUDA device: {e}")
+            traceback.print_exc()
+            raise
 
         if rank == 0:
-            print(f"Distributed training initialized: {world_size} GPUs")
+            print(f"[DDP-INFO] Distributed training initialized: {world_size} GPUs")
 
+        print(f"[DDP-DEBUG] setup_distributed() returning successfully for rank {rank}")
         return device, True, rank, world_size, local_rank
     else:
         # Single-GPU mode (backward compatible)
+        print("[DDP-DEBUG] RANK env var not found, using single-GPU mode")
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {device} (single-GPU mode)")
+        print(f"[DDP-INFO] Using device: {device} (single-GPU mode)")
         return device, False, 0, 1, None
 
 

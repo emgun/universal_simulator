@@ -295,25 +295,54 @@ PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_sc
         training_cmd = f"""
 export WANDB_MODE=online
 
+# Enable NCCL debug output for DDP troubleshooting
+export NCCL_DEBUG=INFO
+export NCCL_DEBUG_SUBSYS=ALL
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
+
 echo "Starting distributed training with {num_gpus} GPUs..."
+echo "NCCL_DEBUG=$NCCL_DEBUG (verbose output enabled)"
+
+# Run training and capture exit code
+set +e  # Temporarily disable exit on error
 torchrun \\
   --nproc_per_node={num_gpus} \\
   --nnodes=1 \\
   --node_rank=0 \\
   --master_addr=localhost \\
   --master_port=29500 \\
-  scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast,ddp,{num_gpus}gpu --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args} || echo "⚠️  Training exited with code $?"
+  scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast,ddp,{num_gpus}gpu --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args}
+TRAIN_EXIT_CODE=$?
+set -e  # Re-enable exit on error
 
-echo "✓ Training pipeline completed"
+# Report result based on exit code
+if [ $TRAIN_EXIT_CODE -eq 0 ]; then
+  echo "✓ Training pipeline completed successfully"
+else
+  echo "✗ Training pipeline failed with exit code $TRAIN_EXIT_CODE"
+  echo "Check logs above for error details"
+  exit $TRAIN_EXIT_CODE
+fi
 """
     else:
         # Single-GPU training
         training_cmd = f"""
 export WANDB_MODE=online
 
-python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args} || echo "⚠️  Training exited with code $?"
+# Run training and capture exit code
+set +e  # Temporarily disable exit on error
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args}
+TRAIN_EXIT_CODE=$?
+set -e  # Re-enable exit on error
 
-echo "✓ Training pipeline completed"
+# Report result based on exit code
+if [ $TRAIN_EXIT_CODE -eq 0 ]; then
+  echo "✓ Training pipeline completed successfully"
+else
+  echo "✗ Training pipeline failed with exit code $TRAIN_EXIT_CODE"
+  echo "Check logs above for error details"
+  exit $TRAIN_EXIT_CODE
+fi
 """
 
     script += training_cmd
