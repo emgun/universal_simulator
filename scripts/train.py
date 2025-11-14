@@ -474,6 +474,16 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
 
         print(f"Available Muon backends: {', '.join(backends)}")
 
+        # IMPORTANT: CPU offload is incompatible with Muon optimizer (torchao issue)
+        # Muon optimizer is not iterable, causing TypeError in CPUOffloadOptimizer.__init__
+        if cpu_offload_enabled:
+            print(
+                "⚠️  WARNING: cpu_offload_optimizer is incompatible with muon_hybrid optimizer"
+            )
+            print("   Disabling CPU offload for this run (torchao compatibility issue)")
+            print("   See: https://github.com/pytorch/ao/issues/2919")
+            cpu_offload_enabled = False
+
         # Split parameters into Muon (2D+) and AdamW (1D) groups
         muon_params, adamw_params = build_param_groups(model)
         print_param_split_summary(model)
@@ -500,8 +510,6 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 ns_steps=muon_ns_steps,
                 backend=muon_backend,
             )
-            # Wrap with CPU offload BEFORE adding to hybrid (fixes compatibility)
-            muon_opt = wrap_optimizer_with_cpu_offload(muon_opt, cpu_offload_enabled)
             optimizers.append(muon_opt)
             print(f"  Muon ({backend_name}): {len(muon_params)} parameter groups")
 
@@ -515,16 +523,14 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 weight_decay=weight_decay,
                 fused=True,  # Enable fused kernels (PyTorch 2.0+)
             )
-            # Wrap with CPU offload BEFORE adding to hybrid (fixes compatibility)
-            adamw_opt = wrap_optimizer_with_cpu_offload(adamw_opt, cpu_offload_enabled)
             optimizers.append(adamw_opt)
             print(f"  AdamW: {len(adamw_params)} parameter groups")
 
-        # If only one optimizer, return it directly (already wrapped above)
+        # If only one optimizer, return it directly
         if len(optimizers) == 1:
             return optimizers[0]
 
-        # Return hybrid wrapper (child optimizers already wrapped if cpu_offload enabled)
+        # Return hybrid wrapper
         return HybridOptimizer(optimizers)
 
     raise ValueError(f"Unsupported optimizer '{name}'")
