@@ -71,9 +71,9 @@ training:
   dt: 0.1
   patience: 3
 
-  # Re-enable parallel encoding (was 0 for single-GPU OOM)
+  # Multi-task training (parallel encoding not supported for multi-task)
   num_workers: 6           # PHASE 4: 6 workers (3 per GPU, was 8) for better I/O parallelism
-  use_parallel_encoding: true
+  use_parallel_encoding: false  # Not supported with multi-task training
   pin_memory: true
   prefetch_factor: 2       # PHASE 4: REDUCE 4 → 2 (diminishing returns, saves RAM)
   cache_dir: null  # TEMPORARY: Disabled due to precompute hang (will re-enable after debugging)
