@@ -500,6 +500,8 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 ns_steps=muon_ns_steps,
                 backend=muon_backend,
             )
+            # Wrap with CPU offload BEFORE adding to hybrid (fixes compatibility)
+            muon_opt = wrap_optimizer_with_cpu_offload(muon_opt, cpu_offload_enabled)
             optimizers.append(muon_opt)
             print(f"  Muon ({backend_name}): {len(muon_params)} parameter groups")
 
@@ -513,17 +515,17 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 weight_decay=weight_decay,
                 fused=True,  # Enable fused kernels (PyTorch 2.0+)
             )
+            # Wrap with CPU offload BEFORE adding to hybrid (fixes compatibility)
+            adamw_opt = wrap_optimizer_with_cpu_offload(adamw_opt, cpu_offload_enabled)
             optimizers.append(adamw_opt)
             print(f"  AdamW: {len(adamw_params)} parameter groups")
 
-        # If only one optimizer, return it directly (no wrapper needed)
+        # If only one optimizer, return it directly (already wrapped above)
         if len(optimizers) == 1:
-            optimizer = optimizers[0]
-            return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
+            return optimizers[0]
 
-        # Return hybrid wrapper
-        optimizer = HybridOptimizer(optimizers)
-        return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
+        # Return hybrid wrapper (child optimizers already wrapped if cpu_offload enabled)
+        return HybridOptimizer(optimizers)
 
     raise ValueError(f"Unsupported optimizer '{name}'")
 
