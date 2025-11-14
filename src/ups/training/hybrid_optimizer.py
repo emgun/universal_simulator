@@ -140,6 +140,14 @@ class HybridOptimizer(Optimizer):
         """
         self._param_groups = value
 
+    def __iter__(self):
+        """Make HybridOptimizer iterable (yields child optimizers)."""
+        return iter(self.optimizers)
+
+    def __len__(self) -> int:
+        """Return number of child optimizers."""
+        return len(self.optimizers)
+
     def __repr__(self) -> str:
         """String representation showing child optimizers."""
         opt_reprs = [f"  [{i}] {opt.__class__.__name__}" for i, opt in enumerate(self.optimizers)]
