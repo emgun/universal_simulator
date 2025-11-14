@@ -303,7 +303,7 @@ export NCCL_P2P_DISABLE=0           # Enable NVLink peer-to-peer
 export NCCL_IB_DISABLE=0            # Enable InfiniBand if available
 
 # Optional debug (only if NCCL_DEBUG_LEVEL is set)
-export NCCL_DEBUG=${NCCL_DEBUG_LEVEL:-WARN}  # Default WARN, not INFO
+export NCCL_DEBUG=${{NCCL_DEBUG_LEVEL:-WARN}}  # Default WARN, not INFO
 
 echo "Starting distributed training with {num_gpus} GPUs..."
 echo "NCCL configured for performance (debug level: $NCCL_DEBUG)"
