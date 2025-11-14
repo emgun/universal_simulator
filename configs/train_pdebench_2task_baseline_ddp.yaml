@@ -76,7 +76,7 @@ training:
   use_parallel_encoding: false  # Not supported with multi-task training
   pin_memory: true
   prefetch_factor: 2       # PHASE 4: REDUCE 4 → 2 (diminishing returns, saves RAM)
-  cache_dir: data/latent_cache  # Re-enabled after Phase 3 fixes
+  latent_cache_dir: data/latent_cache  # Re-enabled after Phase 3 fixes
 
   checkpoint_interval: 25
 
