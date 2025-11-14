@@ -101,10 +101,22 @@ python scripts/compare_runs.py run1_id run2_id run3_id
 ### Data Management
 
 ```bash
-# Precompute latent cache (faster training)
+# Precompute latent cache (with timeouts)
 python scripts/precompute_latent_cache.py \
-  --config configs/train_burgers_32dim.yaml \
-  --output data/latent_cache
+  --config configs/cache_precompute_defaults.yaml \
+  --tasks burgers1d --splits train \
+  --dataloader-timeout 120 \
+  --hdf5-timeout 60 \
+  --watchdog-timeout 120
+
+# Copy data to local storage on VastAI/Vultr (10x faster I/O)
+bash scripts/copy_data_to_local.sh /root/data/pdebench /workspace/data_local/pdebench
+
+# Then precompute with local data
+python scripts/precompute_latent_cache.py \
+  --config configs/cache_precompute_defaults.yaml \
+  --root /workspace/data_local/pdebench \
+  --tasks burgers1d --splits train
 ```
 
 ### Experiment Management

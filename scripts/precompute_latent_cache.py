@@ -6,14 +6,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
+import os
+import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 import torch
-from torch.utils.data import DataLoader, Subset, Dataset
-import sys
+from torch.utils.data import DataLoader, Dataset, Subset
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -28,18 +29,117 @@ try:  # pragma: no cover - optional progress bar
 except ImportError:  # pragma: no cover
     tqdm = None
 
+import logging
+
+from ups.data.datasets import MeshZarrDataset, ParticleZarrDataset
 from ups.data.latent_pairs import (
+    GraphLatentPairDataset,
     GridLatentPairDataset,
     _build_pdebench_dataset,
     make_grid_coords,
-    GraphLatentPairDataset,
 )
 from ups.data.pdebench import get_pdebench_spec, resolve_pdebench_root
-from ups.data.datasets import MeshZarrDataset, ParticleZarrDataset
 from ups.io.enc_mesh_particle import MeshParticleEncoder, MeshParticleEncoderConfig
 
 
-def _maybe_tqdm(iterator: Iterable, total: Optional[int], *, desc: str) -> Iterable:
+def setup_logging(verbose: bool = False):
+    """Configure logging for diagnostics."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format='[%(asctime)s] %(levelname)s: %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    return logging.getLogger(__name__)
+
+
+logger = None  # Global logger, set in main()
+
+
+def get_optimal_workers(
+    num_workers_requested: int,
+    encoder_size_mb: int = 200,
+    batch_size: int = 4,
+) -> int:
+    """Calculate optimal worker count based on available resources.
+
+    Args:
+        num_workers_requested: User-requested worker count (0=auto)
+        encoder_size_mb: Estimated encoder model size in MB
+        batch_size: Batch size for prefetching
+
+    Returns:
+        Optimal worker count (>= 1)
+    """
+    if num_workers_requested > 0:
+        # User specified, use as-is
+        return num_workers_requested
+
+    try:
+        import psutil
+        available_ram_gb = psutil.virtual_memory().available / 1e9
+        ram_per_worker_gb = (encoder_size_mb / 1024) + (batch_size * 0.1)
+        max_workers_ram = int(available_ram_gb / ram_per_worker_gb)
+        max_workers_cpu = os.cpu_count() or 4
+        optimal = max(1, min(max_workers_ram, max_workers_cpu, 8))
+        print(
+            f"📊 Auto-selected {optimal} workers "
+            f"(RAM: {available_ram_gb:.1f}GB, CPUs: {max_workers_cpu})"
+        )
+        return optimal
+    except Exception:
+        # Fallback to conservative default
+        return 4
+
+
+import threading
+
+
+class ProgressWatchdog:
+    """Monitor progress and detect hung workers."""
+
+    def __init__(self, timeout_seconds: int = 120, check_interval: int = 10):
+        self.timeout = timeout_seconds
+        self.check_interval = check_interval
+        self.last_progress = {"time": time.time(), "batch": -1}
+        self.thread = None
+        self.stop_event = threading.Event()
+
+    def update(self, batch_idx: int):
+        """Update progress timestamp."""
+        self.last_progress["time"] = time.time()
+        self.last_progress["batch"] = batch_idx
+
+    def _watchdog_loop(self):
+        """Background thread that monitors progress."""
+        while not self.stop_event.is_set():
+            time.sleep(self.check_interval)
+            elapsed = time.time() - self.last_progress["time"]
+            if elapsed > self.timeout:
+                batch = self.last_progress["batch"]
+                print(f"\n❌ HANG DETECTED: No progress for {elapsed:.0f}s")
+                print(f"   Last completed batch: {batch}")
+                print("   Likely hung in: DataLoader iteration or worker process")
+                print("   Try: --num-workers 0 (disable multiprocessing)")
+                print(f"   Or: --dataloader-timeout {self.timeout // 2} (shorter timeout)")
+                os._exit(1)  # Hard exit since workers may be hung
+
+    def start(self):
+        """Start watchdog monitoring."""
+        if self.timeout <= 0:
+            return  # Watchdog disabled
+        self.thread = threading.Thread(target=self._watchdog_loop, daemon=True)
+        self.thread.start()
+        print(f"🐕 Watchdog started: will abort if no progress for {self.timeout}s")
+
+    def stop(self):
+        """Stop watchdog monitoring."""
+        if self.thread:
+            self.stop_event.set()
+            self.thread.join(timeout=1)
+
+
+def _maybe_tqdm(iterator: Iterable, total: int | None, *, desc: str) -> Iterable:
     if tqdm is None:
         return iterator
     return tqdm(iterator, total=total, desc=desc)
@@ -49,14 +149,15 @@ def _instantiate_dataset(
     *,
     task: str,
     split: str,
-    data_cfg: Dict[str, object],
-    latent_cfg: Dict[str, object],
+    data_cfg: dict[str, object],
+    latent_cfg: dict[str, object],
     device: torch.device,
-    cache_dir: Optional[Path],
-    cache_dtype: Optional[torch.dtype],
+    cache_dir: Path | None,
+    cache_dtype: torch.dtype | None,
     rollout_horizon: int,
     use_inverse_losses: bool = False,
     time_stride: int = 1,
+    hdf5_timeout: int = 0,
 ) -> Dataset:
     ds_cfg = {
         **data_cfg,
@@ -68,7 +169,9 @@ def _instantiate_dataset(
     spec = get_pdebench_spec(task)
     ds_cache = cache_dir / f"{task}_{split}" if cache_dir else None
     if spec.kind == "grid":
-        dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(ds_cfg)
+        dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
+            ds_cfg, hdf5_timeout=hdf5_timeout
+        )
         encoder = encoder.to(device)
         coords = make_grid_coords(grid_shape, device)
         return GridLatentPairDataset(
@@ -126,29 +229,32 @@ def _count_cached_samples(cache_dir: Path) -> int:
     return sum(1 for _ in cache_dir.glob("sample_*.pt"))
 
 
-def _iter_dataset(
+def _build_robust_loader(
     dataset: Dataset,
-    *,
     batch_size: int,
     num_workers: int,
     pin_memory: bool,
-    use_parallel: bool = True,
-) -> None:
-    """Iterate dataset to populate cache.
-    
-    Args:
-        dataset: Dataset to iterate
-        batch_size: Batch size for encoding
-        num_workers: Number of parallel workers
-        pin_memory: Enable pinned memory
-        use_parallel: Use parallel encoding (4-8× faster)
+    use_parallel: bool,
+    timeout: int,
+) -> tuple[DataLoader, str]:
+    """Build DataLoader with automatic fallback on failures.
+
+    Tries progressively safer modes:
+    1. Parallel encoding (fastest)
+    2. Single worker (slower)
+    3. Main process only (slowest, most reliable)
+
+    Returns:
+        (loader, mode_name) tuple
     """
-    use_parallel_loader = use_parallel and num_workers > 0 and isinstance(dataset, GridLatentPairDataset)
+    use_parallel_loader = (
+        use_parallel and num_workers > 0 and isinstance(dataset, GridLatentPairDataset)
+    )
+
+    # Try 1: Full parallel mode (fastest)
     if use_parallel_loader:
-        # Use parallel cache system for 4-8× speedup
         try:
             from ups.data.parallel_cache import build_parallel_latent_loader
-
             loader = build_parallel_latent_loader(
                 dataset.base,
                 dataset.encoder,
@@ -164,64 +270,102 @@ def _iter_dataset(
                 rollout_horizon=dataset.rollout_horizon,
                 pin_memory=pin_memory,
                 prefetch_factor=2,
+                timeout=timeout,
             )
+            # Test with one batch
+            try:
+                iter(loader).__next__()
+                return loader, f"parallel ({num_workers} workers)"
+            except Exception as e:
+                print(f"⚠️  Parallel mode failed during test: {e}")
         except (AttributeError, TypeError) as e:
-            # Fall back to legacy mode if parallel fails (e.g., pickle errors)
-            print(f"⚠️  Parallel encoding failed ({e.__class__.__name__}), using legacy mode")
-            use_parallel = False
+            print(f"⚠️  Parallel encoding setup failed: {e}")
 
-    if not use_parallel or num_workers == 0:
-        # Legacy mode (slower, but stable)
-        loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=0,  # Force 0 for legacy to avoid device mismatch
-            pin_memory=pin_memory,
-            persistent_workers=False,
-            collate_fn=lambda items: items,
-        )
-    
-    total_batches = len(loader)
-    iterator = _maybe_tqdm(loader, total_batches, desc="encoding")
-
-    try:
-        for batch in iterator:
-            # Accessing the batch ensures __getitem__ executes and caches samples.
-            if isinstance(batch, list):
-                # Explicitly drop tensors to free GPU memory quickly.
-                for item in batch:
-                    del item
-            del batch
-    except (AttributeError, TypeError) as e:
-        # If parallel mode fails during iteration, fall back to legacy
-        if use_parallel and num_workers > 0:
-            print(f"⚠️  Parallel encoding failed during iteration ({e.__class__.__name__})")
-            print("   Falling back to legacy mode (num_workers=0)")
-
-            # Recreate loader in legacy mode
+    # Try 2: Single worker (slower but more stable)
+    if num_workers > 0:
+        try:
+            print("   Falling back to single-worker mode...")
             loader = DataLoader(
                 dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=0,
+                num_workers=1,
                 pin_memory=pin_memory,
                 persistent_workers=False,
                 collate_fn=lambda items: items,
+                timeout=timeout if timeout > 0 else None,
             )
+            # Test with one batch
+            try:
+                iter(loader).__next__()
+                return loader, "single-worker"
+            except Exception as e:
+                print(f"⚠️  Single-worker mode failed during test: {e}")
+        except Exception as e:
+            print(f"⚠️  Single-worker setup failed: {e}")
 
-            total_batches = len(loader)
-            iterator = _maybe_tqdm(loader, total_batches, desc="encoding (legacy)")
-            for batch in iterator:
-                if isinstance(batch, list):
-                    for item in batch:
-                        del item
-                del batch
-        else:
-            raise
+    # Try 3: Main process only (slowest, most reliable)
+    print("   Falling back to main-process-only mode (slowest but most reliable)...")
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,  # No multiprocessing
+        pin_memory=pin_memory,
+        persistent_workers=False,
+        collate_fn=lambda items: items,
+    )
+    return loader, "main-process-only"
 
 
-def _summarise_cache(cache_dir: Path) -> Dict[str, float]:
+def _iter_dataset(
+    dataset: Dataset,
+    *,
+    batch_size: int,
+    num_workers: int,
+    pin_memory: bool,
+    use_parallel: bool = True,
+    timeout: int = 0,
+    watchdog_timeout: int = 120,
+) -> None:
+    """Iterate dataset to populate cache with robust fallback.
+
+    Args:
+        dataset: Dataset to iterate
+        batch_size: Batch size for encoding
+        num_workers: Number of parallel workers
+        pin_memory: Enable pinned memory
+        use_parallel: Use parallel encoding (4-8× faster)
+        timeout: DataLoader worker timeout in seconds (0=disabled)
+        watchdog_timeout: Progress watchdog timeout in seconds (0=disabled)
+    """
+
+    # Build loader with automatic fallback
+    loader, mode = _build_robust_loader(
+        dataset, batch_size, num_workers, pin_memory, use_parallel, timeout
+    )
+    print(f"📦 Using mode: {mode}")
+
+    total_batches = len(loader)
+    iterator = _maybe_tqdm(loader, total_batches, desc=f"encoding ({mode})")
+
+    # Start watchdog
+    watchdog = ProgressWatchdog(timeout_seconds=watchdog_timeout)
+    watchdog.start()
+
+    try:
+        for i, batch in enumerate(iterator):
+            watchdog.update(i)
+
+            if isinstance(batch, list):
+                for item in batch:
+                    del item
+            del batch
+    finally:
+        watchdog.stop()
+
+
+def _summarise_cache(cache_dir: Path) -> dict[str, float]:
     files = list(cache_dir.glob("sample_*.pt"))
     total_bytes = sum(f.stat().st_size for f in files)
     return {
@@ -230,7 +374,7 @@ def _summarise_cache(cache_dir: Path) -> Dict[str, float]:
     }
 
 
-def _load_config(path: Optional[str]) -> Dict[str, object]:
+def _load_config(path: str | None) -> dict[str, object]:
     if path is None:
         return {}
     cfg_path = Path(path)
@@ -240,7 +384,7 @@ def _load_config(path: Optional[str]) -> Dict[str, object]:
         return yaml.safe_load(fh) or {}
 
 
-def compute_cache_hash(cfg: Dict[str, Any]) -> str:
+def compute_cache_hash(cfg: dict[str, Any]) -> str:
     """Compute hash of config parameters that affect cache validity.
 
     Cache is invalidated when any of these change:
@@ -262,7 +406,7 @@ def compute_cache_hash(cfg: Dict[str, Any]) -> str:
     return hashlib.sha256(serialized.encode()).hexdigest()[:12]
 
 
-def save_cache_metadata(cache_dir: Path, cfg: Dict[str, Any]) -> None:
+def save_cache_metadata(cache_dir: Path, cfg: dict[str, Any]) -> None:
     """Save cache metadata for validation on subsequent runs."""
     metadata = {
         "config_hash": compute_cache_hash(cfg),
@@ -276,7 +420,7 @@ def save_cache_metadata(cache_dir: Path, cfg: Dict[str, Any]) -> None:
     print(f"✓ Saved cache metadata: hash={metadata['config_hash']}")
 
 
-def check_cache_valid(cache_dir: Path, cfg: Dict[str, Any]) -> bool:
+def check_cache_valid(cache_dir: Path, cfg: dict[str, Any]) -> bool:
     """Check if existing cache matches current config."""
     metadata_file = cache_dir / ".cache_metadata.json"
     if not metadata_file.exists():
@@ -296,6 +440,22 @@ def check_cache_valid(cache_dir: Path, cfg: Dict[str, Any]) -> bool:
         return is_valid
     except (json.JSONDecodeError, KeyError):
         # Corrupted metadata, regenerate cache
+        return False
+
+
+def is_network_storage(path: Path) -> bool:
+    """Detect if path is on network-mounted filesystem."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["df", "-T", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        # Check for NFS, CIFS, or other network filesystems
+        return any(fs in result.stdout for fs in ["nfs", "cifs", "smbfs", "fuse"])
+    except Exception:
         return False
 
 
@@ -327,7 +487,37 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="Process at most this many samples per split (0 = full dataset)")
     parser.add_argument("--overwrite", action="store_true", help="Recompute even if cache already exists")
     parser.add_argument("--manifest", default=None, help="Optional path to write cache summary JSON")
+    parser.add_argument(
+        "--dataloader-timeout",
+        type=int,
+        default=120,
+        help="DataLoader worker timeout in seconds (default: 120, 0=disabled)",
+    )
+    parser.add_argument(
+        "--hdf5-timeout",
+        type=int,
+        default=60,
+        help="HDF5 file operation timeout in seconds (default: 60, 0=disabled)",
+    )
+    parser.add_argument(
+        "--cache-write-timeout",
+        type=int,
+        default=30,
+        help="Cache write operation timeout in seconds (default: 30, 0=disabled)",
+    )
+    parser.add_argument(
+        "--watchdog-timeout",
+        type=int,
+        default=120,
+        help="Watchdog timeout in seconds (0=disabled, default: 120)",
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging for diagnostics")
+    parser.add_argument("--skip-auto-copy", action="store_true", help="Skip auto-copy prompt for network storage")
     args = parser.parse_args()
+
+    # Setup logging
+    global logger
+    logger = setup_logging(verbose=args.verbose)
 
     cfg = _load_config(args.config)
     data_cfg = dict(cfg.get("data", {}))
@@ -335,6 +525,28 @@ def main() -> None:
         data_cfg["root"] = args.root
     elif "root" not in data_cfg:
         data_cfg["root"] = "data/pdebench"
+
+    # Detect network storage and prompt for local copy
+    data_root = resolve_pdebench_root(data_cfg.get("root", "data/pdebench"))
+    if is_network_storage(data_root):
+        logger.warning("⚠️  Data appears to be on network storage (slower, may cause hangs)")
+        logger.warning("   Recommendation: Copy to local storage first:")
+        logger.warning(f"   bash scripts/copy_data_to_local.sh {data_root} /workspace/data_local/pdebench")
+        logger.warning("   Then run with: --root /workspace/data_local/pdebench")
+
+        # Optional: Auto-copy if on VastAI/Vultr and local workspace exists
+        if Path("/workspace").exists() and not args.skip_auto_copy:
+            try:
+                response = input("Auto-copy to local storage? (y/N): ")
+                if response.lower() == 'y':
+                    local_path = Path("/workspace/data_local/pdebench")
+                    logger.info(f"Copying {data_root} to {local_path}...")
+                    import shutil
+                    shutil.copytree(data_root, local_path, dirs_exist_ok=True)
+                    data_cfg["root"] = str(local_path)
+                    logger.info("✅ Data copied to local storage")
+            except (KeyboardInterrupt, EOFError):
+                logger.info("Skipping auto-copy")
 
     latent_cfg = dict(cfg.get("latent", {}))
     if args.latent_dim is not None:
@@ -369,6 +581,17 @@ def main() -> None:
         print("CUDA requested but not available; falling back to CPU")
         device = torch.device("cpu")
 
+    # Verbose diagnostics
+    if args.verbose:
+        logger.debug(f"Python: {sys.version}")
+        logger.debug(f"PyTorch: {torch.__version__}")
+        logger.debug(f"CUDA available: {torch.cuda.is_available()}")
+        logger.debug(f"Device: {device}")
+        logger.debug(
+            f"Timeouts: DataLoader={args.dataloader_timeout}s, "
+            f"HDF5={args.hdf5_timeout}s, Watchdog={args.watchdog_timeout}s"
+        )
+
     torch.set_grad_enabled(False)
     training_cfg = cfg.get("training", {})
     rollout_horizon = max(1, int(training_cfg.get("rollout_horizon", 1)))
@@ -383,7 +606,7 @@ def main() -> None:
     if use_inverse_losses:
         print("✓ UPT inverse losses enabled - physical fields will be cached")
 
-    summary: Dict[str, Dict[str, float]] = {}
+    summary: dict[str, dict[str, float]] = {}
     start_time = time.time()
     for task in args.tasks:
         for split in args.splits:
@@ -406,6 +629,7 @@ def main() -> None:
                     rollout_horizon=rollout_horizon,
                     use_inverse_losses=use_inverse_losses,
                     time_stride=time_stride,
+                    hdf5_timeout=args.hdf5_timeout,
                 )
             except (ValueError, FileNotFoundError) as exc:
                 print(f"[{task}:{split}] skipping cache generation: {exc}")
@@ -427,15 +651,25 @@ def main() -> None:
                 for file in ds_cache_dir.glob("sample_*.pt"):
                     file.unlink()
 
-            mode_str = "parallel" if args.parallel and args.num_workers > 0 else "legacy"
+            # Auto-calculate optimal workers if not specified
+            actual_num_workers = get_optimal_workers(args.num_workers, batch_size=args.batch_size)
+            if actual_num_workers != args.num_workers:
+                print(f"ℹ️  Adjusted workers: {args.num_workers} → {actual_num_workers}")
+
+            if args.verbose:
+                logger.debug(f"Workers: {actual_num_workers}")
+
+            mode_str = "parallel" if args.parallel and actual_num_workers > 0 else "legacy"
             print(f"[{task}:{split}] encoding {target_samples} samples (cache dir: {ds_cache_dir}, mode: {mode_str})")
             split_start = time.time()
             _iter_dataset(
                 dataset,
                 batch_size=max(1, args.batch_size),
-                num_workers=max(0, args.num_workers),
+                num_workers=actual_num_workers,
                 pin_memory=args.pin_memory,
                 use_parallel=args.parallel,
+                timeout=args.dataloader_timeout,
+                watchdog_timeout=args.watchdog_timeout,
             )
             elapsed = time.time() - split_start
             stats = _summarise_cache(ds_cache_dir)

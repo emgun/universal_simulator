@@ -13,21 +13,98 @@ Performance:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, List
-from pathlib import Path
 import io
+from pathlib import Path
+from typing import Any
+
 import psutil
-
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 
-from ups.data.pdebench import PDEBenchDataset
 from ups.data.latent_pairs import (
     LatentPair,
-    prepare_conditioning,
     latent_pair_collate,
+    prepare_conditioning,
 )
+from ups.data.pdebench import PDEBenchDataset
 from ups.io.enc_grid import GridEncoder
+
+
+class BatchedCacheWriter:
+    """Write cache files in batches for 2-3x faster I/O.
+
+    Instead of writing sample_00000.pt, sample_00001.pt, ...
+    Writes batch_00000.pt containing 32 samples, batch_00001.pt, ...
+
+    Benefits:
+    - 32x fewer file operations (open/close/rename)
+    - Better disk I/O patterns (sequential writes)
+    - Less filesystem metadata overhead
+    """
+
+    def __init__(
+        self,
+        cache_dir: Path,
+        batch_size: int = 32,
+        cache_dtype: torch.dtype | None = torch.float16,
+    ):
+        self.cache_dir = Path(cache_dir)
+        self.batch_size = batch_size
+        self.cache_dtype = cache_dtype
+        self.buffer: dict[int, dict[str, Any]] = {}
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def add_sample(self, idx: int, latent: torch.Tensor, params: Any, bc: Any) -> None:
+        """Add sample to buffer, flush if batch complete."""
+        to_store = latent.to(self.cache_dtype) if self.cache_dtype else latent
+        self.buffer[idx] = {
+            "latent": to_store.cpu(),
+            "params": params,
+            "bc": bc,
+        }
+
+        batch_idx = idx // self.batch_size
+        if len(self.buffer) >= self.batch_size:
+            self._flush_batch(batch_idx)
+
+    def _flush_batch(self, batch_idx: int) -> None:
+        """Write buffered samples to disk."""
+        if not self.buffer:
+            return
+
+        batch_path = self.cache_dir / f"batch_{batch_idx:05d}.pt"
+        tmp_path = self.cache_dir / f".tmp_batch_{batch_idx:05d}.pt"
+
+        try:
+            torch.save(self.buffer, tmp_path)
+            tmp_path.replace(batch_path)
+            self.buffer.clear()
+        except OSError as e:
+            tmp_path.unlink(missing_ok=True)
+            raise RuntimeError(f"Failed to write cache batch {batch_idx}: {e}") from e
+
+    def flush(self) -> None:
+        """Flush any remaining buffered samples."""
+        if self.buffer:
+            # Find batch index from first buffered sample
+            first_idx = min(self.buffer.keys())
+            batch_idx = first_idx // self.batch_size
+            self._flush_batch(batch_idx)
+
+    def read_sample(self, idx: int) -> dict[str, Any] | None:
+        """Read sample from batched cache."""
+        batch_idx = idx // self.batch_size
+        batch_path = self.cache_dir / f"batch_{batch_idx:05d}.pt"
+
+        if not batch_path.exists():
+            return None
+
+        try:
+            batch_data = torch.load(batch_path, map_location="cpu")
+            return batch_data.get(idx)
+        except (RuntimeError, EOFError):
+            batch_path.unlink(missing_ok=True)
+            return None
 
 
 class RawFieldDataset(Dataset):
@@ -38,8 +115,8 @@ class RawFieldDataset(Dataset):
         base: PDEBenchDataset,
         field_name: str = "u",
         *,
-        cache_dir: Optional[Path] = None,
-        cache_dtype: Optional[torch.dtype] = torch.float16,
+        cache_dir: Path | None = None,
+        cache_dtype: torch.dtype | None = torch.float16,
         time_stride: int = 1,
         rollout_horizon: int = 1,
     ) -> None:
@@ -56,7 +133,7 @@ class RawFieldDataset(Dataset):
     def __len__(self) -> int:
         return len(self.base)
 
-    def __getitem__(self, idx: int) -> Dict[str, Any]:
+    def __getitem__(self, idx: int) -> dict[str, Any]:
         """Return raw fields and metadata (no encoding in workers)."""
         # Check cache first
         if self.cache_dir:
@@ -108,7 +185,7 @@ class PreloadedCacheDataset(Dataset):
         
         # Preload all cache files into RAM
         print(f"📦 Preloading {num_samples} cache files into RAM...")
-        self.cache: Dict[int, Dict[str, Any]] = {}
+        self.cache: dict[int, dict[str, Any]] = {}
         loaded = 0
         for idx in range(num_samples):
             cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
@@ -176,10 +253,10 @@ class CollateFnWithEncoding:
         self,
         encoder: GridEncoder,
         coords: torch.Tensor,
-        grid_shape: Tuple[int, int],
+        grid_shape: tuple[int, int],
         field_name: str,
         device: torch.device,
-        cache_dtype: Optional[torch.dtype] = torch.float16,
+        cache_dtype: torch.dtype | None = torch.float16,
         time_stride: int = 1,
         rollout_horizon: int = 1,
     ):
@@ -211,7 +288,9 @@ class CollateFnWithEncoding:
                 # Move params/bc to device
                 params_device = None
                 if params_cpu is not None:
-                    params_device = {k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()}
+                    params_device = {
+                        k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()
+                    }
                 bc_device = None
                 if bc_cpu is not None:
                     bc_device = {k: v.to(self.device, non_blocking=True) for k, v in bc_cpu.items()}
@@ -271,22 +350,27 @@ def build_parallel_latent_loader(
     dataset: PDEBenchDataset,
     encoder: GridEncoder,
     coords: torch.Tensor,
-    grid_shape: Tuple[int, int],
+    grid_shape: tuple[int, int],
     field_name: str,
     device: torch.device,
     batch_size: int = 16,
     num_workers: int = 4,
-    cache_dir: Optional[Path] = None,
-    cache_dtype: Optional[torch.dtype] = torch.float16,
+    cache_dir: Path | None = None,
+    cache_dtype: torch.dtype | None = torch.float16,
     time_stride: int = 1,
     rollout_horizon: int = 1,
     pin_memory: bool = True,
-    prefetch_factor: Optional[int] = None,
+    prefetch_factor: int | None = None,
+    timeout: int = 0,
 ) -> DataLoader:
     """Build a DataLoader with parallel workers that avoids device mismatch.
 
     Workers load raw data, main process does GPU encoding.
     Safe to use num_workers > 0 for 4-8× speedup.
+
+    Args:
+        ...
+        timeout: DataLoader worker timeout in seconds (0=disabled, default: 0)
     """
     raw_dataset = RawFieldDataset(
         dataset,
@@ -308,7 +392,7 @@ def build_parallel_latent_loader(
         rollout_horizon=rollout_horizon,
     )
 
-    loader_kwargs: Dict[str, Any] = {
+    loader_kwargs: dict[str, Any] = {
         "batch_size": batch_size,
         "shuffle": True,
         "collate_fn": collate_fn,
@@ -319,10 +403,14 @@ def build_parallel_latent_loader(
     if prefetch_factor is not None and num_workers > 0:
         loader_kwargs["prefetch_factor"] = prefetch_factor
 
+    # Add timeout if specified (PyTorch built-in)
+    if timeout > 0 and num_workers > 0:
+        loader_kwargs["timeout"] = timeout
+
     return DataLoader(raw_dataset, **loader_kwargs)
 
 
-def check_cache_complete(cache_dir: Path, num_samples: int) -> Tuple[bool, int]:
+def check_cache_complete(cache_dir: Path, num_samples: int) -> tuple[bool, int]:
     """Check if cache is complete and return (is_complete, num_cached)."""
     if not cache_dir or not cache_dir.exists():
         return False, 0

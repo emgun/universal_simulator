@@ -374,10 +374,39 @@ class GridLatentPairDataset(Dataset):
                 }
                 # Do not persist physical fields to reduce cache size and inode pressure.
                 # When inverse losses are enabled, fields will be loaded on-demand from the base dataset.
-                buffer = io.BytesIO()
-                torch.save(payload, buffer)
-                tmp_path.write_bytes(buffer.getvalue())
-                tmp_path.replace(cache_path)
+
+                # Check available disk space before writing
+                try:
+                    import shutil
+                    stat = shutil.disk_usage(self.cache_dir)
+                    available_mb = stat.free / (1024 * 1024)
+                    # Estimate cache file size (conservative: 20MB per sample)
+                    required_mb = 20
+                    if available_mb < required_mb:
+                        raise OSError(
+                            f"Insufficient disk space: {available_mb:.0f}MB available, "
+                            f"~{required_mb}MB required for cache write"
+                        )
+                except OSError:
+                    # Re-raise IOError (disk space error)
+                    raise
+                except Exception as e:
+                    # If disk check fails, log warning but continue
+                    print(f"⚠️  Could not check disk space: {e}")
+
+                # Write cache file
+                try:
+                    buffer = io.BytesIO()
+                    torch.save(payload, buffer)
+                    tmp_path.write_bytes(buffer.getvalue())
+                    tmp_path.replace(cache_path)
+                except OSError as e:
+                    # Cache write failed, clean up and re-raise
+                    tmp_path.unlink(missing_ok=True)
+                    raise RuntimeError(
+                        f"Failed to write cache file {cache_path}: {e}. "
+                        f"Check disk space and filesystem permissions."
+                    ) from e
 
         # If cache hit but inverse losses needed and fields not cached, reload from base
         if self.use_inverse_losses and fields_cpu is None:
@@ -738,11 +767,13 @@ def collate_latent_pairs(
 
 def _build_pdebench_dataset(
     data_cfg: dict[str, Any],
+    hdf5_timeout: int = 0,
 ) -> tuple[Dataset, GridEncoder, tuple[int, int], str]:
     dataset = PDEBenchDataset(
         PDEBenchConfig(
             task=data_cfg["task"], split=data_cfg.get("split", "train"), root=data_cfg.get("root")
         ),
+        hdf5_timeout_sec=hdf5_timeout,
     )
 
     sample_fields = dataset.fields[0]
