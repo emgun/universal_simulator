@@ -59,6 +59,7 @@ class PureTransformerConfig:
     qk_norm: bool = False
     drop_path: float = 0.0
     dropout: float = 0.0
+    use_activation_checkpoint: bool = False  # Enable activation checkpointing to save memory
 
 
 class TransformerBlock(nn.Module):
@@ -89,8 +90,10 @@ class TransformerBlock(nn.Module):
         qk_norm: bool,
         drop_path: float,
         dropout: float,
+        use_checkpoint: bool = False,
     ):
         super().__init__()
+        self.use_checkpoint = use_checkpoint
 
         # Pre-norm for attention
         self.norm1 = nn.LayerNorm(dim)
@@ -139,13 +142,30 @@ class TransformerBlock(nn.Module):
         Returns:
             Output tensor (B, T, D).
         """
-        # Attention block with residual and drop-path
-        x = x + self.drop_path1(self.attn(self.norm1(x)))
+        # Only checkpoint during training, not inference
+        if self.use_checkpoint and self.training:
+            from torch.utils.checkpoint import checkpoint
 
-        # FFN block with residual and drop-path
-        x = x + self.drop_path2(self.mlp(self.norm2(x)))
+            # Checkpoint attention sublayer
+            x = x + checkpoint(self._attn_forward, x, use_reentrant=False)
+            # Checkpoint FFN sublayer
+            x = x + checkpoint(self._ffn_forward, x, use_reentrant=False)
+        else:
+            # Attention block with residual and drop-path
+            x = x + self.drop_path1(self.attn(self.norm1(x)))
+
+            # FFN block with residual and drop-path
+            x = x + self.drop_path2(self.mlp(self.norm2(x)))
 
         return x
+
+    def _attn_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Isolated attention forward for checkpointing."""
+        return self.drop_path1(self.attn(self.norm1(x)))
+
+    def _ffn_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Isolated FFN forward for checkpointing."""
+        return self.drop_path2(self.mlp(self.norm2(x)))
 
 
 class PureTransformer(nn.Module):
@@ -210,6 +230,7 @@ class PureTransformer(nn.Module):
                     qk_norm=cfg.qk_norm,
                     drop_path=drop_path_rates[i],
                     dropout=cfg.dropout,
+                    use_checkpoint=cfg.use_activation_checkpoint,
                 )
                 for i in range(cfg.depth)
             ]
