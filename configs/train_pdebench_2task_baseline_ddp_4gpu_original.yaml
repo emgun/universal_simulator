@@ -1,0 +1,227 @@
+# 4-GPU Baseline DDP (128d): advection1d + darcy2d with 4×A100 SXM4 + full losses
+# BASELINE CONFIG (BEFORE OPTIMIZATION PHASES)
+# Based on: train_pdebench_2task_baseline_ddp.yaml
+# Purpose: Baseline for comparison with optimized config
+#
+# This config represents the ORIGINAL state before applying optimization phases 1-8.
+# Use this for A/B testing to measure speedup from optimizations.
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: [advection1d, darcy2d]  # Multi-task: 1D advection + 2D Darcy flow
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+  # Task sampling strategy (multi-task specific)
+  task_sampling:
+    strategy: "balanced"  # Equal samples per task per epoch
+
+latent:
+  dim: 128
+  tokens: 128
+
+operator:
+  architecture_type: pdet_stack    # Pure transformer (NOT pdet_unet)
+
+  pdet:
+    input_dim: 128
+    hidden_dim: 384
+    depth: 12
+    num_heads: 8
+    attention_type: standard
+    qk_norm: true
+    mlp_ratio: 4.0
+    drop_path: 0.1
+    dropout: 0.0
+    use_activation_checkpoint: false  # BASELINE: No activation checkpointing
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 384
+
+training:
+  # Distributed training
+  num_gpus: 4  # 4×A100_SXM4 = 320GB total
+  use_fsdp2: false          # BASELINE: Use DDP, not FSDP2
+
+  # BASELINE batch settings
+  batch_size: 8             # BASELINE: Conservative batch size
+  accum_steps: 3            # BASELINE: More accumulation steps (effective batch = 8*3*4 = 96)
+
+  time_stride: 2
+  dt: 0.1
+  patience: 3
+
+  # BASELINE DataLoader settings
+  num_workers: 8            # BASELINE: 8 workers
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 4        # BASELINE: Higher prefetch (before optimization)
+  cache_dir: data/latent_cache
+
+  checkpoint_interval: 25
+
+  amp: true
+  # amp_dtype not specified - defaults to float16
+  compile: false            # BASELINE: No torch.compile
+  cpu_offload_optimizer: false  # BASELINE: No CPU offload
+  grad_clip: null
+  ema_decay: 0.999
+
+  # UPT Inverse Losses
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1  # BASELINE: Compute every batch
+  inverse_loss_warmup_epochs: 5
+  inverse_loss_max_weight: 0.05
+
+  # Query-Based Training
+  query_sampling:
+    enabled: true
+    num_queries: 2048        # BASELINE: More queries (before optimization)
+    strategy: uniform
+
+    curriculum:
+      enabled: false
+      start_queries: 4096
+      end_queries: 1024
+      warmup_epochs: 5
+
+  # Physics Priors
+  physics_priors:
+    enabled: true
+    lambda_divergence: 0.0
+    lambda_conservation: 0.0
+    lambda_boundary: 0.05
+    lambda_positivity: 0.0
+    bc_value: 0.0
+    bc_type: all
+    lambda_latent_norm: 1.0e-4
+    lambda_latent_diversity: 1.0e-4
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  # Per-task metric logging
+  log_per_task_metrics: true
+
+stages:
+  operator:
+    epochs: 40
+
+    optimizer:
+      name: muon_hybrid
+      lr: 1.4e-3
+      weight_decay: 0.03
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+  diff_residual:
+    epochs: 0
+    patience: 3
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
+  consistency_distill:
+    epochs: 0
+    patience: 3
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10
+      eta_min: 1.0e-5
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+# Test-Time Conditioning (TTC)
+ttc:
+  enabled: true
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: "u"
+    energy_field: null
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 0.0
+      penalty_negative: 0.0
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128
+    query_dim: 2
+    hidden_dim: 384
+    mlp_hidden_dim: 384
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      u: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: pdebench-2task-baseline-ddp-4gpu-original
+    tags: [distributed, ddp, 4gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, inverse-losses, physics-priors, upt, baseline-original]
+    group: distributed-training
+    notes: "BASELINE (unoptimized) 4-GPU DDP config for A/B testing. No optimization phases applied. Use to measure speedup from optimizations."

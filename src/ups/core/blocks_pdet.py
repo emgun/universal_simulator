@@ -15,6 +15,7 @@ from typing import Iterable, List, Sequence, Tuple
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.utils.checkpoint import checkpoint
 
 try:  # Enable Flash/SDPA kernels when available (PyTorch ≥2.0)
     from torch.backends.cuda import sdp_kernel
@@ -122,17 +123,35 @@ class FeedForward(nn.Module):
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, dim: int, group_size: int, num_heads: int, mlp_ratio: float = 2.0) -> None:
+    def __init__(self, dim: int, group_size: int, num_heads: int, mlp_ratio: float = 2.0,
+                 use_checkpoint: bool = False) -> None:
         super().__init__()
         hidden = int(dim * mlp_ratio)
         self.attn_norm = nn.LayerNorm(dim)
         self.attn = ChannelSeparatedSelfAttention(dim, group_size=group_size, num_heads=num_heads)
         self.ff = FeedForward(dim, hidden_dim=hidden)
+        self.use_checkpoint = use_checkpoint
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.attn_norm(x))
-        x = x + self.ff(x)
+        # Only checkpoint during training, not inference
+        if self.use_checkpoint and self.training:
+            # Checkpoint attention sublayer
+            x = x + checkpoint(self._attn_forward, x, use_reentrant=False)
+            # Checkpoint FFN sublayer
+            x = x + checkpoint(self._ffn_forward, x, use_reentrant=False)
+        else:
+            # Original eager execution
+            x = x + self.attn(self.attn_norm(x))
+            x = x + self.ff(x)
         return x
+
+    def _attn_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Isolated attention forward for checkpointing."""
+        return self.attn(self.attn_norm(x))
+
+    def _ffn_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Isolated FFN forward for checkpointing."""
+        return self.ff(x)
 
 
 def _downsample_tokens(x: torch.Tensor) -> torch.Tensor:
@@ -163,6 +182,7 @@ class PDETransformerConfig:
     num_heads: int = 4
     mlp_ratio: float = 2.0
     dropout: float = 0.0
+    use_activation_checkpoint: bool = False
 
 
 class PDETransformerBlock(nn.Module):
@@ -178,7 +198,8 @@ class PDETransformerBlock(nn.Module):
         for depth in cfg.depths[:-1]:
             blocks = nn.ModuleList(
                 [
-                    TransformerLayer(cfg.hidden_dim, cfg.group_size, cfg.num_heads, cfg.mlp_ratio)
+                    TransformerLayer(cfg.hidden_dim, cfg.group_size, cfg.num_heads, cfg.mlp_ratio,
+                                   use_checkpoint=cfg.use_activation_checkpoint)
                     for _ in range(depth)
                 ]
             )
@@ -187,7 +208,8 @@ class PDETransformerBlock(nn.Module):
 
         self.bottleneck = nn.ModuleList(
             [
-                TransformerLayer(cfg.hidden_dim, cfg.group_size, cfg.num_heads, cfg.mlp_ratio)
+                TransformerLayer(cfg.hidden_dim, cfg.group_size, cfg.num_heads, cfg.mlp_ratio,
+                               use_checkpoint=cfg.use_activation_checkpoint)
                 for _ in range(cfg.depths[-1])
             ]
         )
@@ -197,7 +219,8 @@ class PDETransformerBlock(nn.Module):
             proj = nn.Linear(cfg.hidden_dim, cfg.hidden_dim)
             blocks = nn.ModuleList(
                 [
-                    TransformerLayer(cfg.hidden_dim, cfg.group_size, cfg.num_heads, cfg.mlp_ratio)
+                    TransformerLayer(cfg.hidden_dim, cfg.group_size, cfg.num_heads, cfg.mlp_ratio,
+                                   use_checkpoint=cfg.use_activation_checkpoint)
                     for _ in range(depth)
                 ]
             )

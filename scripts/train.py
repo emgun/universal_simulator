@@ -420,23 +420,36 @@ def make_operator(cfg: dict) -> LatentOperator:
 
 
 def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Optimizer:
-    """Create optimizer with optional hybrid Muon+AdamW support."""
+    """Create optimizer with optional hybrid Muon+AdamW support and CPU offload."""
+    from ups.training.hybrid_optimizer import wrap_optimizer_with_cpu_offload
+
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     opt_cfg = stage_cfg.get("optimizer") or cfg.get("optimizer", {})
     name = opt_cfg.get("name", "adam").lower()
     lr = opt_cfg.get("lr", 1e-3)
     weight_decay = opt_cfg.get("weight_decay", 0.0)
 
+    # Check if CPU offload is enabled
+    cpu_offload_enabled = cfg.get("training", {}).get("cpu_offload_optimizer", False)
+
     # Standard optimizers (original behavior)
     if name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
     if name == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=lr,
+            weight_decay=weight_decay,
+            fused=True,  # Enable fused kernels (PyTorch 2.0+)
+        )
+        return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
     if name == "sgd":
         momentum = opt_cfg.get("momentum", 0.9)
-        return torch.optim.SGD(
+        optimizer = torch.optim.SGD(
             model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay
         )
+        return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
 
     # NEW: Hybrid Muon+AdamW optimizer
     if name == "muon_hybrid" or name == "muon":
@@ -451,7 +464,13 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
             print(
                 "  Install: pip install torch>=2.9 or pip install git+https://github.com/nil0x9/flash-muon.git"
             )
-            return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=lr,
+                weight_decay=weight_decay,
+                fused=True,  # Enable fused kernels (PyTorch 2.0+)
+            )
+            return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
 
         print(f"Available Muon backends: {', '.join(backends)}")
 
@@ -492,16 +511,19 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 betas=adamw_betas,
                 eps=adamw_eps,
                 weight_decay=weight_decay,
+                fused=True,  # Enable fused kernels (PyTorch 2.0+)
             )
             optimizers.append(adamw_opt)
             print(f"  AdamW: {len(adamw_params)} parameter groups")
 
         # If only one optimizer, return it directly (no wrapper needed)
         if len(optimizers) == 1:
-            return optimizers[0]
+            optimizer = optimizers[0]
+            return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
 
         # Return hybrid wrapper
-        return HybridOptimizer(optimizers)
+        optimizer = HybridOptimizer(optimizers)
+        return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
 
     raise ValueError(f"Unsupported optimizer '{name}'")
 
@@ -547,6 +569,28 @@ def _amp_enabled(cfg: dict) -> bool:
     return bool(cfg.get("training", {}).get("amp", False)) and torch.cuda.is_available()
 
 
+def _get_amp_dtype(cfg: dict) -> tuple[torch.dtype, bool]:
+    """Get AMP dtype and whether to use GradScaler.
+
+    Returns:
+        tuple: (autocast_dtype, use_scaler)
+            - autocast_dtype: torch.bfloat16, torch.float16, or torch.float32
+            - use_scaler: True only for float16 (BF16 doesn't need gradient scaling)
+    """
+    if not _amp_enabled(cfg):
+        return torch.float32, False
+
+    amp_dtype_str = cfg.get("training", {}).get("amp_dtype", "bfloat16")
+
+    if amp_dtype_str == "bfloat16":
+        return torch.bfloat16, False  # BF16 doesn't need gradient scaling
+    elif amp_dtype_str == "float16":
+        return torch.float16, True    # FP16 requires GradScaler
+    else:
+        # Default to bfloat16 for unknown values
+        return torch.bfloat16, False
+
+
 def _maybe_compile(model: nn.Module, cfg: dict, name: str) -> nn.Module:
     """Optionally compile a model with torch.compile when enabled and available.
 
@@ -579,6 +623,156 @@ def _maybe_compile(model: nn.Module, cfg: dict, name: str) -> nn.Module:
     except Exception:
         # If torch.compile is unavailable or fails, just return the original model
         return model
+
+
+def setup_fsdp2(model: nn.Module, cfg: dict, local_rank: int) -> nn.Module:
+    """
+    Wrap model with FSDP2 (Fully Sharded Data Parallel v2).
+
+    Requires PyTorch 2.4+. Shards parameters across GPUs to save memory.
+
+    Args:
+        model: Model to wrap
+        cfg: Config dict with FSDP settings
+        local_rank: Local GPU rank
+
+    Returns:
+        FSDP-wrapped model
+    """
+    try:
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+        from torch.distributed.fsdp import CPUOffload, MixedPrecision, ShardingStrategy
+        from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
+    except ImportError:
+        print("[FSDP2] Warning: FSDP not available, falling back to DDP")
+        from torch.nn.parallel import DistributedDataParallel as DDP
+        return DDP(
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            static_graph=True,
+        )
+
+    # Configure sharding strategy
+    strategy = ShardingStrategy.FULL_SHARD  # Shard params, gradients, and optimizer state
+
+    # Configure mixed precision (match training config)
+    training_cfg = cfg.get("training", {})
+    amp_enabled = training_cfg.get("amp", False)
+    amp_dtype_str = training_cfg.get("amp_dtype", "bfloat16")
+
+    if amp_enabled:
+        if amp_dtype_str == "bfloat16":
+            param_dtype = torch.bfloat16
+        elif amp_dtype_str == "float16":
+            param_dtype = torch.float16
+        else:
+            param_dtype = torch.float32
+
+        mixed_precision_policy = MixedPrecision(
+            param_dtype=param_dtype,
+            reduce_dtype=param_dtype,
+            buffer_dtype=torch.float32,  # Keep buffers in FP32 for stability
+        )
+    else:
+        mixed_precision_policy = None
+
+    # Optional CPU offload (not used by default for speed)
+    cpu_offload = CPUOffload(offload_params=False)
+
+    # Auto-wrap policy: wrap layers with >100M parameters
+    auto_wrap_policy = size_based_auto_wrap_policy(min_num_params=100_000_000)
+
+    print(f"[FSDP2] Wrapping model with FSDP2, strategy={strategy}, mixed_precision={amp_dtype_str if amp_enabled else 'disabled'}")
+
+    # Apply FSDP2 wrapper
+    model = FSDP(
+        model,
+        sharding_strategy=strategy,
+        cpu_offload=cpu_offload,
+        mixed_precision=mixed_precision_policy,
+        auto_wrap_policy=auto_wrap_policy,
+        device_id=local_rank,
+    )
+
+    return model
+
+
+def save_checkpoint_fsdp(model: nn.Module, path: Path, is_distributed: bool, rank: int = 0) -> None:
+    """Save checkpoint compatible with FSDP.
+
+    Args:
+        model: Model to save (may be FSDP-wrapped or DDP-wrapped)
+        path: Path to save checkpoint
+        is_distributed: Whether using distributed training
+        rank: Process rank (only rank 0 saves for FSDP)
+    """
+    try:
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+        from torch.distributed.fsdp import StateDictType, FullStateDictConfig
+
+        if isinstance(model, FSDP):
+            # Use FSDP state dict API
+            with FSDP.state_dict_type(
+                model,
+                StateDictType.FULL_STATE_DICT,
+                FullStateDictConfig(offload_to_cpu=True, rank0_only=True),
+            ):
+                state_dict = model.state_dict()
+
+                # Only rank 0 saves
+                if rank == 0:
+                    torch.save(state_dict, path)
+                    print(f"[FSDP2] Saved FSDP checkpoint to {path}")
+        else:
+            # Standard DDP or single-GPU checkpoint
+            if not is_distributed or rank == 0:
+                # Unwrap DDP if needed
+                model_state = model.module.state_dict() if is_distributed else model.state_dict()
+                torch.save(model_state, path)
+    except ImportError:
+        # FSDP not available, use standard save
+        if not is_distributed or rank == 0:
+            model_state = model.module.state_dict() if is_distributed else model.state_dict()
+            torch.save(model_state, path)
+
+
+def load_checkpoint_fsdp(model: nn.Module, path: Path, is_distributed: bool) -> None:
+    """Load checkpoint compatible with FSDP.
+
+    Args:
+        model: Model to load into (may be FSDP-wrapped or DDP-wrapped)
+        path: Path to load checkpoint from
+        is_distributed: Whether using distributed training
+    """
+    if not path.exists():
+        print(f"[FSDP2] Warning: Checkpoint not found at {path}")
+        return
+
+    try:
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+        from torch.distributed.fsdp import StateDictType
+
+        checkpoint = torch.load(path, map_location="cpu")
+
+        if isinstance(model, FSDP):
+            # Use FSDP load API
+            with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT):
+                model.load_state_dict(checkpoint)
+                print(f"[FSDP2] Loaded FSDP checkpoint from {path}")
+        else:
+            # Standard DDP or single-GPU load
+            if is_distributed:
+                model.module.load_state_dict(checkpoint)
+            else:
+                model.load_state_dict(checkpoint)
+    except ImportError:
+        # FSDP not available, use standard load
+        checkpoint = torch.load(path, map_location="cpu")
+        if is_distributed:
+            model.module.load_state_dict(checkpoint)
+        else:
+            model.load_state_dict(checkpoint)
 
 
 def _grad_clip_value(cfg: dict, stage: str) -> float | None:
@@ -663,19 +857,30 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
     operator.to(device)
 
-    # Wrap with DDP if distributed
+    # Wrap with FSDP2 or DDP if distributed
     if is_distributed:
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        use_fsdp = cfg.get("training", {}).get("use_fsdp2", False)
+        num_gpus = cfg.get("training", {}).get("num_gpus", 1)
 
-        operator = DDP(
-            operator,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            static_graph=True,  # Required for torch.compile compatibility
-            find_unused_parameters=False,  # All params used in operator
-        )
-        if rank == 0:
-            print(f"Operator wrapped with DDP on device {local_rank}")
+        # Use FSDP2 for 2+ GPUs if enabled
+        if use_fsdp and num_gpus >= 2:
+            if rank == 0:
+                print(f"Using FSDP2 for {num_gpus}-GPU distributed training")
+            operator = setup_fsdp2(operator, cfg, local_rank)
+        else:
+            from torch.nn.parallel import DistributedDataParallel as DDP
+
+            if rank == 0:
+                print("Using DDP for distributed training")
+            operator = DDP(
+                operator,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                static_graph=True,  # Required for torch.compile compatibility
+                find_unused_parameters=False,  # All params used in operator
+            )
+            if rank == 0:
+                print(f"Operator wrapped with DDP on device {local_rank}")
 
     operator = _maybe_compile(operator, cfg, "operator")
 
@@ -750,7 +955,8 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     )
     # AMP + EMA setup
     use_amp = _amp_enabled(cfg)
-    scaler = GradScaler(enabled=use_amp)
+    autocast_dtype, use_scaler = _get_amp_dtype(cfg)
+    scaler = GradScaler(enabled=use_scaler)
     ema_decay = _get_ema_decay(cfg, "operator")
     ema_model = _init_ema(operator) if ema_decay else None
     best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
@@ -848,7 +1054,7 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 coords = coords.to(device)
 
             try:
-                with autocast(enabled=use_amp):
+                with autocast(enabled=use_amp, dtype=autocast_dtype):
                     # Forward prediction (always computed)
                     next_state = operator(state, dt_tensor)
 
@@ -1032,13 +1238,13 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     wandb_ctx.log_training_metric(
                         "operator", name, value.item(), step=logger.get_global_step()
                     )
-            if use_amp:
+            if use_scaler:
                 scaler.scale(loss / accum_steps).backward()
             else:
                 (loss / accum_steps).backward()
             do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
             if do_step:
-                if use_amp:
+                if use_scaler:
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(
@@ -1130,12 +1336,10 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     logger.close()
     checkpoint_dir = ensure_checkpoint_dir(cfg)
 
-    # Save checkpoints (rank 0 only in distributed mode)
-    if not is_distributed or rank == 0:
-        operator_path = checkpoint_dir / "operator.pt"
-        # Unwrap DDP if needed
-        model_state = operator.module.state_dict() if is_distributed else operator.state_dict()
-        torch.save(model_state, operator_path)
+    # Save checkpoints using FSDP-aware save function (rank 0 only in distributed mode)
+    operator_path = checkpoint_dir / "operator.pt"
+    save_checkpoint_fsdp(operator, operator_path, is_distributed, rank)
+    if rank == 0:
         print(f"Saved operator checkpoint to {operator_path}")
 
         if ema_model is not None:
@@ -1176,19 +1380,30 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
 
-    # Wrap operator with DDP if distributed (teacher model)
+    # Wrap operator with FSDP2 or DDP if distributed (teacher model)
     if is_distributed:
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        use_fsdp = cfg.get("training", {}).get("use_fsdp2", False)
+        num_gpus = cfg.get("training", {}).get("num_gpus", 1)
 
-        operator = DDP(
-            operator,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            static_graph=True,
-            find_unused_parameters=False,
-        )
-        if rank == 0:
-            print(f"Operator (teacher) wrapped with DDP on device {local_rank}")
+        # Use FSDP2 for 4+ GPUs if enabled
+        if use_fsdp and num_gpus >= 2:
+            if rank == 0:
+                print(f"Using FSDP2 for operator (teacher), {num_gpus}-GPU distributed training")
+            operator = setup_fsdp2(operator, cfg, local_rank)
+        else:
+            from torch.nn.parallel import DistributedDataParallel as DDP
+
+            if rank == 0:
+                print("Using DDP for operator (teacher)")
+            operator = DDP(
+                operator,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                static_graph=True,
+                find_unused_parameters=False,
+            )
+            if rank == 0:
+                print(f"Operator (teacher) wrapped with DDP on device {local_rank}")
 
     operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
@@ -1200,15 +1415,26 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
     _ensure_model_on_device(diff, device)
 
-    # Wrap diffusion with DDP if distributed
+    # Wrap diffusion with FSDP2 or DDP if distributed
     if is_distributed:
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        use_fsdp = cfg.get("training", {}).get("use_fsdp2", False)
+        num_gpus = cfg.get("training", {}).get("num_gpus", 1)
 
-        diff = DDP(
-            diff,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            static_graph=True,
+        # Use FSDP2 for 4+ GPUs if enabled
+        if use_fsdp and num_gpus >= 2:
+            if rank == 0:
+                print(f"Using FSDP2 for diffusion, {num_gpus}-GPU distributed training")
+            diff = setup_fsdp2(diff, cfg, local_rank)
+        else:
+            from torch.nn.parallel import DistributedDataParallel as DDP
+
+            if rank == 0:
+                print("Using DDP for diffusion")
+            diff = DDP(
+                diff,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                static_graph=True,
             find_unused_parameters=False,
         )
         if rank == 0:
@@ -1231,7 +1457,8 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     best_state = copy.deepcopy(diff.module.state_dict() if is_distributed else diff.state_dict())
     # AMP + EMA setup
     use_amp = _amp_enabled(cfg)
-    scaler = GradScaler(enabled=use_amp)
+    autocast_dtype, use_scaler = _get_amp_dtype(cfg)
+    scaler = GradScaler(enabled=use_scaler)
     ema_decay = _get_ema_decay(cfg, "diff_residual")
     ema_model = _init_ema(diff) if ema_decay else None
     best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
@@ -1296,7 +1523,7 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             # Sample per-sample tau in (0,1) to broaden supervision
             tau_tensor = _sample_tau(z0.size(0), device, cfg)
             try:
-                with autocast(enabled=use_amp):
+                with autocast(enabled=use_amp, dtype=autocast_dtype):
                     drift = diff(predicted, tau_tensor)
                     base = F.mse_loss(drift, residual_target)
                     extra = 0.0
@@ -1327,13 +1554,13 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     continue
                 raise
             loss_value = loss.detach().item()
-            if use_amp:
+            if use_scaler:
                 scaler.scale(loss / accum_steps).backward()
             else:
                 (loss / accum_steps).backward()
             do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
             if do_step:
-                if use_amp:
+                if use_scaler:
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(
@@ -1540,19 +1767,30 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         operator.load_state_dict(operator_state)
     _ensure_model_on_device(operator, device)
 
-    # Wrap operator with DDP if distributed (teacher model)
+    # Wrap operator with FSDP2 or DDP if distributed (teacher model)
     if is_distributed:
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        use_fsdp = cfg.get("training", {}).get("use_fsdp2", False)
+        num_gpus = cfg.get("training", {}).get("num_gpus", 1)
 
-        operator = DDP(
-            operator,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            static_graph=True,
-            find_unused_parameters=False,
-        )
-        if rank == 0:
-            print(f"Operator (teacher) wrapped with DDP on device {local_rank}")
+        # Use FSDP2 for 4+ GPUs if enabled
+        if use_fsdp and num_gpus >= 2:
+            if rank == 0:
+                print(f"Using FSDP2 for operator (teacher) in consistency stage, {num_gpus}-GPU distributed training")
+            operator = setup_fsdp2(operator, cfg, local_rank)
+        else:
+            from torch.nn.parallel import DistributedDataParallel as DDP
+
+            if rank == 0:
+                print("Using DDP for operator (teacher) in consistency stage")
+            operator = DDP(
+                operator,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                static_graph=True,
+                find_unused_parameters=False,
+            )
+            if rank == 0:
+                print(f"Operator (teacher) wrapped with DDP on device {local_rank}")
 
     operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
@@ -1576,19 +1814,30 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
 
-    # Wrap diffusion with DDP if distributed
+    # Wrap diffusion with FSDP2 or DDP if distributed
     if is_distributed:
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        use_fsdp = cfg.get("training", {}).get("use_fsdp2", False)
+        num_gpus = cfg.get("training", {}).get("num_gpus", 1)
 
-        diff = DDP(
-            diff,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            static_graph=True,
-            find_unused_parameters=False,
-        )
-        if rank == 0:
-            print(f"Diffusion model wrapped with DDP on device {local_rank}")
+        # Use FSDP2 for 4+ GPUs if enabled
+        if use_fsdp and num_gpus >= 2:
+            if rank == 0:
+                print(f"Using FSDP2 for diffusion in consistency stage, {num_gpus}-GPU distributed training")
+            diff = setup_fsdp2(diff, cfg, local_rank)
+        else:
+            from torch.nn.parallel import DistributedDataParallel as DDP
+
+            if rank == 0:
+                print("Using DDP for diffusion in consistency stage")
+            diff = DDP(
+                diff,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                static_graph=True,
+                find_unused_parameters=False,
+            )
+            if rank == 0:
+                print(f"Diffusion model wrapped with DDP on device {local_rank}")
 
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
 
@@ -1614,7 +1863,8 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     # Save unwrapped state to avoid DDP "module." prefix issues
     best_state = copy.deepcopy(diff.module.state_dict() if is_distributed else diff.state_dict())
     use_amp = _amp_enabled(cfg)
-    scaler = GradScaler(enabled=use_amp)
+    autocast_dtype, use_scaler = _get_amp_dtype(cfg)
+    scaler = GradScaler(enabled=use_scaler)
     ema_decay = _get_ema_decay(cfg, "consistency_distill")
     ema_model = _init_ema(diff) if ema_decay else None
     clip_val = _grad_clip_value(cfg, "consistency_distill")
@@ -1707,7 +1957,7 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
             # OPTIMIZATION #6: Use AMP for teacher forward (even though no gradients)
             # Reduces teacher forward time by ~20%, overall ~8% speedup
-            with torch.no_grad(), autocast(enabled=use_amp):
+            with torch.no_grad(), autocast(enabled=use_amp, dtype=autocast_dtype):
                 teacher_full = operator(full_batch_state, dt_tensor)
 
             for start in range(0, batch_size, micro):
@@ -1723,7 +1973,7 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     tau_seed = _sample_tau(num_taus_epoch, device, cfg)
 
                     # Use (optionally compiled) forward function
-                    with autocast(enabled=use_amp):
+                    with autocast(enabled=use_amp, dtype=autocast_dtype):
                         loss_chunk = distill_fn(
                             teacher_z_chunk,
                             teacher_cond_chunk,
@@ -1752,12 +2002,12 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                             )
                         continue
                     raise
-                if use_amp:
+                if use_scaler:
                     scaler.scale(loss_chunk * chunk_weight).backward()
                 else:
                     (loss_chunk * chunk_weight).backward()
                 batch_loss_value += loss_chunk.item() * chunk_weight
-            if use_amp:
+            if use_scaler:
                 if clip_val is not None:
                     scaler.unscale_(optimizer)
                 grad_norm = torch.nn.utils.clip_grad_norm_(
@@ -1887,19 +2137,30 @@ def train_steady_prior(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
     prior.to(device)
 
-    # Wrap prior with DDP if distributed
+    # Wrap prior with FSDP2 or DDP if distributed
     if is_distributed:
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        use_fsdp = cfg.get("training", {}).get("use_fsdp2", False)
+        num_gpus = cfg.get("training", {}).get("num_gpus", 1)
 
-        prior = DDP(
-            prior,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            static_graph=True,
-            find_unused_parameters=False,
-        )
-        if rank == 0:
-            print(f"Steady prior wrapped with DDP on device {local_rank}")
+        # Use FSDP2 for 4+ GPUs if enabled
+        if use_fsdp and num_gpus >= 2:
+            if rank == 0:
+                print(f"Using FSDP2 for steady prior, {num_gpus}-GPU distributed training")
+            prior = setup_fsdp2(prior, cfg, local_rank)
+        else:
+            from torch.nn.parallel import DistributedDataParallel as DDP
+
+            if rank == 0:
+                print("Using DDP for steady prior")
+            prior = DDP(
+                prior,
+                device_ids=[local_rank],
+                output_device=local_rank,
+                static_graph=True,
+                find_unused_parameters=False,
+            )
+            if rank == 0:
+                print(f"Steady prior wrapped with DDP on device {local_rank}")
 
     best_loss = float("inf")
     # Save unwrapped state to avoid DDP "module." prefix issues

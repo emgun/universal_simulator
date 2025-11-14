@@ -8,6 +8,16 @@
 #   - Gradient accumulation: 6 steps (was 12, halved with DDP)
 #   - Effective batch: 8*6*2 = 96 (maintained)
 #   - Parallel encoding: ENABLED (num_workers: 8, was 0)
+#
+# Optimization Phases Applied (see 2025-11-13-massive-training-speed-optimization.md):
+#   - Phase 1: torch.compile + NCCL tuning
+#   - Phase 2: Activation checkpointing (use_activation_checkpoint: true)
+#   - Phase 3: Loss frequency optimization (inverse_loss_frequency: 4, num_queries: 1024)
+#   - Phase 4: DataLoader optimization (num_workers: 6, prefetch_factor: 2)
+#   - Phase 5: CPU offload optimizer (cpu_offload_optimizer: true)
+#   - Phase 6: Mixed precision BF16 (amp_dtype: bfloat16)
+#   - Phase 7: FSDP2 available but disabled (use_fsdp2: false, enable to save 3GB/GPU)
+#   - Phase 8: Fused AdamW kernels (automatic in scripts/train.py, no config needed)
 
 seed: 42
 deterministic: false
@@ -41,6 +51,7 @@ operator:
     mlp_ratio: 4.0                 # Standard transformer expansion
     drop_path: 0.1                 # Stochastic depth for regularization
     dropout: 0.0
+    use_activation_checkpoint: true  # Phase 2: Enable checkpointing to save 40% memory
 
 diffusion:
   latent_dim: 128
@@ -49,27 +60,31 @@ diffusion:
 training:
   # Distributed training
   num_gpus: 2  # 2×A100_SXM4 = 160GB total
+  use_fsdp2: false         # Phase 7: FSDP2 optional for 2-GPU (set true to enable)
 
   # DDP-optimized for 80GB SXM4: No inverse losses/physics priors = more memory for larger batches
-  batch_size: 12           # Per-GPU (80GB can handle this without inverse losses)
-  accum_steps: 4           # Minimize DDP sync overhead (effective batch = 12*4*2 = 96)
+  # If use_fsdp2=true: Can increase batch_size to 32-34 (FSDP saves ~3GB/GPU)
+  batch_size: 30           # Phase 5: INCREASED from 24 (CPU offload frees ~8GB)
+  accum_steps: 2           # Keep same (effective batch = 30*2*2 = 120, +25% vs baseline)
 
   time_stride: 2
   dt: 0.1
   patience: 3
 
   # Re-enable parallel encoding (was 0 for single-GPU OOM)
-  num_workers: 8           # 8 workers per GPU
+  num_workers: 6           # PHASE 4: 6 workers (3 per GPU, was 8) for better I/O parallelism
   use_parallel_encoding: true
   pin_memory: true
-  prefetch_factor: 4
+  prefetch_factor: 2       # PHASE 4: REDUCE 4 → 2 (diminishing returns, saves RAM)
   cache_dir: data/latent_cache  # CRITICAL: Use precomputed cache for 4-8x speedup
 
   checkpoint_interval: 25
 
   amp: true
-  compile: false
-  compile_mode: reduce-overhead
+  amp_dtype: bfloat16              # Phase 6: Use BF16 instead of FP16
+  compile: true                    # Phase 1: Enable torch.compile (false → true)
+  compile_mode: reduce-overhead    # Best for batch_size=8-16
+  cpu_offload_optimizer: true      # Phase 5: Offload optimizer state to CPU
   grad_clip: null
   ema_decay: 0.999
 
@@ -77,14 +92,14 @@ training:
   lambda_inv_enc: 0.0
   lambda_inv_dec: 0.0
   use_inverse_losses: false
-  inverse_loss_frequency: 1      # Every batch (same as Burgers UPT)
+  inverse_loss_frequency: 4      # PHASE 3: Compute every 4th batch (75% reduction, was 1)
   inverse_loss_warmup_epochs: 5
   inverse_loss_max_weight: 0.05
 
   # Query-Based Training (Phase 4.1)
   query_sampling:
     enabled: true
-    num_queries: 2048              # Sample 2k points per batch (same as Burgers)
+    num_queries: 1024              # PHASE 3: HALVE 2048 → 1024 (50% fewer decoder queries)
     strategy: uniform              # Start with uniform, can try "stratified"
 
     # Note: Query sampling currently applies to inverse_encoding_loss only.
@@ -238,7 +253,7 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: pdebench-2task-baseline-ddp-memopt
-    tags: [distributed, ddp, 2gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, memopt, no-inverse-losses]
+    run_name: pdebench-2task-baseline-ddp-phase8
+    tags: [distributed, ddp, 2gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, phase8-optimizations, fused-optimizer]
     group: distributed-training
-    notes: "Memory-optimized DDP training: disabled inverse losses and physics priors to allow batch_size=12 (vs 4-8). Faster training with reduced DDP sync overhead."
+    notes: "2-GPU DDP with Phases 1-8 optimizations: torch.compile, activation checkpointing, BF16, CPU offload, fused AdamW kernels. Memory-optimized (no inverse losses) for larger batches. Expected ~3-5% speedup from Phase 8 fused optimizer."

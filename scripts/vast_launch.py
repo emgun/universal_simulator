@@ -295,13 +295,18 @@ PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_sc
         training_cmd = f"""
 export WANDB_MODE=online
 
-# Enable NCCL debug output for DDP troubleshooting
-export NCCL_DEBUG=INFO
-export NCCL_DEBUG_SUBSYS=ALL
-export TORCH_DISTRIBUTED_DEBUG=DETAIL
+# NCCL performance optimization
+export NCCL_NSOCKS_PERTHREAD=4      # Increase socket parallelism
+export NCCL_SOCKET_NTHREADS=2       # Thread pool for async ops
+export NCCL_MIN_NCHANNELS=4         # Minimum communication channels
+export NCCL_P2P_DISABLE=0           # Enable NVLink peer-to-peer
+export NCCL_IB_DISABLE=0            # Enable InfiniBand if available
+
+# Optional debug (only if NCCL_DEBUG_LEVEL is set)
+export NCCL_DEBUG=${NCCL_DEBUG_LEVEL:-WARN}  # Default WARN, not INFO
 
 echo "Starting distributed training with {num_gpus} GPUs..."
-echo "NCCL_DEBUG=$NCCL_DEBUG (verbose output enabled)"
+echo "NCCL configured for performance (debug level: $NCCL_DEBUG)"
 
 # Run training and capture exit code
 set +e  # Temporarily disable exit on error

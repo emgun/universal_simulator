@@ -773,6 +773,7 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
     num_workers = int(train_cfg.get("num_workers", default_workers))
     pin_memory = bool(train_cfg.get("pin_memory", torch.cuda.is_available()))
     prefetch_factor = train_cfg.get("prefetch_factor")
+    use_parallel_encoding = bool(train_cfg.get("use_parallel_encoding", False))
     cache_dir_cfg = train_cfg.get("latent_cache_dir")
     cache_root: Path | None = Path(cache_dir_cfg) if cache_dir_cfg else None
     cache_dtype_str = train_cfg.get("latent_cache_dtype", "float16") or None
@@ -901,12 +902,20 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
                 task=task_name,
             )
 
+        warned_parallel_mismatch = False
+
         for task_name in task_list:
             spec = get_pdebench_spec(task_name)
             if spec.kind == "grid":
                 latent_datasets.append(_make_grid_latent_dataset(task_name))
             else:
                 latent_datasets.append(_make_graph_latent_dataset(task_name, spec.kind))
+
+        if use_parallel_encoding and len(task_list) > 1 and not warned_parallel_mismatch:
+            print(
+                "⚠️  use_parallel_encoding is enabled but cannot be applied when mixing multiple tasks."
+            )
+            warned_parallel_mismatch = True
 
         mixed = latent_datasets[0] if len(latent_datasets) == 1 else ConcatDataset(latent_datasets)
         loader_kwargs["collate_fn"] = latent_pair_collate
@@ -947,6 +956,17 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
             loader_kwargs["sampler"] = sampler
         # else: Single-GPU mode, use default shuffle=True
 
+        if (
+            use_parallel_encoding
+            and len(task_list) == 1
+            and isinstance(mixed, GridLatentPairDataset)
+        ):
+            maybe_loader = _maybe_build_parallel_loader(
+                mixed, batch, num_workers, pin_memory, prefetch_factor
+            )
+            if maybe_loader is not None:
+                return maybe_loader
+
         return DataLoader(mixed, **loader_kwargs)
 
     kind = data_cfg.get("kind")
@@ -968,6 +988,12 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
         latent_dataset = GridZarrLatentPairDataset(
             dataset, grid_encoder, rollout_horizon=rollout_horizon
         )
+        if use_parallel_encoding:
+            maybe_loader = _maybe_build_parallel_loader(
+                latent_dataset, batch, num_workers, pin_memory, prefetch_factor
+            )
+            if maybe_loader is not None:
+                return maybe_loader
         return DataLoader(latent_dataset, **loader_kwargs)
 
     if kind in {"mesh", "particles"}:
@@ -1003,6 +1029,54 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
         return DataLoader(latent_dataset, **loader_kwargs)
 
     raise ValueError("Data configuration must specify either 'task' or 'kind'")
+
+
+def _infer_parallel_device() -> torch.device:
+    if torch.cuda.is_available():
+        local_rank = os.environ.get("LOCAL_RANK")
+        try:
+            idx = int(local_rank) if local_rank is not None else torch.cuda.current_device()
+        except (ValueError, RuntimeError):
+            idx = torch.cuda.current_device()
+        idx = max(0, min(idx, torch.cuda.device_count() - 1))
+        return torch.device(f"cuda:{idx}")
+    return torch.device("cpu")
+
+
+def _maybe_build_parallel_loader(
+    dataset: Dataset,
+    batch_size: int,
+    num_workers: int,
+    pin_memory: bool,
+    prefetch_factor: int | None,
+) -> DataLoader | None:
+    if not isinstance(dataset, GridLatentPairDataset):
+        return None
+    if num_workers <= 0:
+        return None
+    try:
+        from ups.data.parallel_cache import build_parallel_latent_loader
+    except ImportError:
+        return None
+
+    device = _infer_parallel_device()
+    coords = dataset.coords.to(device)
+    return build_parallel_latent_loader(
+        dataset.base,
+        dataset.encoder,
+        coords,
+        dataset.grid_shape,
+        dataset.field_name,
+        device=device,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        cache_dir=dataset.cache_dir,
+        cache_dtype=dataset.cache_dtype,
+        time_stride=dataset.time_stride,
+        rollout_horizon=dataset.rollout_horizon,
+        pin_memory=pin_memory,
+        prefetch_factor=prefetch_factor,
+    )
 
 
 def latent_pair_collate(batch):

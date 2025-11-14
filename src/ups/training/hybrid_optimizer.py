@@ -1,9 +1,20 @@
 """Hybrid optimizer that combines multiple optimizers for different parameter groups."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from torch.optim import Optimizer
+
+logger = logging.getLogger(__name__)
+
+# Try to import torchao for CPU offload optimizer
+try:
+    from torchao.optim import CPUOffloadOptimizer
+
+    TORCHAO_AVAILABLE = True
+except ImportError:
+    TORCHAO_AVAILABLE = False
 
 
 class HybridOptimizer(Optimizer):
@@ -133,3 +144,36 @@ class HybridOptimizer(Optimizer):
         """String representation showing child optimizers."""
         opt_reprs = [f"  [{i}] {opt.__class__.__name__}" for i, opt in enumerate(self.optimizers)]
         return "HybridOptimizer(\n" + "\n".join(opt_reprs) + "\n)"
+
+
+def wrap_optimizer_with_cpu_offload(optimizer: Optimizer, offload_to_cpu: bool = False) -> Optimizer:
+    """
+    Optionally wrap optimizer with CPU offload to save GPU memory.
+
+    Offloads optimizer state (AdamW momentum and variance) to CPU, freeing 8-10GB GPU memory
+    to enable larger batch sizes. This is experimental and depends on fast CPU-GPU interconnect.
+
+    Args:
+        optimizer: The optimizer to wrap (can be AdamW, Muon, HybridOptimizer, etc.)
+        offload_to_cpu: If True and torchao available, offload optimizer state to CPU
+
+    Returns:
+        Optimizer (possibly wrapped with CPUOffloadOptimizer)
+    """
+    if not offload_to_cpu:
+        return optimizer
+
+    if not TORCHAO_AVAILABLE:
+        logger.warning(
+            "torchao not available, skipping CPU offload. "
+            "Install with: pip install torchao>=0.5.0"
+        )
+        return optimizer
+
+    logger.info("Wrapping optimizer with CPUOffloadOptimizer")
+    wrapped_optimizer = CPUOffloadOptimizer(
+        optimizer,
+        offload_gradients=False,  # Keep gradients on GPU for DDP
+    )
+
+    return wrapped_optimizer
