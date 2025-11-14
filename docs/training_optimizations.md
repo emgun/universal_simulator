@@ -11,7 +11,43 @@ This document summarizes the comprehensive training speed optimizations implemen
 - `thoughts/shared/research/2025-11-13-ddp-performance-optimization.md`
 - `thoughts/shared/research/2025-11-13-cutting-edge-training-optimizations.md`
 
-## Baseline Performance
+## Supported Configurations
+
+We support both **2-GPU** and **4-GPU** distributed training setups. Each has baseline and optimized versions for A/B comparison.
+
+### 2-GPU Setup
+
+**Baseline Config**: `configs/train_pdebench_2task_baseline_ddp_original.yaml`
+**Optimized Config**: `configs/train_pdebench_2task_baseline_ddp.yaml`
+**Hardware**: 2×A100 SXM4 (80GB each, 160GB total)
+
+**Use When**:
+- Cost-sensitive training (half the GPU cost)
+- Prototyping and experimentation
+- Memory-optimized workloads (inverse losses disabled)
+
+**Optimized Settings**:
+- Batch size: 30 per GPU (effective: 120)
+- All Phases 1-8 applied except FSDP2 (disabled by default, can enable)
+- Expected speedup: 3-4x
+
+### 4-GPU Setup
+
+**Baseline Config**: `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml`
+**Optimized Config**: `configs/train_pdebench_2task_baseline_ddp_4gpu.yaml`
+**Hardware**: 4×A100 SXM4 (80GB each, 320GB total)
+
+**Use When**:
+- Full UPT training (inverse losses + physics priors enabled)
+- Maximum throughput needed
+- Production training runs
+
+**Optimized Settings**:
+- Batch size: 24 per GPU (effective: 192)
+- All Phases 1-8 applied including FSDP2
+- Expected speedup: 5x
+
+## Baseline Performance (4-GPU)
 
 **Configuration**: `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml`
 
@@ -352,11 +388,20 @@ training:
 
 **Script**: `scripts/validate_optimizations.py`
 
-**Usage**:
+**Usage (4-GPU)**:
 ```bash
 python scripts/validate_optimizations.py \
     --baseline configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml \
     --optimized configs/train_pdebench_2task_baseline_ddp_4gpu.yaml \
+    --epochs 20 \
+    --seed 42
+```
+
+**Usage (2-GPU)**:
+```bash
+python scripts/validate_optimizations.py \
+    --baseline configs/train_pdebench_2task_baseline_ddp_original.yaml \
+    --optimized configs/train_pdebench_2task_baseline_ddp.yaml \
     --epochs 20 \
     --seed 42
 ```
@@ -405,10 +450,16 @@ grep -i "error\|warning\|nan" logs/*.log
 
 ### Complete Rollback (All Phases)
 
-Use baseline config:
+**4-GPU Config**:
 ```bash
 cp configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml \
    configs/train_pdebench_2task_baseline_ddp_4gpu.yaml
+```
+
+**2-GPU Config**:
+```bash
+cp configs/train_pdebench_2task_baseline_ddp_original.yaml \
+   configs/train_pdebench_2task_baseline_ddp.yaml
 ```
 
 ### Selective Rollback

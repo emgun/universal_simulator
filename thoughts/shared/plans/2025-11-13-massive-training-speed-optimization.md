@@ -1085,6 +1085,12 @@ adamw = torch.optim.AdamW(
 ### Overview
 Run comprehensive validation to measure cumulative speedup, verify model quality, and document all optimizations for production use.
 
+**Supported Configurations**:
+- **2-GPU Setup**: `configs/train_pdebench_2task_baseline_ddp.yaml` (optimized) vs `configs/train_pdebench_2task_baseline_ddp_original.yaml` (baseline)
+- **4-GPU Setup**: `configs/train_pdebench_2task_baseline_ddp_4gpu.yaml` (optimized) vs `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml` (baseline)
+
+Both configurations have complete Phase 1-8 optimizations applied and baseline snapshots for A/B comparison.
+
 ### Changes Required
 
 #### 1. Create Validation Script
@@ -1168,22 +1174,41 @@ if __name__ == "__main__":
     print("✓ All validation gates passed!")
 ```
 
-#### 2. Create Baseline Config Snapshot
-**File**: `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml` (NEW)
+#### 2. Create Baseline Config Snapshots
+**Files**:
+- `configs/train_pdebench_2task_baseline_ddp_original.yaml` (2-GPU baseline)
+- `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml` (4-GPU baseline)
 
-**Action**: Copy the current config before Phase 1 changes to preserve baseline for comparison.
+**Action**: Create baseline snapshots for both 2-GPU and 4-GPU setups to preserve pre-optimization state for A/B comparison.
 
+**2-GPU Snapshot**:
 ```bash
-cp configs/train_pdebench_2task_baseline_ddp_4gpu.yaml \
-   configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml
+# Create baseline with: compile: false, use_activation_checkpoint: false,
+# batch_size: 8, accum_steps: 6, num_workers: 8, prefetch_factor: 4,
+# cpu_offload_optimizer: false, no amp_dtype (defaults to float16)
+```
+
+**4-GPU Snapshot**:
+```bash
+# Create baseline with same settings as 2-GPU
+# batch_size: 8, accum_steps: 3 (for 4 GPUs)
 ```
 
 #### 3. Run A/B Comparison
-**Command:**
+**4-GPU Command:**
 ```bash
 python scripts/validate_optimizations.py \
     --baseline configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml \
     --optimized configs/train_pdebench_2task_baseline_ddp_4gpu.yaml \
+    --epochs 20 \
+    --seed 42
+```
+
+**2-GPU Command:**
+```bash
+python scripts/validate_optimizations.py \
+    --baseline configs/train_pdebench_2task_baseline_ddp_original.yaml \
+    --optimized configs/train_pdebench_2task_baseline_ddp.yaml \
     --epochs 20 \
     --seed 42
 ```
@@ -1197,16 +1222,19 @@ python scripts/validate_optimizations.py \
 
 #### Automated Verification:
 - [x] Validation script created and imports successfully: `scripts/validate_optimizations.py`
-- [x] Baseline config created and valid: `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml`
-- [x] Optimized config valid: `configs/train_pdebench_2task_baseline_ddp_4gpu.yaml`
+- [x] 2-GPU baseline config created and valid: `configs/train_pdebench_2task_baseline_ddp_original.yaml`
+- [x] 2-GPU optimized config valid: `configs/train_pdebench_2task_baseline_ddp.yaml`
+- [x] 4-GPU baseline config created and valid: `configs/train_pdebench_2task_baseline_ddp_4gpu_original.yaml`
+- [x] 4-GPU optimized config valid: `configs/train_pdebench_2task_baseline_ddp_4gpu.yaml`
 - [x] Code imports successfully: TransformerLayer, HybridOptimizer, FSDP2, FlexAttention all available
 - [x] PyTorch version check: 2.9.0 (>= 2.5 for FlexAttention)
 - [x] Dependencies verified: FSDP2 available, torchao optional (graceful fallback)
-- [x] Documentation created: `docs/training_optimizations.md`
-- [ ] Full 20-epoch validation run: Both baseline and optimized complete (PENDING - requires VastAI)
-- [ ] Speedup target met: **>=3.0x faster** (PENDING - requires validation run)
-- [ ] Loss delta acceptable: **<0.001** MSE difference (PENDING - requires validation run)
-- [ ] Memory usage safe: **<50GB/GPU** (PENDING - requires validation run)
+- [x] Documentation created: `docs/training_optimizations.md` (covers both 2-GPU and 4-GPU setups)
+- [ ] Full 20-epoch validation run (2-GPU): Both baseline and optimized complete (PENDING - requires VastAI)
+- [ ] Full 20-epoch validation run (4-GPU): Both baseline and optimized complete (PENDING - requires VastAI)
+- [ ] Speedup target met: **>=3.0x faster** for both configs (PENDING - requires validation run)
+- [ ] Loss delta acceptable: **<0.001** MSE difference for both configs (PENDING - requires validation run)
+- [ ] Memory usage safe: **<50GB/GPU** for both configs (PENDING - requires validation run)
 - [ ] All unit tests pass: `pytest tests/unit/` (PENDING - test file not yet created)
 - [ ] All integration tests pass: `pytest tests/integration/` (PENDING)
 
