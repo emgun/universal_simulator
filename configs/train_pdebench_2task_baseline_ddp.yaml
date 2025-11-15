@@ -59,7 +59,7 @@ diffusion:
 
 training:
   # Distributed training
-  num_gpus: 1  # TEMP: Single GPU to debug (was: 2)
+  num_gpus: 2  # 2×A100_SXM4 = 160GB total
   use_fsdp2: false         # Phase 7: FSDP2 optional for 2-GPU (set true to enable)
 
   # DDP-optimized for 80GB SXM4: No inverse losses/physics priors = more memory for larger batches
