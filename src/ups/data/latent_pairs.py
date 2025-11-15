@@ -964,6 +964,8 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
             print("✅ Using num_workers=0 for PreloadedCacheDataset (RAM cache requires main process)")
             loader_kwargs["num_workers"] = 0
             loader_kwargs["persistent_workers"] = False
+            # prefetch_factor is only valid with num_workers > 0
+            loader_kwargs.pop("prefetch_factor", None)
 
         # Check if distributed training is active
         import torch.distributed as dist
