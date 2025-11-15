@@ -20,11 +20,13 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
+print("[IMPORT-DEBUG] ✓ Standard library + torch imports complete")
 
 try:
     import wandb
 except ImportError:
     wandb = None
+print("[IMPORT-DEBUG] ✓ wandb import complete")
 
 # Safer compile defaults: compile in main process and fall back to eager on failures
 try:
@@ -34,6 +36,7 @@ try:
     _dynamo.config.error_on_recompile = False
 except Exception:
     pass
+print("[IMPORT-DEBUG] ✓ torch._dynamo config complete")
 
 # Avoid inductor subprocess crashes by compiling in the main process
 os.environ.setdefault("TORCHINDUCTOR_COMPILE_THREADS", "1")
@@ -43,15 +46,36 @@ try:
     mp.set_start_method("spawn", force=True)
 except RuntimeError:
     pass
+print("[IMPORT-DEBUG] ✓ mp.set_start_method complete")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+print("[IMPORT-DEBUG] ✓ sys.path.insert complete")
 
+print("[IMPORT-DEBUG] About to import ups.core.blocks_pdet...")
 from ups.core.blocks_pdet import PDETransformerConfig
+print("[IMPORT-DEBUG] ✓ ups.core.blocks_pdet complete")
+
+print("[IMPORT-DEBUG] About to import ups.core.latent_state...")
 from ups.core.latent_state import LatentState
+print("[IMPORT-DEBUG] ✓ ups.core.latent_state complete")
+
+print("[IMPORT-DEBUG] About to import ups.data.latent_pairs...")
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
+print("[IMPORT-DEBUG] ✓ ups.data.latent_pairs complete")
+
+print("[IMPORT-DEBUG] About to import ups.models.diffusion_residual...")
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
+print("[IMPORT-DEBUG] ✓ ups.models.diffusion_residual complete")
+
+print("[IMPORT-DEBUG] About to import ups.models.latent_operator...")
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
+print("[IMPORT-DEBUG] ✓ ups.models.latent_operator complete")
+
+print("[IMPORT-DEBUG] About to import ups.models.steady_prior...")
 from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
+print("[IMPORT-DEBUG] ✓ ups.models.steady_prior complete")
+
+print("[IMPORT-DEBUG] ✅ ALL IMPORTS COMPLETE")
 
 
 # ---- Distributed Training Setup ----
@@ -2873,6 +2897,7 @@ def train_all_stages(cfg: dict, wandb_ctx=None) -> None:
 
 
 def main() -> None:
+    print("[IMPORT-DEBUG] ✅ Entered main() function")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/train_multi_pde.yaml")
     parser.add_argument(
