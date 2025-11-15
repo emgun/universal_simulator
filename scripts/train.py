@@ -1004,10 +1004,17 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     # Reference fields storage (for conservation checks)
     reference_fields_storage = {}
 
+    print(f"[TRAIN-DEBUG] About to start training loop: epochs={epochs}, rank={rank}")
+    print(f"[TRAIN-DEBUG] Loader type: {type(loader)}")
+    print(f"[TRAIN-DEBUG] Loader length: {len(loader)}")
+
     for epoch in range(epochs):
+        print(f"[TRAIN-DEBUG] Starting epoch {epoch+1}/{epochs} on rank {rank}")
+
         # For distributed training, set epoch for sampler (enables shuffling)
         if hasattr(loader, "sampler") and hasattr(loader.sampler, "set_epoch"):
             loader.sampler.set_epoch(epoch)
+            print(f"[TRAIN-DEBUG] Set epoch {epoch} on sampler")
 
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -1020,7 +1027,15 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
         task_metrics = defaultdict(lambda: {"loss": [], "count": 0})
 
         optimizer.zero_grad(set_to_none=True)
+
+        print(f"[TRAIN-DEBUG] About to iterate DataLoader on rank {rank}, num_batches={num_batches}")
+        batch_count = 0
+
         for i, batch in enumerate(loader):
+            if i == 0:
+                print(f"[TRAIN-DEBUG] Got first batch on rank {rank}, batch keys: {batch.keys() if isinstance(batch, dict) else 'not a dict'}")
+            batch_count += 1
+
             unpacked = unpack_batch(batch)
 
             # Handle both dict and tuple formats
@@ -1273,6 +1288,8 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                     _update_ema(ema_model, operator, ema_decay)
             epoch_loss += loss_value
             batches += 1
+
+        print(f"[TRAIN-DEBUG] Finished epoch {epoch+1} on rank {rank}: processed {batches} batches, batch_count={batch_count}")
 
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
