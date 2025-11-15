@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-print("[IMPORT-DEBUG-START] ⭐ train.py script START (before any imports)", flush=True)
 from __future__ import annotations
 
 """Training entrypoint for latent operator stages."""
 
+print("[IMPORT-DEBUG-START] ⭐ train.py script START (before stdlib imports)", flush=True)
 print("[IMPORT-DEBUG] About to import argparse...", flush=True)
 import argparse
 print("[IMPORT-DEBUG] ✓ argparse imported", flush=True)
@@ -77,6 +77,14 @@ print("[IMPORT-DEBUG] ✓ ups.models.latent_operator complete")
 print("[IMPORT-DEBUG] About to import ups.models.steady_prior...")
 from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
 print("[IMPORT-DEBUG] ✓ ups.models.steady_prior complete")
+
+print("[IMPORT-DEBUG] About to import ups.training.distributed_utils...")
+from ups.training.distributed_utils import (
+    maybe_empty_cache,
+    maybe_trigger_simulated_oom,
+    sync_error_flag,
+)
+print("[IMPORT-DEBUG] ✓ ups.training.distributed_utils complete")
 
 print("[IMPORT-DEBUG] ✅ ALL IMPORTS COMPLETE")
 
@@ -1103,6 +1111,10 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             if coords is not None:
                 coords = coords.to(device)
 
+            maybe_trigger_simulated_oom("operator", i, rank)
+            loss_bundle = None
+            loss = None
+            batch_failed = False
             try:
                 with autocast(enabled=use_amp, dtype=autocast_dtype):
                     # Forward prediction (always computed)
@@ -1248,23 +1260,23 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-
-                    # In distributed mode, all ranks must skip together
-                    if is_distributed:
-                        import torch.distributed as dist
-
-                        # Broadcast skip signal from rank 0
-                        skip_flag = torch.tensor(1, device=device)
-                        dist.broadcast(skip_flag, src=0)
-
+                    batch_failed = True
+                    maybe_empty_cache(True)
                     if rank == 0:
                         print(
                             "Warning: OOM encountered in operator step, skipping batch (all ranks)"
                         )
-                    continue
-                raise
+                else:
+                    raise
+
+            skip_batch = sync_error_flag(batch_failed, device, is_distributed)
+            if skip_batch:
+                if rank == 0 and not batch_failed:
+                    print(
+                        "Warning: Remote OOM detected in operator step, skipping batch (all ranks)"
+                    )
+                optimizer.zero_grad(set_to_none=True)
+                continue
 
             loss_value = loss.detach().item()
 
@@ -1549,62 +1561,56 @@ def train_diffusion(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                 z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
             )
             target = z1.to(device)
+            maybe_trigger_simulated_oom("diffusion", i, rank)
+            batch_failed = False
             try:
                 with torch.no_grad():
                     predicted = operator(state, dt_tensor)
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-
-                    # In distributed mode, all ranks must skip together
-                    if is_distributed:
-                        import torch.distributed as dist
-
-                        # Broadcast skip signal from rank 0
-                        skip_flag = torch.tensor(1, device=device)
-                        dist.broadcast(skip_flag, src=0)
-
+                    batch_failed = True
+                    maybe_empty_cache(True)
                     if rank == 0:
                         print(
                             "Warning: OOM encountered in operator forward (teacher), skipping batch (all ranks)"
                         )
-                    continue
-                raise
-            residual_target = target - predicted.z
-            # Sample per-sample tau in (0,1) to broaden supervision
-            tau_tensor = _sample_tau(z0.size(0), device, cfg)
-            try:
-                with autocast(enabled=use_amp, dtype=autocast_dtype):
-                    drift = diff(predicted, tau_tensor)
-                    base = F.mse_loss(drift, residual_target)
-                    extra = 0.0
-                    if lam_spec > 0.0:
-                        extra = extra + lam_spec * _spectral_energy_loss(
-                            drift, residual_target, dim=1
-                        )
-                    if lam_rel > 0.0:
-                        extra = extra + lam_rel * _nrmse(drift, residual_target)
-                    loss = base + extra
-            except RuntimeError as e:
-                if "out of memory" in str(e).lower():
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-
-                    # In distributed mode, all ranks must skip together
-                    if is_distributed:
-                        import torch.distributed as dist
-
-                        # Broadcast skip signal from rank 0
-                        skip_flag = torch.tensor(1, device=device)
-                        dist.broadcast(skip_flag, src=0)
-
-                    if rank == 0:
-                        print(
-                            "Warning: OOM encountered in diffusion step, skipping batch (all ranks)"
-                        )
-                    continue
-                raise
+                else:
+                    raise
+            residual_target = None
+            loss = None
+            if not batch_failed:
+                residual_target = target - predicted.z
+                tau_tensor = _sample_tau(z0.size(0), device, cfg)
+                try:
+                    with autocast(enabled=use_amp, dtype=autocast_dtype):
+                        drift = diff(predicted, tau_tensor)
+                        base = F.mse_loss(drift, residual_target)
+                        extra = 0.0
+                        if lam_spec > 0.0:
+                            extra = extra + lam_spec * _spectral_energy_loss(
+                                drift, residual_target, dim=1
+                            )
+                        if lam_rel > 0.0:
+                            extra = extra + lam_rel * _nrmse(drift, residual_target)
+                        loss = base + extra
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower():
+                        batch_failed = True
+                        maybe_empty_cache(True)
+                        if rank == 0:
+                            print(
+                                "Warning: OOM encountered in diffusion step, skipping batch (all ranks)"
+                            )
+                    else:
+                        raise
+            skip_batch = sync_error_flag(batch_failed, device, is_distributed)
+            if skip_batch:
+                if rank == 0 and not batch_failed:
+                    print(
+                        "Warning: Remote OOM encountered in diffusion step, skipping batch (all ranks)"
+                    )
+                optimizer.zero_grad(set_to_none=True)
+                continue
             loss_value = loss.detach().item()
             if use_scaler:
                 scaler.scale(loss / accum_steps).backward()
@@ -1984,7 +1990,7 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             if scheduled:
                 num_taus_epoch = int(scheduled)
 
-        for batch in loader:
+        for batch_idx, batch in enumerate(loader):
             unpacked = unpack_batch(batch)
             if isinstance(unpacked, dict):
                 z0 = unpacked["z0"]
@@ -1997,6 +2003,8 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             micro = distill_micro or batch_size
             optimizer.zero_grad(set_to_none=True)
             batch_loss_value = 0.0
+            maybe_trigger_simulated_oom("consistency", batch_idx, rank)
+            batch_failed = False
 
             # OPTIMIZATION #1: Compute teacher predictions ONCE per batch (outside micro-batch loop)
             # Moves teacher forward from inside loop (called N times) to outside (called 1 time)
@@ -2009,10 +2017,23 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
 
             # OPTIMIZATION #6: Use AMP for teacher forward (even though no gradients)
             # Reduces teacher forward time by ~20%, overall ~8% speedup
-            with torch.no_grad(), autocast(enabled=use_amp, dtype=autocast_dtype):
-                teacher_full = operator(full_batch_state, dt_tensor)
+            try:
+                with torch.no_grad(), autocast(enabled=use_amp, dtype=autocast_dtype):
+                    teacher_full = operator(full_batch_state, dt_tensor)
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    batch_failed = True
+                    maybe_empty_cache(True)
+                    if rank == 0:
+                        print(
+                            "Warning: OOM in consistency distill teacher forward, skipping batch (all ranks)"
+                        )
+                else:
+                    raise
 
             for start in range(0, batch_size, micro):
+                if batch_failed:
+                    break
                 end = min(start + micro, batch_size)
                 chunk_weight = (end - start) / batch_size
 
@@ -2037,28 +2058,30 @@ def train_consistency(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
                         )
                 except RuntimeError as e:
                     if "out of memory" in str(e).lower():
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-
-                        # In distributed mode, all ranks must skip together
-                        if is_distributed:
-                            import torch.distributed as dist
-
-                            # Broadcast skip signal from rank 0
-                            skip_flag = torch.tensor(1, device=device)
-                            dist.broadcast(skip_flag, src=0)
-
+                        batch_failed = True
+                        maybe_empty_cache(True)
                         if rank == 0:
                             print(
                                 "Warning: OOM in consistency distill chunk, skipping chunk (all ranks)"
                             )
-                        continue
-                    raise
+                        break
+                    else:
+                        raise
+                if batch_failed:
+                    break
                 if use_scaler:
                     scaler.scale(loss_chunk * chunk_weight).backward()
                 else:
                     (loss_chunk * chunk_weight).backward()
                 batch_loss_value += loss_chunk.item() * chunk_weight
+            skip_batch = sync_error_flag(batch_failed, device, is_distributed)
+            if skip_batch:
+                if rank == 0 and not batch_failed:
+                    print(
+                        "Warning: Remote OOM in consistency distillation, skipping batch (all ranks)"
+                    )
+                optimizer.zero_grad(set_to_none=True)
+                continue
             if use_scaler:
                 if clip_val is not None:
                     scaler.unscale_(optimizer)
