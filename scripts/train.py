@@ -1,9 +1,12 @@
 #!/usr/bin/env python
+print("[IMPORT-DEBUG-START] ⭐ train.py script START (before any imports)", flush=True)
 from __future__ import annotations
 
 """Training entrypoint for latent operator stages."""
 
+print("[IMPORT-DEBUG] About to import argparse...", flush=True)
 import argparse
+print("[IMPORT-DEBUG] ✓ argparse imported", flush=True)
 import copy
 import os
 import random
@@ -2988,5 +2991,9 @@ def main() -> None:
     time.sleep(2)
 
 
+print("[IMPORT-DEBUG] ✅ About to check if __name__ == '__main__'")
 if __name__ == "__main__":
+    print("[IMPORT-DEBUG] ✅ __name__ == '__main__' is True, calling main()")
     main()
+else:
+    print(f"[IMPORT-DEBUG] ⚠️  __name__ == {__name__!r}, NOT calling main()")
