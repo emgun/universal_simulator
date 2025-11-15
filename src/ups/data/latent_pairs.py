@@ -880,12 +880,17 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
                     print("   Falling back to on-demand encoding (will populate cache)")
 
             if use_preloaded and ds_cache:
-                return PreloadedCacheDataset(
+                # IMPORTANT: PreloadedCacheDataset must use num_workers=0
+                # Because cache data is loaded into main process RAM and not accessible to worker processes
+                preloaded_dataset = PreloadedCacheDataset(
                     cache_dir=ds_cache,
                     num_samples=len(dataset),
                     time_stride=time_stride,
                     rollout_horizon=rollout_horizon,
                 )
+                # Store flag to force num_workers=0 later
+                preloaded_dataset._requires_main_process = True  # type: ignore
+                return preloaded_dataset
 
             return GridLatentPairDataset(
                 dataset,
@@ -950,6 +955,15 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
 
         mixed = latent_datasets[0] if len(latent_datasets) == 1 else ConcatDataset(latent_datasets)
         loader_kwargs["collate_fn"] = latent_pair_collate
+
+        # Check if any dataset requires main process (PreloadedCacheDataset)
+        requires_main_process = any(
+            getattr(ds, "_requires_main_process", False) for ds in latent_datasets
+        )
+        if requires_main_process:
+            print("✅ Using num_workers=0 for PreloadedCacheDataset (RAM cache requires main process)")
+            loader_kwargs["num_workers"] = 0
+            loader_kwargs["persistent_workers"] = False
 
         # Check if distributed training is active
         import torch.distributed as dist
