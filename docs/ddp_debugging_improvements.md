@@ -207,6 +207,32 @@ else
 fi
 ```
 
+### 7. Coordinated OOM Skip Handling (`scripts/train.py`, `src/ups/training/distributed_utils.py`)
+
+- Introduced `ups/training/distributed_utils.py` with `sync_error_flag`, `maybe_empty_cache`, and `maybe_trigger_simulated_oom`.
+- Operator, diffusion-residual, and consistency-distill loops now:
+  - Wrap batch work in `try/except/finally`
+  - Call `sync_error_flag()` so **all** ranks skip together when any rank hits `"CUDA out of memory"`.
+  - Log remote failures on rank 0 for easier diagnosis.
+- Added optional simulation hook controlled via environment variables:
+  ```bash
+  export UPS_SIMULATE_OOM_RANK=1     # target rank id
+  export UPS_SIMULATE_OOM_STEP=0     # zero-based batch index
+  export UPS_SIMULATE_OOM_STAGE=operator  # optional stage filter
+  ```
+  When set, the targeted rank raises a synthetic OOM for the specified batch/stage, letting the new handshake path run without real memory pressure.
+- `scripts/test_ddp_minimal.py` now accepts `--simulate-oom-*` flags (or the env vars above) to verify the handshake outside the training loop. Example:
+  ```bash
+  torchrun --nproc_per_node=2 scripts/test_ddp_minimal.py \
+    --simulate-oom-rank 1 --simulate-oom-step 0
+  ```
+- Integration test `tests/integration/test_distributed_training.py::test_oom_skip_sync` runs `scripts/train.py` under `torchrun` with the hook enabled to ensure the skip completes without deadlock.
+- Added `make test-ddp-oom` (root `Makefile`) so developers can quickly run the simulated test locally:
+  ```bash
+  make test-ddp-oom
+  ```
+- `.vast/onstart.sh` executes the same self-test after installing dependencies, catching misconfigured instances before expensive training begins.
+
 **Benefits**:
 - Properly captures and reports training exit codes
 - VastAI can detect failures

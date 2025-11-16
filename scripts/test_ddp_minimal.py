@@ -8,20 +8,57 @@ Usage:
     # Multi-GPU with torchrun
     torchrun --nproc_per_node=2 --nnodes=1 --master_addr=localhost --master_port=29500 scripts/test_ddp_minimal.py
 
+Simulated OOM testing:
+    torchrun --nproc_per_node=2 scripts/test_ddp_minimal.py --simulate-oom-rank 1 --simulate-oom-step 0
+    # or export UPS_SIMULATE_OOM_RANK / UPS_SIMULATE_OOM_STEP and run without flags
+
 Expected behavior:
     - Both ranks should print their rank and world_size
     - Both ranks should perform a simple all_reduce operation
     - Script should exit cleanly with success message
 """
+import argparse
 import os
 import sys
 import traceback
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from ups.training.distributed_utils import maybe_empty_cache, sync_error_flag
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Minimal DDP diagnostic")
+    parser.add_argument("--simulate-oom-rank", type=int, default=None)
+    parser.add_argument("--simulate-oom-step", type=int, default=None)
+    parser.add_argument(
+        "--simulate-oom-steps",
+        type=int,
+        default=1,
+        help="Number of synthetic steps to run when simulating OOM (default: 1)",
+    )
+    args = parser.parse_args()
+
+    env_rank = os.environ.get("UPS_SIMULATE_OOM_RANK")
+    env_step = os.environ.get("UPS_SIMULATE_OOM_STEP")
+    if args.simulate_oom_rank is None and env_rank is not None:
+        try:
+            args.simulate_oom_rank = int(env_rank)
+        except ValueError:
+            print(f"[SIM-OOM] Ignoring invalid UPS_SIMULATE_OOM_RANK={env_rank!r}")
+    if args.simulate_oom_step is None and env_step is not None:
+        try:
+            args.simulate_oom_step = int(env_step)
+        except ValueError:
+            print(f"[SIM-OOM] Ignoring invalid UPS_SIMULATE_OOM_STEP={env_step!r}")
+    return args
+
 
 def main():
+    args = _parse_args()
     print("=" * 80)
     print("MINIMAL DDP TEST SCRIPT")
     print("=" * 80)
@@ -44,11 +81,19 @@ def main():
         for i in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(i)
             print(f"    GPU {i}: {props.name} ({props.total_memory / 1e9:.1f} GB)")
-    print(
-        f"  NCCL available: {torch.cuda.nccl.is_available() if hasattr(torch.cuda, 'nccl') else 'N/A'}"
-    )
-    if hasattr(torch.cuda, "nccl") and torch.cuda.nccl.is_available():
-        print(f"  NCCL version: {torch.cuda.nccl.version()}")
+    if hasattr(torch.cuda, "nccl"):
+        try:
+            nccl_available = torch.cuda.nccl.is_available()
+        except TypeError:
+            nccl_available = "unknown"
+        print(f"  NCCL available: {nccl_available}")
+        if nccl_available:
+            try:
+                print(f"  NCCL version: {torch.cuda.nccl.version()}")
+            except (AttributeError, RuntimeError):
+                print("  NCCL version: unavailable")
+    else:
+        print("  NCCL available: N/A")
 
     # Step 3: Initialize DDP if RANK is set
     if "RANK" not in os.environ:
@@ -130,8 +175,36 @@ def main():
         dist.destroy_process_group()
         return 1
 
-    # Step 6: Synchronize and cleanup
-    print(f"\n[STEP 6] Synchronizing and cleaning up:")
+    if (
+        args.simulate_oom_rank is not None
+        and args.simulate_oom_step is not None
+        and "RANK" in os.environ
+    ):
+        print("\n[STEP 6] Simulated OOM coordination test:")
+        synthetic_steps = max(1, args.simulate_oom_steps)
+        for step in range(synthetic_steps):
+            local_failure = False
+            try:
+                if rank == args.simulate_oom_rank and step == args.simulate_oom_step:
+                    raise RuntimeError("CUDA out of memory (simulated)")
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    local_failure = True
+                    maybe_empty_cache(True)
+                    print(f"  [Rank {rank}] Simulated OOM triggered at step {step}")
+                else:
+                    raise
+            should_skip = sync_error_flag(local_failure, device, True)
+            if should_skip:
+                if not local_failure:
+                    print(
+                        f"  [Rank {rank}] Received remote OOM signal at step {step}, skipping synthetic work"
+                    )
+                continue
+            print(f"  [Rank {rank}] Synthetic step {step} completed without simulated OOM")
+
+    # Step 7: Synchronize and cleanup
+    print(f"\n[STEP 7] Synchronizing and cleaning up:")
     try:
         dist.barrier()
         print(f"  [Rank {rank}] Barrier synchronized")

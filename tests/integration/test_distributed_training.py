@@ -137,6 +137,36 @@ def test_metrics_aggregation():
 
 @pytest.mark.slow
 @pytest.mark.gpu
+def test_oom_skip_sync():
+    """Ensure simulated OOM skips are coordinated across ranks."""
+    env = os.environ.copy()
+    env["UPS_SIMULATE_OOM_RANK"] = "1"
+    env["UPS_SIMULATE_OOM_STEP"] = "0"
+    cmd = [
+        "torchrun",
+        "--nproc_per_node=2",
+        "--nnodes=1",
+        "--node_rank=0",
+        "--master_addr=localhost",
+        "--master_port=29502",
+        "scripts/train.py",
+        "--config",
+        "configs/train_pdebench_2task_baseline_ddp.yaml",
+        "--stage",
+        "operator",
+        "--epochs",
+        "1",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    combined = f"{result.stdout}\n{result.stderr}"
+    assert result.returncode == 0, f"Simulated OOM run failed:\n{combined}"
+    assert (
+        "Warning: OOM encountered in operator step" in combined
+    ), f"Expected OOM warning not found:\n{combined}"
+
+
+@pytest.mark.slow
+@pytest.mark.gpu
 @pytest.mark.skipif(
     not os.path.exists("configs/train_pdebench_11task_ddp.yaml"),
     reason="11-task config not found",
