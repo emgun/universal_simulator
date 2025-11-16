@@ -282,7 +282,7 @@ print(f'✓ Configured WandB to resume run: {{run_id}}')
         tasks_str = " ".join(tasks)
         # Only cache train split - val/test data is downloaded from WandB artifacts later in pipeline
         cache_cmd = f"""echo "Precomputing latent caches for tasks: {tasks_str}…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks {tasks_str} --splits train --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 4 --pin-memory --parallel || echo "⚠️  Latent cache precompute failed (continuing)"
+PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks {tasks_str} --splits train --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 0 --pin-memory || echo "⚠️  Latent cache precompute failed (continuing)"
 """
     else:
         cache_cmd = 'echo "Skipping latent cache precompute (quick-run)"\n'
