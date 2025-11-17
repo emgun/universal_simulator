@@ -122,8 +122,6 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
         params_muon, params_adamw = build_param_groups(model)
         print_param_split_summary(model)
 
-        muon_betas = tuple(opt_cfg.get("betas", [0.9, 0.999]))
-        muon_eps = opt_cfg.get("eps", 1e-8)
         muon_momentum = opt_cfg.get("muon_momentum", 0.95)
         muon_ns_steps = opt_cfg.get("muon_ns_steps", 5)
         muon_backend = opt_cfg.get("muon_backend", "auto")
@@ -136,8 +134,6 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 weight_decay=weight_decay,
                 momentum=muon_momentum,
                 ns_steps=muon_ns_steps,
-                betas=muon_betas,
-                eps=muon_eps,
                 backend=muon_backend,
             )
             optimizers.append(muon_opt)
