@@ -104,6 +104,7 @@ def generate_onstart_script(
     precompute: bool = True,
     resume_from_wandb: str | None = None,
     resume_mode: str = "allow",
+    use_lightning: bool = False,
 ) -> str:
     """
     Generate a simple onstart script.
@@ -316,7 +317,7 @@ torchrun \\
   --node_rank=0 \\
   --master_addr=localhost \\
   --master_port=29500 \\
-  scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast,ddp,{num_gpus}gpu --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args}
+  scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage}{" --use-lightning" if use_lightning else ""} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast,ddp,{num_gpus}gpu{",lightning" if use_lightning else ""} --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args}
 TRAIN_EXIT_CODE=$?
 set -e  # Re-enable exit on error
 
@@ -336,7 +337,7 @@ export WANDB_MODE=online
 
 # Run training and capture exit code
 set +e  # Temporarily disable exit on error
-python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args}
+python scripts/run_fast_to_sota.py --train-config {config_for_script} --train-stage {stage}{" --use-lightning" if use_lightning else ""} --skip-small-eval --eval-device cuda --run-dir artifacts/runs --leaderboard-csv reports/leaderboard.csv --wandb-mode online --wandb-sync --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" --wandb-entity "${{WANDB_ENTITY:-}}" --wandb-group fast-to-sota --wandb-tags vast{",lightning" if use_lightning else ""} --strict-exit --tag environment=vast {launch_mode_line}{" --train-extra-arg=--auto-resume" if resume_from_wandb else ""}{extra_args}
 TRAIN_EXIT_CODE=$?
 set -e  # Re-enable exit on error
 
@@ -518,6 +519,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         precompute=not getattr(args, "no_precompute", False),
         resume_from_wandb=getattr(args, "resume_from_wandb", None),
         resume_mode=getattr(args, "resume_mode", "allow"),
+        use_lightning=getattr(args, "use_lightning", False),
     )
 
     onstart_path.write_text(script_content)
@@ -830,6 +832,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="all",
         choices=["all", "operator", "diffusion", "distill"],
         help="Training stage (default: all)",
+    )
+    p_launch.add_argument(
+        "--use-lightning",
+        action="store_true",
+        help="Use PyTorch Lightning training (experimental, operator stage only)",
     )
     p_launch.add_argument("--repo-url", help="Git remote URL (default: auto-detect)")
     p_launch.add_argument(

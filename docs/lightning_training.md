@@ -376,6 +376,54 @@ The test suite covers:
 - You need all stages (diff_residual, steady_prior)
 - You prefer PyTorch standard checkpoints
 
+## VastAI / Remote Training Integration
+
+Lightning training is fully integrated with VastAI remote training:
+
+### Launch Lightning Training on VastAI
+
+```bash
+# Single-GPU Lightning training
+python scripts/vast_launch.py launch \
+  --config configs/train_burgers_golden.yaml \
+  --stage operator \
+  --use-lightning \
+  --auto-shutdown
+
+# 2-GPU DDP Lightning training
+python scripts/vast_launch.py launch \
+  --config configs/train_pdebench_2task_baseline_ddp.yaml \
+  --stage operator \
+  --use-lightning \
+  --auto-shutdown
+
+# 4-GPU FSDP Lightning training
+python scripts/vast_launch.py launch \
+  --config configs/train_pdebench_2task_baseline_ddp_4gpu.yaml \
+  --stage operator \
+  --use-lightning \
+  --auto-shutdown
+```
+
+### How it Works
+
+The `--use-lightning` flag:
+1. Passes through `vast_launch.py` → `run_fast_to_sota.py` → `train_lightning.py`
+2. Automatically uses `torchrun` for multi-GPU configs
+3. Tags WandB runs with `lightning` for easy filtering
+4. Works with all VastAI features (auto-shutdown, resume, etc.)
+
+### Example: Resume Lightning Training
+
+```bash
+python scripts/vast_launch.py launch \
+  --config configs/train_pdebench_2task_baseline_ddp.yaml \
+  --stage operator \
+  --use-lightning \
+  --resume-from-wandb <run-id> \
+  --auto-shutdown
+```
+
 ## Current Limitations
 
 Lightning support is currently **partial**:

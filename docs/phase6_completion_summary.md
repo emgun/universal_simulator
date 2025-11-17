@@ -61,6 +61,13 @@ Phase 6 of the distributed training plan has been successfully implemented, addi
    - Registered pytest markers (slow, gpu)
    - Updated CLAUDE.md with Lightning usage
 
+8. **VastAI/Remote Training Integration**
+   - Added `--use-lightning` flag to `vast_launch.py`
+   - Updated `run_fast_to_sota.py` to support Lightning backend selection
+   - Automatic torchrun integration for multi-GPU Lightning training
+   - WandB tags include "lightning" for easy filtering
+   - Full compatibility with VastAI features (auto-shutdown, resume, etc.)
+
 ## Key Features
 
 ### Strategy Support

@@ -360,10 +360,15 @@ def main() -> None:
     parser.add_argument("--run-id", help="Override generated run identifier")
     parser.add_argument("--train-stage", default="all", help="Training stage argument")
     parser.add_argument(
+        "--use-lightning",
+        action="store_true",
+        help="Use PyTorch Lightning training (scripts/train_lightning.py) instead of native (scripts/train.py)",
+    )
+    parser.add_argument(
         "--train-extra-arg",
         action="append",
         default=[],
-        help="Additional arguments to forward to train.py (may repeat)",
+        help="Additional arguments to forward to train.py or train_lightning.py (may repeat)",
     )
     parser.add_argument(
         "--config-override",
@@ -732,12 +737,15 @@ def main() -> None:
         elif args.skip_training:
             print("ℹ️  Skipping training as requested via --skip-training")
         if not (args.skip_training or skip_training_due_to_metadata):
+            # Select training script based on --use-lightning flag
+            train_script = "scripts/train_lightning.py" if args.use_lightning else "scripts/train.py"
+
             # Check if already running under torchrun (RANK env var set)
             if "RANK" in os.environ:
-                # Already in distributed context, just call train.py directly
+                # Already in distributed context, just call training script directly
                 train_cmd = [
                     PYTHON,
-                    "scripts/train.py",
+                    train_script,
                     "--config",
                     str(resolved_train_config),
                     "--stage",
@@ -754,7 +762,7 @@ def main() -> None:
                         "--node_rank=0",
                         "--master_addr=localhost",
                         "--master_port=29500",
-                        "scripts/train.py",
+                        train_script,
                         "--config",
                         str(resolved_train_config),
                         "--stage",
@@ -763,7 +771,7 @@ def main() -> None:
                 else:
                     train_cmd = [
                         PYTHON,
-                        "scripts/train.py",
+                        train_script,
                         "--config",
                         str(resolved_train_config),
                         "--stage",
