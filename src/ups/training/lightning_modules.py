@@ -128,7 +128,7 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
 
         optimizers = []
         if len(params_muon) > 0:
-            muon_opt = create_muon_optimizer(
+            muon_optimizer, actual_backend = create_muon_optimizer(
                 params_muon,
                 lr=lr,
                 weight_decay=weight_decay,
@@ -136,8 +136,8 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
                 ns_steps=muon_ns_steps,
                 backend=muon_backend,
             )
-            optimizers.append(muon_opt)
-            print(f"  Muon: {len(params_muon)} parameter groups")
+            optimizers.append(muon_optimizer)
+            print(f"  Muon: {len(params_muon)} parameter groups (backend: {actual_backend})")
 
         if len(params_adamw) > 0:
             adamw_betas = tuple(opt_cfg.get("betas", [0.9, 0.999]))
