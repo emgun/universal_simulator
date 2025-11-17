@@ -37,6 +37,14 @@ try:
 
     _dynamo.config.suppress_errors = True  # Avoid hard-crash on backend failures
     _dynamo.config.error_on_recompile = False
+    # Tame CUDA graphs reuse issues by disabling cudagraph capture in Inductor.
+    try:
+        import torch._inductor.config as _inductor_config
+
+        _inductor_config.triton.cudagraphs = False
+        _inductor_config.freezing = True
+    except Exception:
+        pass
 except Exception:
     pass
 print("[IMPORT-DEBUG] ✓ torch._dynamo config complete")

@@ -83,7 +83,7 @@ training:
   amp: true
   amp_dtype: bfloat16              # Phase 6: Use BF16 instead of FP16
   compile: true                    # Re-enable torch.compile for speed
-  compile_mode: reduce-overhead    # Best for batch_size=8-16
+  compile_mode: max-autotune       # Prefer GN+autotune without cudagraph capture
   cpu_offload_optimizer: true      # Phase 5: Offload optimizer state to CPU
   grad_clip: null
   ema_decay: 0.999
