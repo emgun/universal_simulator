@@ -208,49 +208,12 @@ fi
 
 pip install -e .[dev]
 
-export RCLONE_CONFIG_B2TRAIN_TYPE=s3
-export RCLONE_CONFIG_B2TRAIN_PROVIDER=Other
-export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="$B2_KEY_ID"
-export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY="$B2_APP_KEY"
-export RCLONE_CONFIG_B2TRAIN_ENDPOINT="$B2_S3_ENDPOINT"
-export RCLONE_CONFIG_B2TRAIN_REGION="$B2_S3_REGION"
-export RCLONE_CONFIG_B2TRAIN_ACL=private
-export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
-
-rm -rf data/pdebench || true
-mkdir -p data/pdebench
 """
 
-    # Generate download commands for each task (sequential for reliability)
-    # Download both train and val splits for Lightning (needs val for sanity check)
-    for task in tasks:
-        script += f"""
-if [ ! -f data/pdebench/{task}_train.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress
-fi
-
-if [ ! -f data/pdebench/{task}_val.h5 ]; then
-  rclone copy B2TRAIN:pdebench/full/{task}/{task}_val.h5 data/pdebench/ --progress
-fi
-"""
-
-    # Add file verification (no wait needed for sequential downloads)
-    # Verify both train and val files
-    expected_files = []
-    for task in tasks:
-        expected_files.append(f"data/pdebench/{task}_train.h5")
-        expected_files.append(f"data/pdebench/{task}_val.h5")
-    files_check = " ".join(f'[ -f "{f}" ]' for f in expected_files)
-
+    # Use helper script for data downloads (keeps onstart script compact)
+    tasks_str = " ".join(tasks)
     script += f"""
-for i in {{1..60}}; do
-  if {' && '.join(f'[ -f "{f}" ]' for f in expected_files)}; then
-    echo "Data files ready"
-    break
-  fi
-  [ $i -eq 60 ] && echo "Download timeout" && ls -lh data/pdebench/ && exit 1
-  sleep 5
-done
+bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
 
 # Checkpoint handling: clear for fresh start OR download from WandB for resume
 {"# RESUME MODE: Download checkpoints from WandB" if resume_from_wandb else "# FRESH START: Clear checkpoints"}
