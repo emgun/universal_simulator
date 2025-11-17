@@ -91,6 +91,12 @@ class LatentOperator(nn.Module):
         self.output_norm = nn.LayerNorm(cfg.latent_dim)
 
     def forward(self, state: LatentState, dt: torch.Tensor) -> LatentState:
+        # Mark cudagraph step boundaries to avoid reuse-related overwrites under torch.compile
+        try:
+            if hasattr(torch, "compiler") and hasattr(torch.compiler, "cudagraph_mark_step_begin"):
+                torch.compiler.cudagraph_mark_step_begin()
+        except Exception:
+            pass
         residual = self.step(state, dt)
         new_z = state.z + residual
         new_t = None
