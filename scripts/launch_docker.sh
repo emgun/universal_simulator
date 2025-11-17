@@ -57,7 +57,7 @@ endpoint = \$B2_S3_ENDPOINT
 region = \$B2_S3_REGION
 EOF
 echo '📥 Downloading training data...' && \
-rclone copy B2TRAIN:pdebench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress && \
+rclone copy B2TRAIN:PDEbench/full/burgers1d/burgers1d_train_000.h5 data/pdebench/ --progress && \
 ln -sf burgers1d_train_000.h5 data/pdebench/burgers1d_train.h5 && \
 echo '🚀 Starting training...' && \
 python scripts/train.py --config configs/${CONFIG}.yaml --stage all

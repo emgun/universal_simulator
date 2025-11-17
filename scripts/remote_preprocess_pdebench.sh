@@ -182,7 +182,7 @@ for task in $TASKS; do
       file="data/pdebench/${task}_${split}.h5"
       if [ -f "$file" ]; then
         rclone copy "$file" \
-          "B2TRAIN:pdebench/full/${task}/" \
+          "B2TRAIN:PDEbench/full/${task}/" \
           --progress --transfers 4
         echo "  ✓ Uploaded ${task}_${split}.h5"
       fi
@@ -205,7 +205,7 @@ echo "────────────────────────�
 
 for task in $TASKS; do
   echo "→ Verifying $task in B2..."
-  rclone ls "B2TRAIN:pdebench/full/${task}/" || echo "  ⚠️  No files found for $task"
+  rclone ls "B2TRAIN:PDEbench/full/${task}/" || echo "  ⚠️  No files found for $task"
 done
 
 # Cleanup raw data to free space
@@ -248,7 +248,7 @@ if [ -n "$CACHE_DIM" ] && [ -n "$CACHE_TOKENS" ]; then
       if [ -d "$cache_dir" ]; then
         echo "→ Uploading ${task}_${split} cache..."
         rclone copy "$cache_dir/" \
-          "B2TRAIN:pdebench/latent_caches/$CACHE_VERSION/${task}_${split}/" \
+          "B2TRAIN:PDEbench/latent_caches/$CACHE_VERSION/${task}_${split}/" \
           --progress --transfers 8
       fi
     done
@@ -267,12 +267,12 @@ echo "════════════════════════�
 echo ""
 echo "Uploaded to B2:"
 for task in $TASKS; do
-  echo "  • B2TRAIN:pdebench/full/${task}/"
+  echo "  • B2TRAIN:PDEbench/full/${task}/"
 done
 if [ -n "$CACHE_DIM" ]; then
-  echo "  • B2TRAIN:pdebench/latent_caches/upt_${CACHE_DIM}d_${CACHE_TOKENS}tok/"
+  echo "  • B2TRAIN:PDEbench/latent_caches/upt_${CACHE_DIM}d_${CACHE_TOKENS}tok/"
 fi
 echo ""
 echo "Next steps:"
-echo "  1. Verify data in B2: rclone ls B2TRAIN:pdebench/full/"
+echo "  1. Verify data in B2: rclone ls B2TRAIN:PDEbench/full/"
 echo "  2. Launch training: python scripts/vast_launch.py launch --config <config>"
