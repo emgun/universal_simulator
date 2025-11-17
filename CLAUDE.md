@@ -23,7 +23,7 @@ python scripts/vast_launch.py launch \
   --auto-shutdown
 ```
 
-**Local Training:**
+**Local Training (Native PyTorch):**
 ```bash
 # Full pipeline (all stages)
 python scripts/train.py --config configs/train_burgers_golden.yaml --stage all
@@ -31,6 +31,27 @@ python scripts/train.py --config configs/train_burgers_golden.yaml --stage all
 # Single stage
 python scripts/train.py --config configs/train_burgers_golden.yaml --stage operator
 # Stages: operator, diff_residual, consistency_distill, steady_prior
+```
+
+**Local Training (PyTorch Lightning - Alternative):**
+```bash
+# Single-GPU training
+python scripts/train_lightning.py \
+  --config configs/train_burgers_golden.yaml \
+  --stage operator
+
+# Multi-GPU training (DDP)
+torchrun --nproc_per_node=2 scripts/train_lightning.py \
+  --config configs/train_pdebench_2task_baseline_ddp.yaml \
+  --stage operator
+
+# Multi-GPU training (FSDP)
+# First enable FSDP in config: training.use_fsdp2: true
+torchrun --nproc_per_node=4 scripts/train_lightning.py \
+  --config configs/train_pdebench_2task_baseline_ddp_4gpu.yaml \
+  --stage operator
+
+# See docs/lightning_training.md for full documentation
 ```
 
 **Fast-to-SOTA Pipeline:**
