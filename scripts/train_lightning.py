@@ -126,7 +126,8 @@ def main() -> None:
         log_every_n_steps=10,
         enable_progress_bar=True,
         enable_model_summary=True,
-        num_sanity_val_steps=0,  # Skip sanity check (val data from WandB artifacts)
+        num_sanity_val_steps=0,  # Skip sanity check
+        limit_val_batches=0,  # Disable validation (val data from WandB artifacts)
         # Note: replace_sampler_ddp removed in Lightning 2.0+
         # DDP now preserves custom samplers by default
         deterministic=deterministic,
