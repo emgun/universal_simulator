@@ -36,7 +36,11 @@ class UPSDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         if self.val_loader is None:
-            self.val_loader = self._loader_with_split("val")
+            try:
+                self.val_loader = self._loader_with_split("val")
+            except FileNotFoundError:
+                # Val data not available (downloaded from WandB artifacts later)
+                return None
         return self.val_loader
 
     def test_dataloader(self):
