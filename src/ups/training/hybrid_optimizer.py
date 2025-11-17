@@ -13,8 +13,10 @@ try:
     from torchao.optim import CPUOffloadOptimizer
 
     TORCHAO_AVAILABLE = True
-except ImportError:
+except (ImportError, AttributeError):
+    # AttributeError can occur if torchao is incompatible with PyTorch version
     TORCHAO_AVAILABLE = False
+    logger.debug("torchao not available (import failed or incompatible)")
 
 
 class HybridOptimizer(Optimizer):
