@@ -44,6 +44,9 @@ data:
   patch_size: 1
   download:
     test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
 
 latent:
   dim: 128          # From Phase 2/3 optimal
