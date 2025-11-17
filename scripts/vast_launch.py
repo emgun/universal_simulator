@@ -222,11 +222,15 @@ mkdir -p data/pdebench
 """
 
     # Generate download commands for each task (sequential for reliability)
-    # NOTE: Only downloading train files - val/test splits not yet available on B2
+    # Download both train and val splits for Lightning (needs val for sanity check)
     for task in tasks:
         script += f"""
 if [ ! -f data/pdebench/{task}_train.h5 ]; then
   rclone copy B2TRAIN:pdebench/full/{task}/{task}_train.h5 data/pdebench/ --progress
+fi
+
+if [ ! -f data/pdebench/{task}_val.h5 ]; then
+  rclone copy B2TRAIN:pdebench/full/{task}/{task}_val.h5 data/pdebench/ --progress
 fi
 """
 
