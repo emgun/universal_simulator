@@ -120,7 +120,7 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
 
         print(f"Available Muon backends: {', '.join(backends)}")
         params_muon, params_adamw = build_param_groups(model)
-        print_param_split_summary(params_muon, params_adamw)
+        print_param_split_summary(model)
 
         muon_betas = tuple(opt_cfg.get("betas", [0.9, 0.999]))
         muon_eps = opt_cfg.get("eps", 1e-8)
