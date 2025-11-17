@@ -2105,484 +2105,110 @@ vastai search offers 'gpu_ram >= 80 reliability > 0.95 num_gpus=4 disk_space >= 
 
 ## Phase 6: PyTorch Lightning Migration (OPTIONAL)
 
-### Overview
-
-**IMPORTANT**: This phase is **OPTIONAL** and should only be pursued if:
-1. Native DDP (Phases 1-5) is fully working and tested
-2. You need features like FSDP, DeepSpeed, or easier multi-strategy switching
-3. You're willing to invest 7-10 additional days for the migration
-4. Team is comfortable learning Lightning patterns
-
-**Migration Benefits**:
-- One-line strategy switching (DDP → FSDP → DeepSpeed)
-- Less boilerplate (no manual rank guards)
-- Built-in callbacks, profiling, debugging tools
-- Better ecosystem integration (Hydra, Ray Tune)
-
-**Migration Costs**:
-- Major refactor (7-10 days effort)
-- Loss of control over training loop
-- Team learning curve
-- Potential conflicts with existing infrastructure
-
-**Recommendation**: Only pursue this if you hit scaling limits with native DDP (e.g., need FSDP for larger models) or if Lightning's ecosystem features become critical.
-
-### When to Trigger This Phase
-
-**Trigger Conditions** (any of these):
-1. **Model size grows** beyond single-GPU memory (need FSDP)
-2. **Want to experiment** with DeepSpeed ZeRO optimizations
-3. **Need ecosystem features**: Ray Tune integration, Hydra configs, etc.
-4. **Team preference**: Lightning patterns become more familiar than native PyTorch
-
-**Do NOT trigger if**:
-- Native DDP is working well
-- Model fits in GPU memory
-- Team is productive with current setup
-
-### Changes Required
-
-#### 1. Create LightningModule for Operator Training
-
-**File**: `src/ups/training/lightning_modules.py` (NEW FILE)
-
-**Content**:
-```python
-"""PyTorch Lightning modules for multi-stage training."""
-
-from __future__ import annotations
-
-import torch
-import torch.nn as nn
-import pytorch_lightning as pl
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR
-
-from ups.core.latent_state import LatentState
-from ups.models.latent_operator import LatentOperator
-from ups.training.losses import compute_nrmse, spectral_energy_loss
-
-
-class OperatorLightningModule(pl.LightningModule):
-    """Lightning module for operator training stage."""
-
-    def __init__(self, cfg: dict):
-        super().__init__()
-        self.save_hyperparameters(cfg)
-        self.cfg = cfg
-
-        # Build operator model
-        from ups.models.latent_operator import build_operator
-        self.operator = build_operator(cfg)
-
-        # Loss weights
-        self.lambda_spectral = cfg.get("training", {}).get("lambda_spectral", 0.05)
-
-        # Per-task metrics tracking
-        self.train_task_losses = {}
-        self.val_task_losses = {}
-
-    def forward(self, state: LatentState, dt: torch.Tensor) -> LatentState:
-        """Forward pass through operator."""
-        return self.operator(state, dt)
-
-    def training_step(self, batch: dict, batch_idx: int):
-        """Training step for operator."""
-        # Unpack batch
-        z0 = batch["z0"]
-        z1 = batch["z1"]
-        cond = batch.get("cond", {})
-        task_names = batch.get("task_names", [])
-
-        # Forward pass
-        state = LatentState(
-            z=z0,
-            t=torch.tensor(0.0, device=self.device),
-            cond=cond,
-        )
-        dt = torch.tensor(self.cfg.get("training", {}).get("dt", 0.1), device=self.device)
-        pred = self(state, dt)
-
-        # Main loss (NRMSE)
-        loss_main = compute_nrmse(pred.z, z1)
-
-        # Spectral energy loss
-        loss_spectral = spectral_energy_loss(pred.z, z1)
-
-        # Total loss
-        loss = loss_main + self.lambda_spectral * loss_spectral
-
-        # Log metrics
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train/loss_main", loss_main, on_step=False, on_epoch=True)
-        self.log("train/loss_spectral", loss_spectral, on_step=False, on_epoch=True)
-
-        # Per-task metrics (if multi-task)
-        if task_names:
-            for task_name in set(task_names):
-                task_mask = [t == task_name for t in task_names]
-                if any(task_mask):
-                    task_indices = torch.tensor([i for i, m in enumerate(task_mask) if m])
-                    task_loss = compute_nrmse(
-                        pred.z[task_indices],
-                        z1[task_indices],
-                    )
-                    self.log(f"train/{task_name}/loss", task_loss, on_epoch=True)
-
-        return loss
-
-    def validation_step(self, batch: dict, batch_idx: int):
-        """Validation step for operator."""
-        # Same as training step but with validation logging
-        z0 = batch["z0"]
-        z1 = batch["z1"]
-        cond = batch.get("cond", {})
-
-        state = LatentState(z=z0, t=torch.tensor(0.0, device=self.device), cond=cond)
-        dt = torch.tensor(self.cfg.get("training", {}).get("dt", 0.1), device=self.device)
-        pred = self(state, dt)
-
-        loss = compute_nrmse(pred.z, z1)
-
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return loss
-
-    def configure_optimizers(self):
-        """Configure optimizer and scheduler."""
-        stage_cfg = self.cfg.get("stages", {}).get("operator", {})
-        opt_cfg = stage_cfg.get("optimizer", {})
-
-        # Optimizer
-        optimizer = AdamW(
-            self.parameters(),
-            lr=opt_cfg.get("lr", 1e-3),
-            weight_decay=opt_cfg.get("weight_decay", 0.03),
-            betas=tuple(opt_cfg.get("betas", [0.9, 0.999])),
-        )
-
-        # Scheduler
-        sched_cfg = stage_cfg.get("scheduler", {})
-        if sched_cfg.get("name") == "cosineannealinglr":
-            scheduler = CosineAnnealingLR(
-                optimizer,
-                T_max=sched_cfg.get("t_max", 40),
-                eta_min=sched_cfg.get("eta_min", 2.5e-5),
-            )
-            return {
-                "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "interval": "epoch",
-                },
-            }
-
-        return optimizer
-
-
-class MultiStageLightningModule(pl.LightningModule):
-    """
-    Lightning module that handles multi-stage training.
-
-    Awkward fit for Lightning, but possible with manual stage switching.
-    """
-
-    def __init__(self, cfg: dict):
-        super().__init__()
-        self.save_hyperparameters(cfg)
-        self.cfg = cfg
-        self.current_stage = "operator"
-
-        # Build all models
-        from ups.models.latent_operator import build_operator
-        from ups.models.diffusion_residual import build_diffusion
-        from ups.models.steady_prior import build_steady_prior
-
-        self.operator = build_operator(cfg)
-        self.diffusion = build_diffusion(cfg) if cfg.get("stages", {}).get("diff_residual") else None
-        self.steady_prior = build_steady_prior(cfg) if cfg.get("stages", {}).get("steady_prior") else None
-
-    def set_stage(self, stage: str):
-        """Manually switch training stage."""
-        self.current_stage = stage
-        # Freeze models not in current stage
-        if stage == "operator":
-            self.operator.requires_grad_(True)
-            if self.diffusion:
-                self.diffusion.requires_grad_(False)
-        elif stage == "diff_residual":
-            self.operator.requires_grad_(False)
-            if self.diffusion:
-                self.diffusion.requires_grad_(True)
-        # ... etc
-
-    def training_step(self, batch: dict, batch_idx: int):
-        """Dispatch to stage-specific training."""
-        if self.current_stage == "operator":
-            return self._train_operator(batch)
-        elif self.current_stage == "diff_residual":
-            return self._train_diffusion(batch)
-        # ... etc
-
-    def _train_operator(self, batch: dict):
-        """Operator training logic."""
-        # Similar to OperatorLightningModule
-        pass
-
-    def _train_diffusion(self, batch: dict):
-        """Diffusion training logic."""
-        pass
-```
-
-#### 2. Create Lightning DataModule
-
-**File**: `src/ups/data/lightning_datamodule.py` (NEW FILE)
-
-**Content**:
-```python
-"""PyTorch Lightning DataModule for UPS."""
-
-from __future__ import annotations
-
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader
-
-from ups.data.latent_pairs import build_latent_pair_loader
-from ups.data.task_samplers import MultiTaskDistributedSampler
-
-
-class UPSDataModule(pl.LightningDataModule):
-    """Lightning DataModule for Universal Physics Stack."""
-
-    def __init__(self, cfg: dict):
-        super().__init__()
-        self.cfg = cfg
-        self.train_loader = None
-        self.val_loader = None
-        self.test_loader = None
-
-    def setup(self, stage: str = None):
-        """Setup datasets."""
-        # Lightning automatically handles distributed sampling
-        # if we return the dataset, not the loader
-        pass
-
-    def train_dataloader(self):
-        """Return training DataLoader."""
-        if self.train_loader is None:
-            self.train_loader = build_latent_pair_loader(self.cfg, split="train")
-        return self.train_loader
-
-    def val_dataloader(self):
-        """Return validation DataLoader."""
-        if self.val_loader is None:
-            self.val_loader = build_latent_pair_loader(self.cfg, split="val")
-        return self.val_loader
-
-    def test_dataloader(self):
-        """Return test DataLoader."""
-        if self.test_loader is None:
-            self.test_loader = build_latent_pair_loader(self.cfg, split="test")
-        return self.test_loader
-```
-
-#### 3. Create Lightning Training Script
-
-**File**: `scripts/train_lightning.py` (NEW FILE)
-
-**Content**:
-```python
-"""Training script using PyTorch Lightning."""
-
-from __future__ import annotations
-
-import argparse
-from pathlib import Path
-
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-
-from ups.utils.config_loader import load_config
-from ups.training.lightning_modules import OperatorLightningModule
-from ups.data.lightning_datamodule import UPSDataModule
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--stage", default="operator", choices=["operator", "diff_residual", "consistency_distill"])
-    args = parser.parse_args()
-
-    # Load config
-    cfg = load_config(args.config)
-
-    # Get training parameters
-    num_gpus = cfg.get("training", {}).get("num_gpus", 1)
-    stage_cfg = cfg.get("stages", {}).get(args.stage, {})
-    epochs = stage_cfg.get("epochs", 25)
-
-    # Lightning module
-    if args.stage == "operator":
-        model = OperatorLightningModule(cfg)
-    else:
-        raise NotImplementedError(f"Stage {args.stage} not implemented yet")
-
-    # DataModule
-    datamodule = UPSDataModule(cfg)
-
-    # WandB logger
-    wandb_cfg = cfg.get("logging", {}).get("wandb", {})
-    logger = WandbLogger(
-        project=wandb_cfg.get("project", "universal-simulator"),
-        entity=wandb_cfg.get("entity"),
-        name=wandb_cfg.get("run_name"),
-        tags=wandb_cfg.get("tags", []),
-    ) if wandb_cfg.get("enabled", True) else None
-
-    # Callbacks
-    callbacks = [
-        ModelCheckpoint(
-            dirpath="checkpoints",
-            filename=f"{args.stage}-{{epoch:02d}}-{{val/loss:.4f}}",
-            monitor="val/loss",
-            mode="min",
-            save_top_k=3,
-        ),
-        EarlyStopping(
-            monitor="val/loss",
-            patience=stage_cfg.get("patience", 10),
-            mode="min",
-        ),
-    ]
-
-    # Trainer
-    trainer = pl.Trainer(
-        max_epochs=epochs,
-        accelerator="gpu",
-        devices=num_gpus,
-        strategy="ddp" if num_gpus > 1 else "auto",  # DDP for multi-GPU
-        precision="16-mixed" if cfg.get("training", {}).get("amp", True) else "32-true",
-        logger=logger,
-        callbacks=callbacks,
-        gradient_clip_val=cfg.get("training", {}).get("grad_clip"),
-        accumulate_grad_batches=cfg.get("training", {}).get("accum_steps", 1),
-        log_every_n_steps=10,
-        enable_progress_bar=True,
-        enable_model_summary=True,
-    )
-
-    # Train
-    trainer.fit(model, datamodule=datamodule)
-
-    # Test
-    trainer.test(model, datamodule=datamodule)
-
-
-if __name__ == "__main__":
-    main()
-```
-
-#### 4. Multi-Stage Orchestrator for Lightning
-
-**File**: `scripts/run_lightning_pipeline.py` (NEW FILE)
-
-**Content**:
-```python
-"""Multi-stage training pipeline using Lightning.
-
-This is more awkward than native PyTorch because Lightning
-is designed for single-model training, not multi-stage pipelines.
-"""
-
-import subprocess
-from pathlib import Path
-from ups.utils.config_loader import load_config
-
-
-def run_stage(config_path: str, stage: str):
-    """Run a single training stage."""
-    cmd = [
-        "python", "scripts/train_lightning.py",
-        "--config", config_path,
-        "--stage", stage,
-    ]
-    subprocess.run(cmd, check=True)
-
-
-def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--train-config", required=True)
-    args = parser.parse_args()
-
-    cfg = load_config(args.train_config)
-    stages_cfg = cfg.get("stages", {})
-
-    # Run each stage sequentially
-    if stages_cfg.get("operator", {}).get("epochs", 0) > 0:
-        print("=" * 60)
-        print("Stage 1: Operator Training")
-        print("=" * 60)
-        run_stage(args.train_config, "operator")
-
-    if stages_cfg.get("diff_residual", {}).get("epochs", 0) > 0:
-        print("=" * 60)
-        print("Stage 2: Diffusion Residual Training")
-        print("=" * 60)
-        run_stage(args.train_config, "diff_residual")
-
-    # ... etc for other stages
-
-
-if __name__ == "__main__":
-    main()
-```
-
-### Migration Strategy
-
-**Incremental Migration** (recommended):
-
-1. **Phase 6.1**: Create Lightning modules alongside existing code (NEW files only)
-2. **Phase 6.2**: Test Lightning on single stage (operator only)
-3. **Phase 6.3**: Migrate multi-stage pipeline (complex, requires careful testing)
-4. **Phase 6.4**: Migrate all training scripts
-5. **Phase 6.5**: Deprecate native PyTorch training scripts
-
-**Big Bang Migration** (risky):
-- Rewrite everything at once
-- Higher risk of bugs
-- Longer testing cycle
-- Not recommended
-
-### Effort Comparison
+### Purpose and triggers
+- Only start after native DDP/FSDP paths in `scripts/train.py` are stable. Lightning buys easier strategy switching and callbacks, but costs 7-10 days and a loop refactor.
+- Trigger when you need FSDP/DeepSpeed-style scaling or Lightning ecosystem features (Ray Tune, Hydra-style config composition). Skip if current DDP covers capacity and the team prefers explicit control.
+
+### Baseline behaviors to mirror (no regressions)
+- **Distributed bootstrap**: RANK/LOCAL_RANK driven setup with backend fallback in `scripts/train.py:100-207`.
+- **Operator wrapping**: DDP vs optional FSDP2 plus compile in `scripts/train.py:894-937`.
+- **Data loading**: Multi-task builder + `MultiTaskDistributedSampler`/`DistributedSampler` wired inside `build_latent_pair_loader` in `src/ups/data/latent_pairs.py:793-1012`.
+- **Logging/resume hooks**: JSONL + Wandb via `TrainingLogger` and patience/grad-clip helpers in `scripts/train.py:330-380` and `_grad_clip_value/_get_patience` around `scripts/train.py:250-290`.
+- **Error/oom handling**: Rank-wide sync + simulated OOM guards in `src/ups/training/distributed_utils.py:1-74`.
+
+### Deliverables (Lightning side)
+1) **LightningModule (operator-only first)** in `src/ups/training/lightning_modules.py`  
+   - Reuse `LatentState`, `compute_nrmse`, spectral loss, and inverse-loss toggles from `scripts/train.py` so outputs/metrics match native runs.  
+   - Call `maybe_trigger_simulated_oom` early in the training step to keep failure parity; honor grad clip/EMA and metric aggregation semantics.
+2) **LightningDataModule** in `src/ups/data/lightning_datamodule.py`  
+   - Wrap `build_latent_pair_loader(cfg)` for train/val/test; set `replace_sampler_ddp=False` so Lightning preserves the sampler created inside the loader.  
+   - Surface the same config knobs (latent cache, num_workers/prefetch, rollout_horizon, task mixing).
+3) **Lightning trainer entrypoint** in `scripts/train_lightning.py`  
+   - Keep CLI parity with `scripts/train.py` (`--config`, `--stage`). Map `training.num_gpus` → `devices`, `training.precision`/`amp` → `precision`, `training.grad_clip` → `gradient_clip_val`, and `training.accum_steps` → `accumulate_grad_batches`.  
+   - Strategy selection: `"ddp"` default; allow `"fsdp"` when `training.use_fsdp2` is set. Keep Wandb optional; ensure only rank 0 logs.  
+   - Checkpoint naming mirrors `checkpoint.dir` defaults from native training.
+4) **Multi-stage orchestrator** in `scripts/run_lightning_pipeline.py`  
+   - Sequentially run operator → (optional) diff_residual/steady_prior using the Lightning trainer, keeping the same stage gating by `stages.*.epochs`.  
+   - Preserve global_step continuity for logging comparisons across stages.
+5) **Parity + rollout tests**  
+   - Side-by-side runs on 1 GPU (`python scripts/train.py ...` vs `python scripts/train_lightning.py ...`) and 2 GPU (`torchrun --nproc_per_node=2 ...`) to confirm loss curves, throughput, and checkpoint sizes align within noise.  
+   - Load a Lightning checkpoint into the native model to verify state_dict compatibility.
+
+### Implementation steps (recommended order)
+- **Phase 6.1**: Scaffold the LightningModule/DataModule with read-only wrappers around existing builders; no control-flow changes.  
+- **Phase 6.2**: Single-stage operator training on 1 GPU; verify metrics/logs/ckpts match native.  
+- **Phase 6.3**: Enable DDP/FSDP strategies; validate samplers are not replaced and Wandb runs remain single.  
+- **Phase 6.4**: Wire the multi-stage pipeline + resume-from-checkpoint; check patience/early-stop parity.  
+- **Phase 6.5**: Optional: expose strategy switches (DDP/FSDP/DeepSpeed) via config flag; update README/QUICKSTART.
+
+### Effort comparison
 
 | Approach | Effort | Risk | When to Use |
 |----------|--------|------|-------------|
 | **Native DDP (Phases 1-5)** | 5-7 days | Low | Default choice |
-| **Lightning Migration (Phase 6)** | +7-10 days | Medium | Need FSDP/DeepSpeed |
+| **Lightning Migration (Phase 6)** | +7-10 days | Medium | Need FSDP/DeepSpeed or Lightning callbacks |
 | **Total (DDP + Lightning)** | 12-17 days | Medium | Future-proofing |
 
-### Success Criteria
+### Success criteria
 
-#### Automated Verification
+#### Automated
+- [ ] `python scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml --stage operator` completes with loss/throughput within 5% of native.  
+- [ ] `torchrun --nproc_per_node=2 scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml --stage operator` keeps a single Wandb run and uses task-balanced sampling.  
+- [ ] Switching `strategy=fsdp` (when `training.use_fsdp2` is true) trains without Lightning/torch.compile conflicts.  
+- [ ] Native loader can consume a Lightning checkpoint (state_dict keys match).
 
-- [ ] **Lightning operator training**: `python scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml --stage operator` completes
-- [ ] **Multi-GPU with Lightning**: `python scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml` runs on 2 GPUs automatically
-- [ ] **Strategy switching**: Change `strategy="ddp"` to `strategy="fsdp"` and verify it works
-- [ ] **Checkpoint compatibility**: Lightning checkpoints load correctly
-- [ ] **WandB integration**: Lightning logger creates single run
+#### Manual
+- [ ] Compare Lightning vs native gradient norms/ckpt sizes; confirm early-stopping/patience behaves the same.  
+- [ ] Multi-stage Lightning pipeline runs to completion with the same stage ordering and resume semantics.  
+- [ ] Optional DeepSpeed/Fabric strategies only after DDP parity is proven.
 
-#### Manual Verification
-
-- [ ] Compare Lightning vs native DDP training time (should be similar)
-- [ ] Verify Lightning checkpoints are smaller/larger than native
-- [ ] Test Lightning callbacks (EarlyStopping, ModelCheckpoint)
-- [ ] Verify multi-stage pipeline works end-to-end
-- [ ] Test FSDP strategy on large model (if applicable)
-
-**Implementation Note**: This phase is OPTIONAL. Only pursue if native DDP (Phases 1-5) is insufficient for your needs. The native DDP implementation is production-ready and sufficient for most use cases.
+**Implementation note**: Keep Lightning side-by-side with native scripts (no deletion) until parity is proven; default path for production remains native DDP unless scaling gaps resurface.
 
 ---
+
+### Lightning Migration Plan (Phase 6) with 4-GPU + speed/compile focus
+
+**Scope**: Add Lightning-based training alongside native DDP/FSDP, keeping native as default until parity is proven. Target 1/2/4 GPU runs, compile safeguards, and throughput sanity.
+
+**What must mirror native**
+- Distributed bootstrap/backends: `scripts/train.py:100-207`
+- Operator DDP/FSDP2 wrapping + compile toggles: `scripts/train.py:894-937`
+- Multi-task loaders/samplers: `src/ups/data/latent_pairs.py:793-1012`
+- OOM/error sync: `src/ups/training/distributed_utils.py:1-74`
+- Logging/grad-clip/patience: `scripts/train.py:250-380`
+
+**Tasks**
+1) Lightning scaffolding (operator-first)
+   - Add `src/ups/training/lightning_modules.py`: Operator LightningModule using `LatentState`, `compute_nrmse`, spectral/inverse loss toggles; call `maybe_trigger_simulated_oom` early; keep grad clip/EMA semantics.
+   - Add `training.compile` flag: default off; when on, attempt `torch.compile` with a clear fallback path if Lightning/compile is unstable.
+2) Lightning DataModule
+   - Add `src/ups/data/lightning_datamodule.py`: wrap `build_latent_pair_loader(cfg)` for train/val/test; `replace_sampler_ddp=False` so Lightning preserves `MultiTaskDistributedSampler`/`DistributedSampler`.
+   - Expose loader knobs: cache, num_workers, prefetch_factor, rollout_horizon, task mixing, pin_memory, persistent_workers.
+3) Trainer entrypoint
+   - Add `scripts/train_lightning.py`: CLI `--config --stage`; map `training.num_gpus` → devices (supports 1/2/4), `training.precision`/`amp` → precision, `training.grad_clip` → `gradient_clip_val`, `training.accum_steps` → `accumulate_grad_batches`.
+   - Strategy: default `ddp`; allow `fsdp` when `training.use_fsdp2` is set. WandB rank-0 only; checkpoint naming mirrors `checkpoint.dir`. Pass through `deterministic`/`benchmark` to match cudnn settings.
+4) Multi-stage orchestration
+   - Add `scripts/run_lightning_pipeline.py`: sequential operator → optional diff_residual/steady_prior gated by `stages.*.epochs`; preserve stage ordering and global_step continuity; accept `--devices` override for 2/4 GPUs.
+5) Speed/compile safeguards
+   - Keep `static_graph` behavior when not compiling; only enable compile via flag and fallback cleanly on errors.
+   - Ensure DataLoader non-blocking transfers where applicable; enable pin_memory + persistent_workers when `num_workers>0`; allow `prefetch_factor`.
+   - For 4-GPU: log backend selection; allow NCCL env tweaks (e.g., `NCCL_P2P_DISABLE=1`) if instability is observed.
+6) Refactor/simplify (non-breaking)
+   - Centralize config→trainer mapping helper to avoid duplication between native and Lightning entrypoints.
+   - Leave native scripts intact; Lightning lives side-by-side until parity/throughput confirmed.
+
+**Success criteria**
+- Automated
+  - [ ] `python scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml --stage operator` completes; loss/throughput within 5% of native.
+  - [ ] `torchrun --nproc_per_node=2 scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml --stage operator` single WandB run; task-balanced sampling preserved.
+  - [ ] `torchrun --nproc_per_node=4 scripts/train_lightning.py --config configs/train_pdebench_2task_baseline_ddp.yaml --stage operator` stable NCCL/DDP; scaling vs 2-GPU within expected bounds (~near-linear until comms dominate).
+  - [ ] `strategy=fsdp` path runs when `training.use_fsdp2` is true; no Lightning/compile conflicts.
+  - [ ] Lightning checkpoint loads into native model (state_dict key compatibility).
+- Manual
+  - [ ] Compare Lightning vs native gradient norms, early-stop/patience, checkpoint sizes.
+  - [ ] Multi-stage Lightning pipeline completes with same stage ordering/resume semantics.
+  - [ ] Compile toggle: when `training.compile=true`, verify throughput improvement and clean fallback on error.
+  - [ ] Performance sanity on target hardware (2- and 4-GPU) meets acceptable throughput.
 
 ## References
 
