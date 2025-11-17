@@ -20,23 +20,19 @@ export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 rm -rf "$ROOT_DIR" || true
 mkdir -p "$ROOT_DIR"
 
-# Download train and val splits for each task
+# Download train splits only (val/test from WandB artifacts)
 for task in $TASKS; do
   if [ ! -f "$ROOT_DIR/${task}_train.h5" ]; then
     rclone copy "B2TRAIN:pdebench/full/$task/${task}_train.h5" "$ROOT_DIR/" --progress
   fi
-  if [ ! -f "$ROOT_DIR/${task}_val.h5" ]; then
-    rclone copy "B2TRAIN:pdebench/full/$task/${task}_val.h5" "$ROOT_DIR/" --progress
-  fi
 done
 
-# Wait for all files to be ready
+# Wait for all train files to be ready
 echo "⏳ Verifying downloads..."
 for i in {1..60}; do
   all_ready=true
   for task in $TASKS; do
     [ ! -f "$ROOT_DIR/${task}_train.h5" ] && all_ready=false
-    [ ! -f "$ROOT_DIR/${task}_val.h5" ] && all_ready=false
   done
 
   if $all_ready; then
