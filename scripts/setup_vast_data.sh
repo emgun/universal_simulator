@@ -66,15 +66,24 @@ for task in $TASKS; do
   fi
 
   echo "  → Downloading $task..."
-  if rclone copy "B2TRAIN:pdebench/full/$task/${task}_train.h5" "$ROOT_DIR/" --progress --retries 3; then
-    if [ -f "$target_file" ]; then
-      echo "  ✓ $task ($(du -h "$target_file" | cut -f1))"
-    else
-      echo "  ✗ $task (download succeeded but file not found)"
-      exit 1
+
+  # Try different B2 path patterns (files have inconsistent naming)
+  # Pattern 1: full/$task/${task}_train.h5
+  # Pattern 2: full/$task/${task}_train_000.h5
+  downloaded=false
+
+  for pattern in "${task}_train.h5" "${task}_train_000.h5"; do
+    if rclone copyto "B2TRAIN:PDEbench/full/$task/$pattern" "$target_file" --progress --retries 3 2>/dev/null; then
+      if [ -f "$target_file" ]; then
+        echo "  ✓ $task ($(du -h "$target_file" | cut -f1))"
+        downloaded=true
+        break
+      fi
     fi
-  else
-    echo "  ✗ $task (rclone failed)"
+  done
+
+  if ! $downloaded; then
+    echo "  ✗ $task (file not found in B2, tried multiple patterns)"
     exit 1
   fi
 done
