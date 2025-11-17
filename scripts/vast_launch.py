@@ -235,10 +235,11 @@ fi
 """
 
     # Add file verification (no wait needed for sequential downloads)
-    # NOTE: Only verifying train files - val/test splits not yet available on B2
+    # Verify both train and val files
     expected_files = []
     for task in tasks:
         expected_files.append(f"data/pdebench/{task}_train.h5")
+        expected_files.append(f"data/pdebench/{task}_val.h5")
     files_check = " ".join(f'[ -f "{f}" ]' for f in expected_files)
 
     script += f"""
@@ -285,9 +286,11 @@ print(f'✓ Configured WandB to resume run: {{run_id}}')
     # Build cache precomputation command
     if precompute:
         tasks_str = " ".join(tasks)
-        # Only cache train split - val/test data is downloaded from WandB artifacts later in pipeline
+        # For Lightning: cache both train and val splits (Lightning needs val for sanity check)
+        # For native training: only cache train (val/test downloaded from WandB artifacts later)
+        splits_to_cache = "train val" if use_lightning else "train"
         cache_cmd = f"""echo "Precomputing latent caches for tasks: {tasks_str}…"
-PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks {tasks_str} --splits train --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 0 --pin-memory || echo "⚠️  Latent cache precompute failed (continuing)"
+PYTHONPATH=src python scripts/precompute_latent_cache.py --config {config_for_script} --tasks {tasks_str} --splits {splits_to_cache} --root data/pdebench --cache-dir data/latent_cache --cache-dtype float16 --device cuda --batch-size 16 --num-workers 0 --pin-memory || echo "⚠️  Latent cache precompute failed (continuing)"
 """
     else:
         cache_cmd = 'echo "Skipping latent cache precompute (quick-run)"\n'
