@@ -123,7 +123,8 @@ class LatentOperator(nn.Module):
         if self.conditioner is not None:
             z = self.apply_conditioning(z, state.cond)
         residual = self.core(z)
-        residual = self.output_norm(residual)
+        # Clone to break potential cudagraph reuse of activations under torch.compile
+        residual = self.output_norm(residual.clone())
         return residual
 
     def apply_conditioning(
