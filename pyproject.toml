@@ -10,11 +10,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Universal Physics Stack Devs"}]
 dependencies = [
-  "torch>=2.9",
+  "torch>=2.5",
+  "torchvision>=0.20,<0.21",  # Pin compatible with PyTorch 2.5+
   "triton>=2.1",
   # NOTE: flash-muon must be installed from GitHub (not on PyPI)
   # git clone https://github.com/nil0x9/flash-muon.git && pip install -e ./
   # If not available, will fall back to torch.optim.Muon
+  "torchmetrics>=1.0,<2.0",  # Pin to avoid incompatible versions
   "einops>=0.7",
   "xarray>=2023.1",
   "zarr>=2.16",
