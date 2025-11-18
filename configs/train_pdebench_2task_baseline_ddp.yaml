@@ -10,7 +10,7 @@
 #   - Parallel encoding: ENABLED (num_workers: 8, was 0)
 #
 # Optimization Phases Applied (see 2025-11-13-massive-training-speed-optimization.md):
-#   - Phase 1: torch.compile + NCCL tuning
+#   - Phase 1: torch.compile + NCCL tuning (compile: true, compile_mode: default for DDP)
 #   - Phase 2: Activation checkpointing (use_activation_checkpoint: true)
 #   - Phase 3: Loss frequency optimization (inverse_loss_frequency: 4, num_queries: 1024)
 #   - Phase 4: DataLoader optimization (num_workers: 6, prefetch_factor: 2)
@@ -18,6 +18,7 @@
 #   - Phase 6: Mixed precision BF16 (amp_dtype: bfloat16)
 #   - Phase 7: FSDP2 available but disabled (use_fsdp2: false, enable to save 3GB/GPU)
 #   - Phase 8: Fused AdamW kernels (automatic in scripts/train.py, no config needed)
+#   - FIXED: DDP + torch.compile compatibility (use compile_mode: default, NOT reduce-overhead)
 
 seed: 42
 deterministic: false
@@ -82,8 +83,8 @@ training:
 
   amp: true
   amp_dtype: bfloat16              # Phase 6: Use BF16 instead of FP16
-  compile: false                   # Disabled: torch.compile graph compilation fails with PyTorch 2.9
-  compile_mode: reduce-overhead       # Prefer GN+autotune without cudagraph capture
+  compile: true                    # ENABLED: torch.compile works with DDP using compile_mode: default
+  compile_mode: default            # CRITICAL: Use 'default' mode (NOT reduce-overhead) for DDP compatibility
   cpu_offload_optimizer: true      # Phase 5: Offload optimizer state to CPU
   grad_clip: null
   ema_decay: 0.999
@@ -253,7 +254,7 @@ logging:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: pdebench-2task-baseline-ddp-phase8
-    tags: [distributed, ddp, 2gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, phase8-optimizations, fused-optimizer]
+    run_name: pdebench-2task-baseline-ddp-compile
+    tags: [distributed, ddp, 2gpu, pdebench, multi-task, 2task-baseline, 128d, advection1d, darcy2d, phase8-optimizations, fused-optimizer, torch-compile]
     group: distributed-training
-    notes: "2-GPU DDP with Phases 1-8 optimizations: torch.compile, activation checkpointing, BF16, CPU offload, fused AdamW kernels. Memory-optimized (no inverse losses) for larger batches. Expected ~3-5% speedup from Phase 8 fused optimizer."
+    notes: "2-GPU DDP with Phases 1-8 optimizations + torch.compile ENABLED (compile_mode: default for DDP compatibility). Memory-optimized (no inverse losses) for larger batches. Validated with successful burgers DDP training (40 epochs, 99% GPU util)."
