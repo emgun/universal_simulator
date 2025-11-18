@@ -115,6 +115,17 @@ def setup_distributed():
     print(f"[DDP-DEBUG] MASTER_ADDR={os.environ.get('MASTER_ADDR', 'NOT_SET')}")
     print(f"[DDP-DEBUG] MASTER_PORT={os.environ.get('MASTER_PORT', 'NOT_SET')}")
 
+    # CRITICAL FIX: Check if process group already initialized (multi-stage training)
+    # If already initialized, return existing distributed context
+    if dist.is_available() and dist.is_initialized():
+        rank = dist.get_rank()
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        world_size = dist.get_world_size()
+        device = torch.device(f"cuda:{local_rank}")
+        print(f"[DDP-DEBUG] Process group already initialized - reusing existing context")
+        print(f"[DDP-DEBUG] Rank: {rank}, World size: {world_size}, Device: {device}")
+        return device, True, rank, world_size, local_rank
+
     if "RANK" in os.environ:
         print("[DDP-DEBUG] RANK env var detected, initializing DDP...")
 
