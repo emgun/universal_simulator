@@ -185,35 +185,72 @@ class PreloadedCacheDataset(Dataset):
         
         # Preload all cache files into SHARED RAM (allows multi-process data loading)
         print(f"📦 Preloading {num_samples} cache files into shared RAM...")
+        print(f"   Cache dir: {self.cache_dir}")
         self.cache: dict[int, dict[str, Any]] = {}
         loaded = 0
+        errors = []
+
         for idx in range(num_samples):
             cache_path = self.cache_dir / f"sample_{idx:05d}.pt"
-            if cache_path.exists():
-                try:
-                    data = torch.load(cache_path, map_location="cpu")
-                    # Move tensors to shared memory so DataLoader workers can access them
-                    latent = data["latent"].float().share_memory_()
-                    params = data.get("params")
-                    if params is not None and isinstance(params, torch.Tensor):
-                        params = params.share_memory_()
-                    bc = data.get("bc")
-                    if bc is not None and isinstance(bc, torch.Tensor):
-                        bc = bc.share_memory_()
+            if not cache_path.exists():
+                errors.append(f"Missing: {cache_path.name}")
+                continue
 
-                    self.cache[idx] = {
-                        "latent": latent,
-                        "params": params,
-                        "bc": bc,
-                    }
-                    loaded += 1
-                except (RuntimeError, EOFError):
-                    cache_path.unlink(missing_ok=True)
+            try:
+                data = torch.load(cache_path, map_location="cpu")
+
+                # Explicitly ensure CPU and convert to shared memory
+                # CRITICAL: Must call .cpu() first to ensure no CUDA contamination
+                latent = data["latent"].cpu().float()
+                if latent.is_cuda:
+                    raise RuntimeError(f"Latent tensor is still on CUDA after .cpu() call! Device: {latent.device}")
+
+                latent = latent.share_memory_()
+
+                params = data.get("params")
+                if params is not None and isinstance(params, torch.Tensor):
+                    params = params.cpu().share_memory_()
+
+                bc = data.get("bc")
+                if bc is not None and isinstance(bc, torch.Tensor):
+                    bc = bc.cpu().share_memory_()
+
+                self.cache[idx] = {
+                    "latent": latent,
+                    "params": params,
+                    "bc": bc,
+                }
+                loaded += 1
+
+                if (loaded) % 500 == 0:
+                    print(f"   Loaded {loaded}/{num_samples}...")
+
+            except EOFError as e:
+                errors.append(f"{cache_path.name}: Corrupt file (EOFError)")
+                cache_path.unlink(missing_ok=True)
+            except RuntimeError as e:
+                # Don't silently ignore RuntimeError - log it!
+                error_msg = f"{cache_path.name}: RuntimeError - {str(e)}"
+                errors.append(error_msg)
+                print(f"   ❌ {error_msg}")
+                # Re-raise to fail fast instead of silently continuing
+                raise
+            except Exception as e:
+                # Catch any other unexpected errors
+                error_msg = f"{cache_path.name}: {type(e).__name__} - {str(e)}"
+                errors.append(error_msg)
+                print(f"   ❌ {error_msg}")
+                raise
+
+        if errors:
+            print(f"   ⚠️  Encountered {len(errors)} errors during loading:")
+            for error in errors[:10]:  # Show first 10
+                print(f"      - {error}")
 
         if loaded != num_samples:
             raise ValueError(
                 f"Cache incomplete: {loaded}/{num_samples} files loaded. "
-                f"Run precompute_latent_cache.py first."
+                f"Errors: {len(errors)}. Run precompute_latent_cache.py first."
             )
 
         print(f"✅ Preloaded {loaded} samples into shared RAM (multi-process safe)")
