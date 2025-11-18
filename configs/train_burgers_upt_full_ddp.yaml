@@ -95,7 +95,7 @@ training:
   amp: true
   amp_dtype: bfloat16      # Use BF16 for better stability
   compile: true            # Re-enabled: Testing with DDP after removing .clone() workarounds
-  compile_mode: reduce-overhead
+  compile_mode: default    # Using 'default' mode - avoids aggressive CUDA graphs that conflict with DDP
   grad_clip: null
   ema_decay: 0.999
 
