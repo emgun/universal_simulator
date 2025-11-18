@@ -168,6 +168,11 @@ def setup_distributed():
                 print(f"[DDP-DEBUG] dist.get_rank() = {dist.get_rank()}")
                 print(f"[DDP-DEBUG] dist.get_world_size() = {dist.get_world_size()}")
 
+                # CRITICAL FIX: Add barrier after init_process_group to sync all ranks
+                # Without this, ranks can be out of sync during model creation
+                dist.barrier()
+                print(f"[DDP-DEBUG] Barrier passed after init_process_group on rank {dist.get_rank()}")
+
                 if backend == "gloo" and preferred_backend == "nccl":
                     print(f"[DDP-WARNING] Fell back to Gloo backend (NCCL failed)")
                     print(f"[DDP-WARNING] Gloo is CPU-based and slower - for debugging only!")
@@ -897,6 +902,11 @@ def _stage_epochs(cfg: dict, stage: str) -> int:
 
 
 def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
+    # CRITICAL FIX: Setup distributed training FIRST
+    # This ensures DistributedSampler is created properly in dataset_loader()
+    device, is_distributed, rank, world_size, local_rank = setup_distributed()
+
+    # Now create data loader (will use DistributedSampler if distributed)
     loader = dataset_loader(cfg)
     operator = make_operator(cfg)
     train_cfg = cfg.get("training", {})
@@ -907,9 +917,6 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
     scheduler = _create_scheduler(optimizer, cfg, "operator")
     patience = _get_patience(cfg, "operator")
     logger = TrainingLogger(cfg, stage="operator", global_step=global_step, wandb_ctx=wandb_ctx)
-
-    # Setup distributed training
-    device, is_distributed, rank, world_size, local_rank = setup_distributed()
 
     operator.to(device)
 
@@ -937,6 +944,14 @@ def train_operator(cfg: dict, wandb_ctx=None, global_step: int = 0) -> None:
             )
             if rank == 0:
                 print(f"Operator wrapped with DDP on device {local_rank}")
+
+        # CRITICAL FIX: Add barrier after model wrapping to ensure all ranks synchronized
+        # Without this, torch.compile can start on different ranks at different times
+        import torch.distributed as dist
+        if dist.is_initialized():
+            dist.barrier()
+            if rank == 0:
+                print("[DDP-DEBUG] Barrier passed after model wrapping")
 
     operator = _maybe_compile(operator, cfg, "operator")
 

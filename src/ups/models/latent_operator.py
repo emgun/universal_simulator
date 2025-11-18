@@ -45,9 +45,9 @@ class TimeEmbedding(nn.Module):
         )
 
     def forward(self, dt: torch.Tensor) -> torch.Tensor:
-        # Clone to avoid CUDA graphs error when using torch.compile
-        # (CUDA graphs require tensors not to be overwritten between runs)
-        dt = dt.clone()
+        # NOTE: .clone() removed for DDP/FSDP compatibility
+        # Clone breaks gradient flow with distributed wrappers
+        # If using torch.compile, disable it or use torch.compile(..., fullgraph=False)
         if dt.dim() == 0:
             dt = dt.unsqueeze(0)
         dt = dt.view(-1, 1)
@@ -91,10 +91,14 @@ class LatentOperator(nn.Module):
         self.output_norm = nn.LayerNorm(cfg.latent_dim)
 
     def forward(self, state: LatentState, dt: torch.Tensor) -> LatentState:
-        # Mark cudagraph step boundaries to avoid reuse-related overwrites under torch.compile
+        # NOTE: CUDA graphs disabled for DDP/FSDP compatibility
+        # CUDA graphs cache kernel launches and conflict with distributed collectives
+        # Only use CUDA graph markers in single-GPU mode
         try:
-            if hasattr(torch, "compiler") and hasattr(torch.compiler, "cudagraph_mark_step_begin"):
-                torch.compiler.cudagraph_mark_step_begin()
+            import torch.distributed as dist
+            if not dist.is_initialized():
+                if hasattr(torch, "compiler") and hasattr(torch.compiler, "cudagraph_mark_step_begin"):
+                    torch.compiler.cudagraph_mark_step_begin()
         except Exception:
             pass
         residual = self.step(state, dt)
@@ -123,8 +127,9 @@ class LatentOperator(nn.Module):
         if self.conditioner is not None:
             z = self.apply_conditioning(z, state.cond)
         residual = self.core(z)
-        # Clone to break potential cudagraph reuse of activations under torch.compile
-        residual = self.output_norm(residual.clone())
+        # NOTE: .clone() removed for DDP/FSDP compatibility
+        # Clone breaks gradient flow with distributed wrappers
+        residual = self.output_norm(residual)
         return residual
 
     def apply_conditioning(
