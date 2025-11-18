@@ -371,6 +371,11 @@ class CollateFnWithEncoding:
                 if item["cache_path"] is not None:
                     cache_path = item["cache_path"]
                     to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+
+                    # CRITICAL FIX: Ensure parent directory exists (for DDP/ramdisk safety)
+                    # In distributed training, multiple ranks may race to create directories
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
                     tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
                     tmp_path.unlink(missing_ok=True)
                     payload = {
@@ -381,7 +386,15 @@ class CollateFnWithEncoding:
                     buffer = io.BytesIO()
                     torch.save(payload, buffer)
                     tmp_path.write_bytes(buffer.getvalue())
-                    tmp_path.replace(cache_path)
+
+                    # Use atomic replace (works across ranks)
+                    try:
+                        tmp_path.replace(cache_path)
+                    except FileNotFoundError:
+                        # Race condition: another rank created the directory structure
+                        # Retry once after ensuring directory exists
+                        cache_path.parent.mkdir(parents=True, exist_ok=True)
+                        tmp_path.replace(cache_path)
 
             # Apply time stride
             if self.time_stride > 1:
