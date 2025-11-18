@@ -367,14 +367,9 @@ class CollateFnWithEncoding:
                     field_name=self.field_name,
                 )
 
-                # Save to cache
-                if item["cache_path"] is not None:
+                # Save to cache (if not already cached by another rank)
+                if item["cache_path"] is not None and not item["cache_path"].exists():
                     cache_path = item["cache_path"]
-
-                    # Skip if cache file already exists (another rank wrote it)
-                    if cache_path.exists():
-                        continue
-
                     to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
 
                     # CRITICAL FIX: Ensure parent directory exists (for DDP/ramdisk safety)
