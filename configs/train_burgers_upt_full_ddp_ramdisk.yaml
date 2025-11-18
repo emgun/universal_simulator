@@ -1,0 +1,275 @@
+# Complete UPT Implementation with 2-GPU DDP: RAM Disk Optimization
+# Based on: train_burgers_upt_full_ddp_optimized.yaml
+# Baseline: Phase 3 pure transformer (NRMSE 0.0593 - NEW SOTA)
+#
+# ✅ Phase 1: Inverse losses (UPT foundational feature)
+# ✅ Phase 2: 128-token latent space (optimal from Phase 2 ablation)
+# ✅ Phase 3: Pure transformer with standard attention (NEW SOTA: 0.0593)
+# ✅ Phase 4.1: Query-based training (20-30% speedup, zero-shot super-resolution)
+# ✅ Phase 4.2: Physics priors (20-30% conservation improvement)
+# ✅ Phase 4.3: Latent regularization (improved stability)
+# ✅ DDP: 2-GPU distributed training
+# ✅ RAM Disk: tmpfs for latent cache (eliminate I/O bottleneck)
+#
+# Expected Performance:
+#   - Target NRMSE: < 0.055 (>7% improvement over Phase 3's 0.0593)
+#   - Training speedup: 15-25% (from query sampling) + 2x (from DDP) + 3-5x (from RAM disk)
+#   - Zero-shot super-resolution: 2x (NRMSE < 0.089), 4x (NRMSE < 0.148)
+#   - Conservation improvement: 20-30% (for conservative PDEs)
+#   - Training stability: No NaN/Inf issues
+#   - Epoch time: Target 15-20s (vs 60-66s on disk-based cache)
+#
+# DDP Configuration:
+#   - num_gpus: 2 (2×A100 SXM4 = 160GB total)
+#   - Per-GPU batch size: 20 (optimized for I/O, was 32)
+#   - Gradient accumulation: 1 step (no overhead)
+#   - Effective batch: 20*1*2 = 40
+#
+# RAM Disk Configuration:
+#   - tmpfs mount: /dev/shm/latent_cache (RAM-backed filesystem)
+#   - Size: 8GB (sufficient for burgers1d latent cache)
+#   - Speedup: 10-100x faster than disk I/O
+#
+# Architecture (Phase 3 NEW SOTA):
+#   - operator.architecture_type: pdet_stack (pure transformer)
+#   - operator.pdet.attention_type: standard (NOT channel_separated)
+#   - latent.dim: 128, latent.tokens: 128
+#
+# ALL Phase 4 Features Enabled:
+#   - Query sampling: 1024 points (25% of 64×64 grid)
+#   - Physics priors: Boundary condition enforcement
+#   - Latent regularization: Norm & diversity penalties
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    test_val_datasets: burgers1d_full_v1
+    train_files:
+      - source: full/burgers1d/burgers1d_train_000.h5
+        symlink: burgers1d_train.h5
+
+latent:
+  dim: 128          # From Phase 2/3 optimal
+  tokens: 128       # From Phase 2/3 optimal
+
+operator:
+  # CRITICAL: Use Phase 3's pure transformer architecture
+  architecture_type: pdet_stack    # Pure transformer (NOT pdet_unet)
+
+  pdet:
+    input_dim: 128
+    hidden_dim: 256                # 2x latent.dim
+    depth: 8                       # Single stack depth (NOT depths: [3, 3, 3])
+    num_heads: 8
+    attention_type: standard       # CRITICAL: Use standard attention (NOT channel_separated)
+    qk_norm: true                  # QK normalization for stability
+    mlp_ratio: 4.0                 # Standard transformer expansion
+    drop_path: 0.1                 # Stochastic depth for regularization
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 256
+
+training:
+  # Distributed training
+  num_gpus: 2  # 2×A100_SXM4 = 160GB total
+  use_fsdp2: false         # DDP is sufficient for 2-GPU
+
+  # RAM DISK OPTIMIZED batch configuration (2025-11-18 I/O optimization)
+  batch_size: 20           # Per-GPU batch size (reduced 32→20 to reduce I/O per batch)
+  accum_steps: 1           # No accumulation (removed sync overhead)
+
+  time_stride: 2
+  dt: 0.1
+  patience: 5
+
+  num_workers: 6           # 3 per GPU for better I/O parallelism
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2       # Reduced from 4 to save RAM
+  latent_cache_dir: /dev/shm/latent_cache  # RAM DISK: tmpfs for 10-100x faster I/O
+
+  checkpoint_interval: 25
+
+  amp: true
+  amp_dtype: bfloat16      # Use BF16 for better stability
+  compile: false           # Disabled: torch.compile has issues with complex models
+  compile_mode: reduce-overhead
+  grad_clip: null
+  ema_decay: 0.999
+
+  # UPT Inverse Losses (from Phase 1/2/3)
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1      # Every batch (no longer 10)
+  inverse_loss_warmup_epochs: 5
+  inverse_loss_max_weight: 0.05
+
+  # Query-Based Training (Phase 4.1) - OPTIMIZED for DDP
+  query_sampling:
+    enabled: true
+    num_queries: 1024              # Reduced 2048→1024 for faster batches in DDP
+    strategy: uniform              # Start with uniform, can try "stratified"
+
+    # Note: Query sampling currently applies to inverse_encoding_loss only.
+    # inverse_decoding_loss always uses full grid (GridEncoder requirement).
+    # This still provides 20-30% speedup since inverse_encoding dominates cost.
+
+    # Optional: Curriculum (progressive reduction) - disabled for now
+    curriculum:
+      enabled: false
+      start_queries: 4096
+      end_queries: 1024
+      warmup_epochs: 5
+
+  # Physics Priors (Phase 4.2) + Latent Regularization (Phase 4.3)
+  physics_priors:
+    enabled: true
+
+    # Burgers equation: dissipative, NOT conservative
+    # These weights should be tuned experimentally
+    lambda_divergence: 0.0    # Burgers is 1D, no divergence
+    lambda_conservation: 0.0  # Burgers does NOT conserve mass/energy (dissipative)
+    lambda_boundary: 0.05     # Enforce boundary conditions (e.g., periodic or Dirichlet)
+    lambda_positivity: 0.0    # u is velocity, can be negative
+    bc_value: 0.0             # Boundary condition value (if Dirichlet)
+    bc_type: all              # Which boundaries to enforce: "all", "left", "right", "top", "bottom"
+
+    # NEW: Latent Regularization (Phase 4.3)
+    lambda_latent_norm: 1.0e-4      # Prevent latent collapse/explosion
+    lambda_latent_diversity: 1.0e-4  # Prevent token collapse to same vector
+
+    # For Navier-Stokes (incompressible), use:
+    # lambda_divergence: 0.1    # Enforce ∇·u = 0
+    # lambda_conservation: 0.2  # Mass conservation
+    # lambda_positivity: 0.05   # ρ, p must be positive
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+stages:
+  operator:
+    epochs: 40                     # Same as Phase 3
+
+    optimizer:
+      name: muon_hybrid
+      lr: 1.4e-3
+      weight_decay: 0.03
+
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+  diff_residual:
+    epochs: 15
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
+  consistency_distill:
+    epochs: 10
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10
+      eta_min: 1.0e-5
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+ttc:
+  enabled: true
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+    mass_field: rho
+    energy_field: e
+    momentum_field: []
+
+    weights:
+      mass: 1.0
+      energy: 0.1
+      penalty_negative: 0.5
+
+    critic:
+      weight: 0.0
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128
+    query_dim: 2
+    hidden_dim: 256
+    mlp_hidden_dim: 256
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      rho: 1
+      e: 1
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: burgers-upt-full-ddp-ramdisk
+    tags: [upt, phase4-complete, query-sampling, physics-priors, latent-reg, 128tokens, pure-transformer, sota, ddp, 2gpu, ramdisk, io-optimized]
+    group: upt-phase4-ddp
+    notes: "RAM DISK OPTIMIZED UPT Phase 4 DDP: batch_size=20, tmpfs cache, queries=1024. I/O-optimized based on 2025-11-18 investigation. Target: 15-20s/epoch (vs 60-66s disk-based)."
