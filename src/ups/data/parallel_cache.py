@@ -197,13 +197,28 @@ class PreloadedCacheDataset(Dataset):
                 continue
 
             try:
+                # CRITICAL FIX: Force CPU mapping and verify no CUDA contamination
+                # map_location="cpu" forces tensors to CPU during load
                 data = torch.load(cache_path, map_location="cpu")
 
-                # Explicitly ensure CPU and convert to shared memory
-                # CRITICAL: Must call .cpu() first to ensure no CUDA contamination
-                latent = data["latent"].cpu().float()
+                # Double-check: Verify tensor is actually on CPU before share_memory_()
+                # This catches any CUDA tensors that survived map_location
+                latent_raw = data["latent"]
+                if latent_raw.is_cuda:
+                    raise RuntimeError(
+                        f"Cache file {cache_path.name} contains CUDA tensors! "
+                        f"Device: {latent_raw.device}. "
+                        f"Solution: Delete cache and regenerate with --device cpu"
+                    )
+
+                # Now safe to convert and share
+                latent = latent_raw.float().cpu()
+
+                # Final verification before share_memory_()
                 if latent.is_cuda:
-                    raise RuntimeError(f"Latent tensor is still on CUDA after .cpu() call! Device: {latent.device}")
+                    raise RuntimeError(
+                        f"Latent tensor is still on CUDA after .cpu()! Device: {latent.device}"
+                    )
 
                 latent = latent.share_memory_()
 

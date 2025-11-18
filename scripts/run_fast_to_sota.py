@@ -1357,10 +1357,9 @@ def main() -> None:
 
         time.sleep(1)
 
-        # Force exit to ensure shell script continues
-        import sys
-
-        os._exit(0)  # Nuclear option - terminates immediately
+        # Fixed: Allow exceptions to propagate instead of silent exit
+        # Previously used os._exit(0) which masked all errors
+        # Now using normal exit to enable proper error reporting
 
 
 if __name__ == "__main__":
