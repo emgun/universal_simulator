@@ -183,8 +183,8 @@ class PreloadedCacheDataset(Dataset):
         self.time_stride = max(1, int(time_stride))
         self.rollout_horizon = max(1, int(rollout_horizon))
         
-        # Preload all cache files into RAM
-        print(f"📦 Preloading {num_samples} cache files into RAM...")
+        # Preload all cache files into SHARED RAM (allows multi-process data loading)
+        print(f"📦 Preloading {num_samples} cache files into shared RAM...")
         self.cache: dict[int, dict[str, Any]] = {}
         loaded = 0
         for idx in range(num_samples):
@@ -192,22 +192,31 @@ class PreloadedCacheDataset(Dataset):
             if cache_path.exists():
                 try:
                     data = torch.load(cache_path, map_location="cpu")
+                    # Move tensors to shared memory so DataLoader workers can access them
+                    latent = data["latent"].float().share_memory_()
+                    params = data.get("params")
+                    if params is not None and isinstance(params, torch.Tensor):
+                        params = params.share_memory_()
+                    bc = data.get("bc")
+                    if bc is not None and isinstance(bc, torch.Tensor):
+                        bc = bc.share_memory_()
+
                     self.cache[idx] = {
-                        "latent": data["latent"].float(),
-                        "params": data.get("params"),
-                        "bc": data.get("bc"),
+                        "latent": latent,
+                        "params": params,
+                        "bc": bc,
                     }
                     loaded += 1
                 except (RuntimeError, EOFError):
                     cache_path.unlink(missing_ok=True)
-        
+
         if loaded != num_samples:
             raise ValueError(
                 f"Cache incomplete: {loaded}/{num_samples} files loaded. "
                 f"Run precompute_latent_cache.py first."
             )
-        
-        print(f"✅ Preloaded {loaded} samples into RAM")
+
+        print(f"✅ Preloaded {loaded} samples into shared RAM (multi-process safe)")
     
     def __len__(self) -> int:
         return len(self.cache)
