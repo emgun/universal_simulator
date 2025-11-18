@@ -1,0 +1,255 @@
+# 2-Task UPT DDP: Advection1D + Darcy2D with Distributed Training
+# Based on: train_burgers_upt_full_ddp.yaml (SUCCESSFUL DDP config)
+# Purpose: Validate multi-task DDP training with proven architecture
+#
+# Key Differences from Burgers Single-Task:
+#   - Tasks: [advection1d, darcy2d] (multi-task)
+#   - Model capacity: hidden_dim 256→384 (3x latent.dim for 2 tasks)
+#   - Depth: 8→12 (more capacity for multi-task learning)
+#   - Physics priors: Adapted for conservative PDEs
+#   - Task sampling: balanced (equal samples per task per epoch)
+#
+# ✅ Proven DDP Configuration (from burgers success):
+#   - num_gpus: 2 (2×A100 SXM4 = 160GB total)
+#   - num_workers: 6 (3 per GPU)
+#   - compile: true, compile_mode: default
+#   - Cache: enabled (data/latent_cache)
+#   - All DDP fixes applied (barriers, initialization order, etc.)
+#
+# Expected Performance:
+#   - Training: 40 epochs operator-only
+#   - Speedup: ~2x from DDP (vs single-GPU)
+#   - GPU utilization: >90% on both ranks
+#   - No SIGSEGV/SIGBUS crashes
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: [advection1d, darcy2d]  # Multi-task
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+  # Task sampling strategy (multi-task specific)
+  task_sampling:
+    strategy: balanced  # Equal samples per task per epoch
+
+latent:
+  dim: 128          # Same as burgers (proven optimal)
+  tokens: 128       # Same as burgers
+
+operator:
+  # CRITICAL: Use proven pure transformer architecture
+  architecture_type: pdet_stack    # Pure transformer (NOT pdet_unet)
+
+  pdet:
+    input_dim: 128
+    hidden_dim: 384                # 3x latent.dim (vs 2x for single-task, more capacity for 2 tasks)
+    depth: 12                      # Increased from 8 (more capacity for multi-task learning)
+    num_heads: 8
+    attention_type: standard       # CRITICAL: Use standard attention (NOT channel_separated)
+    qk_norm: true                  # QK normalization for stability
+    mlp_ratio: 4.0                 # Standard transformer expansion
+    drop_path: 0.1                 # Stochastic depth for regularization
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 128
+  hidden_dim: 384   # Match operator
+
+training:
+  # Distributed training (PROVEN CONFIG from burgers)
+  num_gpus: 2  # 2×A100_SXM4 = 160GB total
+  use_fsdp2: false         # DDP is sufficient for 2-GPU
+
+  # DDP-optimized batch configuration
+  batch_size: 10           # Per-GPU batch size (same as burgers)
+  accum_steps: 2           # Gradient accumulation (effective batch = 10*2*2 = 40)
+
+  time_stride: 2
+  dt: 0.1
+  patience: 5
+
+  # CRITICAL: Same data loading config as successful burgers run
+  num_workers: 6           # 3 per GPU for better I/O parallelism
+  use_parallel_encoding: true
+  pin_memory: true
+  prefetch_factor: 2       # Reduced from 4 to save RAM
+  latent_cache_dir: data/latent_cache
+
+  checkpoint_interval: 25
+
+  # CRITICAL: Proven DDP-compatible settings
+  amp: true
+  amp_dtype: bfloat16      # Use BF16 for better stability
+  compile: true            # WORKS with DDP after fixes
+  compile_mode: default    # Using 'default' mode - avoids aggressive CUDA graphs that conflict with DDP
+  grad_clip: null
+  ema_decay: 0.999
+
+  # UPT Inverse Losses
+  lambda_inv_enc: 0.01
+  lambda_inv_dec: 0.01
+  use_inverse_losses: true
+  inverse_loss_frequency: 1      # Every batch
+  inverse_loss_warmup_epochs: 5
+  inverse_loss_max_weight: 0.05
+
+  # Query-Based Training (Phase 4.1)
+  query_sampling:
+    enabled: true
+    num_queries: 2048              # Sample 2k points per batch (vs. 4096 dense for 64×64 grid)
+    strategy: uniform
+
+    curriculum:
+      enabled: false
+      start_queries: 4096
+      end_queries: 1024
+      warmup_epochs: 5
+
+  # Physics Priors (Phase 4.2) + Latent Regularization (Phase 4.3)
+  physics_priors:
+    enabled: true
+
+    # Advection & Darcy: Both CONSERVATIVE PDEs (conserve mass/quantity)
+    # Unlike Burgers which is dissipative
+    lambda_divergence: 0.0         # 1D advection has no divergence; 2D Darcy is pressure (not velocity field)
+    lambda_conservation: 0.05      # Enable mass/quantity conservation (vs 0.0 for burgers)
+    lambda_boundary: 0.05          # Enforce boundary conditions
+    lambda_positivity: 0.0         # u and p can be negative
+    bc_value: 0.0                  # Boundary condition value (if Dirichlet)
+    bc_type: all                   # Which boundaries to enforce
+
+    # Latent Regularization (Phase 4.3)
+    lambda_latent_norm: 1.0e-4      # Prevent latent collapse/explosion
+    lambda_latent_diversity: 1.0e-4  # Prevent token collapse to same vector
+
+  lambda_spectral: 0.05
+  lambda_relative: 0.0
+
+  # Per-task metric logging (multi-task specific)
+  log_per_task_metrics: true
+
+stages:
+  operator:
+    epochs: 40                     # Full training
+
+    optimizer:
+      name: muon_hybrid
+      lr: 1.4e-3
+      weight_decay: 0.03
+
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+  diff_residual:
+    epochs: 0                      # Disabled for now (focus on operator validation)
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
+  consistency_distill:
+    epochs: 0                      # Disabled for now
+    patience: 5
+
+    optimizer:
+      name: muon_hybrid
+      lr: 3.0e-4
+      weight_decay: 0.01
+      muon_momentum: 0.95
+      muon_ns_steps: 5
+      muon_backend: auto
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 10
+      eta_min: 1.0e-5
+
+checkpoint:
+  dir: checkpoints
+
+evaluation:
+  enabled: true
+  split: test
+
+# Test-Time Conditioning (TTC) - Adapted for PDEBench tasks
+ttc:
+  enabled: true
+  debug: true
+  steps: 1
+  candidates: 6
+  beam_width: 2
+  horizon: 2
+  residual_threshold: 0.35
+  gamma: 1.0
+  max_evaluations: 100
+
+  sampler:
+    tau_range: [0.2, 0.8]
+    noise_std: 0.01
+    noise_schedule: [0.02, 0.01]
+
+  reward:
+    analytical_weight: 1.0
+    grid: [64, 64]
+
+    # PDEBench field names (task-specific)
+    # Advection1D: 'u' field (velocity/quantity)
+    # Darcy2D: 'p' field (pressure)
+    mass_field: "u"        # Use 'u' field for mass/quantity conservation
+    energy_field: null     # Not applicable (conservative PDEs don't have energy concept like Burgers)
+    momentum_field: []
+
+    weights:
+      mass: 1.0                     # PRIMARY: Mass/quantity conservation
+      energy: 0.0                   # Not applicable (vs Burgers which uses 0.1)
+      penalty_negative: 0.0         # Allow negative values (vs Burgers which uses 0.5)
+
+    critic:
+      weight: 0.0         # Use analytical rewards only
+      hidden_dim: 256
+      dropout: 0.1
+
+  decoder:
+    latent_dim: 128       # Match training latent dim
+    query_dim: 2          # 2D max (advection is 1D, darcy is 2D)
+    hidden_dim: 384       # Match operator.pdet.hidden_dim (required by validation)
+    mlp_hidden_dim: 384   # 3× latent_dim
+    num_layers: 3
+    num_heads: 4
+    frequencies: [1.0, 2.0, 4.0, 8.0]
+    output_channels:
+      u: 1                # Generic field name for PDEBench single-channel tasks
+
+logging:
+  wandb:
+    enabled: true
+    project: universal-simulator
+    entity: emgun-morpheus-space
+    run_name: 2task-advection-darcy-ddp
+    tags: [distributed, ddp, 2gpu, pdebench, multi-task, advection1d, darcy2d, upt, 128tokens, pure-transformer, torch-compile]
+    group: multi-task-ddp
+    notes: "2-task DDP training (advection1d + darcy2d) using proven burgers DDP config. All DDP fixes applied: compile_mode=default, num_workers=6, proper initialization order. Expected: 40 epochs, >90% GPU util, 2x speedup vs single-GPU."
