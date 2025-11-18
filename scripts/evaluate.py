@@ -164,6 +164,7 @@ def make_operator(cfg: Dict[str, Any]) -> LatentOperator:
     config = LatentOperatorConfig(
         latent_dim=dim,
         pdet=pdet_config,
+        architecture_type=architecture_type,  # FIX: Pass architecture_type
         time_embed_dim=dim,
     )
     return LatentOperator(config)
