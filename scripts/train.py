@@ -732,7 +732,12 @@ def setup_fsdp2(model: nn.Module, cfg: dict, local_rank: int) -> nn.Module:
     cpu_offload = CPUOffload(offload_params=False)
 
     # Auto-wrap policy: wrap layers with >100M parameters
-    auto_wrap_policy = size_based_auto_wrap_policy(min_num_params=100_000_000)
+    # Use functools.partial to create the policy correctly for PyTorch 2.x
+    from functools import partial
+    auto_wrap_policy = partial(
+        size_based_auto_wrap_policy,
+        min_num_params=100_000_000
+    )
 
     print(f"[FSDP2] Wrapping model with FSDP2, strategy={strategy}, mixed_precision={amp_dtype_str if amp_enabled else 'disabled'}")
 
