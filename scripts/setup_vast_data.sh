@@ -55,37 +55,45 @@ export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 # Create data directory
 mkdir -p "$ROOT_DIR"
 
-# Download train splits (val/test will come from WandB artifacts)
-echo "Downloading training data files..."
+# Download all splits (train, val, test)
+echo "Downloading data files (train/val/test)..."
 for task in $TASKS; do
-  target_file="$ROOT_DIR/${task}_train.h5"
+  echo "📦 Task: $task"
 
-  if [ -f "$target_file" ]; then
-    echo "  ✓ $task (already exists, skipping)"
-    continue
-  fi
+  # Download all three splits
+  for split in train val test; do
+    target_file="$ROOT_DIR/${task}_${split}.h5"
 
-  echo "  → Downloading $task..."
+    if [ -f "$target_file" ]; then
+      echo "  ✓ $split (already exists, skipping)"
+      continue
+    fi
 
-  # Try different B2 path patterns (files have inconsistent naming)
-  # Pattern 1: full/$task/${task}_train.h5
-  # Pattern 2: full/$task/${task}_train_000.h5
-  downloaded=false
+    echo "  → Downloading $split..."
 
-  for pattern in "${task}_train.h5" "${task}_train_000.h5"; do
-    if rclone copyto "B2TRAIN:PDEbench/full/$task/$pattern" "$target_file" --progress --retries 3 2>/dev/null; then
-      if [ -f "$target_file" ]; then
-        echo "  ✓ $task ($(du -h "$target_file" | cut -f1))"
-        downloaded=true
-        break
-      fi
+    # Try different B2 path patterns
+    # Pattern 1: full/$task/${task}_$split.h5
+    # Pattern 2: full/$task/${task}_$split_000.h5
+    # Pattern 3: pdebench/${task}_full_v1/${task}_$split.h5
+    downloaded=false
+
+    for base_path in "full/$task" "pdebench/${task}_full_v1"; do
+      for pattern in "${task}_${split}.h5" "${task}_${split}_000.h5"; do
+        if rclone copyto "B2TRAIN:PDEbench/${base_path}/${pattern}" "$target_file" --progress --retries 3 2>/dev/null; then
+          if [ -f "$target_file" ]; then
+            echo "  ✓ $split ($(du -h "$target_file" | cut -f1))"
+            downloaded=true
+            break 2
+          fi
+        fi
+      done
+    done
+
+    if ! $downloaded; then
+      echo "  ⚠️  $split (file not found in B2, skipping)"
+      # Don't exit - test/val might not exist for all tasks
     fi
   done
-
-  if ! $downloaded; then
-    echo "  ✗ $task (file not found in B2, tried multiple patterns)"
-    exit 1
-  fi
 done
 
 echo ""
