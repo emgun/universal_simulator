@@ -94,7 +94,7 @@ training:
 
   amp: true
   amp_dtype: bfloat16      # Use BF16 for better stability
-  compile: false           # Disabled: torch.compile has issues with complex models
+  compile: true            # Re-enabled: Testing with DDP after removing .clone() workarounds
   compile_mode: reduce-overhead
   grad_clip: null
   ema_decay: 0.999
