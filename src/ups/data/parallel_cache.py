@@ -370,31 +370,41 @@ class CollateFnWithEncoding:
                 # Save to cache
                 if item["cache_path"] is not None:
                     cache_path = item["cache_path"]
+
+                    # Skip if cache file already exists (another rank wrote it)
+                    if cache_path.exists():
+                        continue
+
                     to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
 
                     # CRITICAL FIX: Ensure parent directory exists (for DDP/ramdisk safety)
                     # In distributed training, multiple ranks may race to create directories
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-                    tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
-                    tmp_path.unlink(missing_ok=True)
+                    # Use unique tmp file per process to avoid conflicts
+                    import os
+                    pid = os.getpid()
+                    tmp_path = cache_path.with_suffix(f".tmp.{pid}")
+
                     payload = {
                         "latent": to_store.cpu(),
                         "params": params_cpu,
                         "bc": bc_cpu,
                     }
-                    buffer = io.BytesIO()
-                    torch.save(payload, buffer)
-                    tmp_path.write_bytes(buffer.getvalue())
 
-                    # Use atomic replace (works across ranks)
                     try:
+                        buffer = io.BytesIO()
+                        torch.save(payload, buffer)
+                        tmp_path.write_bytes(buffer.getvalue())
+
+                        # Atomic replace - safe across processes
                         tmp_path.replace(cache_path)
-                    except FileNotFoundError:
-                        # Race condition: another rank created the directory structure
-                        # Retry once after ensuring directory exists
-                        cache_path.parent.mkdir(parents=True, exist_ok=True)
-                        tmp_path.replace(cache_path)
+                    except Exception as e:
+                        # Clean up tmp file on any error
+                        tmp_path.unlink(missing_ok=True)
+                        # If another rank already wrote it, that's fine
+                        if not cache_path.exists():
+                            raise
 
             # Apply time stride
             if self.time_stride > 1:
