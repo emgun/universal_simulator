@@ -73,7 +73,7 @@ training:
   patience: 3
 
   # Multi-task training (parallel encoding not supported for multi-task)
-  num_workers: 6           # PHASE 4: 6 workers (3 per GPU, was 8) for better I/O parallelism
+  num_workers: 0           # CRITICAL: Set to 0 for DDP to avoid /dev/shm exhaustion with PreloadedCacheDataset
   use_parallel_encoding: true   # Enable parallel encoding for faster throughput
   pin_memory: true
   prefetch_factor: 2       # PHASE 4: REDUCE 4 → 2 (diminishing returns, saves RAM)
