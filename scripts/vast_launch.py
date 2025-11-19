@@ -674,6 +674,183 @@ sleep 10
         os.unlink(script_path)
 
 
+def cmd_eval(args: argparse.Namespace) -> None:
+    """Resume evaluation on existing instance (downloads checkpoints)."""
+    # Get SSH connection details for the instance
+    import json
+    import tempfile
+
+    result = subprocess.run(
+        ["vastai", "show", "instance", str(args.instance_id), "--raw"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"❌ Failed to get instance info for {args.instance_id}")
+        sys.exit(1)
+
+    instance_info = json.loads(result.stdout)
+    ssh_host = instance_info.get("ssh_host")
+    ssh_port = instance_info.get("ssh_port")
+
+    if not ssh_host or not ssh_port:
+        print(f"❌ Could not get SSH details for instance {args.instance_id}")
+        sys.exit(1)
+
+    print(f"✓ Found instance {args.instance_id} at {ssh_host}:{ssh_port}")
+
+    # Generate eval script
+    branch = args.branch if args.branch else git_current_branch()
+    workdir = args.workdir
+    config_path = args.config
+
+    # Convert to relative path for remote
+    train_cfg_path = Path(config_path)
+    if train_cfg_path.is_absolute():
+        try:
+            train_cfg_path = train_cfg_path.relative_to(REPO_ROOT)
+        except ValueError:
+            train_cfg_path = Path(config_path)
+    config_for_script = train_cfg_path.as_posix()
+
+    # Define repo URL (should be passed or defaulted)
+    repo_url = getattr(args, 'repo_url', None) or git_remote_url()
+
+    # Load WandB env vars to inject into script
+    env_exports = ""
+    env_file = REPO_ROOT / ".env"
+    env_vars = {}
+    if env_file.exists():
+        try:
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    env_vars[key.strip()] = value.strip().strip('"').strip("'")
+        except Exception:
+            pass
+            
+    for key in ["WANDB_API_KEY", "WANDB_ENTITY", "WANDB_PROJECT"]:
+        val = env_vars.get(key) or os.environ.get(key)
+        if val:
+            env_exports += f"export {key}='{val}'\n"
+
+    script = f"""#!/bin/bash
+set -euo pipefail
+
+{env_exports}
+
+mkdir -p {workdir}
+cd {workdir}
+
+# Clone if not exists
+if [ ! -d universal_simulator ]; then
+  echo "Cloning repository from {repo_url}..."
+  git clone {repo_url} universal_simulator
+fi
+
+cd universal_simulator
+
+# Pull latest code
+git fetch origin
+git checkout {branch}
+git pull origin {branch}
+
+# Activate venv if it exists
+if [ -f /venv/main/bin/activate ]; then
+  source /venv/main/bin/activate
+fi
+
+# Ensure dependencies are up to date
+pip install -e .[dev] --quiet
+
+export WANDB_MODE=online
+
+echo "=== Preparing for evaluation (Run: {args.resume_from_wandb}) ==="
+
+# 1. Download checkpoints
+echo "📥 Downloading checkpoints..."
+python -c "
+from pathlib import Path
+from ups.utils.checkpoint_manager import CheckpointManager
+
+manager = CheckpointManager(checkpoint_dir=Path('checkpoints'))
+downloaded = manager.download_checkpoints_from_run(
+    run_id='{args.resume_from_wandb}',
+    checkpoint_files=None,
+    force=False
+)
+print(f'✓ Downloaded {{len(downloaded)}} checkpoint files')
+"
+
+# 2. Run evaluation pipeline (skipping training)
+echo "🚀 Launching evaluation pipeline..."
+PYTHONPATH=src python scripts/run_fast_to_sota.py \\
+  --train-config {config_for_script} \\
+  --train-stage {args.stage} \\
+  --skip-training \\
+  --skip-dry-run \\
+  --force-full-eval \\
+  --wandb-sync \\
+  --wandb-project "${{WANDB_PROJECT:-universal-simulator}}" \\
+  --wandb-entity "${{WANDB_ENTITY:-}}" \\
+  --train-extra-arg="--resume-from-wandb={args.resume_from_wandb}" \\
+  --train-extra-arg="--resume-mode=allow" || echo "⚠️  Evaluation pipeline exited with code $?"
+
+echo "✓ Evaluation complete"
+"""
+
+    if args.auto_shutdown:
+        script += """
+# Auto-stop instance after completion
+pip install -q vastai 2>&1 || true
+sleep 10
+[ -n "${CONTAINER_ID:-}" ] && vastai stop instance $CONTAINER_ID || true
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
+        f.write(script)
+        script_path = f.name
+
+    try:
+        # Upload script to instance
+        print(f"📤 Uploading eval script to instance...")
+        scp_cmd = [
+            "scp",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-P",
+            str(ssh_port),
+            script_path,
+            f"root@{ssh_host}:/tmp/run_eval.sh",
+        ]
+        run(scp_cmd)
+
+        # Execute script on instance
+        print(f"🚀 Starting evaluation on instance {args.instance_id}...")
+        ssh_cmd = [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-p",
+            str(ssh_port),
+            f"root@{ssh_host}",
+            "chmod +x /tmp/run_eval.sh && nohup /tmp/run_eval.sh > /tmp/run_eval.log 2>&1 &",
+        ]
+        run(ssh_cmd)
+
+        print(f"\n✅ Evaluation started on instance {args.instance_id}")
+        print(f"   WandB run: {args.resume_from_wandb}")
+        print(f"   Config: {config_path}")
+        print(f"\nMonitor with:")
+        print(f"   vastai logs {args.instance_id}")
+        print(f"   ssh -p {ssh_port} root@{ssh_host} 'tail -f /tmp/run_eval.log'")
+
+    finally:
+        # Clean up temp file
+        os.unlink(script_path)
+
+
 def cmd_preprocess(args: argparse.Namespace) -> None:
     """Launch remote preprocessing job for PDEBench datasets."""
     branch = args.branch if args.branch else git_current_branch()
@@ -878,6 +1055,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--auto-shutdown", action="store_true", help="Auto-shutdown after completion"
     )
     p_resume.set_defaults(func=cmd_resume)
+
+    # eval command
+    p_eval = sub.add_parser(
+        "eval", help="Resume evaluation on existing instance (downloads checkpoints)"
+    )
+    p_eval.add_argument("--instance-id", required=True, type=int, help="VastAI instance ID")
+    p_eval.add_argument(
+        "--config", required=True, help="Training config (e.g., configs/train_burgers_32dim.yaml)"
+    )
+    p_eval.add_argument(
+        "--resume-from-wandb",
+        required=True,
+        help="WandB run ID to download checkpoints from",
+    )
+    p_eval.add_argument(
+        "--stage",
+        default="all",
+        choices=["all", "operator", "diffusion", "distill"],
+        help="Training stage (default: all)",
+    )
+    p_eval.add_argument(
+        "--branch", default=None, help="Git branch (default: auto-detect from current branch)"
+    )
+    p_eval.add_argument("--workdir", default="/workspace", help="Remote working directory")
+    p_eval.add_argument(
+        "--auto-shutdown", action="store_true", help="Auto-shutdown after completion"
+    )
+    p_eval.set_defaults(func=cmd_eval)
 
     # preprocess command
     p_preprocess = sub.add_parser("preprocess", help="Launch remote preprocessing job for PDEBench")

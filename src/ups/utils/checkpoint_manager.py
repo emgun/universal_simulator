@@ -130,7 +130,7 @@ class CheckpointManager:
         have stage_status.json (e.g., crashed runs or runs before tracking was added).
         """
         import json
-        from datetime import UTC, datetime
+        from datetime import datetime, timezone
 
         # Map checkpoint files to stages
         stage_map = {
@@ -153,7 +153,7 @@ class CheckpointManager:
                 completed_stages[stage] = {
                     "status": "completed",
                     "checkpoint": checkpoint_files[0],  # Use first expected checkpoint
-                    "completed_at": datetime.now(UTC).isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
                 }
             else:
                 completed_stages[stage] = {"status": "not_started"}
@@ -161,7 +161,7 @@ class CheckpointManager:
         # Create stage_status.json
         stage_status = {
             "schema_version": 1,
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "stages": completed_stages,
         }
 
