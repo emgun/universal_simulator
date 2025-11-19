@@ -145,14 +145,29 @@ def prepare_conditioning(
 
 
 def collate_conditions(conditions: Iterable[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
+    cond_list = list(conditions)
+    if not cond_list:
+        return {}
+
     keys = set()
-    for cond in conditions:
+    for cond in cond_list:
         keys.update(cond.keys())
+
     collated: dict[str, torch.Tensor] = {}
     for key in keys:
-        tensors = [cond[key] for cond in conditions if key in cond]
-        if not tensors:
+        # Find first occurrence to determine shape/device/dtype
+        first = next((c[key] for c in cond_list if key in c), None)
+        if first is None:
             continue
+
+        tensors = []
+        for cond in cond_list:
+            if key in cond:
+                tensors.append(cond[key])
+            else:
+                # Pad with zeros matching the first tensor's properties
+                tensors.append(torch.zeros_like(first))
+
         collated[key] = torch.cat(tensors, dim=0)
     return collated
 
