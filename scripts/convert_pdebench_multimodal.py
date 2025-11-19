@@ -52,15 +52,15 @@ DEFAULT_TASKS: Dict[str, TaskConfig] = {
     },
     "advection1d": {
         "kind": "grid",
-        "pattern": "1D/Advection/Train/*.hdf5",  # PDEBench uses capital 'Train' and .hdf5
+        "pattern": "1D/Advection/Train/*.hdf5",  # All data in Train/
     },
     "navier_stokes2d": {
         "kind": "grid",
-        "pattern": "2D/NavierStokes/Train/*.hdf5",  # PDEBench uses capital 'Train' and .hdf5
+        "pattern": "2D/NavierStokes/Train/*.hdf5",  # All data in Train/
     },
     "darcy2d": {
         "kind": "grid",
-        "pattern": "2D/DarcyFlow/*.hdf5",  # No subdirectory, .hdf5 extension
+        "pattern": "2D/DarcyFlow/*.hdf5",  # All data in root
     },
     "darcy2d_mesh": {
         "kind": "mesh",
@@ -77,13 +77,34 @@ def _glob(root: Path, pattern: str) -> List[Path]:
     return sorted(root.glob(pattern))
 
 
-def _select_inputs(root: Path, pattern: str, limit: Optional[int]) -> List[Path]:
+def _select_inputs(root: Path, pattern: str, limit: Optional[int], strict: bool = True) -> List[Path]:
     files = _glob(root, pattern)
+    if not files and strict:
+        raise FileNotFoundError(f"No input files matched '{pattern}' under {root}")
     if limit is not None:
         files = files[:limit]
-    if not files:
-        raise FileNotFoundError(f"No input files matched '{pattern}' under {root}")
     return files
+
+
+def _resolve_files(root: Path, pattern: str, split: str, limit: Optional[int]) -> List[Path]:
+    """Find files for a split, handling case-sensitivity (Train vs train)."""
+    # Try exact match first
+    try:
+        return _select_inputs(root, pattern.format(split=split), limit)
+    except FileNotFoundError:
+        pass
+
+    # Try Capitalized match
+    try:
+        return _select_inputs(root, pattern.format(split=split.capitalize()), limit)
+    except FileNotFoundError:
+        pass
+        
+    # If we are looking for validation/test and found nothing, it might be 
+    # that the pattern doesn't support splits (e.g. hardcoded 'Train').
+    # We return empty list to let the caller decide if this is an error or 
+    # a signal to use synthetic splitting.
+    return []
 
 
 def _convert_grid_task(
@@ -97,7 +118,64 @@ def _convert_grid_task(
     sample_size: Optional[int],
     chunk_size: Optional[int],
 ) -> Path:
-    files = _select_inputs(root, pattern.format(split=split), limit)
+    # 1. Find files for the requested split
+    files = _resolve_files(root, pattern, split, limit=None) # Don't limit yet, we need full list for splitting
+    
+    # 2. Find files for the 'train' split (reference)
+    train_files = _resolve_files(root, pattern, "train", limit=None)
+    
+    if not train_files:
+         # If we can't even find train files, something is wrong with the pattern or root
+         raise FileNotFoundError(f"No training files found for task '{task}' with pattern '{pattern}' at {root}")
+
+    # 3. Detect if we need synthetic splitting
+    # If the requested files are identical to train files (and we aren't asking for train),
+    # OR if we found no files for the requested split but we have train files (implied fallback),
+    # then we slice the train_files.
+    use_synthetic_split = (split != "train") and (
+        not files or files == train_files
+    )
+    
+    if use_synthetic_split:
+        # Deterministic split: 80% Train, 10% Val, 10% Test
+        # We sort to ensure determinism across runs
+        all_files = sorted(train_files)
+        n_files = len(all_files)
+        
+        if split == "val":
+            start = int(n_files * 0.8)
+            end = int(n_files * 0.9)
+            files = all_files[start:end]
+        elif split == "test":
+            start = int(n_files * 0.9)
+            end = n_files
+            files = all_files[start:end]
+        else:
+            # Should not happen given the condition, but safe fallback
+            files = []
+            
+        print(f"  ℹ️  Synthetic split for '{task} {split}': using files {start} to {end} (of {n_files})")
+        
+    elif split == "train" and (files == train_files):
+         # We are processing train, and it matches the train set (obviously).
+         # But if we are in a synthetic split scenario (implied by the patterns being hardcoded),
+         # we should ONLY take the first 80%.
+         # How do we know? We check if "val" would return the same files.
+         val_files = _resolve_files(root, pattern, "val", limit=None)
+         if not val_files or val_files == train_files:
+             # Synthetic split applies to train too!
+             n_files = len(train_files)
+             end = int(n_files * 0.8)
+             files = train_files[:end]
+             print(f"  ℹ️  Synthetic split for '{task} {split}': using files 0 to {end} (of {n_files})")
+
+    if not files:
+        raise FileNotFoundError(f"No files found for split '{split}' (and synthetic fallback failed)")
+
+    # Apply limit after splitting
+    if limit is not None:
+        files = files[:limit]
+
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{task}_{split}.h5"
     convert_files(

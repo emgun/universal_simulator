@@ -138,13 +138,17 @@ for task in $TASKS; do
 
     echo "→ Converting $task to UPS format..."
 
-    PYTHONPATH=src python scripts/convert_pdebench_multimodal.py $task \
-      --root /workspace/data/pdebench_raw \
-      --out data/pdebench \
-      --limit 100 \
-      --samples 1000 || echo "⚠️  Conversion failed for $task (continuing)"
+    # Convert all splits
+    for split in train val test; do
+      PYTHONPATH=src python scripts/convert_pdebench_multimodal.py $task \
+        --root /workspace/data/pdebench_raw \
+        --out data/pdebench \
+        --split $split \
+        --limit 100 \
+        --samples 1000 || echo "⚠️  Conversion failed for $task ($split) - possibly missing in raw data (continuing)"
+    done
 
-    # Verify output files exist
+    # Verify output files exist (check train mainly)
     if [ -f "data/pdebench/${task}_train.h5" ]; then
       echo "  ✓ ${task}_train.h5 created"
     else
