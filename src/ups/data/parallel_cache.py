@@ -220,15 +220,25 @@ class PreloadedCacheDataset(Dataset):
                         f"Latent tensor is still on CUDA after .cpu()! Device: {latent.device}"
                     )
 
-                latent = latent.share_memory_()
+                # CRITICAL FIX: Skip share_memory_() for DDP to avoid /dev/shm exhaustion
+                # When DDP is active, each rank loads its own shard - no need for shared memory
+                import torch.distributed as dist
+                use_shared_memory = not (dist.is_available() and dist.is_initialized())
+
+                if use_shared_memory:
+                    latent = latent.share_memory_()
 
                 params = data.get("params")
                 if params is not None and isinstance(params, torch.Tensor):
-                    params = params.cpu().share_memory_()
+                    params = params.cpu()
+                    if use_shared_memory:
+                        params = params.share_memory_()
 
                 bc = data.get("bc")
                 if bc is not None and isinstance(bc, torch.Tensor):
-                    bc = bc.cpu().share_memory_()
+                    bc = bc.cpu()
+                    if use_shared_memory:
+                        bc = bc.share_memory_()
 
                 self.cache[idx] = {
                     "latent": latent,
