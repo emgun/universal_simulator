@@ -197,48 +197,15 @@ class PreloadedCacheDataset(Dataset):
                 continue
 
             try:
-                # CRITICAL FIX: Force CPU mapping and verify no CUDA contamination
-                # map_location="cpu" forces tensors to CPU during load
-                data = torch.load(cache_path, map_location="cpu")
+                # OPTIMIZATION: Use mmap=True to share memory across processes via OS Page Cache
+                # This avoids loading the data into heap RAM and duplicating it across ranks.
+                data = torch.load(cache_path, map_location="cpu", mmap=True)
 
-                # Double-check: Verify tensor is actually on CPU before share_memory_()
-                # This catches any CUDA tensors that survived map_location
-                latent_raw = data["latent"]
-                if latent_raw.is_cuda:
-                    raise RuntimeError(
-                        f"Cache file {cache_path.name} contains CUDA tensors! "
-                        f"Device: {latent_raw.device}. "
-                        f"Solution: Delete cache and regenerate with --device cpu"
-                    )
-
-                # Now safe to convert and share
-                latent = latent_raw.float().cpu()
-
-                # Final verification before share_memory_()
-                if latent.is_cuda:
-                    raise RuntimeError(
-                        f"Latent tensor is still on CUDA after .cpu()! Device: {latent.device}"
-                    )
-
-                # CRITICAL FIX: Skip share_memory_() for DDP to avoid /dev/shm exhaustion
-                # When DDP is active, each rank loads its own shard - no need for shared memory
-                import torch.distributed as dist
-                use_shared_memory = not (dist.is_available() and dist.is_initialized())
-
-                if use_shared_memory:
-                    latent = latent.share_memory_()
-
+                # Keep data in original dtype (likely float16) to save 2x RAM
+                # We will cast to float32 on-the-fly in __getitem__
+                latent = data["latent"]
                 params = data.get("params")
-                if params is not None and isinstance(params, torch.Tensor):
-                    params = params.cpu()
-                    if use_shared_memory:
-                        params = params.share_memory_()
-
                 bc = data.get("bc")
-                if bc is not None and isinstance(bc, torch.Tensor):
-                    bc = bc.cpu()
-                    if use_shared_memory:
-                        bc = bc.share_memory_()
 
                 self.cache[idx] = {
                     "latent": latent,
@@ -289,9 +256,16 @@ class PreloadedCacheDataset(Dataset):
             raise IndexError(f"Sample {idx} not in preloaded cache")
         
         data = self.cache[idx]
-        latent_seq = data["latent"]
+        # Cast to float32 on-the-fly (cheap for single batch)
+        latent_seq = data["latent"].float()
+        
         params_cpu = data["params"]
+        if isinstance(params_cpu, torch.Tensor):
+            params_cpu = params_cpu.float()
+            
         bc_cpu = data["bc"]
+        if isinstance(bc_cpu, torch.Tensor):
+            bc_cpu = bc_cpu.float()
         
         # Apply time stride
         if self.time_stride > 1:

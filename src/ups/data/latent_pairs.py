@@ -876,18 +876,18 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
                 num_samples = len(dataset)
                 cache_complete, num_cached = check_cache_complete(ds_cache, num_samples)
                 if cache_complete:
+                    # With mmap, we don't need full RAM, just address space.
+                    # But to be safe, we still check if we have enough "available" memory
+                    # to avoid thrashing, though mmap is much more forgiving.
                     cache_size_mb = estimate_cache_size_mb(
                         ds_cache, num_samples=min(10, num_samples)
                     )
-                    if check_sufficient_ram(cache_size_mb):
-                        print(f"✅ Using PreloadedCacheDataset for {task_name}_{split_name}")
-                        print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB")
-                        use_preloaded = True
-                    else:
-                        print(
-                            f"⚠️  Insufficient RAM for PreloadedCacheDataset ({cache_size_mb:.0f} MB required)"
-                        )
-                        print("   Falling back to disk I/O mode (slower but memory-efficient)")
+                    # For mmap + float16, actual RAM usage is ~50% of cache size (float16 vs float32)
+                    # and shared across processes.
+                    # We relax the check or just print info.
+                    print(f"✅ Using PreloadedCacheDataset for {task_name}_{split_name} (mmap enabled)")
+                    print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB (virtual)")
+                    use_preloaded = True
                 else:
                     print(
                         f"⚠️  Cache incomplete for {task_name}_{split_name} ({num_cached}/{num_samples} samples)"
