@@ -49,6 +49,16 @@ def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to
     else:
         raise RuntimeError(f"Unsupported checkpoint format at {ckpt_path}: {type(ckpt)}")
 
+    # Strip "module." prefix from DDP
+    if any(k.startswith("module.") for k in state_dict.keys()):
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith("module."):
+                new_state_dict[k[7:]] = v
+            else:
+                new_state_dict[k] = v
+        state_dict = new_state_dict
+
     if prefix_to_strip:
         fixed = {}
         for k, v in state_dict.items():

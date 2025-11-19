@@ -148,6 +148,13 @@ stages:
       betas: [0.9, 0.999]
       eps: 1.0e-8
 
+    scheduler:
+      name: ReduceLROnPlateau
+      mode: min
+      factor: 0.5
+      patience: 3
+      min_lr: 1.0e-5
+
   diff_residual:
     epochs: 0                      # Disabled for now (focus on operator validation)
     patience: 5

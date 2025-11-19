@@ -713,10 +713,14 @@ def cmd_eval(args: argparse.Namespace) -> None:
             train_cfg_path = Path(config_path)
     config_for_script = train_cfg_path.as_posix()
 
+    # Extract tasks to ensure data is downloaded
+    tasks = extract_tasks_from_config(config_path)
+    tasks_str = " ".join(tasks)
+
     # Define repo URL (should be passed or defaulted)
     repo_url = getattr(args, 'repo_url', None) or git_remote_url()
 
-    # Load WandB env vars to inject into script
+    # Load WandB and B2 env vars to inject into script
     env_exports = ""
     env_file = REPO_ROOT / ".env"
     env_vars = {}
@@ -730,7 +734,9 @@ def cmd_eval(args: argparse.Namespace) -> None:
         except Exception:
             pass
             
-    for key in ["WANDB_API_KEY", "WANDB_ENTITY", "WANDB_PROJECT"]:
+    # Export WandB and B2 credentials
+    for key in ["WANDB_API_KEY", "WANDB_ENTITY", "WANDB_PROJECT", 
+                "B2_KEY_ID", "B2_APP_KEY", "B2_S3_ENDPOINT", "B2_S3_REGION"]:
         val = env_vars.get(key) or os.environ.get(key)
         if val:
             env_exports += f"export {key}='{val}'\n"
@@ -739,6 +745,16 @@ def cmd_eval(args: argparse.Namespace) -> None:
 set -euo pipefail
 
 {env_exports}
+
+# Configure Rclone for B2 (needed for data download)
+export RCLONE_CONFIG_B2TRAIN_TYPE=s3
+export RCLONE_CONFIG_B2TRAIN_PROVIDER=Other
+export RCLONE_CONFIG_B2TRAIN_ACCESS_KEY_ID="${{B2_KEY_ID:-}}"
+export RCLONE_CONFIG_B2TRAIN_SECRET_ACCESS_KEY="${{B2_APP_KEY:-}}"
+export RCLONE_CONFIG_B2TRAIN_ENDPOINT="${{B2_S3_ENDPOINT:-}}"
+export RCLONE_CONFIG_B2TRAIN_REGION="${{B2_S3_REGION:-}}"
+export RCLONE_CONFIG_B2TRAIN_ACL=private
+export RCLONE_CONFIG_B2TRAIN_NO_CHECK_BUCKET=true
 
 mkdir -p {workdir}
 cd {workdir}
@@ -763,6 +779,10 @@ fi
 
 # Ensure dependencies are up to date
 pip install -e .[dev] --quiet
+
+# Download required datasets
+echo "=== Downloading Datasets: {tasks_str} ==="
+bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
 
 export WANDB_MODE=online
 
