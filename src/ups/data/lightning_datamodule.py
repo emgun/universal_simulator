@@ -27,7 +27,14 @@ class UPSDataModule(pl.LightningDataModule):
         cfg_copy: dict[str, Any] = copy.deepcopy(self.cfg)
         cfg_copy.setdefault("data", {})
         cfg_copy["data"]["split"] = split
-        return build_latent_pair_loader(cfg_copy)
+        try:
+            return build_latent_pair_loader(cfg_copy)
+        except FileNotFoundError:
+            if split != "train":
+                # Fallback to train split if a dedicated split is unavailable
+                cfg_copy["data"]["split"] = "train"
+                return build_latent_pair_loader(cfg_copy)
+            raise
 
     def train_dataloader(self):
         if self.train_loader is None:

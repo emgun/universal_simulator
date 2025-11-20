@@ -4,6 +4,7 @@ from __future__ import annotations
 """Training entrypoint using PyTorch Lightning."""
 
 import argparse
+import os
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,11 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
 from ups.data.lightning_datamodule import UPSDataModule
-from ups.training.lightning_modules import OperatorLightningModule
+from ups.training.lightning_modules import (
+    ConsistencyLightningModule,
+    DiffusionLightningModule,
+    OperatorLightningModule,
+)
 
 
 def load_config(path: str) -> dict:
@@ -38,8 +43,8 @@ def main() -> None:
     parser.add_argument(
         "--stage",
         default="operator",
-        choices=["operator"],
-        help="Training stage (Lightning currently supports operator stage)",
+        choices=["operator", "diff_residual", "consistency_distill", "steady_prior"],
+        help="Training stage (Lightning currently supports operator stage; diff_residual limited)",
     )
     parser.add_argument(
         "--devices",
@@ -55,6 +60,7 @@ def main() -> None:
     num_gpus = int(cfg.get("training", {}).get("num_gpus", 1))
     devices = args.devices if args.devices is not None else num_gpus
     accelerator = "gpu" if devices and devices > 0 else "cpu"
+    skip_lightning_val = bool(cfg.get("training", {}).get("skip_lightning_val", False))
 
     # Strategy selection (ddp by default; fsdp if enabled)
     strategy: str | Any = "auto"
@@ -68,13 +74,28 @@ def main() -> None:
     accum_steps = int(cfg.get("training", {}).get("accum_steps", 1))
     deterministic = bool(cfg.get("deterministic", False))
     benchmark = bool(cfg.get("benchmark", True))
+    if devices and devices > 1 and cfg.get("training", {}).get("compile", False):
+        print("⚠️  Warning: compile + multi-GPU may be unstable on some stacks. Disable if issues arise.")
 
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     epochs = int(stage_cfg.get("epochs", 1))
 
     # Model + Data
+    stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
+    stage_epochs = int(stage_cfg.get("epochs", 0) or 0)
+
+    if stage_epochs <= 0:
+        print(f"ℹ️  Stage {stage} has epochs<=0, skipping.")
+        return
+
     if stage == "operator":
         model = OperatorLightningModule(cfg)
+    elif stage == "diff_residual":
+        # Optional override from env/args; by default load from checkpoint dir
+        operator_ckpt = os.environ.get("OPERATOR_CKPT")
+        model = DiffusionLightningModule(cfg, operator_ckpt=operator_ckpt)
+    elif stage == "consistency_distill":
+        model = ConsistencyLightningModule(cfg)
     else:
         raise NotImplementedError(f"Stage {stage} not implemented for Lightning")
 
@@ -94,24 +115,26 @@ def main() -> None:
 
     ckpt_dir = Path(cfg.get("checkpoint", {}).get("dir", "checkpoints"))
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    callbacks = [
-        ModelCheckpoint(
-            dirpath=str(ckpt_dir),
-            filename=f"{stage}-{{epoch:02d}}-{{val_nrmse:.4f}}",
-            monitor="val/nrmse",
-            mode="min",
-            save_top_k=3,
-        ),
-    ]
-    patience = stage_cfg.get("patience", cfg.get("training", {}).get("patience"))
-    if patience is not None:
+    callbacks: list[pl.Callback] = []
+    if not skip_lightning_val:
         callbacks.append(
-            EarlyStopping(
+            ModelCheckpoint(
+                dirpath=str(ckpt_dir),
+                filename=f"{stage}-{{epoch:02d}}-{{val_nrmse:.4f}}",
                 monitor="val/nrmse",
-                patience=int(patience),
                 mode="min",
+                save_top_k=3,
             )
         )
+        patience = stage_cfg.get("patience", cfg.get("training", {}).get("patience"))
+        if patience is not None:
+            callbacks.append(
+                EarlyStopping(
+                    monitor="val/nrmse",
+                    patience=int(patience),
+                    mode="min",
+                )
+            )
 
     trainer = pl.Trainer(
         max_epochs=epochs,
@@ -126,12 +149,13 @@ def main() -> None:
         log_every_n_steps=10,
         enable_progress_bar=True,
         enable_model_summary=True,
-        num_sanity_val_steps=0,  # Skip sanity check
-        limit_val_batches=0,  # Disable validation (val data from WandB artifacts)
+        num_sanity_val_steps=0 if skip_lightning_val else 2,
+        limit_val_batches=0 if skip_lightning_val else None,
         # Note: replace_sampler_ddp removed in Lightning 2.0+
         # DDP now preserves custom samplers by default
         deterministic=deterministic,
         benchmark=benchmark,
+        enable_checkpointing=not skip_lightning_val,
     )
 
     trainer.fit(model, datamodule=datamodule)

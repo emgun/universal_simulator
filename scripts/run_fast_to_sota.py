@@ -386,6 +386,11 @@ def main() -> None:
         help="Use PyTorch Lightning training (scripts/train_lightning.py) instead of native (scripts/train.py)",
     )
     parser.add_argument(
+        "--lightning-eval",
+        action="store_true",
+        help="Use Lightning-native evaluation (scripts/evaluate_lightning.py) when --use-lightning",
+    )
+    parser.add_argument(
         "--train-extra-arg",
         action="append",
         default=[],
@@ -929,8 +934,9 @@ def main() -> None:
             else:
                 small_dir.mkdir(parents=True, exist_ok=True)
 
+                eval_script = "scripts/evaluate_lightning.py" if (args.use_lightning and args.lightning_eval) else "scripts/evaluate.py"
                 base_small_cmd = [
-                    "scripts/evaluate.py",
+                    eval_script,
                     "--config",
                     str(resolved_small_config),
                     "--operator",
@@ -1088,8 +1094,9 @@ def main() -> None:
                 }
                 full_dir.mkdir(parents=True, exist_ok=True)
             else:
+                eval_script = "scripts/evaluate_lightning.py" if (args.use_lightning and args.lightning_eval) else "scripts/evaluate.py"
                 base_full_cmd = [
-                    "scripts/evaluate.py",
+                    eval_script,
                     "--config",
                     str(resolved_full_config),
                     "--operator",

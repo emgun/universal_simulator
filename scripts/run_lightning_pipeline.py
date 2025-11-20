@@ -4,6 +4,7 @@ from __future__ import annotations
 """Sequential multi-stage runner for Lightning training."""
 
 import argparse
+import os
 import subprocess
 from typing import Optional
 
@@ -26,7 +27,8 @@ def run_stage(config_path: str, stage: str, devices: Optional[int]) -> None:
     ]
     if devices is not None:
         cmd.extend(["--devices", str(devices)])
-    subprocess.run(cmd, check=True)
+    env = os.environ.copy()
+    subprocess.run(cmd, check=True, env=env)
 
 
 def main() -> None:
@@ -37,6 +39,10 @@ def main() -> None:
         type=int,
         default=None,
         help="Override device count for all stages (default: use training.num_gpus)",
+    )
+    parser.add_argument(
+        "--operator-ckpt",
+        help="Optional operator checkpoint to use as teacher for downstream stages",
     )
     args = parser.parse_args()
 
@@ -49,12 +55,21 @@ def main() -> None:
         print("=" * 60)
         run_stage(args.train_config, "operator", args.devices)
 
-    # Placeholder for future Lightning stage support
     if stages_cfg.get("diff_residual", {}).get("epochs", 0) > 0:
         print("=" * 60)
         print("Stage 2: Diffusion Residual Training (Lightning)")
         print("=" * 60)
-        raise NotImplementedError("Diffusion residual Lightning stage not yet implemented")
+        if args.operator_ckpt:
+            os.environ["OPERATOR_CKPT"] = args.operator_ckpt
+        run_stage(args.train_config, "diff_residual", args.devices)
+
+    if stages_cfg.get("consistency_distill", {}).get("epochs", 0) > 0:
+        print("=" * 60)
+        print("Stage 3: Consistency Distillation (Lightning)")
+        print("=" * 60)
+        if args.operator_ckpt:
+            os.environ["OPERATOR_CKPT"] = args.operator_ckpt
+        run_stage(args.train_config, "consistency_distill", args.devices)
 
 
 if __name__ == "__main__":

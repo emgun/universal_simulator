@@ -49,6 +49,17 @@ python scripts/run_lightning_pipeline.py \
   --train-config configs/train_burgers_golden.yaml
 ```
 
+### Lightning-Native Evaluation
+
+```bash
+python scripts/evaluate_lightning.py \
+  --config configs/train_burgers_golden.yaml \
+  --operator checkpoints/operator.pt \
+  --output-prefix reports/eval_lightning
+```
+
+In fast-to-SOTA, combine with `--use-lightning --lightning-eval` to run Lightning for both training and small/full eval.
+
 ## Configuration
 
 ### Basic Configuration
