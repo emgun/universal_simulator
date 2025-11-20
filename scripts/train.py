@@ -863,6 +863,16 @@ def _get_ema_decay(cfg: dict, stage: str) -> float | None:
 
 
 def _init_ema(model: nn.Module) -> nn.Module:
+    # FSDP-wrapped models are not deepcopy-safe; skip EMA in that case
+    try:
+        from torch.distributed.fsdp import FullyShardedDataParallel as FSDP  # type: ignore[attr-defined]
+    except Exception:
+        FSDP = None  # type: ignore[assignment]
+
+    if FSDP is not None and isinstance(model, FSDP):
+        print("[EMA] Skipping EMA for FSDP-wrapped model (deepcopy not supported)")
+        return None  # Caller guards on None
+
     ema = copy.deepcopy(model)
     for p in ema.parameters():
         p.requires_grad_(False)
