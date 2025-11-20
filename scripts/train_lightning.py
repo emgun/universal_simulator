@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -110,8 +111,9 @@ def main() -> None:
             strategy = "fsdp"
 
     precision = _precision_from_cfg(cfg)
-    grad_clip = cfg.get("training", {}).get("grad_clip")
-    accum_steps = int(cfg.get("training", {}).get("accum_steps", 1))
+    training_cfg = cfg.get("training", {}) if isinstance(cfg.get("training"), dict) else {}
+    grad_clip = training_cfg.get("grad_clip")
+    accum_steps = int(training_cfg.get("accum_steps", 1))
     deterministic = bool(cfg.get("deterministic", False))
     benchmark = bool(cfg.get("benchmark", True))
     if devices and devices > 1 and cfg.get("training", {}).get("compile", False):
@@ -177,12 +179,46 @@ def main() -> None:
                 )
             )
 
-    profile_mode = str(cfg.get("training", {}).get("lightning_profile", "none")).lower()
+    profile_mode = str(training_cfg.get("lightning_profile", "none")).lower()
     profiler = None
     if profile_mode == "profiler":
         from pytorch_lightning.profilers import PyTorchProfiler
 
         profiler = PyTorchProfiler()
+
+    class WandbEpochTimer(pl.Callback):
+        def __init__(self, batch_size: int, accum: int, world_size: int):
+            super().__init__()
+            self.batch_size = batch_size
+            self.accum = accum
+            self.world_size = world_size
+            self.epoch_start = None
+
+        def on_train_epoch_start(self, trainer, pl_module):
+            self.epoch_start = time.time()
+
+        def on_train_epoch_end(self, trainer, pl_module):
+            if self.epoch_start is None:
+                return
+            duration = time.time() - self.epoch_start
+            total_batches = trainer.num_training_batches
+            effective_batch = self.batch_size * max(1, self.world_size) * max(1, self.accum)
+            throughput = (total_batches * effective_batch) / duration if duration > 0 else 0.0
+            if trainer.logger:
+                trainer.logger.log_metrics(
+                    {
+                        "time/epoch_seconds": duration,
+                        "time/throughput_samples_per_s": throughput,
+                    },
+                    step=trainer.global_step,
+                )
+
+    world_size = devices if isinstance(devices, int) else (devices[0] if isinstance(devices, (list, tuple)) else 1)
+    epoch_timer_cb = WandbEpochTimer(
+        batch_size=int(training_cfg.get("batch_size", 1)),
+        accum=accum_steps,
+        world_size=world_size or 1,
+    )
 
     trainer = pl.Trainer(
         max_epochs=epochs,
@@ -205,10 +241,14 @@ def main() -> None:
         benchmark=benchmark,
         enable_checkpointing=not skip_lightning_val,
         profiler=profiler,
+        callbacks=callbacks + [epoch_timer_cb],
     )
 
     # Optional tuners
-    if args.tune_batch_size:
+    tune_bs_flag = args.tune_batch_size or bool(training_cfg.get("tune_batch_size", False))
+    tune_lr_flag = args.tune_lr or bool(training_cfg.get("tune_lr", False))
+
+    if tune_bs_flag:
         try:
             new_bs = trainer.tuner.scale_batch_size(model, datamodule=datamodule, mode="power")
             cfg.setdefault("training", {})["batch_size"] = new_bs
@@ -217,11 +257,14 @@ def main() -> None:
             print(f"✓ Tuned batch size: {new_bs}")
         except Exception as exc:
             print(f"⚠️  Batch size tuner failed: {exc}")
-    if args.tune_lr:
+    if tune_lr_flag:
         try:
             lr_finder = trainer.tuner.lr_find(model, datamodule=datamodule)
             suggestion = lr_finder.suggestion()
             print(f"ℹ️  Suggested LR: {suggestion}")
+            # Apply suggested LR to optimizer config if possible
+            stage_cfg.setdefault("optimizer", {})
+            stage_cfg["optimizer"]["lr"] = float(suggestion)
         except Exception as exc:
             print(f"⚠️  LR finder failed: {exc}")
 
