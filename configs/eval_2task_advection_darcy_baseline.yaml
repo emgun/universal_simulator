@@ -1,5 +1,4 @@
-# Eval-only TTC-lite profile for 2-task advection1d + darcy2d
-# Optimized for low memory footprint while keeping TTC enabled.
+# Baseline (no TTC) eval for advection1d + darcy2d. Optimized for faster throughput.
 
 seed: 42
 deterministic: false
@@ -10,7 +9,7 @@ data:
   split: train
   root: data/pdebench
   patch_size: 1
-  shard_limit: 200
+  shard_limit: 200          # cap samples per task to finish quickly
   task_sampling:
     strategy: balanced
 
@@ -38,8 +37,8 @@ diffusion:
 training:
   num_gpus: 2
   use_fsdp2: false
-  batch_size: 8
-  accum_steps: 1
+  batch_size: 8             # bump batch for throughput (effective batch 16 on 2 GPUs)
+  accum_steps: 1            # no need to accumulate with larger batch
   time_stride: 2
   dt: 0.1
   patience: 5
@@ -146,53 +145,14 @@ evaluation:
   distributed: true
 
 ttc:
-  enabled: true
-  debug: true
-  steps: 1
-  candidates: 1
-  beam_width: 1
-  horizon: 1
-  residual_threshold: 0.35
-  gamma: 1.0
-  max_evaluations: 20
-
-  sampler:
-    tau_range: [0.2, 0.8]
-    noise_std: 0.0
-    noise_schedule: [0.02, 0.01]
-
-  reward:
-    analytical_weight: 1.0
-    grid: [64, 64]
-    mass_field: "u"
-    energy_field: null
-    momentum_field: []
-    weights:
-      mass: 1.0
-      energy: 0.0
-      penalty_negative: 0.0
-    critic:
-      weight: 0.0
-      hidden_dim: 256
-      dropout: 0.1
-
-  decoder:
-    latent_dim: 128
-    query_dim: 2
-    hidden_dim: 384           # match operator hidden_dim to satisfy validation; keep heads low for memory
-    mlp_hidden_dim: 384
-    num_layers: 3
-    num_heads: 2
-    frequencies: [1.0, 2.0, 4.0, 8.0]
-    output_channels:
-      u: 1
+  enabled: false
 
 logging:
   wandb:
     enabled: true
     project: universal-simulator
     entity: emgun-morpheus-space
-    run_name: eval-2task-ttc-lite
-    tags: [distributed, ddp, 2gpu, pdebench, multi-task, advection1d, darcy2d, upt, 128tokens, ttc-lite]
+    run_name: eval-2task-baseline
+    tags: [distributed, ddp, 2gpu, pdebench, multi-task, advection1d, darcy2d, upt, 128tokens, baseline]
     group: multi-task-ddp-eval
-    notes: "TTC-lite eval (2 candidates, beam=1) on 2×A100 SXM full checkpoint"
+    notes: "Baseline eval (no TTC) on 2×A100 SXM"

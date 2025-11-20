@@ -2,11 +2,14 @@ from __future__ import annotations
 
 """PDEBench evaluation helpers."""
 
+import copy
 import math
+import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import torch
+import torch.distributed as dist
 
 from ups.core.latent_state import LatentState
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
@@ -53,13 +56,28 @@ def evaluate_latent_operator(
 ) -> MetricReport | tuple[MetricReport, Dict[str, Any]]:
     """Evaluate a latent operator (optionally with diffusion corrector) on PDEBench data."""
 
+    # Initialize distributed context if launched under torchrun/PL FSDP
+    distributed_available = dist.is_available()
+    if distributed_available and not dist.is_initialized():
+        env_keys = {"RANK", "WORLD_SIZE", "LOCAL_RANK"}
+        if env_keys.issubset(set(os.environ.keys())):
+            dist.init_process_group(backend="nccl")
+
+    use_distributed = dist.is_initialized()
+    rank = dist.get_rank() if use_distributed else 0
+    world_size = dist.get_world_size() if use_distributed else 1
+    is_main = rank == 0
+
     device = torch.device(device)
-    # Force num_workers=0 during evaluation to avoid CUDA serialization issues with encoder
-    eval_cfg = cfg.copy()
+    if use_distributed and device.type == "cuda":
+        local_rank = int(os.environ.get("LOCAL_RANK", rank))
+        device = torch.device(f"cuda:{local_rank}")
+
+    # Respect the config's dataloader settings; no forced single-worker override.
+    eval_cfg = copy.deepcopy(cfg)
     if "training" not in eval_cfg:
         eval_cfg["training"] = {}
     eval_cfg["training"] = eval_cfg["training"].copy()
-    eval_cfg["training"]["num_workers"] = 0
     loader = build_latent_pair_loader(eval_cfg)
     operator = operator.to(device)
     operator.eval()
@@ -89,11 +107,13 @@ def evaluate_latent_operator(
     total_negativity_penalty = 0.0
     physics_samples = 0
     total_batches = len(loader)
+    collect_details = return_details and (not use_distributed or is_main)
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
-            if batch_idx % 20 == 0:
-                print(f"[eval] progress: batch {batch_idx}/{total_batches}")
+            if batch_idx % 20 == 0 and is_main:
+                pct = int(100.0 * batch_idx / max(total_batches, 1))
+                print(f"[eval] progress: batch {batch_idx}/{total_batches} ({pct}%)", flush=True)
             unpacked = unpack_batch(batch)
             if isinstance(unpacked, dict):
                 z0 = unpacked["z0"]
@@ -163,7 +183,7 @@ def evaluate_latent_operator(
             total_target_sq += target.pow(2).sum().item()
             total_target_abs += target.abs().sum().item()
 
-            if return_details:
+            if collect_details:
                 mse_batch = diff.pow(2).mean(dim=(1, 2))
                 mae_batch = diff.abs().mean(dim=(1, 2))
                 sample_mse.append(mse_batch.detach().cpu())
@@ -199,13 +219,43 @@ def evaluate_latent_operator(
             total_negativity_penalty += negativity_batch.sum().item()
             physics_samples += pred.size(0)
 
-            if return_details:
+            if collect_details:
                 sample_conservation.append(conservation_batch.detach().cpu())
                 sample_bc_violation.append(bc_batch.detach().cpu())
                 sample_negativity.append(negativity_batch.detach().cpu())
 
     if total_elements == 0:
         raise RuntimeError("Latent evaluation received an empty dataset")
+
+    # Aggregate metrics across distributed workers
+    if use_distributed:
+        packed = torch.tensor(
+            [
+                total_abs,
+                total_sq,
+                total_elements,
+                total_target_sq,
+                total_target_abs,
+                total_conservation_gap,
+                total_bc_violation,
+                total_negativity_penalty,
+                physics_samples,
+            ],
+            dtype=torch.float64,
+            device=device,
+        )
+        dist.all_reduce(packed, op=dist.ReduceOp.SUM)
+        (
+            total_abs,
+            total_sq,
+            total_elements,
+            total_target_sq,
+            total_target_abs,
+            total_conservation_gap,
+            total_bc_violation,
+            total_negativity_penalty,
+            physics_samples,
+        ) = packed.tolist()
 
     mse_val = total_sq / total_elements
     mae_val = total_abs / total_elements
@@ -231,13 +281,14 @@ def evaluate_latent_operator(
         "samples": total_elements,
         "tau": tau if diffusion is not None else None,
         "ttc": bool(ttc_config and reward_model),
+        "world_size": world_size,
     }
     report = MetricReport(metrics=metrics, extra=extra)
     if not return_details:
         return report
 
     details: Dict[str, Any] = {}
-    if sample_mse:
+    if collect_details and sample_mse:
         mse_tensor = torch.cat(sample_mse)
         mae_tensor = torch.cat(sample_mae)
         rel_l2_tensor = torch.cat(sample_rel_l2)
@@ -257,11 +308,13 @@ def evaluate_latent_operator(
         details["per_sample_conservation_gap"] = []
         details["per_sample_bc_violation"] = []
         details["per_sample_negativity_penalty"] = []
-    if preview is not None:
+    if collect_details and preview is not None:
         details["preview_predicted"] = preview.get("predicted", torch.tensor([])).tolist()
         details["preview_target"] = preview.get("target", torch.tensor([])).tolist()
-    if ttc_step_logs:
+    if collect_details and ttc_step_logs:
         details["ttc_step_logs"] = ttc_step_logs
+    if use_distributed:
+        dist.barrier()
     return report, details
 
 

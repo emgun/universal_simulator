@@ -344,6 +344,27 @@ def _find_checkpoint(directory: Path, names: List[str]) -> Optional[Path]:
     return None
 
 
+def _build_eval_cmd(base_args: List[str], eval_cfg: Dict[str, Any]) -> List[str]:
+    """Build eval command; if multi-GPU, wrap in torchrun like training."""
+
+    # If already inside torchrun, don't nest
+    if "RANK" in os.environ:
+        return [PYTHON] + base_args
+
+    num_gpus = eval_cfg.get("training", {}).get("num_gpus", 1)
+    if num_gpus > 1:
+        return [
+            "torchrun",
+            f"--nproc_per_node={num_gpus}",
+            "--nnodes=1",
+            "--node_rank=0",
+            "--master_addr=localhost",
+            "--master_port=29501",
+        ] + base_args
+
+    return [PYTHON] + base_args
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run the fast-to-SOTA automation pipeline.",
@@ -896,8 +917,7 @@ def main() -> None:
             else:
                 small_dir.mkdir(parents=True, exist_ok=True)
 
-                small_cmd = [
-                    PYTHON,
+                base_small_cmd = [
                     "scripts/evaluate.py",
                     "--config",
                     str(resolved_small_config),
@@ -919,22 +939,23 @@ def main() -> None:
                     f"run={run_id} stage=small",
                 ]
                 if diffusion_ckpt:
-                    small_cmd.extend(
+                    base_small_cmd.extend(
                         ["--diffusion", str(diffusion_ckpt), "--tau", str(args.eval_tau)]
                     )
                 for tag in render_tags("small"):
-                    small_cmd.extend(["--leaderboard-tag", tag])
+                    base_small_cmd.extend(["--leaderboard-tag", tag])
                 if args.leaderboard_wandb:
-                    small_cmd.append("--leaderboard-wandb")
+                    base_small_cmd.append("--leaderboard-wandb")
                     if args.leaderboard_wandb_project:
-                        small_cmd.extend(
+                        base_small_cmd.extend(
                             ["--leaderboard-wandb-project", args.leaderboard_wandb_project]
                         )
                     if args.leaderboard_wandb_entity:
-                        small_cmd.extend(
+                        base_small_cmd.extend(
                             ["--leaderboard-wandb-entity", args.leaderboard_wandb_entity]
                         )
 
+                small_cmd = _build_eval_cmd(base_small_cmd, small_cfg_resolved)
                 _run_command(
                     small_cmd,
                     env=dict(eval_env),
@@ -1055,8 +1076,7 @@ def main() -> None:
                 }
                 full_dir.mkdir(parents=True, exist_ok=True)
             else:
-                full_cmd = [
-                    PYTHON,
+                base_full_cmd = [
                     "scripts/evaluate.py",
                     "--config",
                     str(resolved_full_config),
@@ -1078,22 +1098,23 @@ def main() -> None:
                     f"run={run_id} stage=full",
                 ]
                 if diffusion_ckpt:
-                    full_cmd.extend(
+                    base_full_cmd.extend(
                         ["--diffusion", str(diffusion_ckpt), "--tau", str(args.eval_tau)]
                     )
                 for tag in render_tags("full"):
-                    full_cmd.extend(["--leaderboard-tag", tag])
+                    base_full_cmd.extend(["--leaderboard-tag", tag])
                 if args.leaderboard_wandb:
-                    full_cmd.append("--leaderboard-wandb")
+                    base_full_cmd.append("--leaderboard-wandb")
                     if args.leaderboard_wandb_project:
-                        full_cmd.extend(
+                        base_full_cmd.extend(
                             ["--leaderboard-wandb-project", args.leaderboard_wandb_project]
                         )
                     if args.leaderboard_wandb_entity:
-                        full_cmd.extend(
+                        base_full_cmd.extend(
                             ["--leaderboard-wandb-entity", args.leaderboard_wandb_entity]
                         )
 
+                full_cmd = _build_eval_cmd(base_full_cmd, full_cfg_resolved)
                 _run_command(
                     full_cmd,
                     env=dict(eval_env),

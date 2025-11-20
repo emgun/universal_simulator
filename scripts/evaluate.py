@@ -15,6 +15,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.distributed as dist
 import yaml
 import torch.multiprocessing as mp
 
@@ -488,30 +489,35 @@ def main() -> None:
     )
     report, details = result  # type: ignore[misc]
 
+    is_distributed = dist.is_available() and dist.is_initialized()
+    rank = dist.get_rank() if is_distributed else 0
+
     output_prefix = Path(args.output_prefix)
-    outputs = _write_outputs(report, output_prefix, cfg, details)
-    metrics_json = outputs.get("json")
-    if args.leaderboard_run_id and metrics_json is not None:
-        tags = {}
-        for tag in args.leaderboard_tag:
-            if "=" not in tag:
-                raise ValueError(f"Leaderboard tag '{tag}' must be formatted as key=value")
-            key, value = tag.split("=", 1)
-            tags[key] = value
-        update_leaderboard(
-            metrics_path=metrics_json,
-            run_id=args.leaderboard_run_id,
-            leaderboard_csv=Path(args.leaderboard_path),
-            leaderboard_html=Path(args.leaderboard_html),
-            label=args.leaderboard_label,
-            config=args.config,
-            notes=args.leaderboard_notes,
-            tags=tags,
-            wandb_log=args.leaderboard_wandb,
-            wandb_project=args.leaderboard_wandb_project,
-            wandb_entity=args.leaderboard_wandb_entity,
-            wandb_run_name=args.leaderboard_wandb_run_name or args.leaderboard_run_id,
-        )
+    outputs = {}
+    if rank == 0:
+        outputs = _write_outputs(report, output_prefix, cfg, details)
+        metrics_json = outputs.get("json")
+        if args.leaderboard_run_id and metrics_json is not None:
+            tags = {}
+            for tag in args.leaderboard_tag:
+                if "=" not in tag:
+                    raise ValueError(f"Leaderboard tag '{tag}' must be formatted as key=value")
+                key, value = tag.split("=", 1)
+                tags[key] = value
+            update_leaderboard(
+                metrics_path=metrics_json,
+                run_id=args.leaderboard_run_id,
+                leaderboard_csv=Path(args.leaderboard_path),
+                leaderboard_html=Path(args.leaderboard_html),
+                label=args.leaderboard_label,
+                config=args.config,
+                notes=args.leaderboard_notes,
+                tags=tags,
+                wandb_log=args.leaderboard_wandb,
+                wandb_project=args.leaderboard_wandb_project,
+                wandb_entity=args.leaderboard_wandb_entity,
+                wandb_run_name=args.leaderboard_wandb_run_name or args.leaderboard_run_id,
+            )
 
     # Load or create WandB context (clean way!)
     wandb_ctx = None
@@ -529,7 +535,7 @@ def main() -> None:
     # (The orchestrator will handle WandB, or user can run eval separately)
 
     # Log evaluation metrics to WandB summary (SCALARS, not time series!)
-    if wandb_ctx:
+    if rank == 0 and wandb_ctx:
         # Separate metrics into categories for better organization
         basic_metrics = {}
         physics_metrics = {}
@@ -612,7 +618,8 @@ def main() -> None:
 
     # Note: Don't call wandb_ctx.finish() - orchestrator owns the run!
 
-    _print_report(report, outputs, args.print_json)
+    if rank == 0:
+        _print_report(report, outputs, args.print_json)
 
 
 if __name__ == "__main__":
