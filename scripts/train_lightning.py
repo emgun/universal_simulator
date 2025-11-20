@@ -227,7 +227,7 @@ def main() -> None:
         strategy=strategy,
         precision=precision,
         logger=logger,
-        callbacks=callbacks,
+        callbacks=callbacks + [epoch_timer_cb],
         gradient_clip_val=grad_clip,
         accumulate_grad_batches=accum_steps,
         log_every_n_steps=10,
@@ -241,7 +241,6 @@ def main() -> None:
         benchmark=benchmark,
         enable_checkpointing=not skip_lightning_val,
         profiler=profiler,
-        callbacks=callbacks + [epoch_timer_cb],
     )
 
     # Optional tuners
