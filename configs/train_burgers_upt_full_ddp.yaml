@@ -151,7 +151,8 @@ training:
 
 stages:
   operator:
-    epochs: 40                     # Same as Phase 3
+    epochs: 3                     # Same as Phase 3
+    patience: 3
 
     optimizer:
       name: muon_hybrid
