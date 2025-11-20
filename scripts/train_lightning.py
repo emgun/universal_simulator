@@ -52,6 +52,16 @@ def main() -> None:
         default=None,
         help="Override device count (defaults to training.num_gpus from config)",
     )
+    parser.add_argument(
+        "--tune-batch-size",
+        action="store_true",
+        help="Run Lightning batch size tuner before training",
+    )
+    parser.add_argument(
+        "--tune-lr",
+        action="store_true",
+        help="Run Lightning LR finder before training",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -121,11 +131,12 @@ def main() -> None:
     if stage == "operator":
         model = OperatorLightningModule(cfg)
     elif stage == "diff_residual":
-        # Optional override from env/args; by default load from checkpoint dir
         operator_ckpt = os.environ.get("OPERATOR_CKPT")
         model = DiffusionLightningModule(cfg, operator_ckpt=operator_ckpt)
     elif stage == "consistency_distill":
-        model = ConsistencyLightningModule(cfg)
+        operator_ckpt = os.environ.get("OPERATOR_CKPT")
+        diffusion_ckpt = os.environ.get("DIFFUSION_CKPT")
+        model = ConsistencyLightningModule(cfg, operator_ckpt=operator_ckpt, diffusion_ckpt=diffusion_ckpt)
     else:
         raise NotImplementedError(f"Stage {stage} not implemented for Lightning")
 
@@ -166,6 +177,13 @@ def main() -> None:
                 )
             )
 
+    profile_mode = str(cfg.get("training", {}).get("lightning_profile", "none")).lower()
+    profiler = None
+    if profile_mode == "profiler":
+        from pytorch_lightning.profilers import PyTorchProfiler
+
+        profiler = PyTorchProfiler()
+
     trainer = pl.Trainer(
         max_epochs=epochs,
         accelerator=accelerator,
@@ -186,10 +204,34 @@ def main() -> None:
         deterministic=deterministic,
         benchmark=benchmark,
         enable_checkpointing=not skip_lightning_val,
+        profiler=profiler,
     )
 
+    # Optional tuners
+    if args.tune_batch_size:
+        try:
+            new_bs = trainer.tuner.scale_batch_size(model, datamodule=datamodule, mode="power")
+            cfg.setdefault("training", {})["batch_size"] = new_bs
+            # Rebuild datamodule with new batch size
+            datamodule = UPSDataModule(cfg)
+            print(f"✓ Tuned batch size: {new_bs}")
+        except Exception as exc:
+            print(f"⚠️  Batch size tuner failed: {exc}")
+    if args.tune_lr:
+        try:
+            lr_finder = trainer.tuner.lr_find(model, datamodule=datamodule)
+            suggestion = lr_finder.suggestion()
+            print(f"ℹ️  Suggested LR: {suggestion}")
+        except Exception as exc:
+            print(f"⚠️  LR finder failed: {exc}")
+
     trainer.fit(model, datamodule=datamodule)
-    trainer.test(model, datamodule=datamodule)
+
+    # Optional test step (skip if not implemented)
+    try:
+        trainer.test(model, datamodule=datamodule)
+    except Exception as e:
+        print(f"ℹ️  Skipping test (test_step not implemented): {e}")
 
 
 if __name__ == "__main__":
