@@ -337,10 +337,17 @@ def _git_metadata() -> Dict[str, str]:
 
 
 def _find_checkpoint(directory: Path, names: List[str]) -> Optional[Path]:
+    """Find checkpoint by exact name or glob pattern."""
     for name in names:
         candidate = directory / name
         if candidate.exists():
             return candidate
+        # Try glob pattern (for Lightning checkpoints like "operator-*.ckpt")
+        if "*" in name:
+            matches = sorted(directory.glob(name))
+            if matches:
+                # Return the latest checkpoint (last in sorted order)
+                return matches[-1]
     return None
 
 
@@ -892,12 +899,12 @@ def main() -> None:
         except Exception as exc:
             print(f"⚠️  GPU memory cleanup skipped: {exc}")
 
-        operator_ckpt = _find_checkpoint(checkpoint_dir, ["operator_ema.pt", "operator.pt"])
+        operator_ckpt = _find_checkpoint(checkpoint_dir, ["operator_ema.pt", "operator.pt", "operator-*.ckpt"])
         if operator_ckpt is None:
             raise FileNotFoundError(f"Operator checkpoint not found under {checkpoint_dir}")
         diffusion_ckpt = _find_checkpoint(
             checkpoint_dir,
-            ["diffusion_residual_ema.pt", "diffusion_residual.pt"],
+            ["diffusion_residual_ema.pt", "diffusion_residual.pt", "diff_residual-*.ckpt"],
         )
         summary["operator_checkpoint"] = str(operator_ckpt)
         summary["diffusion_checkpoint"] = str(diffusion_ckpt) if diffusion_ckpt else None
