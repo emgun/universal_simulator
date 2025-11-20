@@ -321,12 +321,21 @@ fi
 
     script += training_cmd
 
-    if auto_shutdown:
+if auto_shutdown:
         script += """
 # Auto-stop instance
 pip install -q vastai 2>&1 || true
 sleep 10
-[ -n "${CONTAINER_ID:-}" ] && vastai stop instance $CONTAINER_ID || true
+INSTANCE_ID="${CONTAINER_ID:-}"
+if [ -z "$INSTANCE_ID" ] && [ -f /root/.vast_containerlabel ]; then
+  INSTANCE_ID="$(cat /root/.vast_containerlabel)"
+fi
+if [ -z "$INSTANCE_ID" ]; then
+  INSTANCE_ID="$(hostname | sed 's/[^0-9]*//g')"
+fi
+if [ -n "$INSTANCE_ID" ]; then
+  vastai stop instance "$INSTANCE_ID" || true
+fi
 exit 0
 """
 
@@ -624,7 +633,16 @@ echo "✓ Training resumed and running"
 # Auto-stop instance after completion
 pip install -q vastai 2>&1 || true
 sleep 10
-[ -n "${CONTAINER_ID:-}" ] && vastai stop instance $CONTAINER_ID || true
+INSTANCE_ID="${CONTAINER_ID:-}"
+if [ -z "$INSTANCE_ID" ] && [ -f /root/.vast_containerlabel ]; then
+  INSTANCE_ID="$(cat /root/.vast_containerlabel)"
+fi
+if [ -z "$INSTANCE_ID" ]; then
+  INSTANCE_ID="$(hostname | sed 's/[^0-9]*//g')"
+fi
+if [ -n "$INSTANCE_ID" ]; then
+  vastai stop instance "$INSTANCE_ID" || true
+fi
 """
 
     # Write script to temp file
@@ -825,7 +843,16 @@ echo "✓ Evaluation complete"
 # Auto-stop instance after completion
 pip install -q vastai 2>&1 || true
 sleep 10
-[ -n "${CONTAINER_ID:-}" ] && vastai stop instance $CONTAINER_ID || true
+INSTANCE_ID="${CONTAINER_ID:-}"
+if [ -z "$INSTANCE_ID" ] && [ -f /root/.vast_containerlabel ]; then
+  INSTANCE_ID="$(cat /root/.vast_containerlabel)"
+fi
+if [ -z "$INSTANCE_ID" ]; then
+  INSTANCE_ID="$(hostname | sed 's/[^0-9]*//g')"
+fi
+if [ -n "$INSTANCE_ID" ]; then
+  vastai stop instance "$INSTANCE_ID" || true
+fi
 """
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
