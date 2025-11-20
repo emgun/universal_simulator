@@ -73,19 +73,19 @@ diffusion:
 training:
   # Distributed training (PROVEN CONFIG from burgers)
   num_gpus: 2  # 2×A100_SXM4 = 160GB total
-  use_fsdp2: true         # DDP is sufficient for 2-GPU
+  use_fsdp2: false        # Use DDP for throughput on 2 GPUs
 
   # DDP-optimized batch configuration
-  batch_size: 10           # Per-GPU batch size (same as burgers)
-  accum_steps: 2           # Gradient accumulation (effective batch = 10*2*2 = 40)
+  batch_size: 12           # Per-GPU batch size; larger to speed up multi-task
+  accum_steps: 1           # No gradient accumulation
 
   time_stride: 2
   dt: 0.1
   patience: 5
 
   # CRITICAL: Same data loading config as successful burgers run
-  num_workers: 6           # 3 per GPU for better I/O parallelism
-  use_parallel_encoding: true
+  num_workers: 10          # More workers to feed two tasks
+  use_parallel_encoding: false  # Not applied for multi-task; rely on cache
   pin_memory: true
   prefetch_factor: 2       # Reduced from 4 to save RAM
   latent_cache_dir: data/latent_cache
@@ -95,7 +95,7 @@ training:
   # CRITICAL: Proven DDP-compatible settings
   amp: true
   amp_dtype: bfloat16      # Use BF16 for better stability
-  compile: true            # WORKS with DDP/FSDP after fixes
+  compile: false           # Avoid compile overhead for multi-task
   compile_mode: default    # Using 'default' mode - avoids aggressive CUDA graphs that conflict with DDP
   grad_clip: null
   ema_decay: null          # Disable EMA when using FSDP to avoid deepcopy-of-view issues
