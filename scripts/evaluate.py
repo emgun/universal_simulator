@@ -456,6 +456,7 @@ def _print_report(report: MetricReport, paths: Dict[str, Path], as_json: bool) -
         for key, value in report.extra.items():
             print(f"  {key}: {value}")
     print("Saved outputs:")
+    for kind, path in paths.items():
         print(f"  {kind}: {path}")
 
 

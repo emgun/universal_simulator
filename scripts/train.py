@@ -42,8 +42,9 @@ try:
     try:
         import torch._inductor.config as _inductor_config
 
-        # Enable cudagraphs for static shapes (significant speedup)
-        _inductor_config.triton.cudagraphs = True
+        # Enable aggressive optimizations
+        # Note: cudagraphs disabled due to high memory usage (OOM)
+        _inductor_config.triton.cudagraphs = False
         _inductor_config.freezing = True
         
         # Allow max-autotune to use more aggressive fusion
