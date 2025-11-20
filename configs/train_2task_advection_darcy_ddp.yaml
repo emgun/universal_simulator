@@ -93,7 +93,7 @@ training:
   cpu_offload_optimizer: true
   tune_batch_size: true
   tune_lr: true
-  lightning_profile: profiler
+  lightning_profile: none
 
   checkpoint_interval: 25
 
