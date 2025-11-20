@@ -219,16 +219,16 @@ ttc:
   enabled: true
   debug: true
   steps: 1
-  candidates: 6
-  beam_width: 2
-  horizon: 2
+  candidates: 1          # Lite TTC to avoid eval OOM on 2×A100
+  beam_width: 1
+  horizon: 1
   residual_threshold: 0.35
   gamma: 1.0
-  max_evaluations: 100
+  max_evaluations: 20
 
   sampler:
     tau_range: [0.2, 0.8]
-    noise_std: 0.01
+    noise_std: 0.0
     noise_schedule: [0.02, 0.01]
 
   reward:

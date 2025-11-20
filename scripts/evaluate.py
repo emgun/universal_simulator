@@ -466,6 +466,11 @@ def main() -> None:
     parser.add_argument("--operator", required=True, help="Path to operator checkpoint")
     parser.add_argument("--diffusion", help="Optional diffusion residual checkpoint")
     parser.add_argument("--tau", type=float, default=0.5, help="Tau value used when applying diffusion residual")
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Evaluation device (e.g., cuda, cuda:0, cpu). Defaults to distributed local_rank if RANK is set.",
+    )
     parser.add_argument("--output-prefix", default="reports/evaluation", help="Prefix (without extension) for saved reports")
     parser.add_argument("--log-path", default="reports/eval_log.jsonl", help="Where to append evaluation logs")
     parser.add_argument("--print-json", action="store_true", help="Print metrics and file paths as JSON")
@@ -480,6 +485,15 @@ def main() -> None:
     parser.add_argument("--leaderboard-wandb-entity", help="W&B entity for leaderboard logging")
     parser.add_argument("--leaderboard-wandb-run-name", help="Optional W&B run name override")
     args = parser.parse_args()
+
+    # Initialize device/distributed context
+    device, is_distributed, rank, world_size, local_rank = setup_distributed()
+
+    # Optional override of device when not running under torchrun
+    if args.device:
+        device = torch.device(args.device)
+        if device.type == "cuda":
+            torch.cuda.set_device(device)
 
     # Optimize for Ampere+ GPUs
     if torch.cuda.is_available():
@@ -537,9 +551,6 @@ def main() -> None:
         reward_model=reward_model,
     )
     report, details = result  # type: ignore[misc]
-
-    is_distributed = dist.is_available() and dist.is_initialized()
-    rank = dist.get_rank() if is_distributed else 0
 
     output_prefix = Path(args.output_prefix)
     outputs = {}

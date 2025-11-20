@@ -871,6 +871,18 @@ def main() -> None:
         if isinstance(training_wandb_info, dict):
             _persist_wandb_info(wandb_info_path, training_wandb_info)
 
+        # Best-effort GPU memory cleanup before evaluation to reduce OOM risk
+        try:
+            import gc
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            gc.collect()
+        except Exception as exc:
+            print(f"⚠️  GPU memory cleanup skipped: {exc}")
+
         operator_ckpt = _find_checkpoint(checkpoint_dir, ["operator_ema.pt", "operator.pt"])
         if operator_ckpt is None:
             raise FileNotFoundError(f"Operator checkpoint not found under {checkpoint_dir}")
@@ -888,7 +900,7 @@ def main() -> None:
             shutil.copytree(checkpoint_dir, dest)
 
         # Pass WandB context to subprocesses (no more WANDB_MODE=disabled hack!)
-        eval_env = {}
+        eval_env = {"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
         if wandb_context_file and wandb_context_file.exists():
             eval_env["WANDB_CONTEXT_FILE"] = str(wandb_context_file)
 
