@@ -31,6 +31,17 @@ data:
   split: train
   root: data/pdebench
   patch_size: 1
+  download:
+    advection1d:
+      test_val_datasets: advection1d_full_v1
+      train_files:
+        - source: full/advection1d/advection1d_train_000.h5
+          symlink: advection1d_train.h5
+    darcy2d:
+      test_val_datasets: darcy2d_full_v1
+      train_files:
+        - source: full/darcy2d/darcy2d_train_000.h5
+          symlink: darcy2d_train.h5
 
   # Task sampling strategy (multi-task specific)
   task_sampling:
