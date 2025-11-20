@@ -73,7 +73,7 @@ diffusion:
 training:
   # Distributed training (PROVEN CONFIG from burgers)
   num_gpus: 2  # 2×A100_SXM4 = 160GB total
-  use_fsdp2: false         # DDP is sufficient for 2-GPU
+  use_fsdp2: true         # DDP is sufficient for 2-GPU
 
   # DDP-optimized batch configuration
   batch_size: 10           # Per-GPU batch size (same as burgers)
