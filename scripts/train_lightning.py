@@ -43,8 +43,8 @@ def main() -> None:
     parser.add_argument(
         "--stage",
         default="operator",
-        choices=["operator", "diff_residual", "consistency_distill", "steady_prior"],
-        help="Training stage (Lightning currently supports operator stage; diff_residual limited)",
+        choices=["all", "operator", "diff_residual", "consistency_distill", "steady_prior"],
+        help="Training stage (use 'all' to run all enabled stages sequentially)",
     )
     parser.add_argument(
         "--devices",
@@ -55,6 +55,36 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+
+    # Handle "all" stage by running enabled stages sequentially
+    if args.stage == "all":
+        stages_to_run = []
+        for stage_name in ["operator", "diff_residual", "consistency_distill", "steady_prior"]:
+            stage_cfg = cfg.get("stages", {}).get(stage_name, {})
+            if int(stage_cfg.get("epochs", 0)) > 0:
+                stages_to_run.append(stage_name)
+
+        if not stages_to_run:
+            print("ℹ️  No stages with epochs > 0, exiting.")
+            return
+
+        print(f"ℹ️  Running stages sequentially: {', '.join(stages_to_run)}")
+        for stage_name in stages_to_run:
+            print(f"\n{'='*70}")
+            print(f"▶ Starting stage: {stage_name}")
+            print(f"{'='*70}\n")
+            # Re-call this script with specific stage
+            import sys
+            import subprocess
+            cmd = [sys.executable, __file__, "--config", args.config, "--stage", stage_name]
+            if args.devices is not None:
+                cmd.extend(["--devices", str(args.devices)])
+            subprocess.run(cmd, check=True)
+        print(f"\n{'='*70}")
+        print(f"✅ All stages complete!")
+        print(f"{'='*70}")
+        return
+
     stage = args.stage
 
     num_gpus = int(cfg.get("training", {}).get("num_gpus", 1))
