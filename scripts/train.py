@@ -37,12 +37,17 @@ try:
 
     _dynamo.config.suppress_errors = True  # Avoid hard-crash on backend failures
     _dynamo.config.error_on_recompile = False
-    # Tame CUDA graphs reuse issues by disabling cudagraph capture in Inductor.
+    
+    # Optimize for performance
     try:
         import torch._inductor.config as _inductor_config
 
-        _inductor_config.triton.cudagraphs = False
+        # Enable cudagraphs for static shapes (significant speedup)
+        _inductor_config.triton.cudagraphs = True
         _inductor_config.freezing = True
+        
+        # Allow max-autotune to use more aggressive fusion
+        _inductor_config.max_autotune = True
     except Exception:
         pass
 except Exception:

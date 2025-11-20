@@ -1,0 +1,89 @@
+# Verification config for optimizations
+# Based on train_burgers_upt_full_ddp.yaml but with new optimizations enabled
+
+seed: 42
+deterministic: false
+benchmark: true
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+  download:
+    burgers1d:
+      test_val_datasets: burgers1d_full_v1
+      train_files:
+        - source: full/burgers1d/burgers1d_train_000.h5
+          symlink: burgers1d_train.h5
+
+latent:
+  dim: 32
+  tokens: 16
+
+operator:
+  architecture_type: pdet_stack
+  pdet:
+    input_dim: 32
+    hidden_dim: 64
+    depth: 2
+    num_heads: 4
+    mlp_ratio: 4.0
+    dropout: 0.0
+
+diffusion:
+  latent_dim: 32
+  hidden_dim: 64
+
+training:
+  num_gpus: 1
+  batch_size: 4
+  num_workers: 4
+  persistent_workers: true
+  pin_memory: true
+  prefetch_factor: 2
+  use_parallel_encoding: true
+  
+  compile: true
+  compile_mode: max-autotune
+  amp: true
+  amp_dtype: bfloat16
+  
+  grad_clip: 1.0
+  max_epochs: 1
+  log_every_n_steps: 1
+  check_val_every_n_epochs: 1
+  
+  use_inverse_losses: false
+
+stages:
+  operator:
+    epochs: 1
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.01
+    scheduler:
+      name: CosineAnnealingLR
+      t_max: 1
+      eta_min: 1.0e-5
+
+ttc:
+  enabled: true
+  steps: 1
+  candidates: 2
+  beam_width: 1
+  horizon: 1
+  reward:
+    analytical_weight: 1.0
+    grid: [64]
+    mass_field: "u"
+    weights:
+      mass: 1.0
+
+checkpoint:
+  dir: checkpoints_verify
+
+evaluation:
+  enabled: true
+  split: train  # Use train for quick check

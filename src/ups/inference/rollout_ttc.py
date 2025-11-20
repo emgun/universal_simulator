@@ -109,10 +109,15 @@ def ttc_rollout(
         remaining = budget.remaining()
         if remaining is not None:
             candidate_count = min(candidate_count, max(remaining, 1))
+        
+        if candidate_count <= 0:
+            return [], []
+
         budget.consume(candidate_count)
-        candidates: List[LatentState] = []
-        rewards: List[float] = []
         noise_std = _noise_for_step(step_idx)
+
+        candidates: List[LatentState] = []
+        
         for _ in range(candidate_count):
             candidate = _copy_state(base_state)
             if corrector is not None:
@@ -122,9 +127,13 @@ def ttc_rollout(
             if noise_std > 0.0:
                 noise = torch.randn_like(candidate.z) * noise_std
                 candidate = LatentState(z=candidate.z + noise, t=candidate.t, cond=candidate.cond)
-            reward_value = reward_model.score(prev_state, candidate, context={"step": float(step_idx)})
-            rewards.append(float(reward_value.item()))
             candidates.append(candidate)
+            
+        rewards: List[float] = []
+        for candidate in candidates:
+             reward_value = reward_model.score(prev_state, candidate, context={"step": float(step_idx)})
+             rewards.append(float(reward_value.item()))
+             
         return candidates, rewards
 
     def lookahead(candidate_state: LatentState, depth: int, step_idx: int) -> float:

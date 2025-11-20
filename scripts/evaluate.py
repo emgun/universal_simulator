@@ -30,11 +30,57 @@ from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.utils.monitoring import MonitoringSession, init_monitoring_session
 from ups.utils.leaderboard import update_leaderboard
 
-# Use spawn to allow CUDA in DataLoader workers during evaluation
 try:
     mp.set_start_method("spawn", force=True)
 except RuntimeError:
     pass
+
+
+def setup_distributed():
+    """Initialize distributed training if RANK environment variable is set.
+
+    Returns:
+        tuple: (device, is_distributed, rank, world_size, local_rank)
+    """
+    import torch.distributed as dist
+    import traceback
+
+    if dist.is_available() and dist.is_initialized():
+        rank = dist.get_rank()
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        world_size = dist.get_world_size()
+        device = torch.device(f"cuda:{local_rank}")
+        return device, True, rank, world_size, local_rank
+
+    if "RANK" in os.environ:
+        try:
+            local_rank = int(os.environ["LOCAL_RANK"])
+            rank = int(os.environ["RANK"])
+            world_size = int(os.environ["WORLD_SIZE"])
+        except (KeyError, ValueError) as e:
+            print(f"[DDP-ERROR] Failed to parse environment variables: {e}")
+            raise
+
+        # Initialize process group
+        try:
+            dist.init_process_group(backend="nccl")
+            dist.barrier()
+        except Exception as e:
+            print(f"[DDP-ERROR] dist.init_process_group failed: {e}")
+            # Fallback to gloo
+            try:
+                dist.init_process_group(backend="gloo")
+                dist.barrier()
+            except Exception as e2:
+                print(f"[DDP-ERROR] Gloo fallback failed: {e2}")
+                raise
+
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+        return device, True, rank, world_size, local_rank
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return device, False, 0, 1, 0
 
 
 def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to_strip: str = "_orig_mod.") -> None:
@@ -410,7 +456,6 @@ def _print_report(report: MetricReport, paths: Dict[str, Path], as_json: bool) -
         for key, value in report.extra.items():
             print(f"  {key}: {value}")
     print("Saved outputs:")
-    for kind, path in paths.items():
         print(f"  {kind}: {path}")
 
 
@@ -420,7 +465,6 @@ def main() -> None:
     parser.add_argument("--operator", required=True, help="Path to operator checkpoint")
     parser.add_argument("--diffusion", help="Optional diffusion residual checkpoint")
     parser.add_argument("--tau", type=float, default=0.5, help="Tau value used when applying diffusion residual")
-    parser.add_argument("--device", default="cpu", help="Device for evaluation")
     parser.add_argument("--output-prefix", default="reports/evaluation", help="Prefix (without extension) for saved reports")
     parser.add_argument("--log-path", default="reports/eval_log.jsonl", help="Where to append evaluation logs")
     parser.add_argument("--print-json", action="store_true", help="Print metrics and file paths as JSON")
@@ -435,6 +479,10 @@ def main() -> None:
     parser.add_argument("--leaderboard-wandb-entity", help="W&B entity for leaderboard logging")
     parser.add_argument("--leaderboard-wandb-run-name", help="Optional W&B run name override")
     args = parser.parse_args()
+
+    # Optimize for Ampere+ GPUs
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision("high")
 
     cfg = load_config(args.config)
     cfg_path = Path(args.config).resolve()
@@ -454,7 +502,7 @@ def main() -> None:
     ttc_runtime_cfg = None
     ttc_cfg = cfg.get("ttc")
     if ttc_cfg and ttc_cfg.get("enabled"):
-        device = torch.device(args.device)
+        # device is already a torch.device object from setup_distributed
         reward_model = build_reward_model_from_config(ttc_cfg, cfg.get("latent", {}).get("dim", 32), device).to(device)
         sampler_cfg = ttc_cfg.get("sampler", {})
         tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
@@ -482,7 +530,7 @@ def main() -> None:
         operator,
         diffusion=diffusion_model,
         tau=args.tau,
-        device=args.device,
+        device=device,
         return_details=True,
         ttc_config=ttc_runtime_cfg,
         reward_model=reward_model,

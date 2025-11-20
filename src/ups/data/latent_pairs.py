@@ -184,6 +184,13 @@ def _fields_to_latent_batch(
 ) -> torch.Tensor:
     T = fields.shape[0]
 
+    first_param = next(encoder.parameters(), None)
+    encoder_device = first_param.device if first_param is not None else fields.device
+
+    # Optimize: Move to device once
+    if fields.device != encoder_device:
+        fields = fields.to(encoder_device, non_blocking=True)
+    
     if fields.dim() == 4:
         if fields.shape[-1] <= 8:
             data = fields.permute(0, 3, 1, 2)
@@ -203,11 +210,6 @@ def _fields_to_latent_batch(
     data = data.contiguous().view(T, data.shape[1], H, W)
     B, C, H, W = data.shape
     flattened = data.view(B, C, H * W).transpose(1, 2)
-
-    first_param = next(encoder.parameters(), None)
-    encoder_device = first_param.device if first_param is not None else fields.device
-    if flattened.device != encoder_device:
-        flattened = flattened.to(encoder_device, non_blocking=True)
 
     coord_batch = coords.expand(B, -1, -1)
     if coord_batch.device != encoder_device:

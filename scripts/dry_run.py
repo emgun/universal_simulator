@@ -126,7 +126,11 @@ def test_data_loader(cfg: Dict) -> bool:
         batch_size = train_cfg.get("batch_size", 4)
         
         print(f"Building data loader (batch_size={batch_size})...")
-        loader = build_latent_pair_loader(cfg, split="train")
+        # Ensure split is set in config if needed, but don't pass as kwarg
+        if "data" not in cfg:
+            cfg["data"] = {}
+        cfg["data"]["split"] = "train"
+        loader = build_latent_pair_loader(cfg)
         
         # Load one batch
         print("Loading first batch...")
@@ -167,8 +171,8 @@ def build_models(cfg: Dict) -> bool:
         # Build operator
         print("Building operator...")
         op_cfg = LatentOperatorConfig(
-            state_dim=latent_dim,
-            pdet_cfg=PDETransformerConfig(**cfg.get("operator", {}).get("pdet", {}))
+            latent_dim=latent_dim,
+            pdet=PDETransformerConfig(**cfg.get("operator", {}).get("pdet", {}))
         )
         operator = LatentOperator(op_cfg).to(device)
         
