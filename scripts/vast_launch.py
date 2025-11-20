@@ -319,25 +319,29 @@ else
 fi
 """
 
-    script += training_cmd
-
+    # Wrap training with an auto-stop trap so the instance is stopped on success or failure
     if auto_shutdown:
-        script += """
-# Auto-stop instance
-pip install -q vastai 2>&1 || true
-sleep 10
-INSTANCE_ID="${CONTAINER_ID:-}"
-if [ -z "$INSTANCE_ID" ] && [ -f /root/.vast_containerlabel ]; then
-  INSTANCE_ID="$(cat /root/.vast_containerlabel)"
-fi
-if [ -z "$INSTANCE_ID" ]; then
-  INSTANCE_ID="$(hostname | sed 's/[^0-9]*//g')"
-fi
-if [ -n "$INSTANCE_ID" ]; then
-  vastai stop instance "$INSTANCE_ID" || true
-fi
-exit 0
+        script = script + """
+stop_instance() {
+  pip install -q vastai 2>&1 || true
+  sleep 5
+  INSTANCE_ID="${CONTAINER_ID:-}"
+  if [ -z "$INSTANCE_ID" ] && [ -f /root/.vast_containerlabel ]; then
+    INSTANCE_ID="$(cat /root/.vast_containerlabel)"
+  fi
+  if [ -z "$INSTANCE_ID" ]; then
+    INSTANCE_ID="$(hostname | sed 's/[^0-9]*//g')"
+  fi
+  if [ -n "$INSTANCE_ID" ]; then
+    vastai stop instance "$INSTANCE_ID" || true
+  fi
+}
+trap stop_instance EXIT
 """
+        script += training_cmd
+        script += "exit $TRAIN_EXIT_CODE\n"
+    else:
+        script += training_cmd
 
     return script
 
