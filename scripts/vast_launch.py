@@ -321,7 +321,7 @@ fi
 
     script += training_cmd
 
-if auto_shutdown:
+    if auto_shutdown:
         script += """
 # Auto-stop instance
 pip install -q vastai 2>&1 || true
