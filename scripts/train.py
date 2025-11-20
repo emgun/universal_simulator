@@ -765,6 +765,7 @@ def setup_fsdp2(model: nn.Module, cfg: dict, local_rank: int) -> nn.Module:
         mixed_precision=mixed_precision_policy,
         auto_wrap_policy=auto_wrap_policy,
         device_id=local_rank,
+        use_orig_params=True,  # ensure checkpoints use original param names (no _flat_param)
     )
 
     return model
