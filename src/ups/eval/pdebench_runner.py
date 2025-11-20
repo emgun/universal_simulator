@@ -88,9 +88,12 @@ def evaluate_latent_operator(
     total_bc_violation = 0.0
     total_negativity_penalty = 0.0
     physics_samples = 0
+    total_batches = len(loader)
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
+            if batch_idx % 20 == 0:
+                print(f"[eval] progress: batch {batch_idx}/{total_batches}")
             unpacked = unpack_batch(batch)
             if isinstance(unpacked, dict):
                 z0 = unpacked["z0"]
