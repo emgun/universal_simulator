@@ -355,6 +355,28 @@ class OperatorLightningModule(pl.LightningModule):
                     self.log(f"val/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True)
         return val_loss
 
+    def test_step(self, batch: Dict[str, Any], batch_idx: int):
+        device = self.device
+        z0 = batch["z0"].to(device)
+        z1 = batch["z1"].to(device)
+        cond = {k: v.to(device) for k, v in batch.get("cond", {}).items()}
+        state = LatentState(z=z0, t=torch.tensor(0.0, device=device), cond=cond)
+        dt_tensor = torch.tensor(self.dt, device=device)
+        next_state = self(state, dt_tensor)
+
+        test_loss = _nrmse(next_state.z, z1)
+        self.log("test/nrmse", test_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        task_names = batch.get("task_names")
+        if task_names:
+            unique = set(task_names)
+            for task in unique:
+                mask = [t == task for t in task_names]
+                if any(mask):
+                    indices = torch.nonzero(torch.tensor(mask, device=device), as_tuple=False).squeeze(-1)
+                    task_loss = _nrmse(next_state.z[indices], z1[indices])
+                    self.log(f"test/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True)
+        return test_loss
+
     def configure_optimizers(self):
         optimizer = _create_optimizer(self.cfg, self.operator, "operator")
         scheduler = _create_scheduler(optimizer, self.cfg, "operator")
@@ -469,6 +491,11 @@ class DiffusionLightningModule(pl.LightningModule):
                 },
             }
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
+
+    def test_step(self, batch: Dict[str, Any], batch_idx: int):
+        loss = self.training_step(batch, batch_idx)
+        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
 
 
 class ConsistencyLightningModule(pl.LightningModule):
@@ -596,3 +623,8 @@ class ConsistencyLightningModule(pl.LightningModule):
                 },
             }
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
+
+    def test_step(self, batch: Dict[str, Any], batch_idx: int):
+        loss = self.training_step(batch, batch_idx)
+        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        return loss
