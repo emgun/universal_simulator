@@ -531,6 +531,10 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Default to Lightning eval when Lightning training is selected
+    if args.use_lightning:
+        args.lightning_eval = True
+
     if args.wandb_mode:
         os.environ["WANDB_MODE"] = args.wandb_mode
 
