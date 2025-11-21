@@ -95,9 +95,6 @@ training:
   tune_lr: true
   lightning_profile: profiler
 
-  # Disable CUDA graphs to avoid 44GB memory overhead with FSDP + compile
-  torch_inductor_disable_cudagraphs: true
-
   checkpoint_interval: 25
 
   # CRITICAL: Proven DDP-compatible settings
