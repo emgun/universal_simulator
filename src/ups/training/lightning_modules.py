@@ -19,7 +19,11 @@ from ups.training.distributed_utils import maybe_trigger_simulated_oom
 from ups.training.hybrid_optimizer import HybridOptimizer, wrap_optimizer_with_cpu_offload
 from ups.training.losses import compute_operator_loss_bundle
 from ups.training.muon_factory import create_muon_optimizer, get_available_backends
-from ups.training.param_groups import build_param_groups, print_param_split_summary
+from ups.training.param_groups import (
+    build_param_groups,
+    filter_muon_params_for_backend,
+    print_param_split_summary,
+)
 from ups.utils.config_loader import load_config_with_includes
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 
@@ -157,7 +161,14 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
         muon_backend = opt_cfg.get("muon_backend", "auto")
 
         optimizers = []
-        if len(params_muon) > 0:
+        planned_backend = "flash-muon" if "flash-muon" in backends else (
+            "torch.optim.Muon" if "torch.optim.Muon" in backends else None
+        )
+        params_muon, diverted = filter_muon_params_for_backend(params_muon, planned_backend or "")
+        if diverted:
+            params_adamw = list(params_adamw) + diverted
+
+        if len(params_muon) > 0 and planned_backend:
             muon_optimizer, actual_backend = create_muon_optimizer(
                 params_muon,
                 lr=lr,

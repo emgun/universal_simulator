@@ -520,7 +520,11 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
     if name == "muon_hybrid" or name == "muon":
         from ups.training.hybrid_optimizer import HybridOptimizer
         from ups.training.muon_factory import create_muon_optimizer, get_available_backends
-        from ups.training.param_groups import build_param_groups, print_param_split_summary
+        from ups.training.param_groups import (
+            build_param_groups,
+            filter_muon_params_for_backend,
+            print_param_split_summary,
+        )
 
         # Log available backends
         backends = get_available_backends()
@@ -564,7 +568,26 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
 
         optimizers = []
 
-        # Create Muon optimizer if there are 2D+ parameters
+        # Decide backend to use and filter accordingly (torch Muon requires 2D grads)
+        available_backends = get_available_backends()
+        planned_backend = "flash-muon" if "flash-muon" in available_backends else (
+            "torch.optim.Muon" if "torch.optim.Muon" in available_backends else None
+        )
+        if planned_backend is None:
+            print("WARNING: No Muon backend available, falling back to AdamW")
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=lr,
+                weight_decay=weight_decay,
+                fused=True,
+            )
+            return wrap_optimizer_with_cpu_offload(optimizer, cpu_offload_enabled)
+
+        muon_params, diverted = filter_muon_params_for_backend(muon_params, planned_backend)
+        if diverted:
+            adamw_params = list(adamw_params) + diverted
+
+        # Create Muon optimizer if there are compatible parameters
         if len(muon_params) > 0:
             muon_opt, backend_name = create_muon_optimizer(
                 muon_params,

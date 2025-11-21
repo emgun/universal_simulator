@@ -8,9 +8,6 @@ def is_muon_compatible(p: nn.Parameter) -> bool:
     """
     Check if parameter is Muon-compatible (2D or higher).
 
-    Muon optimizer is designed for matrix parameters (Linear weights, Conv weights).
-    Use AdamW for 1D parameters (biases, LayerNorm, embeddings).
-
     Args:
         p: Parameter to check
 
@@ -111,3 +108,18 @@ def print_param_split_summary(model: nn.Module) -> None:
     print(f"  Muon (2D+): {total_muon:,} params ({100 * total_muon / total_params:.1f}%)")
     print(f"  AdamW (1D): {total_adamw:,} params ({100 * total_adamw / total_params:.1f}%)")
     print(f"  Total: {total_params:,} params")
+
+
+def filter_muon_params_for_backend(muon_params: list[nn.Parameter], backend: str) -> tuple[list[nn.Parameter], list[nn.Parameter]]:
+    """
+    Given a candidate Muon param list and backend name, return (kept, diverted).
+
+    torch.optim.Muon only accepts 2D gradients; conv/embedding weights (3D/4D)
+    must be diverted to AdamW to avoid runtime errors. flash-muon tolerates
+    higher rank weights. If backend is unknown, assume strict torch behavior.
+    """
+    if backend != "flash-muon":
+        kept = [p for p in muon_params if p.ndim == 2]
+        diverted = [p for p in muon_params if p.ndim != 2]
+        return kept, diverted
+    return muon_params, []
