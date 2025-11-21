@@ -73,7 +73,7 @@ diffusion:
 training:
   # Distributed training (PROVEN CONFIG from burgers)
   num_gpus: 2  # 2×A100_SXM4 = 160GB total
-  use_fsdp2: true        # Use DDP for throughput on 2 GPUs
+  use_fsdp2: false       # Use DDP instead of FSDP to avoid CUDA graph OOM
 
   # DDP-optimized batch configuration
   batch_size: 12           # Per-GPU batch size; larger to speed up multi-task
