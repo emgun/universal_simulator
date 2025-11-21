@@ -1010,7 +1010,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch = sub.add_parser("launch", help="Launch training instance")
     p_launch.add_argument("--offer-id", help="Explicit offer ID to create from")
     p_launch.add_argument("--gpu", default="A100_SXM4", help="GPU model (default: A100_SXM4 80GB)")
-    p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
+    p_launch.add_argument("--num-gpus", type=int, default=2, help="Number of GPUs (default: 2)")
     p_launch.add_argument(
         "--image",
         default="pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel",
