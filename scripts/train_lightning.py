@@ -98,6 +98,11 @@ def main() -> None:
 
     stage = args.stage
 
+    # Disable CUDA graphs if requested (to avoid OOM with FSDP + compile)
+    if cfg.get("training", {}).get("torch_inductor_disable_cudagraphs", False):
+        os.environ["TORCH_INDUCTOR_DISABLE_CUDAGRAPHS"] = "1"
+        print("ℹ️  CUDA graphs disabled (TORCH_INDUCTOR_DISABLE_CUDAGRAPHS=1)")
+
     num_gpus = int(cfg.get("training", {}).get("num_gpus", 1))
     devices = args.devices if args.devices is not None else num_gpus
     accelerator = "gpu" if devices and devices > 0 else "cpu"
