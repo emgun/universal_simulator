@@ -95,6 +95,11 @@ training:
   tune_lr: true
   lightning_profile: profiler
 
+  # TODO: INVESTIGATE - CUDA graphs with FSDP + compile causes 44GB overhead
+  # This is a temporary workaround. Need to find root cause.
+  # See: FSDP + torch.compile + CUDA graphs = OOM on 2x A100 80GB
+  torch_inductor_disable_cudagraphs: true
+
   checkpoint_interval: 25
 
   # CRITICAL: Proven DDP-compatible settings
