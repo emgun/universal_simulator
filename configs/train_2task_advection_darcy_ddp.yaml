@@ -91,9 +91,9 @@ training:
   prefetch_factor: 2       # Reduced from 4 to save RAM
   latent_cache_dir: data/latent_cache
   cpu_offload_optimizer: true
-  tune_batch_size: true
+  tune_batch_size: false  # Disabled: causes OOM
   tune_lr: true
-  lightning_profile: none
+  lightning_profile: profiler
 
   checkpoint_interval: 25
 
