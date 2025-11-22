@@ -156,7 +156,7 @@ training:
 
 stages:
   operator:
-    epochs: 3                     # Full training
+    epochs: 1                     # Full training
 
     optimizer:
       name: muon_hybrid

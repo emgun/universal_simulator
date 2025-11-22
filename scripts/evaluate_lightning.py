@@ -167,7 +167,13 @@ def main() -> None:
             amp_dtype = str(training_cfg.get("amp_dtype", "bfloat16")).lower()
             precision = "bf16-mixed" if amp_dtype != "float16" else "16-mixed"
 
-        model = OperatorLightningModule(cfg, operator_ckpt=args.operator)
+        model = OperatorLightningModule(cfg)
+        # Load operator weights into the LightningModule
+        _load_state_dict(
+            model.operator,
+            Path(args.operator),
+            strip_prefixes=["module.", "_orig_mod.", "operator."],
+        )
         datamodule = UPSDataModule(cfg)
         trainer = Trainer(
             accelerator=accelerator,
