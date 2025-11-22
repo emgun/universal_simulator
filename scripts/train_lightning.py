@@ -169,8 +169,6 @@ def main() -> None:
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     callbacks: list[pl.Callback] = []
     if not skip_lightning_val:
-        stage_ckpt_interval = int(stage_cfg.get("checkpoint_interval", training_cfg.get("checkpoint_interval", 1)) or 1)
-        stage_ckpt_interval = max(1, stage_ckpt_interval)
         callbacks.append(
             ModelCheckpoint(
                 dirpath=str(ckpt_dir),
@@ -178,7 +176,6 @@ def main() -> None:
                 monitor="val/nrmse",
                 mode="min",
                 save_top_k=3,
-                every_n_epochs=stage_ckpt_interval,
             )
         )
         patience = stage_cfg.get("patience", cfg.get("training", {}).get("patience"))
