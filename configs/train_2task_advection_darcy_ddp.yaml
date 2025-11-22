@@ -100,7 +100,7 @@ training:
   # See: FSDP + torch.compile + CUDA graphs = OOM on 2x A100 80GB
   torch_inductor_disable_cudagraphs: true
 
-  checkpoint_interval: 25
+  checkpoint_interval: null   # Leave periodic checkpoints off by default
 
   # CRITICAL: Proven DDP-compatible settings
   amp: true
