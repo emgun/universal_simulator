@@ -84,7 +84,13 @@ def _make_diffusion(cfg: Dict[str, Any]) -> DiffusionResidual:
     return DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
 
 
+def _is_rank_0() -> bool:
+    return int(os.environ.get("RANK", 0)) == 0
+
+
 def _write_json(report: MetricReport, extra: Dict[str, Any], destination: Path) -> None:
+    if not _is_rank_0():
+        return
     payload = {"metrics": report.metrics, "extra": report.extra}
     if extra:
         payload["details"] = extra
@@ -153,7 +159,7 @@ def main() -> None:
     if args.app_config:
         monitoring = init_monitoring_session(Path(args.app_config))
 
-    if not args.no_trainer_eval:
+    if not args.no_trainer-eval:
         training_cfg = cfg.get("training", {}) if isinstance(cfg.get("training"), dict) else {}
         num_gpus = int(training_cfg.get("num_gpus", 1))
         devices = num_gpus if num_gpus > 0 else None
@@ -190,7 +196,8 @@ def main() -> None:
         dest = Path(args.output_prefix).with_suffix(".json")
         _write_json(report, {}, dest)
         if args.print_json:
-            print(json.dumps(report.metrics, indent=2))
+            if _is_rank_0():
+                print(json.dumps(report.metrics, indent=2))
         return
 
     # Manual TTC path
@@ -290,16 +297,18 @@ def main() -> None:
         )
 
     if args.print_json:
-        print(json.dumps({"metrics": report.metrics, "extra": report.extra, "outputs": {"json": str(metrics_path)}}, indent=2))
+        if _is_rank_0():
+            print(json.dumps({"metrics": report.metrics, "extra": report.extra, "outputs": {"json": str(metrics_path)}}, indent=2))
     else:
-        print("Evaluation metrics:")
-        for key, value in report.metrics.items():
-            print(f"  {key}: {value:.6f}")
-        if report.extra:
-            print("Extra metadata:")
-            for key, value in report.extra.items():
-                print(f"  {key}: {value}")
-        print(f"Saved metrics to {metrics_path}")
+        if _is_rank_0():
+            print("Evaluation metrics:")
+            for key, value in report.metrics.items():
+                print(f"  {key}: {value:.6f}")
+            if report.extra:
+                print("Extra metadata:")
+                for key, value in report.extra.items():
+                    print(f"  {key}: {value}")
+            print(f"Saved metrics to {metrics_path}")
 
 
 if __name__ == "__main__":

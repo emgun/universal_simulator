@@ -831,6 +831,7 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
     pin_memory = bool(train_cfg.get("pin_memory", torch.cuda.is_available()))
     prefetch_factor = train_cfg.get("prefetch_factor")
     use_parallel_encoding = bool(train_cfg.get("use_parallel_encoding", False))
+    use_preloaded_cache = bool(train_cfg.get("use_preloaded_cache", True))
     cache_dir_cfg = train_cfg.get("latent_cache_dir")
     cache_root: Path | None = Path(cache_dir_cfg) if cache_dir_cfg else None
     cache_dtype_str = train_cfg.get("latent_cache_dtype", "float16") or None
@@ -883,7 +884,7 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
             ds_cache = cache_root / f"{task_name}_{split_name}" if cache_root else None
 
             use_preloaded = False
-            if ds_cache and ds_cache.exists():
+            if use_preloaded_cache and ds_cache and ds_cache.exists():
                 num_samples = len(dataset)
                 cache_complete, num_cached = check_cache_complete(ds_cache, num_samples)
                 if cache_complete:

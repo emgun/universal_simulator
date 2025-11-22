@@ -39,6 +39,10 @@ def _precision_from_cfg(cfg: dict) -> str:
     return "bf16-mixed"
 
 
+def _is_rank_0() -> bool:
+    return int(os.environ.get("RANK", 0)) == 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -77,14 +81,17 @@ def main() -> None:
                 stages_to_run.append(stage_name)
 
         if not stages_to_run:
-            print("ℹ️  No stages with epochs > 0, exiting.")
+            if _is_rank_0():
+                print("ℹ️  No stages with epochs > 0, exiting.")
             return
 
-        print(f"ℹ️  Running stages sequentially: {', '.join(stages_to_run)}")
+        if _is_rank_0():
+            print(f"ℹ️  Running stages sequentially: {', '.join(stages_to_run)}")
         for stage_name in stages_to_run:
-            print(f"\n{'='*70}")
-            print(f"▶ Starting stage: {stage_name}")
-            print(f"{'='*70}\n")
+            if _is_rank_0():
+                print(f"\n{'='*70}")
+                print(f"▶ Starting stage: {stage_name}")
+                print(f"{'='*70}\n")
             # Re-call this script with specific stage
             import sys
             import subprocess
@@ -92,9 +99,10 @@ def main() -> None:
             if args.devices is not None:
                 cmd.extend(["--devices", str(args.devices)])
             subprocess.run(cmd, check=True)
-        print(f"\n{'='*70}")
-        print(f"✅ All stages complete!")
-        print(f"{'='*70}")
+        if _is_rank_0():
+            print(f"\n{'='*70}")
+            print(f"✅ All stages complete!")
+            print(f"{'='*70}")
         return
 
     stage = args.stage
@@ -102,7 +110,8 @@ def main() -> None:
     # Disable CUDA graphs if requested (to avoid OOM with FSDP + compile)
     if cfg.get("training", {}).get("torch_inductor_disable_cudagraphs", False):
         os.environ["TORCH_INDUCTOR_DISABLE_CUDAGRAPHS"] = "1"
-        print("ℹ️  CUDA graphs disabled (TORCH_INDUCTOR_DISABLE_CUDAGRAPHS=1)")
+        if _is_rank_0():
+            print("ℹ️  CUDA graphs disabled (TORCH_INDUCTOR_DISABLE_CUDAGRAPHS=1)")
 
     num_gpus = int(cfg.get("training", {}).get("num_gpus", 1))
     devices = args.devices if args.devices is not None else num_gpus
@@ -124,9 +133,11 @@ def main() -> None:
     benchmark = bool(cfg.get("benchmark", True))
     if training_cfg.get("dynamo_suppress_errors", False):
         os.environ["TORCHDYNAMO_SUPPRESS_ERRORS"] = "1"
-        print("ℹ️  TorchDynamo errors will be suppressed (fallback to eager)")
+        if _is_rank_0():
+            print("ℹ️  TorchDynamo errors will be suppressed (fallback to eager)")
     if devices and devices > 1 and cfg.get("training", {}).get("compile", False):
-        print("⚠️  Warning: compile + multi-GPU may be unstable on some stacks. Disable if issues arise.")
+        if _is_rank_0():
+            print("⚠️  Warning: compile + multi-GPU may be unstable on some stacks. Disable if issues arise.")
 
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     epochs = int(stage_cfg.get("epochs", 1))
@@ -136,7 +147,8 @@ def main() -> None:
     stage_epochs = int(stage_cfg.get("epochs", 0) or 0)
 
     if stage_epochs <= 0:
-        print(f"ℹ️  Stage {stage} has epochs<=0, skipping.")
+        if _is_rank_0():
+            print(f"ℹ️  Stage {stage} has epochs<=0, skipping.")
         return
 
     if stage == "operator":
@@ -268,9 +280,11 @@ def main() -> None:
     tune_lr_flag = args.tune_lr or bool(training_cfg.get("tune_lr", False))
     if devices and isinstance(devices, int) and devices > 1 and (tune_bs_flag or tune_lr_flag):
         if tune_bs_flag:
-            print("ℹ️  Skipping batch size tuner: not supported for distributed strategies")
+            if _is_rank_0():
+                print("ℹ️  Skipping batch size tuner: not supported for distributed strategies")
         if tune_lr_flag:
-            print("ℹ️  Skipping LR finder: not supported for distributed strategies")
+            if _is_rank_0():
+                print("ℹ️  Skipping LR finder: not supported for distributed strategies")
         tune_bs_flag = False
         tune_lr_flag = False
 
@@ -281,20 +295,24 @@ def main() -> None:
             cfg.setdefault("training", {})["batch_size"] = new_bs
             # Rebuild datamodule with new batch size
             datamodule = UPSDataModule(cfg)
-            print(f"✓ Tuned batch size: {new_bs}")
+            if _is_rank_0():
+                print(f"✓ Tuned batch size: {new_bs}")
         except Exception as exc:
-            print(f"⚠️  Batch size tuner failed: {exc}")
+            if _is_rank_0():
+                print(f"⚠️  Batch size tuner failed: {exc}")
     if tune_lr_flag:
         try:
             tuner = Tuner(trainer)
             lr_finder = tuner.lr_find(model, datamodule=datamodule)
             suggestion = lr_finder.suggestion()
-            print(f"ℹ️  Suggested LR: {suggestion}")
+            if _is_rank_0():
+                print(f"ℹ️  Suggested LR: {suggestion}")
             # Apply suggested LR to optimizer config if possible
             stage_cfg.setdefault("optimizer", {})
             stage_cfg["optimizer"]["lr"] = float(suggestion)
         except Exception as exc:
-            print(f"⚠️  LR finder failed: {exc}")
+            if _is_rank_0():
+                print(f"⚠️  LR finder failed: {exc}")
 
     trainer.fit(model, datamodule=datamodule)
 
@@ -302,15 +320,26 @@ def main() -> None:
     final_ckpt_path = ckpt_dir / f"{stage}_last.ckpt"
     try:
         trainer.save_checkpoint(str(final_ckpt_path))
-        print(f"✅ Saved final checkpoint to {final_ckpt_path}")
+        if _is_rank_0():
+            print(f"✅ Saved final checkpoint to {final_ckpt_path}")
     except Exception as exc:
-        print(f"⚠️  Failed to save final checkpoint: {exc}")
+        if _is_rank_0():
+            print(f"⚠️  Failed to save final checkpoint: {exc}")
 
     # Optional test step (skip if not implemented)
     try:
-        trainer.test(model, datamodule=datamodule)
+        # Force test split and disable preloading for eval
+        if isinstance(cfg.get("data"), dict):
+            cfg["data"]["split"] = "test"
+        if isinstance(cfg.get("training"), dict):
+            cfg["training"]["use_preloaded_cache"] = False
+        
+        # Recreate datamodule for test phase
+        test_datamodule = UPSDataModule(cfg)
+        trainer.test(model, datamodule=test_datamodule)
     except Exception as e:
-        print(f"ℹ️  Skipping test (test_step not implemented): {e}")
+        if _is_rank_0():
+            print(f"ℹ️  Skipping test (test_step not implemented): {e}")
 
 
 if __name__ == "__main__":
