@@ -33,6 +33,7 @@ class UPSDataModule(pl.LightningDataModule):
             if split != "train":
                 # Fallback to train split if a dedicated split is unavailable
                 cfg_copy["data"]["split"] = "train"
+                print(f"[LightningDataModule] Falling back to train split for '{split}' (missing files).")
                 return build_latent_pair_loader(cfg_copy)
             raise
 

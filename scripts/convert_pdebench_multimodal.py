@@ -54,13 +54,45 @@ DEFAULT_TASKS: Dict[str, TaskConfig] = {
         "kind": "grid",
         "pattern": "1D/Advection/Train/*.hdf5",  # All data in Train/
     },
+    "diffusion_sorption1d": {
+        "kind": "grid",
+        "pattern": "1D/diffusion-sorption/*.hdf5",
+    },
+    "reaction_diffusion1d": {
+        "kind": "grid",
+        "pattern": "1D/ReactionDiffusion/{split}/*.hdf5",
+    },
     "navier_stokes2d": {
         "kind": "grid",
-        "pattern": "2D/NavierStokes/Train/*.hdf5",  # All data in Train/
+        "pattern": "2D/NS_incom/{split}/*.hdf5",
     },
     "darcy2d": {
         "kind": "grid",
         "pattern": "2D/DarcyFlow/*.hdf5",  # All data in root
+    },
+    "reaction_diffusion2d": {
+        "kind": "grid",
+        "pattern": "2D/diffusion-reaction/{split}/*.hdf5",
+    },
+    "shallow_water2d": {
+        "kind": "grid",
+        "pattern": "2D/shallow-water/{split}/*.hdf5",
+    },
+    "cfd1d_shocktube": {
+        "kind": "grid",
+        "pattern": "1D/CFD/{split}/**/*.hdf5",  # Train and Test/ShockTube
+    },
+    "cfd2d_rand": {
+        "kind": "grid",
+        "pattern": "2D/CFD/2D_Train_Rand/*.hdf5",  # Train only, synthesize val/test
+    },
+    "cfd2d_turb": {
+        "kind": "grid",
+        "pattern": "2D/CFD/2D_Train_Turb/*.hdf5",  # Train only, synthesize val/test
+    },
+    "cfd3d": {
+        "kind": "grid",
+        "pattern": "3D/Train/*.hdf5",  # Train only, synthesize val/test
     },
     "darcy2d_mesh": {
         "kind": "mesh",
@@ -117,6 +149,7 @@ def _convert_grid_task(
     limit: Optional[int],
     sample_size: Optional[int],
     chunk_size: Optional[int],
+    allow_synth: bool = True,
 ) -> Path:
     # 1. Find files for the requested split
     files = _resolve_files(root, pattern, split, limit=None) # Don't limit yet, we need full list for splitting
@@ -155,6 +188,10 @@ def _convert_grid_task(
             files = []
             
         print(f"  ℹ️  Synthetic split for '{task} {split}': using files {start} to {end} (of {n_files})")
+        if not allow_synth:
+            raise FileNotFoundError(
+                f"Synthetic split required for '{task}' ({split}); rerun without --no-synth-splits or provide explicit split files."
+            )
         
     elif split == "train" and (files == train_files):
          # We are processing train, and it matches the train set (obviously).
@@ -168,6 +205,10 @@ def _convert_grid_task(
              end = int(n_files * 0.8)
              files = train_files[:end]
              print(f"  ℹ️  Synthetic split for '{task} {split}': using files 0 to {end} (of {n_files})")
+             if not allow_synth:
+                 raise FileNotFoundError(
+                     f"Synthetic split required for '{task}' (train); rerun without --no-synth-splits or provide explicit split files."
+                 )
 
     if not files:
         raise FileNotFoundError(f"No files found for split '{split}' (and synthetic fallback failed)")
@@ -293,6 +334,7 @@ def convert_task(
     sample_size: Optional[int],
     chunk_size: Optional[int],
     radius: float,
+    allow_synth: bool = True,
 ) -> Path:
     kind = config["kind"]
     pattern = config["pattern"]
@@ -306,6 +348,7 @@ def convert_task(
             limit=limit,
             sample_size=sample_size,
             chunk_size=chunk_size,
+            allow_synth=allow_synth,
         )
     if kind == "mesh":
         return _convert_mesh_task(
@@ -341,6 +384,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--radius", type=float, default=0.2, help="Neighbourhood radius for particle datasets.")
     parser.add_argument("--pattern", help="Override glob pattern if defaults do not match.")
     parser.add_argument("--tasks-json", help="Optional JSON file describing task configs.")
+    parser.add_argument(
+        "--no-synth-splits",
+        action="store_true",
+        help="Disable synthetic val/test splitting; error if splits are missing.",
+    )
     return parser
 
 
@@ -383,6 +431,7 @@ def main(namespace: Optional[argparse.Namespace] = None) -> Path:
         sample_size=args.samples,
         chunk_size=args.chunk_size,
         radius=args.radius,
+        allow_synth=not args.no_synth_splits,
     )
 
 

@@ -62,14 +62,19 @@ TASK_SPECS: dict[str, PDEBenchSpec] = {
     "burgers1d": PDEBenchSpec(field_key="data"),
     "advection1d": PDEBenchSpec(field_key="data"),
     "diffusion_sorption1d": PDEBenchSpec(field_key="data"),
+    "reaction_diffusion1d": PDEBenchSpec(field_key="data"),
+    "cfd1d_shocktube": PDEBenchSpec(field_key="data"),
     "darcy2d": PDEBenchSpec(field_key="data"),
     "navier_stokes2d": PDEBenchSpec(field_key="data"),
+    "cfd2d_rand": PDEBenchSpec(field_key="data"),
+    "cfd2d_turb": PDEBenchSpec(field_key="data"),
     "allen_cahn2d": PDEBenchSpec(field_key="data"),
     "cahn_hilliard2d": PDEBenchSpec(field_key="data"),
     "reaction_diffusion2d": PDEBenchSpec(field_key="data"),
     "shallow_water2d": PDEBenchSpec(field_key="data"),
     "compressible_ns1d": PDEBenchSpec(field_key="data"),
     "compressible_ns3d": PDEBenchSpec(field_key="data"),
+    "cfd3d": PDEBenchSpec(field_key="data"),
     # Mesh / particle variants (Zarr)
     "darcy2d_mesh": PDEBenchSpec(field_key="data", kind="mesh"),
     "particles_advect": PDEBenchSpec(field_key="data", kind="particles"),
@@ -139,7 +144,11 @@ class PDEBenchDataset(Dataset):
             else:
                 shard_paths = sorted(base.glob(f"{cfg.task}_{cfg.split}_*.h5"))
                 if not shard_paths:
-                    raise FileNotFoundError(file_path)
+                    raise FileNotFoundError(
+                        f"Missing data for task '{cfg.task}' split '{cfg.split}'. "
+                        f"Checked: {file_path} and {base}/{cfg.task}_{cfg.split}_*.h5. "
+                        "Run scripts/setup_vast_data.sh or scripts/remote_preprocess_pdebench.sh to download/convert."
+                    )
 
             fields_list = []
             targets_list = []

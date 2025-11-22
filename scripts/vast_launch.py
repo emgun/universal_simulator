@@ -214,8 +214,11 @@ pip install -e .[dev]
 
     # Use helper script for data downloads (keeps onstart script compact)
     tasks_str = " ".join(tasks)
+    cache_env = ""
+    if args.cache_version:
+        cache_env = f'CACHE_VERSION="{args.cache_version}" CACHE_DIR="data/latent_cache" '
     script += f"""
-bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
+{cache_env}bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
 
 # Checkpoint handling: clear for fresh start OR download from WandB for resume
 {"# RESUME MODE: Download checkpoints from WandB" if resume_from_wandb else "# FRESH START: Clear checkpoints"}
@@ -740,6 +743,9 @@ def cmd_eval(args: argparse.Namespace) -> None:
     # Extract tasks to ensure data is downloaded
     tasks = extract_tasks_from_config(config_path)
     tasks_str = " ".join(tasks)
+    cache_env = ""
+    if args.cache_version:
+        cache_env = f'CACHE_VERSION="{args.cache_version}" CACHE_DIR="data/latent_cache" '
 
     # Define repo URL (should be passed or defaulted)
     repo_url = getattr(args, 'repo_url', None) or git_remote_url()
@@ -806,7 +812,7 @@ pip install -e .[dev] --quiet
 
 # Download required datasets
 echo "=== Downloading Datasets: {tasks_str} ==="
-bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
+{cache_env}bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
 
 export WANDB_MODE=online
 
@@ -1061,6 +1067,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-precompute",
         action="store_true",
         help="Skip latent cache precompute in onstart (faster startup)",
+    )
+    p_launch.add_argument(
+        "--cache-version",
+        type=str,
+        help="Optional latent cache version to download from B2 (pdebench/latent_caches/<version>/...)",
     )
     p_launch.add_argument(
         "--resume-from-wandb",

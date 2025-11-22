@@ -6,6 +6,25 @@ set -euo pipefail
 
 TASKS="${1:-advection1d darcy2d}"
 ROOT_DIR="${2:-data/pdebench}"
+CACHE_VERSION="${CACHE_VERSION:-""}"
+CACHE_DIR="${CACHE_DIR:-data/latent_cache}"
+CHECKSUM="${CHECKSUM:-0}"
+BUCKET_ROOT="B2TRAIN:pdebench"
+
+declare -A TASK_PATHS=(
+  [advection1d]="1D/Advection/Train/"
+  [burgers1d]="1D/Burgers/Train/"
+  [diffusion_sorption1d]="1D/diffusion-sorption/"
+  [reaction_diffusion1d]="1D/ReactionDiffusion/"
+  [cfd1d_shocktube]="1D/CFD/"
+  [darcy2d]="2D/DarcyFlow/"
+  [reaction_diffusion2d]="2D/diffusion-reaction/"
+  [navier_stokes2d]="2D/NS_incom/"
+  [shallow_water2d]="2D/shallow-water/"
+  [cfd2d_rand]="2D/CFD/2D_Train_Rand/"
+  [cfd2d_turb]="2D/CFD/2D_Train_Turb/"
+  [cfd3d]="3D/Train/"
+)
 
 echo "📥 Downloading data for tasks: $TASKS"
 
@@ -57,8 +76,15 @@ mkdir -p "$ROOT_DIR"
 
 # Download all splits (train, val, test)
 echo "Downloading data files (train/val/test)..."
+checksum_flag=()
+if [ "$CHECKSUM" -eq 1 ]; then
+  checksum_flag=(--checksum)
+fi
 for task in $TASKS; do
   echo "📦 Task: $task"
+  if [ -n "${TASK_PATHS[$task]:-}" ]; then
+    echo "    expected path: ${TASK_PATHS[$task]}"
+  fi
 
   # Download all three splits
   for split in train val test; do
@@ -79,7 +105,7 @@ for task in $TASKS; do
 
     for base_path in "full/$task" "pdebench/${task}_full_v1"; do
       for pattern in "${task}_${split}.h5" "${task}_${split}_000.h5"; do
-        if rclone copyto "B2TRAIN:PDEbench/${base_path}/${pattern}" "$target_file" --progress --retries 3 2>/dev/null; then
+        if rclone copyto "${BUCKET_ROOT}/${base_path}/${pattern}" "$target_file" --progress --retries 3 "${checksum_flag[@]}" 2>/dev/null; then
           if [ -f "$target_file" ]; then
             echo "  ✓ $split ($(du -h "$target_file" | cut -f1))"
             downloaded=true
@@ -95,6 +121,30 @@ for task in $TASKS; do
     fi
   done
 done
+
+if [ -n "$CACHE_VERSION" ]; then
+  echo ""
+  echo "📦 Downloading latent caches (version: $CACHE_VERSION) to $CACHE_DIR"
+  mkdir -p "$CACHE_DIR"
+  for task in $TASKS; do
+    for split in train val test; do
+      src="${BUCKET_ROOT}/latent_caches/${CACHE_VERSION}/${task}_${split}/"
+      dst="${CACHE_DIR}/${task}_${split}/"
+      if [ -d "$dst" ] && [ "$(ls -A "$dst" 2>/dev/null)" ]; then
+        echo "  ✓ Cache exists for ${task}_${split}, skipping"
+        continue
+      fi
+      echo "  → Downloading cache ${task}_${split}..."
+      mkdir -p "$dst"
+      if rclone copy "$src" "$dst" --progress --retries 3 "${checksum_flag[@]}" 2>/dev/null; then
+        echo "    ✓ Downloaded cache for ${task}_${split}"
+      else
+        echo "    ⚠️  Cache missing for ${task}_${split} (continuing)"
+      fi
+    done
+  done
+  echo "✓ Cache download step complete (see warnings above for missing splits)"
+fi
 
 echo ""
 echo "✓ All data files downloaded successfully"

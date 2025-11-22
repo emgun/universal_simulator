@@ -76,7 +76,7 @@ training:
   use_parallel_encoding: true
   pin_memory: true
   prefetch_factor: 2       # PHASE 4: REDUCE 4 → 2 (diminishing returns, saves RAM)
-  cache_dir: data/latent_cache  # CRITICAL: Use precomputed cache for 4-8x speedup
+  latent_cache_dir: data/latent_cache  # CRITICAL: Use precomputed cache for 4-8x speedup
 
   checkpoint_interval: 25
 

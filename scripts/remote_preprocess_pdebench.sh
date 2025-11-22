@@ -10,11 +10,21 @@ echo "════════════════════════�
 
 # Parse arguments
 TASKS=${1:-"advection1d darcy2d"}  # Space-separated task list
-CACHE_DIM=${2:-""}  # Optional: latent dim for cache precomputation
-CACHE_TOKENS=${3:-""}  # Optional: latent tokens for cache
+CACHE_DIM=${2:-""}  # Optional: latent dim for cache precomputation (legacy single preset)
+CACHE_TOKENS=${3:-""}  # Optional: latent tokens for cache (legacy single preset)
+
+DOWNLOAD_ONLY=${DOWNLOAD_ONLY:-0}
+SKIP_UPLOAD=${SKIP_UPLOAD:-0}
+CACHE_PRESETS=${CACHE_PRESETS:-""}  # comma-separated (e.g., base,medium,large,xlarge)
+LIMIT=${LIMIT:-""}
+SAMPLES=${SAMPLES:-""}
+BUCKET_ROOT="B2TRAIN:pdebench"
 
 echo "Tasks to process: $TASKS"
-echo "Latent cache: ${CACHE_DIM:+${CACHE_DIM}d × ${CACHE_TOKENS}tok}${CACHE_DIM:-disabled}"
+echo "Latent cache (legacy): ${CACHE_DIM:+${CACHE_DIM}d × ${CACHE_TOKENS}tok}${CACHE_DIM:-disabled}"
+echo "Cache presets: ${CACHE_PRESETS:-none}"
+echo "Download-only: $DOWNLOAD_ONLY | Skip-upload: $SKIP_UPLOAD"
+echo "Limits: LIMIT=${LIMIT:-none} SAMPLES=${SAMPLES:-none}"
 echo ""
 
 # Install dependencies
@@ -29,6 +39,22 @@ fi
 # Upgrade pip and setuptools to support PEP 660 editable installs
 pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 pip install -e .[dev]
+
+# Task → path map (from pdebench_data_urls.csv)
+declare -A TASK_PATHS=(
+  [advection1d]="1D/Advection/Train/"
+  [burgers1d]="1D/Burgers/Train/"
+  [diffusion_sorption1d]="1D/diffusion-sorption/"
+  [reaction_diffusion1d]="1D/ReactionDiffusion/"
+  [cfd1d_shocktube]="1D/CFD/"
+  [darcy2d]="2D/DarcyFlow/"
+  [reaction_diffusion2d]="2D/diffusion-reaction/"
+  [navier_stokes2d]="2D/NS_incom/"
+  [shallow_water2d]="2D/shallow-water/"
+  [cfd2d_rand]="2D/CFD/2D_Train_Rand/"
+  [cfd2d_turb]="2D/CFD/2D_Train_Turb/"
+  [cfd3d]="3D/Train/"
+)
 
 # Setup B2 rclone (check if env vars are set)
 if [ -z "${B2_KEY_ID:-}" ]; then
@@ -82,6 +108,9 @@ for task in $TASKS; do
     cd /tmp/PDEBench/pdebench/data_download || exit 1
 
     echo "→ Downloading $task..."
+    if [ -n "${TASK_PATHS[$task]:-}" ]; then
+      echo "   expected path: ${TASK_PATHS[$task]}"
+    fi
     # Map UPS task names to PDEBench download names
     case $task in
       advection1d)
@@ -96,6 +125,14 @@ for task in $TASKS; do
         python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name darcy
         ;;
+      diffusion_sorption1d)
+        python download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name diffusion_sorption
+        ;;
+      reaction_diffusion1d)
+        python download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name 1d_reacdiff || true
+        ;;
       reaction_diffusion2d)
         python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name 2d_reacdiff
@@ -104,8 +141,12 @@ for task in $TASKS; do
         python download_direct.py \
           --root_folder /workspace/data/pdebench_raw --pde_name ns_incom
         ;;
+      shallow_water2d)
+        python download_direct.py \
+          --root_folder /workspace/data/pdebench_raw --pde_name swe || true
+        ;;
       *)
-        echo "⚠️  Unknown task: $task (skipping)"
+        echo "⚠️  No direct download mapping for: $task (skipping download; ensure data exists or use rclone)"
         ;;
     esac
     echo "✓ Download complete: $task"
@@ -138,14 +179,23 @@ for task in $TASKS; do
 
     echo "→ Converting $task to UPS format..."
 
+    limit_flag=()
+    samples_flag=()
+    if [ -n "$LIMIT" ]; then
+      limit_flag=(--limit "$LIMIT")
+    fi
+    if [ -n "$SAMPLES" ]; then
+      samples_flag=(--samples "$SAMPLES")
+    fi
+
     # Convert all splits
     for split in train val test; do
       PYTHONPATH=src python scripts/convert_pdebench_multimodal.py $task \
         --root /workspace/data/pdebench_raw \
         --out data/pdebench \
         --split $split \
-        --limit 100 \
-        --samples 1000 || echo "⚠️  Conversion failed for $task ($split) - possibly missing in raw data (continuing)"
+        "${limit_flag[@]}" \
+        "${samples_flag[@]}" || echo "⚠️  Conversion failed for $task ($split) - possibly missing in raw data (continuing)"
     done
 
     # Verify output files exist (check train mainly)
@@ -170,47 +220,55 @@ echo "────────────────────────�
 echo "Step 3: Upload Converted Data to B2"
 echo "──────────────────────────────────────────────────────"
 
-# Upload each converted dataset to B2 IN PARALLEL
-echo "Starting parallel uploads to B2..."
-upload_pids=()
+if [ "$SKIP_UPLOAD" -eq 1 ] || [ "$DOWNLOAD_ONLY" -eq 1 ]; then
+  echo "⚠️  Upload skipped (SKIP_UPLOAD or DOWNLOAD_ONLY set)"
+else
+  # Upload each converted dataset to B2 IN PARALLEL
+  echo "Starting parallel uploads to B2..."
+  upload_pids=()
 
-for task in $TASKS; do
-  (
-    # IMPORTANT: cd into workspace for each subshell
-    cd /workspace/universal_simulator || exit 1
+  for task in $TASKS; do
+    (
+      # IMPORTANT: cd into workspace for each subshell
+      cd /workspace/universal_simulator || exit 1
 
-    echo "→ Uploading $task to B2..."
+      echo "→ Uploading $task to B2..."
 
-    # Upload all splits (train, val, test)
-    for split in train val test; do
-      file="data/pdebench/${task}_${split}.h5"
-      if [ -f "$file" ]; then
-        rclone copy "$file" \
-          "B2TRAIN:PDEbench/full/${task}/" \
-          --progress --transfers 4
-        echo "  ✓ Uploaded ${task}_${split}.h5"
-      fi
-    done
-  ) &
-  upload_pids+=($!)
-done
+      # Upload all splits (train, val, test)
+      for split in train val test; do
+        file="data/pdebench/${task}_${split}.h5"
+        if [ -f "$file" ]; then
+          rclone copy "$file" \
+            "${BUCKET_ROOT}/full/${task}/" \
+            --progress --transfers 4
+          echo "  ✓ Uploaded ${task}_${split}.h5"
+        fi
+      done
+    ) &
+    upload_pids+=($!)
+  done
 
-# Wait for all uploads to complete
-echo "Waiting for ${#upload_pids[@]} parallel uploads..."
-for pid in "${upload_pids[@]}"; do
-  wait $pid || echo "⚠️  Upload process $pid failed (continuing)"
-done
-echo "✓ All uploads complete"
+  # Wait for all uploads to complete
+  echo "Waiting for ${#upload_pids[@]} parallel uploads..."
+  for pid in "${upload_pids[@]}"; do
+    wait $pid || echo "⚠️  Upload process $pid failed (continuing)"
+  done
+  echo "✓ All uploads complete"
+fi
 
 echo ""
 echo "──────────────────────────────────────────────────────"
 echo "Step 4: Verify B2 Uploads"
 echo "──────────────────────────────────────────────────────"
 
-for task in $TASKS; do
-  echo "→ Verifying $task in B2..."
-  rclone ls "B2TRAIN:PDEbench/full/${task}/" || echo "  ⚠️  No files found for $task"
-done
+if [ "$SKIP_UPLOAD" -eq 1 ] || [ "$DOWNLOAD_ONLY" -eq 1 ]; then
+  echo "⚠️  Verification skipped (SKIP_UPLOAD or DOWNLOAD_ONLY set)"
+else
+  for task in $TASKS; do
+    echo "→ Verifying $task in B2..."
+    rclone ls "${BUCKET_ROOT}/full/${task}/" || echo "  ⚠️  No files found for $task"
+  done
+fi
 
 # Cleanup raw data to free space
 echo ""
@@ -219,46 +277,85 @@ rm -rf /workspace/data/pdebench_raw /tmp/PDEBench
 du -sh data/pdebench
 
 # Optional: Precompute latent caches
+PRESET_LIST=()
+if [ -n "$CACHE_PRESETS" ]; then
+  IFS=',' read -ra PRESET_LIST <<< "$CACHE_PRESETS"
+fi
 if [ -n "$CACHE_DIM" ] && [ -n "$CACHE_TOKENS" ]; then
+  PRESET_LIST+=("custom:${CACHE_DIM}:${CACHE_TOKENS}")
+fi
+
+if [ "${#PRESET_LIST[@]}" -gt 0 ]; then
   echo ""
   echo "──────────────────────────────────────────────────────"
-  echo "Step 5: Precompute Latent Caches (${CACHE_DIM}d × ${CACHE_TOKENS}tok)"
+  echo "Step 5: Precompute Latent Caches (presets: ${PRESET_LIST[*]})"
   echo "──────────────────────────────────────────────────────"
 
-  PYTHONPATH=src python scripts/precompute_latent_cache.py \
-    --config configs/cache_precompute_defaults.yaml \
-    --tasks $TASKS \
-    --splits train val test \
-    --cache-dir data/latent_cache \
-    --latent-dim $CACHE_DIM \
-    --latent-len $CACHE_TOKENS \
-    --device cuda \
-    --batch-size 16 \
-    --num-workers 4 \
-    --cache-dtype float16 \
-    --pin-memory \
-    --parallel || echo "⚠️  Cache precomputation failed (continuing)"
+  for preset in "${PRESET_LIST[@]}"; do
+    dim=""
+    tok=""
+    version=""
+    case "$preset" in
+      base)
+        dim=128; tok=128; version="upt_128d_128tok"
+        ;;
+      medium192|mid|medium_192)
+        dim=192; tok=256; version="upt_192d_256tok"
+        ;;
+      medium)
+        dim=256; tok=512; version="upt_256d_512tok"
+        ;;
+      large)
+        dim=384; tok=768; version="upt_384d_768tok"
+        ;;
+      custom:*)
+        IFS=':' read -r _ dim tok <<< "$preset"
+        version="upt_${dim}d_${tok}tok"
+        ;;
+      *)
+        echo "⚠️  Unknown cache preset '${preset}', skipping"
+        continue
+        ;;
+    esac
 
-  echo ""
-  echo "──────────────────────────────────────────────────────"
-  echo "Step 6: Upload Latent Caches to B2"
-  echo "──────────────────────────────────────────────────────"
+    echo "→ Precomputing cache preset ${version} (dim=${dim}, tokens=${tok})"
+    PYTHONPATH=src python scripts/precompute_latent_cache.py \
+      --config configs/cache_precompute_defaults.yaml \
+      --tasks $TASKS \
+      --splits train val test \
+      --cache-dir data/latent_cache \
+      --latent-dim "$dim" \
+      --latent-len "$tok" \
+      --device cuda \
+      --batch-size 16 \
+      --num-workers 4 \
+      --cache-dtype float16 \
+      --pin-memory \
+      --parallel || echo "⚠️  Cache precomputation failed for ${version} (continuing)"
 
-  CACHE_VERSION="upt_${CACHE_DIM}d_${CACHE_TOKENS}tok"
+    if [ "$SKIP_UPLOAD" -eq 1 ] || [ "$DOWNLOAD_ONLY" -eq 1 ]; then
+      echo "⚠️  Cache upload skipped for ${version} (SKIP_UPLOAD or DOWNLOAD_ONLY set)"
+    else
+      echo ""
+      echo "──────────────────────────────────────────────────────"
+      echo "Step 6: Upload Latent Caches to B2 (${version})"
+      echo "──────────────────────────────────────────────────────"
 
-  for task in $TASKS; do
-    for split in train val test; do
-      cache_dir="data/latent_cache/${task}_${split}"
-      if [ -d "$cache_dir" ]; then
-        echo "→ Uploading ${task}_${split} cache..."
-        rclone copy "$cache_dir/" \
-          "B2TRAIN:PDEbench/latent_caches/$CACHE_VERSION/${task}_${split}/" \
-          --progress --transfers 8
-      fi
-    done
+      for task in $TASKS; do
+        for split in train val test; do
+          cache_dir="data/latent_cache/${task}_${split}"
+          if [ -d "$cache_dir" ]; then
+            echo "→ Uploading ${task}_${split} cache..."
+            rclone copy "$cache_dir/" \
+              "${BUCKET_ROOT}/latent_caches/$version/${task}_${split}/" \
+              --progress --transfers 8
+          fi
+        done
+      done
+
+      echo "✓ Latent cache uploaded: $version"
+    fi
   done
-
-  echo "✓ Latent cache uploaded: $CACHE_VERSION"
 else
   echo ""
   echo "→ Skipping latent cache precomputation (not requested)"
@@ -271,12 +368,23 @@ echo "════════════════════════�
 echo ""
 echo "Uploaded to B2:"
 for task in $TASKS; do
-  echo "  • B2TRAIN:PDEbench/full/${task}/"
+  echo "  • ${BUCKET_ROOT}/full/${task}/"
 done
-if [ -n "$CACHE_DIM" ]; then
-  echo "  • B2TRAIN:PDEbench/latent_caches/upt_${CACHE_DIM}d_${CACHE_TOKENS}tok/"
+if [ "${#PRESET_LIST[@]}" -gt 0 ]; then
+  for preset in "${PRESET_LIST[@]}"; do
+    case "$preset" in
+      base) echo "  • ${BUCKET_ROOT}/latent_caches/upt_128d_128tok/" ;;
+      medium192|mid|medium_192) echo "  • ${BUCKET_ROOT}/latent_caches/upt_192d_256tok/" ;;
+      medium) echo "  • ${BUCKET_ROOT}/latent_caches/upt_256d_512tok/" ;;
+      large) echo "  • ${BUCKET_ROOT}/latent_caches/upt_384d_768tok/" ;;
+      custom:*)
+        IFS=':' read -r _ dim tok <<< "$preset"
+        echo "  • ${BUCKET_ROOT}/latent_caches/upt_${dim}d_${tok}tok/"
+        ;;
+    esac
+  done
 fi
 echo ""
 echo "Next steps:"
-echo "  1. Verify data in B2: rclone ls B2TRAIN:PDEbench/full/"
+echo "  1. Verify data in B2: rclone ls ${BUCKET_ROOT}/full/"
 echo "  2. Launch training: python scripts/vast_launch.py launch --config <config>"

@@ -48,8 +48,8 @@ Match TASK_SPECS, converter defaults, and configs to official PDEBench families.
 
 ### Success Criteria
 #### Automated
-- [ ] `python -c "from ups.data.pdebench import TASK_SPECS; print(list(TASK_SPECS.keys()))"` shows new tasks.
-- [ ] `python scripts/validate_config.py configs/train_pdebench_11task_ddp.yaml` passes.
+- [x] `python -c "from ups.data.pdebench import TASK_SPECS; print(list(TASK_SPECS.keys()))"` shows new tasks.
+- [x] `python scripts/validate_config.py configs/train_pdebench_11task_ddp.yaml` passes.
 #### Manual
 - [ ] Multi-task configs instantiate loaders without KeyError when data present.
 
@@ -83,9 +83,10 @@ Use the official CSV map to download full datasets, convert, and upload to B2 wi
 **File**: `scripts/remote_preprocess_pdebench.sh` (post-conversion block)  
 **Changes**: Add optional cache precompute/upload for multiple sizes inspired by UPT configs:  
   - Base: `latent_dim=128`, `latent_len=128` → version `upt_128d_128tok`  
+  - Medium-192: `latent_dim≈192`, `tokens≈256` → version `upt_192d_256tok`  
   - Medium (UPT medium: `latent_dim≈256`, `tokens≈512`): version `upt_256d_512tok`  
   - Large (UPT large: `latent_dim≈384`, `tokens≈768`): version `upt_384d_768tok`  
-Gate by env/CLI (e.g., `CACHE_PRESETS=base,medium,large`). After precompute via `scripts/precompute_latent_cache.py --tasks ... --splits train val test`, upload to `pdebench/latent_caches/<version>/<task_split>/`.
+Gate by env/CLI (e.g., `CACHE_PRESETS=base,medium192,medium,large`). After precompute via `scripts/precompute_latent_cache.py --tasks ... --splits train val test`, upload to `pdebench/latent_caches/<version>/<task_split>/`.
 
 ### Success Criteria
 #### Automated

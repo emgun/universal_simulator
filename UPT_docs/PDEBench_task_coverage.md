@@ -12,11 +12,11 @@
 - Launch path precomputes caches locally but never downloads B2 latent caches; remote runs recompute unless caches are pre-seeded: `scripts/vast_launch.py:214-260`, `scripts/setup_vast_data.sh`.
 
 ## B2 Path Casing
-- Remote preprocess/download use `B2TRAIN:PDEbench/...` (capital P/E): `scripts/remote_preprocess_pdebench.sh:184-193`, `scripts/setup_vast_data.sh:52-60`.
-- Plan references `pdebench`; case sensitivity could break reuse if bucket distinguishes case.
+- Remote preprocess/download now use `B2TRAIN:pdebench/...` with consistent casing: `scripts/remote_preprocess_pdebench.sh`, `scripts/setup_vast_data.sh`.
+- Plan references `pdebench`; case sensitivity previously risked reuse if bucket distinguished case.
 
 ## Preprocess Truncation
-- Remote preprocessing enforces `--limit 100 --samples 1000` for every task/split: `scripts/remote_preprocess_pdebench.sh:141-148`, so produced artifacts are partial, not full datasets.
+- Remote preprocessing no longer enforces truncation by default; optional `LIMIT`/`SAMPLES` env can cap for smoke runs.
 
 ## Task Balancing Scope
 - Balanced sampling only active in distributed mode via `MultiTaskDistributedSampler`: `src/ups/data/latent_pairs.py:810-869`, `src/ups/data/task_samplers.py:1-104`.
@@ -34,6 +34,7 @@
 - Plan target: download and reuse precomputed latent caches from B2 to cut startup. Current flow precomputes locally and never downloads B2 caches (`scripts/vast_launch.py:214-260`, `scripts/setup_vast_data.sh`), so the “one-time cache investment” from the plan is not realized.
 - Plan target: staged task curriculum (e.g., add tasks over epochs). There is no task curriculum wiring in loader or `scripts/train.py`; only rollout curriculum stub is unused.
 - Plan target: full remote preprocessing of all tasks. Remote preprocess currently truncates to 100 files/1000 samples per split and uses `PDEbench` casing; mixed-modality (mesh/particles) patterns exist but are not included in defaults, so Phase 4 data prep would need manual pattern additions.
+- Plan target: latent cache presets for multiple model sizes. Precompute now supports presets (128/128, 192/256, 256/512, 384/768) and uploads to versioned B2 paths when enabled.
 
 ## Official PDEBench Repo & Paper Cross-Reference
 - Official dataset index (`pdebench_data_urls.csv` in repo) lists 375 entries; top-level dirs: `1D` (69), `2D` (298), `3D` (8).

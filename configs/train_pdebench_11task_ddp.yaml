@@ -18,17 +18,17 @@ benchmark: true
 data:
   # All 11 PDEBench tasks
   task:
-    - advection1d        # 1D advection equation
-    - darcy2d            # 2D Darcy flow
-    - burgers1d          # 1D Burgers equation
-    - diff_react1d       # 1D diffusion-reaction
-    - swe2d              # 2D shallow water equations
-    - ns2d_cond          # 2D Navier-Stokes (incompressible, conditional)
-    - comp_ns2d          # 2D compressible Navier-Stokes
-    - react_diff2d       # 2D reaction-diffusion
-    - diff_sorp2d        # 2D diffusion-sorption
-    - shallow_water2d_varied  # 2D shallow water (varied bathymetry)
-    - ns2d_turb          # 2D Navier-Stokes (turbulent)
+    - advection1d           # 1D advection equation
+    - burgers1d             # 1D Burgers equation
+    - diffusion_sorption1d  # 1D diffusion-sorption
+    - reaction_diffusion1d  # 1D reaction-diffusion
+    - cfd1d_shocktube       # 1D CFD shock tube
+    - darcy2d               # 2D Darcy flow
+    - reaction_diffusion2d  # 2D reaction-diffusion
+    - navier_stokes2d       # 2D incompressible Navier-Stokes
+    - shallow_water2d       # 2D shallow water
+    - cfd2d_rand            # 2D CFD random
+    - cfd2d_turb            # 2D CFD turbulent
 
   split: train
   root: data/pdebench
@@ -78,7 +78,7 @@ training:
   use_parallel_encoding: true
   pin_memory: true
   prefetch_factor: 4
-  cache_dir: data/latent_cache       # CRITICAL: Use precomputed cache for 4-8x speedup
+  latent_cache_dir: data/latent_cache  # CRITICAL: Use precomputed cache for 4-8x speedup
 
   checkpoint_interval: 25
 
