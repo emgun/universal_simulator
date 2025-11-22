@@ -10,8 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Universal Physics Stack Devs"}]
 dependencies = [
-  "torch>=2.9",
-  "torchvision>=0.20",  # Compatible with PyTorch 2.9+
+  "torch>=2.9.1",
+  "torchvision>=0.24.1",  # Compatible with PyTorch 2.9.1+
   "triton>=2.3",
   # NOTE: flash-muon must be installed from GitHub (not on PyPI)
   # If not available, will fall back to torch.optim.Muon
@@ -37,8 +37,8 @@ dependencies = [
   "pandas>=2.0",
   "matplotlib>=3.7",
   "seaborn>=0.13",
-  "pytorch-lightning>=2.4.4,<3.0",
-  "lightning>=2.4.4,<3.0",  # Ensure lightning-fabric is compatible
+  "pytorch-lightning>=2.5.6,<3.0",
+  "lightning>=2.5.6,<3.0",  # Ensure lightning-fabric is compatible
   "torchao>=0.5.0",  # CPU offload optimizer (Phase 5)
 ]
 

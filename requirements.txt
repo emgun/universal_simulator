@@ -2,14 +2,14 @@
 # Generate from pyproject.toml for easy remote installation
 
 # Core ML
-torch>=2.9
-torchvision>=0.20
+torch>=2.9.1
+torchvision>=0.24.1
 einops>=0.7
 # flash-muon (Triton-optimized Muon backend)
 flash-muon @ git+https://github.com/nil0x9/flash-muon.git
 # Lightning
-pytorch-lightning>=2.4.4,<3.0
-lightning>=2.4.4,<3.0
+pytorch-lightning>=2.5.6,<3.0
+lightning>=2.5.6,<3.0
 
 # Data handling
 xarray>=2023.1
