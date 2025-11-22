@@ -328,10 +328,11 @@ class OperatorLightningModule(pl.LightningModule):
             grid_shape=grid_shape,
         )
 
+        bs = int(z0.size(0))
         loss = loss_bundle.total
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         for name, value in loss_bundle.components.items():
-            self.log(f"train/{name}", value, on_step=False, on_epoch=True, sync_dist=True)
+            self.log(f"train/{name}", value, on_step=False, on_epoch=True, sync_dist=True, batch_size=bs)
 
         if task_names:
             unique = set(task_names)
@@ -340,7 +341,7 @@ class OperatorLightningModule(pl.LightningModule):
                 if any(mask):
                     indices = torch.nonzero(torch.tensor(mask, device=device), as_tuple=False).squeeze(-1)
                     task_loss = _nrmse(next_state.z[indices], z1[indices])
-                    self.log(f"train/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True)
+                    self.log(f"train/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True, batch_size=bs)
 
         return loss
 
@@ -353,8 +354,9 @@ class OperatorLightningModule(pl.LightningModule):
         dt_tensor = torch.tensor(self.dt, device=device)
         next_state = self(state, dt_tensor)
 
+        bs = int(z0.size(0))
         val_loss = _nrmse(next_state.z, z1)
-        self.log("val/nrmse", val_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val/nrmse", val_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         task_names = batch.get("task_names")
         if task_names:
             unique = set(task_names)
@@ -363,7 +365,7 @@ class OperatorLightningModule(pl.LightningModule):
                 if any(mask):
                     indices = torch.nonzero(torch.tensor(mask, device=device), as_tuple=False).squeeze(-1)
                     task_loss = _nrmse(next_state.z[indices], z1[indices])
-                    self.log(f"val/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True)
+                    self.log(f"val/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True, batch_size=bs)
         return val_loss
 
     def test_step(self, batch: Dict[str, Any], batch_idx: int):
@@ -375,8 +377,9 @@ class OperatorLightningModule(pl.LightningModule):
         dt_tensor = torch.tensor(self.dt, device=device)
         next_state = self(state, dt_tensor)
 
+        bs = int(z0.size(0))
         test_loss = _nrmse(next_state.z, z1)
-        self.log("test/nrmse", test_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("test/nrmse", test_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         task_names = batch.get("task_names")
         if task_names:
             unique = set(task_names)
@@ -484,7 +487,8 @@ class DiffusionLightningModule(pl.LightningModule):
         if self.lam_rel > 0.0:
             loss = loss + self.lam_rel * _nrmse(drift, residual_target)
 
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        bs = int(z0.size(0))
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         return loss
 
     def configure_optimizers(self):
@@ -505,7 +509,8 @@ class DiffusionLightningModule(pl.LightningModule):
 
     def test_step(self, batch: Dict[str, Any], batch_idx: int):
         loss = self.training_step(batch, batch_idx)
-        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        bs = int(batch["z0"].size(0))
+        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         return loss
 
 
@@ -616,7 +621,8 @@ class ConsistencyLightningModule(pl.LightningModule):
         if self.lam_rel > 0.0:
             loss = loss + self.lam_rel * _nrmse(student_z, z_tiled.to(student_z.dtype))
 
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        bs = int(z0.size(0))
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         return loss
 
     def configure_optimizers(self):
@@ -637,5 +643,6 @@ class ConsistencyLightningModule(pl.LightningModule):
 
     def test_step(self, batch: Dict[str, Any], batch_idx: int):
         loss = self.training_step(batch, batch_idx)
-        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        bs = int(batch["z0"].size(0))
+        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         return loss

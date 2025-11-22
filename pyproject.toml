@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Universal Physics Stack Devs"}]
 dependencies = [
-  "torch>=2.4",
-  "torchvision>=0.19",  # Compatible with PyTorch 2.4+
-  "triton>=2.1",
+  "torch>=2.9",
+  "torchvision>=0.20",  # Compatible with PyTorch 2.9+
+  "triton>=2.3",
   # NOTE: flash-muon must be installed from GitHub (not on PyPI)
   # If not available, will fall back to torch.optim.Muon
   "flash-muon @ git+https://github.com/nil0x9/flash-muon.git",
