@@ -906,6 +906,9 @@ def main() -> None:
         if isinstance(training_wandb_info, dict):
             _persist_wandb_info(wandb_info_path, training_wandb_info)
 
+        if not _is_primary_rank():
+            return
+
         # Best-effort GPU memory cleanup before evaluation to reduce OOM risk
         try:
             import gc
