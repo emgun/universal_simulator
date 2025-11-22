@@ -159,66 +159,29 @@ def main() -> None:
     if args.app_config:
         monitoring = init_monitoring_session(Path(args.app_config))
 
-    if not args.no_trainer_eval:
-        training_cfg = cfg.get("training", {}) if isinstance(cfg.get("training"), dict) else {}
-        num_gpus = int(training_cfg.get("num_gpus", 1))
-        devices = num_gpus if num_gpus > 0 else None
-        accelerator = "gpu" if devices else "cpu"
-        strategy: str | None = None
-        if accelerator == "gpu" and devices and devices > 1:
-            strategy = "fsdp" if training_cfg.get("use_fsdp2", False) else "ddp"
-
-        precision = "32-true"
-        if training_cfg.get("amp", False):
-            amp_dtype = str(training_cfg.get("amp_dtype", "bfloat16")).lower()
-            precision = "bf16-mixed" if amp_dtype != "float16" else "16-mixed"
-
-        model = OperatorLightningModule(cfg)
-        # Load operator weights into the LightningModule
-        _load_state_dict(
-            model.operator,
-            Path(args.operator),
-            strip_prefixes=["module.", "_orig_mod.", "operator."],
-        )
-        datamodule = UPSDataModule(cfg)
-        trainer = Trainer(
-            accelerator=accelerator,
-            devices=devices,
-            strategy=strategy,
-            precision=precision,
-            logger=CSVLogger("logs", name="eval", version=None),
-            enable_checkpointing=False,
-            enable_progress_bar=True,
-            enable_model_summary=False,
-        )
-        try:
-            results = trainer.test(model, datamodule=datamodule)
-        except Exception as e:
-            print(f"❌ Evaluation failed on Rank {os.environ.get('RANK', '?')}: {e}")
-            import traceback
-            traceback.print_exc()
-            import sys
-            sys.exit(1)
-
-        report = MetricReport(metrics=results[0] if results else {}, extra={"eval_mode": "trainer"})
-        dest = Path(args.output_prefix).with_suffix(".json")
-        _write_json(report, {}, dest)
-        if args.print_json:
-            if _is_rank_0():
-                print(json.dumps(report.metrics, indent=2))
-        return
-
-    # Manual TTC path
+    # Unified evaluation path: Use evaluate_latent_operator for both Lightning and native
+    # This avoids FSDP/Trainer inference issues (like "mat2" errors) while maintaining distributed speed
+    
+    # 1. Construct Model
     operator = _make_operator(cfg).to(device)
-    _load_state_dict(operator, Path(args.operator), strip_prefixes=["module.", "_orig_mod.", "operator."])
+    _load_state_dict(
+        operator,
+        Path(args.operator),
+        strip_prefixes=["module.", "_orig_mod.", "operator."],
+    )
     operator.eval()
 
     diffusion = None
     if args.diffusion:
         diffusion = _make_diffusion(cfg).to(device)
-        _load_state_dict(diffusion, Path(args.diffusion), strip_prefixes=["module.", "_orig_mod.", "diffusion_residual.", "diffusion."])
+        _load_state_dict(
+            diffusion,
+            Path(args.diffusion),
+            strip_prefixes=["module.", "_orig_mod.", "diffusion_residual.", "diffusion."],
+        )
         diffusion.eval()
 
+    # 2. Configure TTC (if enabled)
     reward_model = None
     ttc_runtime_cfg = None
     ttc_cfg = cfg.get("ttc")
@@ -245,16 +208,24 @@ def main() -> None:
             device=device,
         )
 
-    report, details = evaluate_latent_operator(
-        cfg,
-        operator,
-        diffusion=diffusion,
-        tau=args.tau,
-        device=device,
-        return_details=True,
-        ttc_config=ttc_runtime_cfg,
-        reward_model=reward_model,
-    )
+    # 3. Run Distributed Evaluation
+    try:
+        report, details = evaluate_latent_operator(
+            cfg,
+            operator,
+            diffusion=diffusion,
+            tau=args.tau,
+            device=device,
+            return_details=True,
+            ttc_config=ttc_runtime_cfg,
+            reward_model=reward_model,
+        )
+    except Exception as e:
+        print(f"❌ Evaluation failed on Rank {os.environ.get('RANK', '?')}: {e}")
+        import traceback
+        traceback.print_exc()
+        import sys
+        sys.exit(1)
 
     output_prefix = Path(args.output_prefix).resolve()
     output_prefix.parent.mkdir(parents=True, exist_ok=True)
