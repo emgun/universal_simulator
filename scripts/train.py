@@ -543,16 +543,6 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
 
         print(f"Available Muon backends: {', '.join(backends)}")
 
-        # IMPORTANT: CPU offload is incompatible with Muon optimizer (torchao issue)
-        # Muon optimizer is not iterable, causing TypeError in CPUOffloadOptimizer.__init__
-        if cpu_offload_enabled:
-            print(
-                "⚠️  WARNING: cpu_offload_optimizer is incompatible with muon_hybrid optimizer"
-            )
-            print("   Disabling CPU offload for this run (torchao compatibility issue)")
-            print("   See: https://github.com/pytorch/ao/issues/2919")
-            cpu_offload_enabled = False
-
         # Split parameters into Muon (2D+) and AdamW (1D) groups
         muon_params, adamw_params = build_param_groups(model)
         print_param_split_summary(model)
@@ -586,6 +576,17 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
         muon_params, diverted = filter_muon_params_for_backend(muon_params, planned_backend)
         if diverted:
             adamw_params = list(adamw_params) + diverted
+
+        # IMPORTANT: CPU offload is incompatible with Muon optimizer (torchao issue)
+        # Only disable when we actually have Muon params; otherwise keep offload for AdamW.
+        using_muon = len(muon_params) > 0
+        if cpu_offload_enabled and using_muon:
+            print(
+                "⚠️  WARNING: cpu_offload_optimizer is incompatible with muon_hybrid optimizer"
+            )
+            print("   Disabling CPU offload for this run (torchao compatibility issue)")
+            print("   See: https://github.com/pytorch/ao/issues/2919")
+            cpu_offload_enabled = False
 
         # Create Muon optimizer if there are compatible parameters
         if len(muon_params) > 0:
