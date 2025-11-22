@@ -11,6 +11,11 @@ from typing import Any, Dict, Optional
 
 import torch
 import yaml
+from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import CSVLogger
+
+from ups.data.lightning_datamodule import UPSDataModule
+from ups.training.lightning_modules import OperatorLightningModule
 
 from ups.core.blocks_pdet import PDETransformerConfig
 from ups.eval.pdebench_runner import evaluate_latent_operator
@@ -102,6 +107,11 @@ def main() -> None:
         action="store_true",
         help="Disable TTC during eval (enabled by default per config)",
     )
+    parser.add_argument(
+        "--no-trainer-eval",
+        action="store_true",
+        help="Skip Lightning Trainer-based eval (use manual TTC path instead)",
+    )
     parser.add_argument("--leaderboard-run-id", help="Append metrics to leaderboard under this run id")
     parser.add_argument("--leaderboard-path", default="reports/leaderboard.csv")
     parser.add_argument("--leaderboard-html", default="reports/leaderboard.html")
@@ -143,6 +153,41 @@ def main() -> None:
     if args.app_config:
         monitoring = init_monitoring_session(Path(args.app_config))
 
+    if not args.no_trainer_eval:
+        training_cfg = cfg.get("training", {}) if isinstance(cfg.get("training"), dict) else {}
+        num_gpus = int(training_cfg.get("num_gpus", 1))
+        devices = num_gpus if num_gpus > 0 else None
+        accelerator = "gpu" if devices else "cpu"
+        strategy: str | None = None
+        if accelerator == "gpu" and devices and devices > 1:
+            strategy = "fsdp" if training_cfg.get("use_fsdp2", False) else "ddp"
+
+        precision = "32-true"
+        if training_cfg.get("amp", False):
+            amp_dtype = str(training_cfg.get("amp_dtype", "bfloat16")).lower()
+            precision = "bf16-mixed" if amp_dtype != "float16" else "16-mixed"
+
+        model = OperatorLightningModule(cfg, operator_ckpt=args.operator)
+        datamodule = UPSDataModule(cfg)
+        trainer = Trainer(
+            accelerator=accelerator,
+            devices=devices,
+            strategy=strategy,
+            precision=precision,
+            logger=CSVLogger("logs", name="eval", version=None),
+            enable_checkpointing=False,
+            enable_progress_bar=True,
+            enable_model_summary=False,
+        )
+        results = trainer.test(model, datamodule=datamodule)
+        report = MetricReport(metrics=results[0] if results else {}, extra={"eval_mode": "trainer"})
+        dest = Path(args.output_prefix).with_suffix(".json")
+        _write_json(report, {}, dest)
+        if args.print_json:
+            print(json.dumps(report.metrics, indent=2))
+        return
+
+    # Manual TTC path
     operator = _make_operator(cfg).to(device)
     _load_state_dict(operator, Path(args.operator), strip_prefixes=["module.", "_orig_mod.", "operator."])
     operator.eval()
