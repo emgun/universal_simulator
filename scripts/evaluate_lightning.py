@@ -129,8 +129,15 @@ def main() -> None:
     # Force eval to use test split only to avoid preloading train caches in memory
     if isinstance(cfg.get("data"), dict):
         cfg["data"]["split"] = "test"
+    # Avoid preloading entire caches during eval to reduce memory pressure
+    if isinstance(cfg.get("training"), dict):
+        cfg["training"]["use_preloaded_cache"] = False
     if args.disable_ttc and "ttc" in cfg and isinstance(cfg["ttc"], dict):
         cfg["ttc"]["enabled"] = False
+
+    # Clear any lingering allocations before constructing models/dataloaders
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     monitoring = None
     if args.app_config:
