@@ -159,7 +159,7 @@ def main() -> None:
     if args.app_config:
         monitoring = init_monitoring_session(Path(args.app_config))
 
-    if not args.no_trainer-eval:
+    if not args.no_trainer_eval:
         training_cfg = cfg.get("training", {}) if isinstance(cfg.get("training"), dict) else {}
         num_gpus = int(training_cfg.get("num_gpus", 1))
         devices = num_gpus if num_gpus > 0 else None
