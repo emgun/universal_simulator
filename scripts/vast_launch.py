@@ -1013,7 +1013,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--num-gpus", type=int, default=2, help="Number of GPUs (default: 2)")
     p_launch.add_argument(
         "--image",
-        default="pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel",
+        default="pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel",  # latest torch 2.9 stack
         help="Docker image (default: PyTorch 2.9 CUDA 12.8 for Blackwell support)",
     )
     p_launch.add_argument(
@@ -1150,7 +1150,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--offer-id", required=True, help="VastAI offer ID to use for preprocessing"
     )
     p_preprocess.add_argument(
-        "--image", default="pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel", help="Docker image"
+        "--image",
+        default="pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel",
+        help="Docker image (override to newer tag if available)",
     )
     p_preprocess.add_argument(
         "--disk", type=int, default=128, help="Disk size in GB (default: 128 for preprocessing)"

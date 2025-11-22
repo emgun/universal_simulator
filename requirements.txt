@@ -8,8 +8,8 @@ einops>=0.7
 # flash-muon (Triton-optimized Muon backend)
 flash-muon @ git+https://github.com/nil0x9/flash-muon.git
 # Lightning
-pytorch-lightning>=2.4,<3.0
-lightning>=2.4,<3.0
+pytorch-lightning>=2.4.4,<3.0
+lightning>=2.4.4,<3.0
 
 # Data handling
 xarray>=2023.1
