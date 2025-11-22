@@ -1254,13 +1254,14 @@ def main() -> None:
             else:
                 print("\nRun did not pass full-eval promotion gates.")
                 failed_gates = True
-        else:
+        elif _is_primary_rank():
             gate_results["full_eval"] = {"skipped": True}
             wandb_gate_rows.append(["full_eval", "skipped", ""])
             if wandb_run is not None:
                 wandb_run.log({"fast_to_sota/full_eval_passed": -1.0})
                 _wandb_log_event(wandb_run, "full_eval_completed", -1.0)
             print("Skipping full evaluation (not requested or gated).")
+        # Non-primary ranks silently skip full eval to avoid duplicate messages
 
         analysis_report_path: Optional[Path] = None
         analysis_history_path: Optional[Path] = None
