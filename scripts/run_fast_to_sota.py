@@ -47,6 +47,15 @@ from ups.utils.leaderboard import update_leaderboard
 PYTHON = sys.executable
 
 
+def _is_primary_rank() -> bool:
+    """Detect torchrun local rank; treat rank 0 as primary."""
+
+    try:
+        return int(os.environ.get("LOCAL_RANK", "0") or "0") == 0
+    except ValueError:
+        return True
+
+
 def _apply_overrides(cfg: Dict[str, object], overrides: List[str]) -> Dict[str, object]:
     """Apply dotted key overrides (key=value) to a config dictionary."""
     if not overrides:
@@ -1086,7 +1095,7 @@ def main() -> None:
 
         # Full evaluation stage
         metadata_last_full = metadata.get("last_full_eval") if isinstance(metadata, dict) else None
-        if should_run_full and not args.skip_full_eval:
+        if should_run_full and not args.skip_full_eval and _is_primary_rank():
             full_dir = run_root / "full_eval"
             full_dir.mkdir(parents=True, exist_ok=True)
             full_prefix = full_dir / "results"
