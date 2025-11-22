@@ -287,6 +287,14 @@ def main() -> None:
 
     trainer.fit(model, datamodule=datamodule)
 
+    # Always persist a final checkpoint for the stage (Lightning ModelCheckpoint sometimes skips)
+    final_ckpt_path = ckpt_dir / f"{stage}_last.ckpt"
+    try:
+        trainer.save_checkpoint(str(final_ckpt_path))
+        print(f"✅ Saved final checkpoint to {final_ckpt_path}")
+    except Exception as exc:
+        print(f"⚠️  Failed to save final checkpoint: {exc}")
+
     # Optional test step (skip if not implemented)
     try:
         trainer.test(model, datamodule=datamodule)
