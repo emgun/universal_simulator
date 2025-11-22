@@ -191,7 +191,15 @@ def main() -> None:
             enable_progress_bar=True,
             enable_model_summary=False,
         )
-        results = trainer.test(model, datamodule=datamodule)
+        try:
+            results = trainer.test(model, datamodule=datamodule)
+        except Exception as e:
+            print(f"❌ Evaluation failed on Rank {os.environ.get('RANK', '?')}: {e}")
+            import traceback
+            traceback.print_exc()
+            import sys
+            sys.exit(1)
+
         report = MetricReport(metrics=results[0] if results else {}, extra={"eval_mode": "trainer"})
         dest = Path(args.output_prefix).with_suffix(".json")
         _write_json(report, {}, dest)
@@ -312,4 +320,13 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        import sys
+        print(f"[evaluate_lightning] Global exception caught: {e}", file=sys.stderr)
+        traceback.print_exc()
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+        sys.exit(1)

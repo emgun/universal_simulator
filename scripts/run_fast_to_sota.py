@@ -601,20 +601,12 @@ def main() -> None:
 
     small_cfg_loaded = load_config_with_includes(small_eval_config)
     small_cfg_resolved = _apply_overrides(small_cfg_loaded, args.config_override)
-    # Force single-GPU for robust eval
-    if "training" not in small_cfg_resolved:
-        small_cfg_resolved["training"] = {}
-    small_cfg_resolved["training"]["num_gpus"] = 1
     resolved_small_config = _write_config(
         small_cfg_resolved, configs_dir / "small_eval_resolved.yaml"
     )
 
     full_cfg_loaded = load_config_with_includes(full_eval_config)
     full_cfg_resolved = _apply_overrides(full_cfg_loaded, args.config_override)
-    # Force single-GPU for robust eval
-    if "training" not in full_cfg_resolved:
-        full_cfg_resolved["training"] = {}
-    full_cfg_resolved["training"]["num_gpus"] = 1
     resolved_full_config = _write_config(full_cfg_resolved, configs_dir / "full_eval_resolved.yaml")
 
     ckpt_dir_value = cfg.get("checkpoint", {}).get("dir", "checkpoints")
@@ -911,15 +903,13 @@ def main() -> None:
                 if training_wandb_info.get("entity"):
                     common_tags["train_wandb_entity"] = training_wandb_info.get("entity")
 
-            if isinstance(training_wandb_info, dict):
-                _persist_wandb_info(wandb_info_path, training_wandb_info)
-        
-            # Non-primary ranks exit here to prevent distributed evaluation deadlocks
-            # Evaluation will run on Rank 0 only (single-GPU)
-            if not _is_primary_rank():
-                return
-        
-            # Best-effort GPU memory cleanup before evaluation to reduce OOM risk        try:
+                if isinstance(training_wandb_info, dict):
+
+                    _persist_wandb_info(wandb_info_path, training_wandb_info)
+
+            
+
+                # Best-effort GPU memory cleanup before evaluation to reduce OOM risk        try:
             import gc
             import torch
 
@@ -1020,7 +1010,6 @@ def main() -> None:
                     small_cmd,
                     env=dict(eval_env),
                     desc="evaluate-small",
-                    unset_env_keys=["RANK", "WORLD_SIZE", "LOCAL_RANK", "MASTER_ADDR", "MASTER_PORT", "TORCHELASTIC_RUN_ID"],
                 )
                 small_metrics_path = small_prefix.with_suffix(".json")
                 small_flat = _load_metrics(small_metrics_path)
@@ -1180,7 +1169,6 @@ def main() -> None:
                     full_cmd,
                     env=dict(eval_env),
                     desc="evaluate-full",
-                    unset_env_keys=["RANK", "WORLD_SIZE", "LOCAL_RANK", "MASTER_ADDR", "MASTER_PORT", "TORCHELASTIC_RUN_ID"],
                 )
                 full_flat = _load_metrics(full_metrics_path)
                 timestamp_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")

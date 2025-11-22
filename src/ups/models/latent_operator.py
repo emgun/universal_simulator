@@ -119,9 +119,18 @@ class LatentOperator(nn.Module):
             dt = torch.tensor(dt, device=z.device, dtype=z.dtype)
         else:
             dt = dt.to(device=z.device, dtype=z.dtype)
+        
+        # DEBUG: Print shapes to diagnose distributed crash
+        # print(f"[DEBUG] Rank {torch.distributed.get_rank() if torch.distributed.is_initialized() else 0} z={z.shape} dt={dt.shape}")
+
         dt_embed = self.time_embed(dt)
         if dt_embed.size(0) == 1 and z.size(0) > 1:
             dt_embed = dt_embed.expand(z.size(0), -1)
+        
+        # Debug check for mat2 error
+        if dt_embed.dim() != 2:
+             print(f"[LatentOperator] Error: dt_embed has shape {dt_embed.shape}, expected 2D")
+        
         time_feat = self.time_to_latent(dt_embed).to(z.device)[:, None, :]
         z = z + time_feat
         if self.conditioner is not None:
