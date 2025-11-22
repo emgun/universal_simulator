@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytorch_lightning as pl
+from pytorch_lightning.tuner.tuning import Tuner
 import yaml
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
@@ -121,6 +122,9 @@ def main() -> None:
     accum_steps = int(training_cfg.get("accum_steps", 1))
     deterministic = bool(cfg.get("deterministic", False))
     benchmark = bool(cfg.get("benchmark", True))
+    if training_cfg.get("dynamo_suppress_errors", False):
+        os.environ["TORCHDYNAMO_SUPPRESS_ERRORS"] = "1"
+        print("ℹ️  TorchDynamo errors will be suppressed (fallback to eager)")
     if devices and devices > 1 and cfg.get("training", {}).get("compile", False):
         print("⚠️  Warning: compile + multi-GPU may be unstable on some stacks. Disable if issues arise.")
 
@@ -254,7 +258,8 @@ def main() -> None:
 
     if tune_bs_flag:
         try:
-            new_bs = trainer.tuner.scale_batch_size(model, datamodule=datamodule, mode="power")
+            tuner = Tuner(trainer)
+            new_bs = tuner.scale_batch_size(model, datamodule=datamodule, mode="power")
             cfg.setdefault("training", {})["batch_size"] = new_bs
             # Rebuild datamodule with new batch size
             datamodule = UPSDataModule(cfg)
@@ -263,7 +268,8 @@ def main() -> None:
             print(f"⚠️  Batch size tuner failed: {exc}")
     if tune_lr_flag:
         try:
-            lr_finder = trainer.tuner.lr_find(model, datamodule=datamodule)
+            tuner = Tuner(trainer)
+            lr_finder = tuner.lr_find(model, datamodule=datamodule)
             suggestion = lr_finder.suggestion()
             print(f"ℹ️  Suggested LR: {suggestion}")
             # Apply suggested LR to optimizer config if possible

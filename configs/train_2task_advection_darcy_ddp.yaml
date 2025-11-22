@@ -93,7 +93,7 @@ training:
   cpu_offload_optimizer: false  # Disabled
   tune_batch_size: true
   tune_lr: true
-  lightning_profile: profiler
+  lightning_profile: none
 
   # TODO: INVESTIGATE - CUDA graphs with FSDP + compile causes 44GB overhead
   # This is a temporary workaround. Need to find root cause.
@@ -106,7 +106,8 @@ training:
   amp: true
   amp_dtype: bfloat16      # Use BF16 for better stability
   compile: true            # Enable compile for speedup
-  compile_mode: max-autotune # Aggressive optimization
+  compile_mode: reduce-overhead # Safer compile settings for stability under FSDP
+  dynamo_suppress_errors: true   # Fall back to eager on problematic graphs
   grad_clip: null
   ema_decay: null          # Disable EMA when using FSDP to avoid deepcopy-of-view issues
 
