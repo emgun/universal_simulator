@@ -255,6 +255,13 @@ def main() -> None:
     # Optional tuners
     tune_bs_flag = args.tune_batch_size or bool(training_cfg.get("tune_batch_size", False))
     tune_lr_flag = args.tune_lr or bool(training_cfg.get("tune_lr", False))
+    if devices and isinstance(devices, int) and devices > 1 and (tune_bs_flag or tune_lr_flag):
+        if tune_bs_flag:
+            print("ℹ️  Skipping batch size tuner: not supported for distributed strategies")
+        if tune_lr_flag:
+            print("ℹ️  Skipping LR finder: not supported for distributed strategies")
+        tune_bs_flag = False
+        tune_lr_flag = False
 
     if tune_bs_flag:
         try:
