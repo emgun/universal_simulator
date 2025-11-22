@@ -909,16 +909,17 @@ def main() -> None:
 
             
 
-                # Best-effort GPU memory cleanup before evaluation to reduce OOM risk        try:
-            import gc
-            import torch
+                # Best-effort GPU memory cleanup before evaluation to reduce OOM risk
+    try:
+        import gc
+        import torch
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
-            gc.collect()
-        except Exception as exc:
-            print(f"⚠️  GPU memory cleanup skipped: {exc}")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        gc.collect()
+    except Exception as exc:
+        print(f"⚠️  GPU memory cleanup skipped: {exc}")
 
         operator_ckpt = _find_checkpoint(checkpoint_dir, ["operator_ema.pt", "operator.pt", "operator-*.ckpt"])
         if operator_ckpt is None:
