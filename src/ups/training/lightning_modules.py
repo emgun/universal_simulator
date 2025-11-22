@@ -11,6 +11,8 @@ import torch
 from torch import nn
 from torch.optim import lr_scheduler
 
+from ups.inference.rollout_ttc import ttc_rollout, TTCConfig
+from ups.eval.reward_models import build_reward_model_from_config
 from ups.core.blocks_pdet import PDETransformerConfig
 from ups.core.latent_state import LatentState
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
@@ -364,8 +366,9 @@ class OperatorLightningModule(pl.LightningModule):
         state = LatentState(z=z0, t=torch.tensor(0.0, device=device), cond=cond)
         dt_tensor = torch.tensor(self.dt, device=device)
         next_state = self(state, dt_tensor)
-
-        return self._shared_eval_step(batch, next_state.z, z1, prefix="test")
+        loss = self._shared_eval_step(batch, next_state.z, z1, prefix="test")
+        self._maybe_ttc_eval(state, next_state, z1, batch)
+        return loss
 
     def _shared_eval_step(self, batch: Dict[str, Any], preds: torch.Tensor, targets: torch.Tensor, prefix: str):
         device = self.device
@@ -382,6 +385,47 @@ class OperatorLightningModule(pl.LightningModule):
                     task_loss = _nrmse(preds[indices], targets[indices])
                     self.log(f"{prefix}/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True, batch_size=bs)
         return loss
+
+    def _maybe_ttc_eval(self, prev_state: LatentState, base_state: LatentState, target: torch.Tensor, batch: Dict[str, Any]) -> None:
+        ttc_cfg = self.cfg.get("ttc") if isinstance(self.cfg, dict) else None
+        if not (ttc_cfg and ttc_cfg.get("enabled", False)):
+            return
+        device = self.device
+        reward_model = build_reward_model_from_config(
+            ttc_cfg, latent_dim=self.cfg.get("latent", {}).get("dim", 32), device=device
+        )
+        sampler_cfg = ttc_cfg.get("sampler", {})
+        tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
+        noise_schedule = sampler_cfg.get("noise_schedule")
+        if noise_schedule is not None:
+            noise_schedule = [float(v) for v in noise_schedule]
+        ttc_runtime_cfg = TTCConfig(
+            steps=int(ttc_cfg.get("steps", 1)),
+            dt=float(ttc_cfg.get("dt", self.dt)),
+            candidates=int(ttc_cfg.get("candidates", 4)),
+            beam_width=int(ttc_cfg.get("beam_width", ttc_cfg.get("beam", 1) or 1)),
+            horizon=int(ttc_cfg.get("horizon", 1)),
+            tau_range=(float(tau_range[0]), float(tau_range[1])),
+            noise_std=float(sampler_cfg.get("noise_std", 0.0)),
+            noise_schedule=noise_schedule,
+            residual_threshold=ttc_cfg.get("residual_threshold"),
+            max_evaluations=ttc_cfg.get("max_evaluations"),
+            early_stop_margin=ttc_cfg.get("early_stop_margin"),
+            gamma=float(ttc_cfg.get("gamma", 1.0)),
+            device=str(device),
+        )
+        log, step_logs = ttc_rollout(
+            initial_state=prev_state,
+            operator=self.operator,
+            reward_model=reward_model,
+            config=ttc_runtime_cfg,
+            corrector=None,
+        )
+        if step_logs:
+            final_step = step_logs[-1]
+            best_total = max(final_step.totals)
+            self.log("ttc/best_total_reward", best_total, prog_bar=False, on_epoch=True, sync_dist=True)
+            self.log("ttc/steps", len(step_logs), prog_bar=False, on_epoch=True, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = _create_optimizer(self.cfg, self.operator, "operator")

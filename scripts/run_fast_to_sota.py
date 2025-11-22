@@ -738,7 +738,7 @@ def main() -> None:
     full_metrics_path: Optional[Path] = None
     baseline_row: Optional[Dict[str, str]] = None
     baseline_metrics: Dict[str, float] = {}
-    should_run_full = not args.skip_full_eval
+    should_run_full = not args.skip_full_eval and not args.use_lightning  # Lightning test handles eval
     failed_gates = False
 
     summary["skip_validation"] = bool(args.skip_validation)
