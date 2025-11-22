@@ -68,6 +68,15 @@ def make_grid_coords(grid_shape: tuple[int, int], device: torch.device) -> torch
     return coords
 
 
+def _rank0_print(msg: str) -> None:
+    """Print only on rank 0 to avoid multi-GPU spam."""
+
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        if torch.distributed.get_rank() != 0:
+            return
+    print(msg)
+
+
 def _broadcast_condition_tensor(tensor: torch.Tensor, seq_len: int) -> torch.Tensor:
     tensor = tensor.float()
     if tensor.dim() == 0:
@@ -887,14 +896,14 @@ def build_latent_pair_loader(cfg: dict[str, Any]) -> DataLoader:
                     # For mmap + float16, actual RAM usage is ~50% of cache size (float16 vs float32)
                     # and shared across processes.
                     # We relax the check or just print info.
-                    print(f"✅ Using PreloadedCacheDataset for {task_name}_{split_name} (mmap enabled)")
-                    print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB (virtual)")
+                    _rank0_print(f"✅ Using PreloadedCacheDataset for {task_name}_{split_name} (mmap enabled)")
+                    _rank0_print(f"   Cache: {num_cached} samples, ~{cache_size_mb:.0f} MB (virtual)")
                     use_preloaded = True
                 else:
-                    print(
+                    _rank0_print(
                         f"⚠️  Cache incomplete for {task_name}_{split_name} ({num_cached}/{num_samples} samples)"
                     )
-                    print("   Falling back to on-demand encoding (will populate cache)")
+                    _rank0_print("   Falling back to on-demand encoding (will populate cache)")
 
             if use_preloaded and ds_cache:
                 # PreloadedCacheDataset now uses shared memory and supports num_workers > 0
