@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import copy
 import time
 from pathlib import Path
 from typing import Any
@@ -328,14 +329,12 @@ def main() -> None:
 
     # Optional test step (skip if not implemented)
     try:
-        # Force test split and disable preloading for eval
-        if isinstance(cfg.get("data"), dict):
-            cfg["data"]["split"] = "test"
-        if isinstance(cfg.get("training"), dict):
-            cfg["training"]["use_preloaded_cache"] = False
-        
-        # Recreate datamodule for test phase
-        test_datamodule = UPSDataModule(cfg)
+        eval_cfg = copy.deepcopy(cfg)
+        if isinstance(eval_cfg.get("data"), dict):
+            eval_cfg["data"]["split"] = "test"
+        if isinstance(eval_cfg.get("training"), dict):
+            eval_cfg["training"]["use_preloaded_cache"] = False
+        test_datamodule = UPSDataModule(eval_cfg)
         trainer.test(model, datamodule=test_datamodule)
     except Exception as e:
         if _is_rank_0():
