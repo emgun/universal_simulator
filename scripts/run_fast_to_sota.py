@@ -903,23 +903,20 @@ def main() -> None:
                 if training_wandb_info.get("entity"):
                     common_tags["train_wandb_entity"] = training_wandb_info.get("entity")
 
-                if isinstance(training_wandb_info, dict):
+        if isinstance(training_wandb_info, dict):
+            _persist_wandb_info(wandb_info_path, training_wandb_info)
 
-                    _persist_wandb_info(wandb_info_path, training_wandb_info)
+        # Best-effort GPU memory cleanup before evaluation to reduce OOM risk
+        try:
+            import gc
+            import torch
 
-            
-
-                # Best-effort GPU memory cleanup before evaluation to reduce OOM risk
-    try:
-        import gc
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
-        gc.collect()
-    except Exception as exc:
-        print(f"⚠️  GPU memory cleanup skipped: {exc}")
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            gc.collect()
+        except Exception as exc:
+            print(f"⚠️  GPU memory cleanup skipped: {exc}")
 
         operator_ckpt = _find_checkpoint(checkpoint_dir, ["operator_ema.pt", "operator.pt", "operator-*.ckpt"])
         if operator_ckpt is None:
