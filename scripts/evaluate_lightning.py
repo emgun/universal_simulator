@@ -109,7 +109,13 @@ def main() -> None:
     parser.add_argument("--leaderboard-wandb-run-name")
     args = parser.parse_args()
 
-    device = torch.device(args.device) if args.device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.device:
+        device = torch.device(args.device)
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # If user passes "cuda" without index, default to cuda:0 to satisfy set_device
+    if device.type == "cuda" and device.index is None:
+        device = torch.device("cuda:0")
     if device.type == "cuda":
         torch.cuda.set_device(device)
 
