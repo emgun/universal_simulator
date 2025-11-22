@@ -105,7 +105,7 @@ training:
   # CRITICAL: Proven DDP-compatible settings
   amp: true
   amp_dtype: bfloat16      # Use BF16 for better stability
-  compile: true            # Enable compile for speedup
+  compile: false           # Disable compile to avoid Dynamo/Inductor crashes under Lightning FSDP
   compile_mode: reduce-overhead # Safer compile settings for stability under FSDP
   dynamo_suppress_errors: true   # Fall back to eager on problematic graphs
   grad_clip: null
