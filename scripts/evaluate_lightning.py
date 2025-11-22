@@ -126,6 +126,9 @@ def main() -> None:
 
     cfg = _load_config(args.config)
     cfg_path = Path(args.config).resolve()
+    # Force eval to use test split only to avoid preloading train caches in memory
+    if isinstance(cfg.get("data"), dict):
+        cfg["data"]["split"] = "test"
     if args.disable_ttc and "ttc" in cfg and isinstance(cfg["ttc"], dict):
         cfg["ttc"]["enabled"] = False
 
