@@ -185,12 +185,11 @@ def _run_command(
     desc: Optional[str] = None,
 ) -> None:
     """Execute a command, echoing it for transparency."""
-    if not _is_primary_rank():
-        return
+    if _is_primary_rank():
+        printable = shlex.join(cmd)
+        header = f"[{desc}]" if desc else "[run]"
+        print(f"{header} {printable}")
 
-    printable = shlex.join(cmd)
-    header = f"[{desc}]" if desc else "[run]"
-    print(f"{header} {printable}")
     base_env = os.environ.copy()
     if env:
         base_env.update(env)
