@@ -206,6 +206,8 @@ if [ -f /venv/main/bin/activate ]; then
   source /venv/main/bin/activate
 fi
 
+# Upgrade core stack to latest stable torch/vision/Lightning, then install project
+pip install --upgrade torch torchvision pytorch-lightning lightning >/tmp/pip_upgrade.log 2>&1 || true
 pip install -e .[dev]
 
 """
