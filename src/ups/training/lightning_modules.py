@@ -354,19 +354,7 @@ class OperatorLightningModule(pl.LightningModule):
         dt_tensor = torch.tensor(self.dt, device=device)
         next_state = self(state, dt_tensor)
 
-        bs = int(z0.size(0))
-        val_loss = _nrmse(next_state.z, z1)
-        self.log("val/nrmse", val_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
-        task_names = batch.get("task_names")
-        if task_names:
-            unique = set(task_names)
-            for task in unique:
-                mask = [t == task for t in task_names]
-                if any(mask):
-                    indices = torch.nonzero(torch.tensor(mask, device=device), as_tuple=False).squeeze(-1)
-                    task_loss = _nrmse(next_state.z[indices], z1[indices])
-                    self.log(f"val/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True, batch_size=bs)
-        return val_loss
+        return self._shared_eval_step(batch, next_state.z, z1, prefix="val")
 
     def test_step(self, batch: Dict[str, Any], batch_idx: int):
         device = self.device
@@ -377,9 +365,13 @@ class OperatorLightningModule(pl.LightningModule):
         dt_tensor = torch.tensor(self.dt, device=device)
         next_state = self(state, dt_tensor)
 
-        bs = int(z0.size(0))
-        test_loss = _nrmse(next_state.z, z1)
-        self.log("test/nrmse", test_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
+        return self._shared_eval_step(batch, next_state.z, z1, prefix="test")
+
+    def _shared_eval_step(self, batch: Dict[str, Any], preds: torch.Tensor, targets: torch.Tensor, prefix: str):
+        device = self.device
+        bs = int(targets.size(0))
+        loss = _nrmse(preds, targets)
+        self.log(f"{prefix}/nrmse", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=bs)
         task_names = batch.get("task_names")
         if task_names:
             unique = set(task_names)
@@ -387,9 +379,9 @@ class OperatorLightningModule(pl.LightningModule):
                 mask = [t == task for t in task_names]
                 if any(mask):
                     indices = torch.nonzero(torch.tensor(mask, device=device), as_tuple=False).squeeze(-1)
-                    task_loss = _nrmse(next_state.z[indices], z1[indices])
-                    self.log(f"test/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True)
-        return test_loss
+                    task_loss = _nrmse(preds[indices], targets[indices])
+                    self.log(f"{prefix}/{task}/nrmse", task_loss, on_epoch=True, sync_dist=True, batch_size=bs)
+        return loss
 
     def configure_optimizers(self):
         optimizer = _create_optimizer(self.cfg, self.operator, "operator")

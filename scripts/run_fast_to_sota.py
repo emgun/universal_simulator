@@ -1078,8 +1078,7 @@ def main() -> None:
                 if not passed_small:
                     print("Proxy evaluation gates failed.")
                     failed_gates = True
-                    if not args.force_full_eval:
-                        should_run_full = False
+                    # Still run full eval to collect metrics even if gates fail
         else:
             print("Skipping small evaluation by request.")
             gate_results["small_eval"] = {"skipped": True}
