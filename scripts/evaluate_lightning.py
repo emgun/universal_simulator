@@ -97,6 +97,7 @@ def main() -> None:
     parser.add_argument("--output-prefix", default="reports/evaluation_lightning", help="Prefix for output files")
     parser.add_argument("--app-config", help="Optional monitoring config")
     parser.add_argument("--print-json", action="store_true", help="Print metrics JSON to stdout")
+    parser.add_argument("--enable-ttc", action="store_true", help="Enable TTC during eval (disabled by default to reduce memory use)")
     parser.add_argument("--leaderboard-run-id", help="Append metrics to leaderboard under this run id")
     parser.add_argument("--leaderboard-path", default="reports/leaderboard.csv")
     parser.add_argument("--leaderboard-html", default="reports/leaderboard.html")
@@ -121,6 +122,10 @@ def main() -> None:
 
     cfg = _load_config(args.config)
     cfg_path = Path(args.config).resolve()
+    # Disable TTC by default to avoid high memory usage unless explicitly enabled
+    if not args.enable_ttc:
+        if "ttc" in cfg and isinstance(cfg["ttc"], dict):
+            cfg["ttc"]["enabled"] = False
 
     monitoring = None
     if args.app_config:
