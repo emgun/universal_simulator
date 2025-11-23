@@ -11,14 +11,8 @@ import torch
 from torch import nn
 from torch.optim import lr_scheduler
 
-try:
-    from ups.inference.rollout_ttc import ttc_rollout, TTCConfig
-    from ups.eval.reward_models import build_reward_model_from_config
-
-    TTC_AVAILABLE = True
-except Exception:
-    # TTC optional; test will run without TTC if imports fail
-    TTC_AVAILABLE = False
+from ups.inference.rollout_ttc import ttc_rollout, TTCConfig, build_reward_model_from_config
+TTC_AVAILABLE = True
 from ups.core.blocks_pdet import PDETransformerConfig
 from ups.core.latent_state import LatentState
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
@@ -250,7 +244,7 @@ def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: dict, stage: str):
 class OperatorLightningModule(pl.LightningModule):
     """Lightning module for operator training (parity with native training loop)."""
 
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, operator_ckpt: Optional[str] = None):
         super().__init__()
         self.save_hyperparameters(cfg)
         self.cfg = cfg
@@ -262,6 +256,24 @@ class OperatorLightningModule(pl.LightningModule):
         query_sample_cfg = train_cfg.get("query_sampling", {}) if isinstance(train_cfg, dict) else {}
         self.num_queries = query_sample_cfg.get("num_queries")
         self.query_strategy = query_sample_cfg.get("strategy", "uniform")
+
+        if operator_ckpt:
+            ckpt_path = Path(operator_ckpt)
+            if ckpt_path.exists():
+                state = torch.load(ckpt_path, map_location="cpu")
+                state_dict = state.get("state_dict", state)
+                cleaned = {}
+                for key, value in state_dict.items():
+                    new_key = key
+                    for prefix in ("operator.", "_orig_mod.operator.", "_orig_mod."):
+                        if new_key.startswith(prefix):
+                            new_key = new_key[len(prefix) :]
+                    cleaned[new_key] = value
+                missing, unexpected = self.operator.load_state_dict(cleaned, strict=False)
+                if missing or unexpected:
+                    print(
+                        f"Warning: operator_ckpt load with missing={missing} unexpected={unexpected}"
+                    )
 
         # Optional compile (safe fallback)
         self.operator = _maybe_compile(self.operator, cfg, "operator")

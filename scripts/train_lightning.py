@@ -327,18 +327,23 @@ def main() -> None:
         if _is_rank_0():
             print(f"⚠️  Failed to save final checkpoint: {exc}")
 
-    # Optional test step (skip if not implemented)
+    # Optional test step (fail fast with traceback so we can debug TTC/eval issues)
     try:
         eval_cfg = copy.deepcopy(cfg)
         if isinstance(eval_cfg.get("data"), dict):
             eval_cfg["data"]["split"] = "test"
         if isinstance(eval_cfg.get("training"), dict):
+            # Avoid preloading full train cache in eval to limit memory
             eval_cfg["training"]["use_preloaded_cache"] = False
         test_datamodule = UPSDataModule(eval_cfg)
         trainer.test(model, datamodule=test_datamodule)
-    except Exception as e:
+    except Exception:
+        import traceback
+
         if _is_rank_0():
-            print(f"ℹ️  Skipping test (test_step not implemented): {e}")
+            print("❌ Lightning test/eval failed (see traceback):")
+            traceback.print_exc()
+        raise
 
 
 if __name__ == "__main__":
