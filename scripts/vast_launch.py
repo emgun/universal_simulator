@@ -105,6 +105,7 @@ def generate_onstart_script(
     resume_from_wandb: str | None = None,
     resume_mode: str = "allow",
     use_lightning: bool = False,
+    cache_version: str | None = None,
 ) -> str:
     """
     Generate a simple onstart script.
@@ -215,8 +216,8 @@ pip install -e .[dev]
     # Use helper script for data downloads (keeps onstart script compact)
     tasks_str = " ".join(tasks)
     cache_env = ""
-    if args.cache_version:
-        cache_env = f'CACHE_VERSION="{args.cache_version}" CACHE_DIR="data/latent_cache" '
+    if cache_version:
+        cache_env = f'CACHE_VERSION="{cache_version}" CACHE_DIR="data/latent_cache" '
     script += f"""
 {cache_env}bash scripts/setup_vast_data.sh "{tasks_str}" data/pdebench
 
@@ -506,6 +507,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         resume_from_wandb=getattr(args, "resume_from_wandb", None),
         resume_mode=getattr(args, "resume_mode", "allow"),
         use_lightning=getattr(args, "use_lightning", False),
+        cache_version=getattr(args, "cache_version", None),
     )
 
     onstart_path.write_text(script_content)
