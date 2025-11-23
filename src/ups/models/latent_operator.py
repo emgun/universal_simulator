@@ -51,7 +51,10 @@ class TimeEmbedding(nn.Module):
             dt = dt.unsqueeze(0)
         if dt.dim() == 1:
             dt = dt.unsqueeze(-1)
-        dt = dt.reshape(-1, 1)
+        dt = dt.reshape(-1, 1).to(dtype=dt.dtype)
+        if dt.dim() != 2:
+            # Fail loudly with shape info instead of cryptic matmul errors
+            raise RuntimeError(f"TimeEmbedding expected 2D tensor, got shape {tuple(dt.shape)}")
         return self.proj(dt)
 
 
