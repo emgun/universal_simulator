@@ -45,12 +45,13 @@ class TimeEmbedding(nn.Module):
         )
 
     def forward(self, dt: torch.Tensor) -> torch.Tensor:
-        # NOTE: .clone() removed for DDP/FSDP compatibility
-        # Clone breaks gradient flow with distributed wrappers
-        # If using torch.compile, disable it or use torch.compile(..., fullgraph=False)
+        # Robustly coerce dt to shape (B, 1) to avoid matmul 1-D errors under FSDP/DDP
+        dt = torch.as_tensor(dt, device=dt.device if torch.is_tensor(dt) else None)
         if dt.dim() == 0:
             dt = dt.unsqueeze(0)
-        dt = dt.view(-1, 1)
+        if dt.dim() == 1:
+            dt = dt.unsqueeze(-1)
+        dt = dt.reshape(-1, 1)
         return self.proj(dt)
 
 
