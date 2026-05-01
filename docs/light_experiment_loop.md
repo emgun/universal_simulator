@@ -108,6 +108,14 @@ Change one variable at a time:
 --override stages.operator.epochs=2
 ```
 
+Bound real-data smoke cost before loading a large HDF5 shard:
+
+```bash
+--override data.max_samples=8
+--eval-override data.max_samples=4
+--decoded-rollout-steps 2
+```
+
 For decoded gates on semantic buckets:
 
 ```bash
@@ -181,10 +189,21 @@ TRAIN_CONFIG=configs/train_burgers_light_joint.yaml \
 REMOTE_DATASET_FILES=burgers1d/burgers1d_train_000.h5 \
 EVAL_SPLIT=train \
 REQUIRED_GB=5 \
+STAGES=operator,decoder,joint_codec_operator \
+RUN_NAME=vast_burgers_shard_cap8 \
+LIGHT_EXTRA_ARGS="--override data.max_samples=8 --eval-override data.max_samples=4 --decoded-rollout-steps 2" \
 bash scripts/run_remote_light_promotion.sh
 ```
 
-This is a remote plumbing check, not a benchmark, because it evaluates on the train shard. For a held-out cheap benchmark, publish small `train/val/test` shards for `burgers1d`, `advection1d`, and `darcy2d`, then pass those keys via `REMOTE_DATASET_FILES`.
+Verified 2026-05-01 on a Vast.ai RTX 4090 after the shard was already hydrated:
+
+- run: `vast_burgers_shard_cap8`
+- summary copied locally to `reports/light_experiments_remote/vast_burgers_shard_cap8/summary.json`
+- `decoded_rollout_nrmse = 0.9488316819858322`
+- `decoded_step1_nrmse = 0.9453324050249666`
+- `duration_sec = 3.8071365356445312`
+
+This is a remote plumbing check, not a benchmark, because it evaluates on a tiny slice of the train shard. For a held-out cheap benchmark, publish small `train/val/test` shards for `burgers1d`, `advection1d`, and `darcy2d`, then pass those keys via `REMOTE_DATASET_FILES`.
 
 Small local or remote HDF5 shards can be cut from already-hydrated source files with:
 

@@ -316,3 +316,28 @@ Experiment loop update (2026-04-29, remote promotion prep):
 - Next gate:
   - publish or identify small B2 train/val/test shards for all target tasks before claiming cheap real-data benchmark capability
   - commit/push the current branch before a remote launch, then run the Vast dry run and only launch paid compute after the onstart script points to this branch and the expected B2 files.
+
+Experiment loop update (2026-05-01, bounded real-data smoke):
+- Remote execution:
+  - branch: `codex/autowork-semigroup-foundation`
+  - commits used: `128425a`, `f3a90b9`
+  - provider: Vast.ai RTX 4090 instance, destroyed after artifact copy
+  - real shard: `full/burgers1d/burgers1d_train_000.h5`
+- Issue found:
+  - The first retry on the real Burgers shard was not a cheap light experiment because decoded evaluation iterated all 2,000 trajectories and all 201 steps.
+  - `--decoded-rollout-steps` capped rollout length but did not cap dataset size, so the harness still encoded full trajectories for every sample.
+- Harness fix:
+  - `PDEBenchConfig.max_samples` now limits HDF5 loading before tensors are materialized.
+  - `data.max_samples` is honored by training, latent evaluation, decoded evaluation, and eval/model shape inference paths.
+  - Validation: `python -m py_compile src/ups/data/pdebench.py src/ups/data/latent_pairs.py src/ups/eval/pdebench_runner.py scripts/train.py scripts/evaluate.py`
+  - Validation: `pytest tests/unit/test_pdebench.py tests/unit/test_train_pdebench_loader.py tests/unit/test_pdebench_runner_eval.py tests/unit/test_light_experiment_runner.py -q`
+- Bounded smoke command:
+  - `FETCH_DATA=0 CHECK_DATA=1 TASKS=burgers1d TRAIN_CONFIG=configs/train_burgers_light_joint.yaml REMOTE_DATASET_FILES=burgers1d/burgers1d_train_000.h5 EVAL_SPLIT=train REQUIRED_GB=5 STAGES=operator,decoder,joint_codec_operator RUN_NAME=vast_burgers_shard_cap8 OUTPUT_ROOT=reports/light_experiments_remote LIGHT_EXTRA_ARGS="--override data.max_samples=8 --eval-override data.max_samples=4 --decoded-rollout-steps 2" bash scripts/run_remote_light_promotion.sh`
+- Result:
+  - local copied summary: `reports/light_experiments_remote/vast_burgers_shard_cap8/summary.json`
+  - duration: `3.8071365356445312` seconds after data was already hydrated
+  - `decoded_rollout_nrmse = 0.9488316819858322`
+  - `decoded_step1_nrmse = 0.9453324050249666`
+  - this is a plumbing and bounded-real-data smoke, not a benchmark, because it trains/evaluates on a tiny train-shard slice.
+- Next gate:
+  - publish small train/val/test shards for `burgers1d`, `advection1d`, and `darcy2d`, then run the same bounded harness against held-out shards.
