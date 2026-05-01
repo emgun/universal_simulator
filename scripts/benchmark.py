@@ -24,8 +24,13 @@ from ups.utils.monitoring import init_monitoring_session
 
 
 def load_config(path: str) -> Dict:
-    with open(path, "r", encoding="utf-8") as fh:
-        return yaml.safe_load(fh) or {}
+    try:
+        from ups.utils.config_loader import load_config_with_includes
+
+        return load_config_with_includes(path)
+    except ImportError:
+        with open(path, "r", encoding="utf-8") as fh:
+            return yaml.safe_load(fh) or {}
 
 
 def load_operator(cfg: Dict, path: Path) -> LatentOperator:

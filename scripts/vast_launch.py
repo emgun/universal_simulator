@@ -33,6 +33,10 @@ def git_remote_url() -> str:
 def ensure_onstart(
     datasets: str | None,
     overrides: str | None,
+    remote_script: str,
+    script_args: str | None,
+    skip_prefetch: bool,
+    git_ref: str | None,
     workdir: str,
     repo_url: str,
     auto_shutdown: bool,
@@ -52,8 +56,22 @@ def ensure_onstart(
     wandb_project_export = f"export WANDB_PROJECT=\"{wandb_project}\"" if wandb_project else "# WANDB_PROJECT optional"
     wandb_entity_export = f"export WANDB_ENTITY=\"{wandb_entity}\"" if wandb_entity else "# WANDB_ENTITY optional"
     wandb_api_key_export = f"export WANDB_API_KEY=\"{wandb_api_key}\"" if wandb_api_key else "# WANDB_API_KEY optional"
-    fetch_cmd = "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi"
-    overrides_cmd = f"bash scripts/run_remote_scale.sh {overrides}" if overrides else "bash scripts/run_remote_scale.sh"
+    fetch_cmd = (
+        "# Prefetch disabled; the remote script is responsible for hydration"
+        if skip_prefetch
+        else "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi"
+    )
+    combined_args = " ".join(part for part in (overrides, script_args) if part)
+    remote_cmd = "bash " + shlex.quote(remote_script)
+    if combined_args:
+        remote_cmd += " " + combined_args
+    checkout_cmds = []
+    if git_ref:
+        quoted_ref = shlex.quote(git_ref)
+        checkout_cmds = [
+            "git fetch --all --prune",
+            f"git checkout {quoted_ref} || git checkout -b {quoted_ref} origin/{quoted_ref}",
+        ]
     shutdown_cmd = "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi" if auto_shutdown else ""
     lines = [
         "#!/bin/bash",
@@ -69,6 +87,7 @@ def ensure_onstart(
         f"  git clone {repo_url} universal_simulator",
         "fi",
         "cd universal_simulator",
+        *checkout_cmds,
         "git pull",
         "",
         "python3 -m pip install --upgrade pip",
@@ -88,7 +107,7 @@ def ensure_onstart(
         "  bash scripts/load_env.sh || true",
         "fi",
         fetch_cmd,
-        f"{overrides_cmd}{shutdown_cmd}",
+        f"{remote_cmd}{shutdown_cmd}",
     ]
     script_path.write_text("\n".join(lines))
     script_path.chmod(0o755)
@@ -113,6 +132,10 @@ def cmd_launch(args: argparse.Namespace) -> None:
     onstart = ensure_onstart(
         args.datasets,
         args.overrides,
+        args.remote_script,
+        args.script_args,
+        args.skip_prefetch,
+        args.git_ref,
         args.workdir,
         repo_url,
         args.auto_shutdown,
@@ -195,7 +218,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT"), help="WANDB project name")
     p_launch.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY"), help="WANDB entity name")
     p_launch.add_argument("--wandb-api-key", default=os.environ.get("WANDB_API_KEY"), help="WANDB API key")
-    p_launch.add_argument("--overrides", help="Additional Hydra overrides for run_remote_scale.sh")
+    p_launch.add_argument("--overrides", help="Legacy extra arguments to append to the remote script")
+    p_launch.add_argument("--remote-script", default="scripts/run_remote_scale.sh", help="Remote script to run after setup")
+    p_launch.add_argument("--script-args", help="Additional arguments appended after --overrides")
+    p_launch.add_argument("--skip-prefetch", action="store_true", help="Skip onstart dataset prefetch; useful when the remote script fetches data")
+    p_launch.add_argument("--git-ref", help="Git branch, tag, or ref to checkout before running")
     p_launch.add_argument("--repo-url", help="Git remote URL (defaults to origin)")
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_launch.add_argument("--auto-shutdown", action="store_true", help="Power off instance after training completes")

@@ -47,6 +47,12 @@ def rollout_loss(pred_seq: Tensor, target_seq: Tensor, weight: float = 1.0) -> T
     return weight * mse(pred_seq, target_seq)
 
 
+def semigroup_consistency_loss(pred_direct: Tensor, pred_composed: Tensor, weight: float = 1.0) -> Tensor:
+    if pred_direct.shape != pred_composed.shape:
+        raise ValueError("Semigroup predictions must share shape")
+    return weight * mse(pred_direct, pred_composed)
+
+
 def spectral_loss(pred: Tensor, target: Tensor, weight: float = 1.0) -> Tensor:
     pred_fft = torch.fft.rfft(pred, dim=-1)
     target_fft = torch.fft.rfft(target, dim=-1)
@@ -98,4 +104,3 @@ def compute_loss_bundle(
     comp["L_tv_edge"] = edge_total_variation(latent_for_tv, edges, weights.get("L_tv_edge", 1.0))
     total = torch.stack([c for c in comp.values() if c.numel() == 1]).sum()
     return LossBundle(total=total, components=comp)
-

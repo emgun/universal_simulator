@@ -1,0 +1,318 @@
+Task:
+Make this branch ready for lightweight, repeatable experiments that can screen promising UPS directions cheaply.
+
+Done condition:
+The repo has a verified cheap experiment loop with include-aware presets, a runner that records comparable results, and at least one real end-to-end smoke run for operator and decoded shortlist paths.
+
+Mutable files:
+- worklog.md
+- configs/defaults.yaml
+- configs/train_burgers_light_operator.yaml
+- configs/train_multitask_light_operator.yaml
+- configs/train_burgers_light_joint.yaml
+- configs/eval_burgers_light_proxy.yaml
+- configs/eval_multitask_light_proxy.yaml
+- docs/light_experiment_loop.md
+- scripts/benchmark.py
+- scripts/evaluate.py
+- scripts/run_light_experiment.py
+- src/ups/data/latent_pairs.py
+- src/ups/data/pdebench.py
+- src/ups/eval/pdebench_runner.py
+- src/ups/training/losses.py
+- scripts/train_baselines.py
+- scripts/train.py
+- tests/unit/test_conditioning.py
+- tests/unit/test_eval_promotion.py
+- tests/unit/test_light_experiment_runner.py
+- tests/unit/test_losses.py
+- tests/unit/test_pdebench.py
+- tests/unit/test_pdebench_runner_eval.py
+- tests/unit/test_train_pdebench_loader.py
+- tests/integration/test_train_operator_pipeline.py
+
+Fixed files:
+- cloud launcher scripts
+- diffusion / TTC architecture
+- broad docs cleanup outside task-local notes
+
+Validation:
+- focused unit and integration tests for conditioning, loader behavior, eval, and the light experiment runner
+- direct smoke runs through `scripts/run_light_experiment.py`
+
+Constraints:
+- current workspace is an older main snapshot
+- keep the first implementation narrow and backward compatible
+- do not claim benchmark gains without a real run harness
+
+Current status:
+- Research memo written in docs/cutting_edge_architecture_research_2026-04-07.md
+- Sequence-preserving batches landed in src/ups/data/latent_pairs.py
+- Per-step conditioning sequences are preserved for future conditioned rollout work
+- Optional semigroup loss landed in scripts/train.py behind training.lambda_semigroup
+- Narrow decoded physical-space evaluation landed in src/ups/eval/pdebench_runner.py via evaluate_decoded_operator
+- Encoder checkpoint export now uses the exact operator-training encoder for single-task PDEBench runs
+- Decoder stage added for single-task PDEBench runs, with saved decoder checkpoints
+- Evaluate CLI can now merge decoded metrics when encoder/decoder checkpoints are available
+- The staged `all` pipeline now includes decoder, frozen-codec decoded operator fine-tuning, and joint codec/operator fine-tuning when configured
+- Decoded evaluation now reports rollout and horizon metrics, including decoded_rollout_nrmse, decoded_step1_nrmse, decoded_h4_nrmse, and decoded_h16_nrmse when available
+- Auto-conditioning now wires structured PDEBench metadata into latent batches and the operator config, including resolution, spatial dimensionality, and multi-task one-hot task IDs
+- Multi-task latent operator training now runs with conditioned task metadata instead of only concatenating task datasets blindly
+- Shared encoder export now works for multi-task PDEBench latent training when tasks share channel count
+- Raw-field decoder and joint codec/operator stages now support multi-task PDEBench runs across heterogeneous grids with variable-grid batching
+- Decoded evaluation now supports multi-task PDEBench configs and emits per-task decoded rollout metrics
+- PDEBench loading now supports config-driven `data.param_keys` and `data.bc_keys` so real HDF5 metadata can enter the conditioning path
+- Auto-conditioning source dims are now inferred from actual PDEBench samples, including configured parameter and boundary-condition features
+- Raw-field rollout stages and decoded evaluation now use per-step parameter / BC conditioning, not just static task metadata
+- The eval CLI now supports held-out transfer-task evaluation with `transfer_*` metrics, including decoded transfer rollout metrics when codec checkpoints are present
+- Promotion-rule evaluation now lives in src/ups/eval/promotion.py and is exposed through scripts/evaluate.py with optional nonzero exit on gate failure
+- Configs can now define evaluation.promotion.rules, and eval reports include promotion_passed plus failing or missing rules
+- PDEBench task semantics now include structured task-family and equation-trait features, not only flat task IDs
+- Auto-conditioning now adds metadata-presence vectors (`param_presence`, `bc_presence`) so cross-task runs can distinguish missing metadata from zero-valued metadata
+- Multi-task auto-conditioning source inference now includes semantic task features and metadata-presence features in both train and eval paths
+- Decoded evaluation now emits per-family rollout metrics (for example `family_conservation_*`, `family_transport_*`) in addition to per-task metrics
+- Auto-conditioning now also exposes grouped `equation_signature`, `parameter_signature`, and `boundary_signature` features as a proto equation-conditioning surface
+- Auto-conditioning now also exposes set-structured `equation_nodes`, `parameter_nodes`, and `boundary_nodes` sources
+- AdaLN conditioning now supports set-structured sources with learned attention pooling, so equation-style node sets are no longer collapsed with a fixed mean
+- Promotion rules now support wildcard metric groups with reducers like `max:family_*_decoded_rollout_nrmse<=...` and `mean:task_*_decoded_step1_nrmse<=...`
+- `train.py`, `benchmark.py`, and `train_baselines.py` now honor config `include:` directives, which unblocks preset-based cheap runs
+- `scripts/run_light_experiment.py` now resolves configs, applies overrides, optionally bootstraps tiny PDEBench-style HDF5 data, runs selected stages, evaluates, and writes `summary.json` plus `results.tsv`
+- Cheap preset configs now exist for single-task operator screening, single-task decoded shortlist runs, and multitask operator screening
+- Verified smoke runs now exist in `reports/light_experiments/verified_burgers_operator`, `reports/light_experiments/verified_burgers_joint`, and `reports/light_experiments/verified_multitask_operator`
+- Targeted tests passed for losses, loader behavior, operator training, decoder training, decoded operator fine-tuning, joint codec/operator fine-tuning, and decoded eval infrastructure
+
+Next step:
+- Use the new light experiment loop to compare candidate paths, then promote the best ones into real remote runs on held-out data.
+
+Stop conditions:
+- a new change breaks the light experiment loop or its smoke verification
+- the next step requires real benchmark runs on remote held-out data rather than more local plumbing
+
+Experiment loop update (2026-04-15):
+- Objective metric:
+  - `decoded_rollout_nrmse` on decoded multitask joint runs from `scripts/run_light_experiment.py`
+- Fixed harness:
+  - `python scripts/run_light_experiment.py --bootstrap-synthetic --device cpu --decoded`
+  - train surface based on `configs/train_burgers_light_joint.yaml` with `data.task=[burgers1d, advection1d]`
+- Baseline:
+  - `ar_mt_joint_base`
+  - `decoded_rollout_nrmse = 0.9701266884803772`
+- Keep:
+  - `ar_mt_joint_with_operator_decoded`
+    - `0.9669556021690369`
+  - `ar_mt_joint_best_joint2`
+    - `0.9584252834320068`
+  - `ar_mt_joint_best_joint3`
+    - `0.949466347694397`
+  - `ar_mt_joint_best_joint4`
+    - `0.9416316747665405`
+  - `ar_mt_joint_best_joint5`
+    - `0.9301626682281494`
+- Discard:
+  - `ar_mt_joint_semigroup0`
+  - `ar_mt_joint_semigroup10`
+  - `ar_mt_joint_capacity24`
+  - `ar_mt_joint_no_conditioning`
+  - `ar_mt_joint_flat_conditioning`
+  - `ar_mt_joint_node_conditioning`
+  - `ar_mt_joint_rollout3`
+  - `ar_mt_joint_task_only_conditioning`
+  - `ar_mt_joint_task_traits_conditioning`
+  - `ar_mt_joint_task_nodes_conditioning`
+  - `ar_mt_joint_best_opdecoded2`
+  - `ar_mt_joint_best_rollout3`
+  - `ar_mt_joint_best_semigroup0`
+  - `ar_mt_joint_best_joint2_low_lr`
+  - `ar_mt_joint_best_joint2_rollout3`
+  - `ar_mt_joint_best_joint2_rollout_heavy`
+  - `ar_mt_joint_best_joint3_low_lr`
+  - `ar_mt_joint_best_joint3_rollout3`
+  - `ar_mt_joint_best_joint3_rollout_heavy`
+  - `ar_mt_joint_best_joint4_rollout3`
+  - `ar_mt_joint_best_joint4_rollout_heavy`
+- Current best cheap candidate:
+  - `configs/train_multitask_light_joint_best.yaml`
+  - stages: `operator -> decoder -> operator_decoded -> joint_codec_operator`
+  - `operator_decoded.epochs = 1`
+  - `joint_codec_operator.epochs = 5`
+- Current interpretation:
+  - On the cheap synthetic multitask harness, the strongest signal is decoded training depth, not a wider model and not a reduced conditioning surface.
+  - Conditioning still matters: removing it regresses from `0.9701` to `0.9778`.
+  - The new set-structured and semantic conditioning work is not the immediate limiter on this tiny harness; training budget in the decoded stages is.
+- Real next step:
+  - run the current best candidate remotely on held-out `val` and `test`
+  - compare it against the old multitask decoded baseline with the same eval harness
+  - only after that resume broader architecture search
+
+Experiment loop update (2026-04-16):
+- New objective metric:
+  - `decoded_rollout_nrmse` on decoded heterogeneous multitask runs from `scripts/run_light_experiment.py`
+- Fixed harness:
+  - `python scripts/run_light_experiment.py --bootstrap-synthetic --device cpu --decoded`
+  - train surface based on `configs/train_multitask_light_joint_best.yaml` with `data.task=[burgers1d, advection1d, darcy2d]`
+- Harness fixes landed before the run:
+  - synthetic 2D scalar PDEBench bootstrap now writes `data` as `(samples, steps, 1, H, W)`
+  - grid-shape inference now handles channel-first scalar 2D fields
+  - latent batching and decoded flatten helpers now handle channel-first scalar 2D fields
+  - decoded metric aggregation now supports heterogeneous point counts instead of assuming one flattened size
+- Baseline:
+  - `ar_3task_joint_base_v5`
+  - `decoded_rollout_nrmse = 0.971684098523884`
+- Keep:
+  - `ar_3task_no_conditioning`
+    - `0.9289172765646931`
+  - `ar_3task_flat_conditioning_v2`
+    - `0.9262027992342496`
+  - `ar_3task_no_conditioning_joint6`
+    - `0.9237801150001693`
+  - `ar_3task_flat_no_signature_joint6`
+    - `0.9415237688908223`
+  - `ar_3task_no_conditioning_joint7`
+    - `0.9172854702815767`
+  - `ar_3task_no_conditioning_joint8`
+    - `0.9085575683627656`
+  - `ar_3task_no_conditioning_joint8_rollout_heavy`
+    - `0.9095922539249501`
+  - `ar_3task_no_conditioning_joint9`
+    - `0.9006705289008915`
+- Discard:
+  - `ar_3task_node_conditioning_v2`
+  - `ar_3task_joint6`
+  - `ar_3task_semantic_ids`
+  - `ar_3task_task_traits`
+  - `ar_3task_flat_no_signature_joint7`
+  - `ar_3task_flat_no_signature_joint7_rollout3`
+  - `ar_3task_no_conditioning_joint7_rollout3`
+  - `ar_3task_no_conditioning_joint8_low_lr`
+- Current best heterogeneous cheap candidate:
+  - `configs/train_multitask_heterogeneous_light_best.yaml`
+  - stages: `operator -> decoder -> operator_decoded -> joint_codec_operator`
+  - `auto_conditioning = false`
+  - `joint_codec_operator.epochs = 9`
+- Current interpretation:
+  - the earlier “conditioning matters” conclusion does not hold once the cheap harness includes heterogeneous families and dimensions
+  - the full current conditioning path appears over-specified or misaligned for broader multitask runs
+  - reduced flat semantics help substantially relative to the full conditioning path, which means the information itself is not useless; the current conditioning surface is
+  - the strongest immediate model-side bet is a simpler or gated operator conditioning path, but the strongest current run is still with operator conditioning disabled
+- Real next step:
+  - run `configs/train_multitask_heterogeneous_light_best.yaml` remotely on real `val` and `test`
+  - compare against `configs/train_multitask_light_joint_best.yaml` on the same held-out eval harness
+  - if the held-out result agrees, then turn the next local loop into conditioning simplification rather than conditioning expansion
+
+Experiment loop update (2026-04-28):
+- Issue found:
+  - AdaLN conditioning was not exact-neutral at initialization.
+  - The projection heads were zero-initialized, but `modulate()` still returned `sigmoid(2) * normed`, shrinking activations whenever a conditioner was attached.
+- Fix:
+  - `AdaLNConditioner.modulate()` now returns `normed + gate * (conditioned - normed)`.
+  - With zero-initialized projections, conditioning is an exact no-op.
+- Re-run baseline after fix:
+  - `ar_3task_fixed_no_conditioning_joint9`
+    - `0.9006705289008915`
+  - `ar_3task_fixed_full_conditioning_joint9`
+    - `0.9404433043415122`
+  - `ar_3task_fixed_flat_conditioning_joint9`
+    - `0.8537558470729366`
+  - `ar_3task_fixed_flat_no_signature_joint9`
+    - `0.8958172283966164`
+- Keep:
+  - `ar_3task_fixed_flat_conditioning_joint10`
+    - `0.8339420045726132`
+  - `ar_3task_fixed_flat_conditioning_joint11`
+    - `0.8132875664480244`
+  - `ar_3task_fixed_flat_conditioning_joint12`
+    - `0.7916940618025152`
+  - `ar_3task_fixed_flat_conditioning_joint14`
+    - `0.7501271974686412`
+- Matched control:
+  - `ar_3task_no_conditioning_joint14`
+    - `0.8777376404812709`
+- Discard:
+  - `ar_3task_fixed_signature_only_joint9`
+  - `ar_3task_fixed_task_signature_joint9`
+  - `ar_3task_fixed_flat_conditioning_joint9_rollout3`
+  - `ar_3task_fixed_flat_conditioning_joint10_low_lr`
+  - `ar_3task_fixed_flat_conditioning_joint10_rollout_heavy`
+- Updated current best heterogeneous cheap candidate:
+  - `configs/train_multitask_heterogeneous_light_best.yaml`
+  - stages: `operator -> decoder -> operator_decoded -> joint_codec_operator`
+  - conditioning: explicit flat semantic sources only
+  - `joint_codec_operator.epochs = 14`
+- Updated interpretation:
+  - The old “disable conditioning” conclusion was an artifact of non-neutral AdaLN modulation plus an over-broad conditioning source set.
+  - The best cheap signal is now flat semantic conditioning plus deeper decoded joint training.
+  - Node-set conditioning remains a second-wave idea; the cheap harness prefers simpler explicit semantics.
+
+Experiment loop update (2026-04-29):
+- Harness fix:
+  - `scripts/run_light_experiment.py` now applies `--eval-override` even without a separate `--eval-config`.
+  - The synthetic bootstrap now accepts `--synthetic-samples` and `--synthetic-steps`, so cheap held-out checks are not limited to two trajectories.
+- Larger held-out synthetic check:
+  - Harness: `burgers1d + advection1d + darcy2d`, train split synthetic, eval split synthetic `val`
+  - Data size: `--synthetic-samples 8 --synthetic-steps 6`
+  - Stages: `operator -> decoder -> operator_decoded -> joint_codec_operator`
+- Keep:
+  - `ar_3task_val_flat_conditioning_joint14`
+    - `0.8289915410904443`
+  - `ar_3task_val_flat_conditioning_joint16`
+    - `0.8032194122236591`
+  - `ar_3task_val_flat_conditioning_joint20`
+    - `0.7707491577354888`
+  - `ar_3task_val_flat_conditioning_joint24`
+    - `0.7179769378754296`
+  - `ar_3task_val_flat_conditioning_joint32`
+    - `0.6814858538593768`
+  - `ar_3task_val8_flat_no_signature_joint32`
+    - `0.8002299375444841`
+  - `ar_3task_val8_task_signature_joint32`
+    - `0.7919775048580832`
+- Controls:
+  - `ar_3task_val_no_conditioning_joint14`
+    - `0.9675743909574095`
+  - `ar_3task_val_no_conditioning_joint32`
+    - `0.7301451171970339`
+  - `ar_3task_val8_no_conditioning_joint32`
+    - `0.9471399362116322`
+- Discard:
+  - `ar_3task_val_flat_conditioning_joint12`
+  - `ar_3task_val_flat_conditioning_joint14_rollout_heavy`
+  - `ar_3task_val8_full_conditioning_joint32`
+  - `ar_3task_val8_task_id_joint32`
+  - `ar_3task_val8_task_family_joint32`
+  - `ar_3task_val8_signature_only_joint32`
+- Updated current best heterogeneous cheap candidate:
+  - `configs/train_multitask_heterogeneous_light_best.yaml`
+  - conditioning: `resolution`, `spatial_dims`, `task_id`, `equation_signature`
+  - `joint_codec_operator.epochs = 32`
+- Current interpretation:
+  - The larger synthetic `val` split still supports flat semantic conditioning over no conditioning.
+  - The fuller flat bundle overfits or destabilizes `advection1d`; the narrower `task_id + equation_signature` surface is more robust.
+  - Local epoch tuning is now dominated by synthetic simplicity, so real remote `val/test` is the only trustworthy next gate.
+
+Experiment loop update (2026-04-29, remote promotion prep):
+- Live B2 check:
+  - usable real-data prefix is `full/`
+  - `burgers1d` has `train`, `val`, and `test`
+  - `advection1d` has `train`, `val`, and `test`
+  - `darcy2d` has `train` and `test`, but no `val`
+  - default full 3-task train/test file set is about 141 GiB
+  - only currently obvious small real shard is `full/burgers1d/burgers1d_train_000.h5` at about 1.57 GiB
+- Harness update:
+  - `scripts/run_light_experiment.py` can now run extra held-out splits from the same trained checkpoints via `--extra-eval-split`
+  - extra split outputs are written as `summary_<split>.json` and referenced from the primary `summary.json`
+- Remote path:
+  - added `scripts/run_remote_light_promotion.sh`
+  - default B2 hydration fetches `burgers1d`, `advection1d`, and `darcy2d` train/test HDF5 files from `REMOTE_B2_PREFIX=full`
+  - default promotion eval split is `test` because the 3-task real-data set has no common `val` split
+  - actual default full-data hydration is blocked unless `ALLOW_FULL_DATA=1` is set because the current HDF5 loader reads files into memory
+  - dry-run command: `ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env DRY_RUN=1 bash scripts/run_remote_light_promotion.sh`
+- Small-shard prep:
+  - added `scripts/make_light_hdf5_shards.py`
+  - it slices sample-aligned HDF5 datasets into small `train`, `val`, and `test` files without loading full split tensors
+  - use this after hydrating source files on a remote/data-prep box, then publish the resulting small shards back to B2 for cheap model experiments
+- Launcher update:
+  - `scripts/vast_launch.py launch` can now use `--remote-script`, `--script-args`, `--skip-prefetch`, and `--git-ref`
+  - use `--remote-script scripts/run_remote_light_promotion.sh --skip-prefetch` for this promotion path
+- Next gate:
+  - publish or identify small B2 train/val/test shards for all target tasks before claiming cheap real-data benchmark capability
+  - commit/push the current branch before a remote launch, then run the Vast dry run and only launch paid compute after the onstart script points to this branch and the expected B2 files.

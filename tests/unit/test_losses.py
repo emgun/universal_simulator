@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from ups.training.losses import (
@@ -9,6 +10,7 @@ from ups.training.losses import (
     inverse_encoding_loss,
     one_step_loss,
     rollout_loss,
+    semigroup_consistency_loss,
     spectral_loss,
 )
 
@@ -30,6 +32,7 @@ def test_individual_losses_shapes():
 
     rollout = torch.randn(2, 5, 8, 16)
     assert rollout_loss(rollout, rollout.clone()) == torch.tensor(0.0)
+    assert semigroup_consistency_loss(pred_next, target_next) >= 0
 
     spec = spectral_loss(pred_next, target_next)
     assert spec == torch.tensor(0.0)
@@ -82,3 +85,7 @@ def test_compute_loss_bundle():
     assert len(bundle.components) == 7
     assert torch.isfinite(bundle.total)
 
+
+def test_semigroup_consistency_rejects_shape_mismatch():
+    with pytest.raises(ValueError):
+        semigroup_consistency_loss(torch.randn(2, 3), torch.randn(2, 4))

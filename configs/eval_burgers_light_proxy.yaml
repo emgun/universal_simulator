@@ -1,0 +1,41 @@
+include: defaults
+
+data:
+  task: burgers1d
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 16
+  tokens: 16
+
+decoder:
+  hidden_dim: 32
+  num_layers: 1
+  num_heads: 4
+  mlp_hidden_dim: 32
+
+operator:
+  pdet:
+    input_dim: 16
+    hidden_dim: 32
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 4
+
+training:
+  batch_size: 2
+  dt: 0.1
+  auto_conditioning: true
+  num_workers: 0
+  pin_memory: false
+
+evaluation:
+  promotion:
+    rules:
+      - "mse>=0.0"
+
+logging:
+  wandb:
+    enabled: false

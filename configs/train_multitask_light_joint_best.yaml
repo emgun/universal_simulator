@@ -1,0 +1,80 @@
+include: defaults
+
+data:
+  task: [burgers1d, advection1d]
+  split: train
+  root: data/pdebench
+  patch_size: 1
+
+latent:
+  dim: 16
+  tokens: 16
+
+decoder:
+  hidden_dim: 32
+  num_layers: 1
+  num_heads: 4
+  mlp_hidden_dim: 32
+
+operator:
+  pdet:
+    input_dim: 16
+    hidden_dim: 32
+    depths: [1, 1, 1]
+    group_size: 8
+    num_heads: 4
+
+training:
+  batch_size: 2
+  dt: 0.1
+  patience: 1
+  auto_conditioning: true
+  lambda_semigroup: 0.05
+  amp: false
+  compile: false
+  num_workers: 0
+  pin_memory: false
+  time_stride: 2
+  log_path: reports/light_experiments/multitask_light_joint_best_train.jsonl
+
+stages:
+  operator:
+    epochs: 1
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.0
+  decoder:
+    epochs: 1
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.0
+  operator_decoded:
+    epochs: 1
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.0
+  joint_codec_operator:
+    epochs: 5
+    rollout_steps: 2
+    lambda_rollout: 0.5
+    lambda_reconstruction: 0.25
+    optimizer:
+      name: adamw
+      lr: 7.5e-4
+      weight_decay: 0.0
+  diff_residual:
+    epochs: 0
+  consistency_distill:
+    epochs: 0
+  steady_prior:
+    epochs: 0
+
+checkpoint:
+  dir: reports/light_experiments/checkpoints/multitask_light_joint_best
+
+logging:
+  wandb:
+    enabled: false

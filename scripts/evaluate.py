@@ -4,6 +4,7 @@ from __future__ import annotations
 """Evaluate latent operator checkpoints on PDEBench datasets."""
 
 import argparse
+import copy
 import json
 from pathlib import Path
 from typing import Any, Dict
@@ -19,9 +20,15 @@ import torch.multiprocessing as mp
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ups.core.blocks_pdet import PDETransformerConfig
-from ups.eval.pdebench_runner import evaluate_latent_operator
+from ups.core.conditioning import ConditioningConfig
+from ups.data.latent_pairs import conditioning_source_dims_from_sample, infer_channel_count, infer_grid_shape
+from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
+from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
+from ups.eval.promotion import evaluate_promotion_rules, parse_promotion_rule, promotion_rules_from_config
 from ups.eval.reports import MetricReport
 from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
+from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
+from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.utils.monitoring import init_monitoring_session
@@ -38,7 +45,7 @@ def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to
 
     This makes loading robust across compiled/non-compiled training runs.
     """
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     if isinstance(ckpt, dict) and "state_dict" in ckpt:
         state_dict = ckpt["state_dict"]
     elif isinstance(ckpt, dict):
@@ -81,9 +88,55 @@ def make_operator(cfg: Dict[str, Any]) -> LatentOperator:
             "group_size": max(dim // 2, 4),
             "num_heads": 4,
         }
+    conditioning = None
+    conditioning_cfg = cfg.get("operator", {}).get("conditioning", {})
+    sources = conditioning_cfg.get("sources")
+    if sources:
+        conditioning = ConditioningConfig(
+            latent_dim=dim,
+            hidden_dim=int(conditioning_cfg.get("hidden_dim", max(dim * 2, 64))),
+            sources={str(key): int(value) for key, value in sources.items()},
+        )
+    elif bool(cfg.get("training", {}).get("auto_conditioning", False)):
+        data_cfg = cfg.get("data", {})
+        task_cfg = data_cfg.get("task")
+        task_names = [task_cfg] if isinstance(task_cfg, str) else [str(task) for task in task_cfg]
+        task_vocab = tuple(task_names) if len(task_names) > 1 else None
+        param_vocab = tuple(data_cfg.get("param_keys", ()))
+        bc_vocab = tuple(data_cfg.get("bc_keys", ()))
+        auto_sources: Dict[str, int] = {}
+        for task_name in task_names:
+            dataset = PDEBenchDataset(
+                PDEBenchConfig(
+                    task=task_name,
+                    split=data_cfg.get("split", "train"),
+                    root=data_cfg.get("root"),
+                    param_keys=tuple(data_cfg.get("param_keys", ())),
+                    bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                )
+            )
+            sample = dataset[0]
+            grid_shape = infer_grid_shape(sample["fields"])
+            sample_sources = conditioning_source_dims_from_sample(
+                sample,
+                grid_shape=grid_shape,
+                task_name=task_name,
+                task_vocab=task_vocab,
+                param_vocab=param_vocab,
+                bc_vocab=bc_vocab,
+            )
+            for key, dim_value in sample_sources.items():
+                auto_sources[key] = max(auto_sources.get(key, 0), int(dim_value))
+        conditioning = ConditioningConfig(
+            latent_dim=dim,
+            hidden_dim=int(conditioning_cfg.get("hidden_dim", max(dim * 2, 64))),
+            sources=auto_sources,
+        )
+
     config = LatentOperatorConfig(
         latent_dim=dim,
         pdet=PDETransformerConfig(**pdet_cfg),
+        conditioning=conditioning,
         time_embed_dim=dim,
     )
     return LatentOperator(config)
@@ -93,6 +146,75 @@ def make_diffusion(cfg: Dict[str, Any]) -> DiffusionResidual:
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
     return DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
+
+
+def _pdebench_grid_spec(cfg: Dict[str, Any]) -> tuple[tuple[int, int], int, str]:
+    data_cfg = cfg.get("data", {})
+    task_cfg = data_cfg.get("task")
+    if isinstance(task_cfg, str):
+        task_names = [task_cfg]
+    elif isinstance(task_cfg, (list, tuple)) and task_cfg and all(isinstance(task, str) for task in task_cfg):
+        task_names = [str(task) for task in task_cfg]
+    else:
+        raise ValueError("Decoded evaluation requires one PDEBench task or a non-empty list of task names")
+
+    channels = None
+    grid_shape = None
+    for task in task_names:
+        dataset = PDEBenchDataset(
+            PDEBenchConfig(
+                task=task,
+                split=data_cfg.get("split", "train"),
+                root=data_cfg.get("root"),
+                param_keys=tuple(data_cfg.get("param_keys", ())),
+                bc_keys=tuple(data_cfg.get("bc_keys", ())),
+            )
+        )
+        sample_fields = dataset.fields[0]
+        task_grid_shape = infer_grid_shape(sample_fields)
+        task_channels = infer_channel_count(sample_fields, task_grid_shape)
+        if channels is None:
+            channels = task_channels
+            grid_shape = task_grid_shape
+        elif task_channels != channels:
+            raise ValueError("Decoded evaluation currently requires all tasks to share the same channel count")
+
+    field_name = data_cfg.get("field_name", "u")
+    assert grid_shape is not None and channels is not None
+    return grid_shape, channels, field_name
+
+
+def make_encoder(cfg: Dict[str, Any]) -> GridEncoder:
+    _, channels, field_name = _pdebench_grid_spec(cfg)
+    latent_cfg = cfg.get("latent", {})
+    data_cfg = cfg.get("data", {})
+    return GridEncoder(
+        GridEncoderConfig(
+            patch_size=data_cfg.get("patch_size", 4),
+            latent_dim=latent_cfg.get("dim", 32),
+            latent_len=latent_cfg.get("tokens", 16),
+            field_channels={field_name: channels},
+        )
+    )
+
+
+def make_decoder(cfg: Dict[str, Any]) -> AnyPointDecoder:
+    _, channels, field_name = _pdebench_grid_spec(cfg)
+    latent_dim = cfg.get("latent", {}).get("dim", 32)
+    decoder_cfg = cfg.get("decoder", {})
+    hidden_dim = decoder_cfg.get("hidden_dim", max(latent_dim * 2, 64))
+    return AnyPointDecoder(
+        AnyPointDecoderConfig(
+            latent_dim=latent_dim,
+            query_dim=2,
+            hidden_dim=hidden_dim,
+            num_layers=decoder_cfg.get("num_layers", 2),
+            num_heads=decoder_cfg.get("num_heads", 4),
+            frequencies=tuple(decoder_cfg.get("frequencies", (1.0, 2.0, 4.0))),
+            mlp_hidden_dim=decoder_cfg.get("mlp_hidden_dim", hidden_dim),
+            output_channels={field_name: channels},
+        )
+    )
 def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], details: Dict[str, Any]) -> Dict[str, Path]:
     prefix.parent.mkdir(parents=True, exist_ok=True)
     paths: Dict[str, Path] = {}
@@ -322,6 +444,21 @@ def _print_report(report: MetricReport, paths: Dict[str, Path], as_json: bool) -
         print(f"  {kind}: {path}")
 
 
+def _clone_eval_cfg(
+    cfg: Dict[str, Any],
+    *,
+    tasks: list[str] | None = None,
+    split: str | None = None,
+) -> Dict[str, Any]:
+    eval_cfg = copy.deepcopy(cfg)
+    data_cfg = eval_cfg.setdefault("data", {})
+    if tasks:
+        data_cfg["task"] = tasks[0] if len(tasks) == 1 else tasks
+    if split is not None:
+        data_cfg["split"] = split
+    return eval_cfg
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate latent operator checkpoints on PDEBench data")
     parser.add_argument("--config", default="configs/train_multi_pde.yaml", help="Config file describing data/latent setup")
@@ -329,6 +466,19 @@ def main() -> None:
     parser.add_argument("--diffusion", help="Optional diffusion residual checkpoint")
     parser.add_argument("--tau", type=float, default=0.5, help="Tau value used when applying diffusion residual")
     parser.add_argument("--device", default="cpu", help="Device for evaluation")
+    parser.add_argument("--encoder", help="Optional encoder checkpoint for decoded physical-space evaluation")
+    parser.add_argument("--decoder", help="Optional decoder checkpoint for decoded physical-space evaluation")
+    parser.add_argument("--decoded", action="store_true", help="Also compute decoded physical-space metrics")
+    parser.add_argument("--decoded-rollout-steps", type=int, help="Optional maximum rollout depth for decoded evaluation")
+    parser.add_argument("--transfer-tasks", nargs="+", help="Optional held-out PDEBench tasks to evaluate with transfer_* metrics")
+    parser.add_argument("--transfer-split", help="Optional split override for transfer evaluation")
+    parser.add_argument(
+        "--promotion-rule",
+        action="append",
+        default=[],
+        help="Promotion rule like decoded_rollout_nrmse<=0.2 or max:family_*_decoded_rollout_nrmse<=0.3; can be repeated",
+    )
+    parser.add_argument("--fail-on-promotion", action="store_true", help="Exit with code 2 if any promotion rule fails")
     parser.add_argument("--output-prefix", default="reports/evaluation", help="Prefix (without extension) for saved reports")
     parser.add_argument("--log-path", default="reports/eval_log.jsonl", help="Where to append evaluation logs")
     parser.add_argument("--print-json", action="store_true", help="Print metrics and file paths as JSON")
@@ -379,6 +529,78 @@ def main() -> None:
     )
     report, details = result  # type: ignore[misc]
 
+    if args.decoded:
+        operator_path = Path(args.operator)
+        encoder_ckpt = args.encoder or str(operator_path.with_name("encoder.pt"))
+        decoder_ckpt = args.decoder or str(operator_path.with_name("decoder.pt"))
+        if not Path(encoder_ckpt).exists():
+            raise FileNotFoundError(f"Decoded evaluation requires encoder checkpoint: {encoder_ckpt}")
+        if not Path(decoder_ckpt).exists():
+            raise FileNotFoundError(f"Decoded evaluation requires decoder checkpoint: {decoder_ckpt}")
+
+        encoder = make_encoder(cfg)
+        decoder = make_decoder(cfg)
+        _load_state_dict_compat(encoder, encoder_ckpt, prefix_to_strip="")
+        _load_state_dict_compat(decoder, decoder_ckpt, prefix_to_strip="")
+        decoded_report = evaluate_decoded_operator(
+            cfg,
+            encoder,
+            operator,
+            decoder,
+            device=args.device,
+            rollout_steps=args.decoded_rollout_steps,
+        )
+        report.metrics.update(decoded_report.metrics)
+        if report.extra is None:
+            report.extra = {}
+        if decoded_report.extra:
+            report.extra.update({f"decoded_{k}": v for k, v in decoded_report.extra.items()})
+
+    if args.transfer_tasks:
+        transfer_cfg = _clone_eval_cfg(cfg, tasks=[str(task) for task in args.transfer_tasks], split=args.transfer_split)
+        transfer_report = evaluate_latent_operator(
+            transfer_cfg,
+            operator,
+            diffusion=diffusion_model,
+            tau=args.tau,
+            device=args.device,
+            return_details=False,
+            ttc_config=ttc_runtime_cfg,
+            reward_model=reward_model,
+        )
+        report.metrics.update({f"transfer_{key}": value for key, value in transfer_report.metrics.items()})
+        if report.extra is None:
+            report.extra = {}
+        report.extra["transfer_tasks"] = args.transfer_tasks
+        report.extra["transfer_split"] = transfer_cfg.get("data", {}).get("split")
+        if args.decoded:
+            encoder = make_encoder(transfer_cfg)
+            decoder = make_decoder(transfer_cfg)
+            _load_state_dict_compat(encoder, encoder_ckpt, prefix_to_strip="")
+            _load_state_dict_compat(decoder, decoder_ckpt, prefix_to_strip="")
+            transfer_decoded_report = evaluate_decoded_operator(
+                transfer_cfg,
+                encoder,
+                operator,
+                decoder,
+                device=args.device,
+                rollout_steps=args.decoded_rollout_steps,
+            )
+            report.metrics.update({f"transfer_{key}": value for key, value in transfer_decoded_report.metrics.items()})
+
+    promotion_rules = promotion_rules_from_config(cfg)
+    promotion_rules.extend(parse_promotion_rule(rule) for rule in args.promotion_rule)
+    promotion_failed = False
+    if promotion_rules:
+        promotion_result = evaluate_promotion_rules(report.metrics, promotion_rules)
+        if report.extra is None:
+            report.extra = {}
+        report.extra["promotion_passed"] = promotion_result.passed
+        report.extra["promotion_rule_count"] = len(promotion_rules)
+        report.extra["promotion_failed_rules"] = promotion_result.failed_rules
+        report.extra["promotion_missing_metrics"] = promotion_result.missing_metrics
+        promotion_failed = not promotion_result.passed
+
     output_prefix = Path(args.output_prefix)
     outputs = _write_outputs(report, output_prefix, cfg, details)
     
@@ -426,6 +648,8 @@ def main() -> None:
     session.finish()
 
     _print_report(report, outputs, args.print_json)
+    if args.fail_on_promotion and promotion_failed:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

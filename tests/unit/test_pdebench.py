@@ -1,7 +1,7 @@
 import h5py
 import torch
 
-from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
+from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, pdebench_equation_signature, pdebench_task_semantics
 from ups.eval.pdebench_runner import evaluate_pdebench
 
 
@@ -21,3 +21,24 @@ def test_evaluate_pdebench(tmp_path):
         f.create_dataset("data", data=torch.randn(3, 4, 4).numpy())
     report = evaluate_pdebench("burgers1d", "val", root=tmp_path)
     assert "mae" in report.metrics
+
+
+def test_pdebench_task_semantics_exposes_family_and_traits():
+    semantics = pdebench_task_semantics(
+        "burgers1d",
+        task_vocab=("burgers1d", "darcy2d"),
+    )
+
+    assert semantics["task_id"].shape == (2,)
+    assert semantics["task_family"].shape == (2,)
+    assert semantics["equation_traits"].shape[0] >= 4
+    assert semantics["task_id"].sum().item() == 1.0
+    assert semantics["task_family"].sum().item() == 1.0
+
+
+def test_pdebench_equation_signature_is_nonempty_and_stable():
+    signature = pdebench_equation_signature("burgers1d")
+
+    assert signature.dim() == 1
+    assert signature.numel() > 4
+    assert signature.sum().item() >= 2.0

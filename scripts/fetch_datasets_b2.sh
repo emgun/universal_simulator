@@ -16,6 +16,7 @@ set -euo pipefail
 #   B2_S3_REGION=us-west-004                             # optional S3 region
 #
 # Optional toggles:
+#   B2_ENV_FILE=.env     # env file to read; defaults to ENV_FILE or .env
 #   DRY_RUN=1            # do not contact B2; just print the command
 #   CLEAN_OLD_SPLITS=1   # delete existing local *.h5 before extraction (default: 1)
 #   WORKDIR=$PWD         # working directory (defaults to current)
@@ -196,7 +197,7 @@ download_dataset() {
   return 1
 }
 
-B2_ENV_FILE=".env"
+B2_ENV_FILE=${B2_ENV_FILE:-${ENV_FILE:-.env}}
 if [ -f "$B2_ENV_FILE" ]; then
   : "${B2_KEY_ID:=$(read_env_key "$B2_ENV_FILE" B2_KEY_ID || read_env_key "$B2_ENV_FILE" B2_ACCOUNT_ID || read_env_key "$B2_ENV_FILE" ACCOUNT_ID || read_env_key "$B2_ENV_FILE" KEY_ID || true)}"
   : "${B2_APP_KEY:=$(read_env_key "$B2_ENV_FILE" B2_APP_KEY || read_env_key "$B2_ENV_FILE" B2_APPLICATION_KEY || read_env_key "$B2_ENV_FILE" APPLICATION_KEY || read_env_key "$B2_ENV_FILE" APP_KEY || true)}"
