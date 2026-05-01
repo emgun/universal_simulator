@@ -504,11 +504,19 @@ def _amp_enabled(cfg: Dict) -> bool:
 
 
 def _autocast(device: torch.device, enabled: bool):
+    if not hasattr(torch, "amp") or not hasattr(torch.amp, "autocast"):
+        if device.type == "cuda":
+            return torch.cuda.amp.autocast(enabled=enabled)
+        from contextlib import nullcontext
+
+        return nullcontext()
     return torch.amp.autocast(device_type=device.type, enabled=enabled)
 
 
 def _grad_scaler(enabled: bool):
-    return torch.amp.GradScaler("cuda", enabled=enabled)
+    if hasattr(torch, "amp") and hasattr(torch.amp, "GradScaler"):
+        return torch.amp.GradScaler("cuda", enabled=enabled)
+    return torch.cuda.amp.GradScaler(enabled=enabled)
 
 
 def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
