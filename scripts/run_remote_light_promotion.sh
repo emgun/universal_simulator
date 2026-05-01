@@ -69,6 +69,21 @@ append_unique_word() {
   fi
 }
 
+apply_cli_assignments() {
+  local assignment
+  for assignment in "$@"; do
+    case "$assignment" in
+      *=*) export "$assignment" ;;
+      "")
+        ;;
+      *)
+        echo "Unexpected argument '${assignment}'. Pass remote options as KEY=VALUE assignments." >&2
+        exit 2
+        ;;
+    esac
+  done
+}
+
 ensure_rclone() {
   if command -v rclone >/dev/null 2>&1; then
     return 0
@@ -86,6 +101,8 @@ ensure_rclone() {
   echo "rclone is required for B2 hydration and automatic install is only implemented for apt-get hosts." >&2
   exit 1
 }
+
+apply_cli_assignments "$@"
 
 ENV_FILE=${ENV_FILE:-.env}
 load_optional_env "$ENV_FILE"
