@@ -198,6 +198,7 @@ class PDEBenchConfig:
     normalize: bool = True
     param_keys: Tuple[str, ...] = ()
     bc_keys: Tuple[str, ...] = ()
+    max_samples: Optional[int] = None
 
 
 def _normalise_fields(fields: torch.Tensor) -> torch.Tensor:
@@ -218,14 +219,26 @@ class PDEBenchDataset(Dataset):
     ) -> None:
         super().__init__()
         self.cfg = cfg
+        max_samples = int(cfg.max_samples) if cfg.max_samples is not None else None
+        if max_samples is not None and max_samples <= 0:
+            raise ValueError("PDEBenchConfig.max_samples must be positive when set")
         if tensor_data is not None:
             self.spec = get_pdebench_spec(cfg.task)
             self.param_keys = tuple(cfg.param_keys or self.spec.param_keys)
             self.bc_keys = tuple(cfg.bc_keys or self.spec.bc_keys)
-            self.fields = tensor_data["fields"].float()
-            self.targets = tensor_data.get("targets", tensor_data["fields"]).float()
-            self.params = tensor_data.get("params")
-            self.bc = tensor_data.get("bc")
+            sample_slice = slice(0, max_samples) if max_samples is not None else slice(None)
+            self.fields = tensor_data["fields"][sample_slice].float()
+            self.targets = tensor_data.get("targets", tensor_data["fields"])[sample_slice].float()
+            self.params = (
+                {key: value[sample_slice] for key, value in tensor_data["params"].items()}
+                if tensor_data.get("params") is not None
+                else None
+            )
+            self.bc = (
+                {key: value[sample_slice] for key, value in tensor_data["bc"].items()}
+                if tensor_data.get("bc") is not None
+                else None
+            )
         else:
             if cfg.root is None:
                 # Allow environment override for convenience in remote runs
@@ -254,20 +267,28 @@ class PDEBenchDataset(Dataset):
             targets_list = []
             params_accum = None
             bc_accum = None
+            remaining = max_samples
 
             for path in shard_paths:
+                if remaining is not None and remaining <= 0:
+                    break
                 with h5py.File(path, "r") as f:
-                    f_fields = torch.from_numpy(f[spec.field_key][...]).float()
+                    available = int(f[spec.field_key].shape[0])
+                    take = available if remaining is None else min(remaining, available)
+                    if take <= 0:
+                        continue
+                    sample_slice = slice(0, take)
+                    f_fields = torch.from_numpy(f[spec.field_key][sample_slice]).float()
                     if cfg.normalize:
                         f_fields = _normalise_fields(f_fields)
                     fields_list.append(f_fields)
                     if spec.target_key and spec.target_key in f:
-                        targets_list.append(torch.from_numpy(f[spec.target_key][...]).float())
+                        targets_list.append(torch.from_numpy(f[spec.target_key][sample_slice]).float())
                     else:
                         targets_list.append(f_fields)
                     # Parameter/BC aggregation (if present): concatenate along first axis
                     if param_keys:
-                        p = {key: torch.from_numpy(f[key][...]).float() for key in param_keys if key in f}
+                        p = {key: torch.from_numpy(f[key][sample_slice]).float() for key in param_keys if key in f}
                         if p:
                             if params_accum is None:
                                 params_accum = {k: v.clone() for k, v in p.items()}
@@ -276,7 +297,7 @@ class PDEBenchDataset(Dataset):
                                     if k in params_accum:
                                         params_accum[k] = torch.cat([params_accum[k], v], dim=0)
                     if bc_keys:
-                        b = {key: torch.from_numpy(f[key][...]).float() for key in bc_keys if key in f}
+                        b = {key: torch.from_numpy(f[key][sample_slice]).float() for key in bc_keys if key in f}
                         if b:
                             if bc_accum is None:
                                 bc_accum = {k: v.clone() for k, v in b.items()}
@@ -284,7 +305,11 @@ class PDEBenchDataset(Dataset):
                                 for k, v in b.items():
                                     if k in bc_accum:
                                         bc_accum[k] = torch.cat([bc_accum[k], v], dim=0)
+                    if remaining is not None:
+                        remaining -= take
 
+            if not fields_list:
+                raise RuntimeError(f"No samples loaded for PDEBench task '{cfg.task}' split '{cfg.split}'")
             self.fields = torch.cat(fields_list, dim=0)
             self.targets = torch.cat(targets_list, dim=0)
             self.params = params_accum

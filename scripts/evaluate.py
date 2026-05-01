@@ -113,6 +113,7 @@ def make_operator(cfg: Dict[str, Any]) -> LatentOperator:
                     root=data_cfg.get("root"),
                     param_keys=tuple(data_cfg.get("param_keys", ())),
                     bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                    max_samples=data_cfg.get("max_samples"),
                 )
             )
             sample = dataset[0]
@@ -168,6 +169,7 @@ def _pdebench_grid_spec(cfg: Dict[str, Any]) -> tuple[tuple[int, int], int, str]
                 root=data_cfg.get("root"),
                 param_keys=tuple(data_cfg.get("param_keys", ())),
                 bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                max_samples=data_cfg.get("max_samples"),
             )
         )
         sample_fields = dataset.fields[0]

@@ -752,6 +752,7 @@ def _build_pdebench_dataset(data_cfg: Dict[str, Any]) -> Tuple[Dataset, GridEnco
             root=data_cfg.get("root"),
             param_keys=tuple(data_cfg.get("param_keys", ())),
             bc_keys=tuple(data_cfg.get("bc_keys", ())),
+            max_samples=data_cfg.get("max_samples"),
         ),
     )
 
