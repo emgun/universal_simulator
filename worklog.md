@@ -627,3 +627,15 @@ Experiment loop update (2026-05-04, local shard-prep test mode branch):
 - Purpose:
   - allow shard cutting against already-hydrated sources
   - test the actual split-source generation path locally with tiny HDF5 files without contacting B2 or publishing
+
+Experiment loop update (2026-05-04, final remote smoke handoff branch):
+- Branch:
+  - created `codex/final-remote-smoke-handoff` from `codex/local-shard-prep-test-mode`
+- Local blocker check:
+  - `df -h` reported about `1.9 GiB` free on the local filesystem
+  - optimized smoke prep needs roughly `10-12 GiB` source hydration plus output room
+- Updated:
+  - `docs/demo_runbook.md`
+- Purpose:
+  - refresh the branch stack through the latest smoke manifest, fetch hardening, wrapper, split-source, and local-test-mode branches
+  - document that smoke prep should run on a remote/data-prep box, not this local machine

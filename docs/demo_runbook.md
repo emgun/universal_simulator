@@ -45,6 +45,20 @@ Apply or merge in this order if working from `main`:
 12. `codex/smoke-source-key-shards`
     - smoke-only source key overrides for cheaper shard-prep dry runs
     - explicit warning that derived smoke slices are not benchmark evidence
+13. `codex/smoke-manifest-readiness`
+    - `docs/demo_smoke_data_manifest.yaml`
+    - smoke-specific readiness commands
+14. `codex/harden-b2-fetcher`
+    - `scripts/fetch_datasets_b2.sh` rejects empty-success `rclone lsjson` results
+15. `codex/smoke-shard-prep-wrapper`
+    - one-command smoke shard prep wrapper
+16. `codex/fix-smoke-output-root`
+    - smoke wrapper writes under `data/pdebench_smoke`
+17. `codex/cheap-smoke-split-sources`
+    - default smoke prep uses Burgers train shard, Advection val, and Darcy test
+    - reduces default smoke source hydration to roughly 10 GiB
+18. `codex/local-shard-prep-test-mode`
+    - `FETCH_DATA=0` and `PUBLISH_SHARDS=0` for already-hydrated/test-mode shard cutting
 
 ## Current Evidence
 
@@ -72,7 +86,9 @@ Known B2 layout:
 - `smoke-v1` is not published
 - `light-v1` is not published
 - live readiness check still reports `0/9` `light-v1` keys present
+- live readiness check also reports `0/9` `smoke-v1` keys present
 - `pdebench/full` is not the active prefix
+- local machine has only about `1.9 GiB` free, so do not run smoke prep here
 
 Approximate source sizes:
 
