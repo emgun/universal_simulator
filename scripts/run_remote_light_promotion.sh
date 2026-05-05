@@ -153,10 +153,10 @@ else
   done
 fi
 
-if [ "$DRY_RUN" -eq 0 ] && [ "$USING_GENERATED_FULL_KEYS" -eq 1 ] && [ "$ALLOW_FULL_DATA" -ne 1 ]; then
+if [ "$DRY_RUN" -eq 0 ] && [ "$USING_GENERATED_FULL_KEYS" -eq 1 ] && [ "$REMOTE_B2_PREFIX" = "full" ] && [ "$ALLOW_FULL_DATA" -ne 1 ]; then
   echo "Refusing default full-data hydration without ALLOW_FULL_DATA=1." >&2
   echo "The default B2 full train/test files are large and the current HDF5 loader reads files into memory." >&2
-  echo "Set REMOTE_DATASET_FILES to a small shard list for cheap experiments, or set ALLOW_FULL_DATA=1 explicitly." >&2
+  echo "Use a bounded shard prefix such as smoke-v1/light-v1, set REMOTE_DATASET_FILES, or set ALLOW_FULL_DATA=1 explicitly." >&2
   exit 1
 fi
 
