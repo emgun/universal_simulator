@@ -167,6 +167,20 @@ python scripts/build_demo_report.py \
   --copy-summaries
 ```
 
+To add a non-learned decoded persistence baseline to the same scorecard:
+
+```bash
+python scripts/run_persistence_baseline.py \
+  --config configs/train_multitask_heterogeneous_light_best.yaml \
+  --name persistence_light_test \
+  --output-root reports/light_experiments_remote \
+  --data-root data/pdebench_light \
+  --split test \
+  --max-samples 32 \
+  --rollout-steps 16 \
+  --promotion-rule "decoded_rollout_nrmse<=1.0"
+```
+
 ## Promotion guidance
 
 Use this sequence:

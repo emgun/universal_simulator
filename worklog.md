@@ -398,3 +398,22 @@ Experiment loop update (2026-05-04, demo scorecard branch):
 - Next gate:
   - commit and push `codex/demo-scorecard-loop`
   - then either publish `smoke-v1`/`light-v1` shards if source data is locally available, or continue with baseline/report visualizations locally.
+
+Experiment loop update (2026-05-04, persistence baseline branch):
+- Branch:
+  - created `codex/demo-persistence-baseline` from `codex/demo-scorecard-loop`
+- Baseline:
+  - added `src/ups/eval/persistence_baselines.py`
+  - physical-space persistence predicts the previous field as the next field
+  - supports single-task and multitask PDEBench configs
+  - supports `data.max_samples` and rollout-step caps
+  - emits overall, per-task, per-family, step-1, and horizon metrics in the same decoded metric namespace as UPS runs
+- CLI:
+  - added `scripts/run_persistence_baseline.py`
+  - writes `summary.json`, `resolved_eval.yaml`, and `results.tsv` under the same output-root layout as `scripts/run_light_experiment.py`
+  - supports promotion rules through `src/ups/eval/promotion.py`
+- Validation:
+  - `python -m py_compile src/ups/eval/persistence_baselines.py scripts/run_persistence_baseline.py`
+  - `pytest tests/unit/test_persistence_baseline.py tests/unit/test_demo_scorecard.py -q`
+- Next gate:
+  - run broader focused tests, commit and push the branch, then add visual rollout artifact generation or create/publish real held-out shards if source data becomes available.
