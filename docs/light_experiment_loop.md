@@ -312,6 +312,19 @@ non-train sources, so it is about 10 GiB of source hydration instead of about
 50 GiB. Plan roughly 12 GiB scratch. This is plumbing-only and must not be used
 for held-out benchmark claims.
 
+For a one-command smoke remote loop:
+
+```bash
+DRY_RUN=0 \
+ENV_FILE=/workspace/.env \
+PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
+bash scripts/run_remote_smoke_pipeline.sh
+```
+
+The pipeline writes readiness JSON, shard-prep logs, and a generated smoke
+queue. It does not run training unless `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` is
+set explicitly.
+
 The actual run needs enough disk for the largest single task source set. Current B2 source sizes are approximately:
 
 - `full/burgers1d`: train 69.045 GiB, val 7.704 GiB, test 15.36 GiB, plus an existing train shard 1.57 GiB

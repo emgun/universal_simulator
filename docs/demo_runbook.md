@@ -201,6 +201,19 @@ Plan roughly 12 GiB scratch for default three-task smoke prep. The wrapper
 derives Advection and Darcy smoke train/val/test slices from smaller non-train
 sources by default; this is why the output is plumbing-only.
 
+To run the whole remote smoke pipeline on a remote/data-prep or cheap GPU box:
+
+```bash
+DRY_RUN=0 \
+ENV_FILE=/workspace/.env \
+PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
+bash scripts/run_remote_smoke_pipeline.sh
+```
+
+This prepares/publishes missing `smoke-v1` shards, writes readiness artifacts,
+and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after
+reviewing `reports/demo/remote_smoke_pipeline/queue/run_smoke_queue.sh`.
+
 ## Step 3: Run Remote Shard Prep
 
 Use a cheap remote/data-prep machine, not a training GPU, unless GPU rental is

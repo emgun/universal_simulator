@@ -639,3 +639,14 @@ Experiment loop update (2026-05-04, final remote smoke handoff branch):
 - Purpose:
   - refresh the branch stack through the latest smoke manifest, fetch hardening, wrapper, split-source, and local-test-mode branches
   - document that smoke prep should run on a remote/data-prep box, not this local machine
+
+Experiment loop update (2026-05-04, remote smoke pipeline branch):
+- Branch:
+  - created `codex/remote-smoke-pipeline` from `codex/final-remote-smoke-handoff`
+- Added:
+  - `scripts/run_remote_smoke_pipeline.sh`
+  - `tests/unit/test_remote_smoke_pipeline.py`
+- Purpose:
+  - provide one remote-safe orchestration command for smoke shard readiness, shard prep, queue generation, and optional smoke experiment execution
+  - keep defaults safe: dry-run shard prep, dry-run generated queue, and `RUN_EXPERIMENTS=0`
+  - preserve readiness JSON, prep logs, queue artifacts, and optional queue run logs under `reports/demo/remote_smoke_pipeline`
