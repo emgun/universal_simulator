@@ -73,6 +73,7 @@ ORDER=dph_total \
 LIMIT=10 \
 SSH=0 \
 ARGS_MODE=1 \
+INSTALL_MODE=smoke \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
@@ -86,6 +87,7 @@ DISK_GB=32 \
 OFFER_ID=<offer_id_from_search> \
 SSH=0 \
 ARGS_MODE=1 \
+INSTALL_MODE=smoke \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
@@ -115,9 +117,10 @@ It also refuses unchecked live queue execution when `CHECK_B2=0` unless
 environment.
 
 Vast launch note: use `codex/vast-no-apt-onstart` or later for remote launches
-with `SSH=0 ARGS_MODE=1` when running a one-shot smoke pipeline. Earlier launch
-attempts reached paid instances but stalled in Vast/Ubuntu apt setup before repo
-checkout.
+with `SSH=0 ARGS_MODE=1 INSTALL_MODE=smoke` when running a one-shot smoke
+pipeline. Earlier launch attempts reached paid instances but stalled in
+Vast/Ubuntu apt setup before repo checkout, then a full dev install started
+pulling a large replacement Torch/CUDA stack.
 
 Before tearing down the remote box:
 

@@ -42,6 +42,9 @@ def test_launch_remote_smoke_vast_dry_run_redacts_env_file_secrets(tmp_path):
     assert "scripts/run_remote_smoke_pipeline.sh DRY_RUN=0 ENV_FILE=.env" in proc.stdout
     assert "B2_KEY_ID=<redacted>" in proc.stdout
     assert "-o dph_total --limit 10" in proc.stdout
+    assert "pip install -e . --no-deps" in proc.stdout
+    assert "pip install h5py numpy PyYAML" in proc.stdout
+    assert "pip install -e .[dev]" not in proc.stdout
 
 
 def test_launch_remote_smoke_vast_offer_id_skips_ordered_search(tmp_path):

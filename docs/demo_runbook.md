@@ -92,6 +92,7 @@ Apply or merge in this order if working from `main`:
     - downloads `rclone` directly and falls back to a GitHub branch zip when `git` is unavailable
     - supports `SSH=0` one-shot launches to skip Vast SSH runtime injection when that setup stalls
     - supports `ARGS_MODE=1` to run `bash -lc` directly and bypass Vast onstart bootstrap
+    - defaults the smoke launcher to `INSTALL_MODE=smoke` so shard prep does not pull full Torch/CUDA dev deps
 
 ## Current Evidence
 
@@ -257,6 +258,7 @@ ORDER=dph_total \
 LIMIT=10 \
 SSH=0 \
 ARGS_MODE=1 \
+INSTALL_MODE=smoke \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
@@ -280,6 +282,7 @@ DISK_GB=32 \
 OFFER_ID=<offer_id_from_search> \
 SSH=0 \
 ARGS_MODE=1 \
+INSTALL_MODE=smoke \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 

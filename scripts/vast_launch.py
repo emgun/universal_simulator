@@ -96,6 +96,7 @@ def ensure_onstart(
     b2_prefix: str | None,
     b2_s3_endpoint: str | None,
     b2_s3_region: str | None,
+    install_mode: str,
 ) -> Path:
     ONSTART_DIR.mkdir(exist_ok=True)
     script_path = ONSTART_DIR / "onstart.sh"
@@ -128,6 +129,19 @@ def ensure_onstart(
             f"  git checkout {quoted_ref} || git checkout -b {quoted_ref} origin/{quoted_ref}",
         ]
     repo_ref = git_ref or "main"
+    if install_mode == "smoke":
+        install_cmds = [
+            '"$PYTHON_BIN" -m pip install --upgrade pip',
+            '"$PYTHON_BIN" -m pip install -e . --no-deps',
+            '"$PYTHON_BIN" -m pip install h5py numpy PyYAML',
+        ]
+    elif install_mode == "full":
+        install_cmds = [
+            '"$PYTHON_BIN" -m pip install --upgrade pip',
+            '"$PYTHON_BIN" -m pip install -e .[dev]',
+        ]
+    else:
+        raise SystemExit(f"Unsupported install mode: {install_mode}")
     shutdown_cmd = (
         "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi"
         if auto_shutdown
@@ -221,8 +235,7 @@ def ensure_onstart(
         '  echo "git unavailable; using downloaded repo archive for $UPS_GIT_REF"',
         "fi",
         "",
-        '"$PYTHON_BIN" -m pip install --upgrade pip',
-        '"$PYTHON_BIN" -m pip install -e .[dev]',
+        *install_cmds,
         "",
         datasets_export,
         (f'export B2_KEY_ID="{b2_key_id}"' if b2_key_id else "# B2_KEY_ID optional"),
@@ -284,6 +297,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.b2_prefix,
         args.b2_s3_endpoint,
         args.b2_s3_region,
+        args.install_mode,
     )
 
     env_parts = []
@@ -431,6 +445,12 @@ def build_parser() -> argparse.ArgumentParser:
             "Run the generated script with 'bash -lc' via Vast --args instead of --onstart. "
             "This avoids Vast SSH/Jupyter/onstart bootstrap for one-shot jobs."
         ),
+    )
+    p_launch.add_argument(
+        "--install-mode",
+        choices=("full", "smoke"),
+        default="full",
+        help="Remote dependency install profile. 'smoke' avoids full Torch/CUDA dev deps.",
     )
     p_launch.add_argument(
         "--b2-key-id",
