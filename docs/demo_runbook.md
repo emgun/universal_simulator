@@ -142,6 +142,22 @@ with the run artifacts.
 
 ## Step 4: Run UPS Light Held-Out Candidate
 
+Generate a bounded experiment queue before launching a variant matrix:
+
+```bash
+python scripts/plan_demo_experiments.py \
+  --tier smoke \
+  --variant current_best \
+  --variant no_conditioning \
+  --variant task_signature_only \
+  --output-jsonl reports/demo/smoke_queue.jsonl \
+  --output-tsv reports/demo/smoke_queue.tsv \
+  --output-sh reports/demo/run_smoke_queue.sh
+```
+
+Review the generated shell plan first. It defaults to `DRY_RUN=1`; regenerate
+with `--dry-run-value 0` only after B2 shard preflight passes.
+
 Preflight:
 
 ```bash

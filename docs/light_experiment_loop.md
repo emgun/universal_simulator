@@ -337,6 +337,22 @@ python scripts/build_demo_report.py \
   --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json
 ```
 
+Generate bounded smoke/light variant queues from the current roadmap:
+
+```bash
+python scripts/plan_demo_experiments.py \
+  --tier smoke \
+  --variant current_best \
+  --variant no_conditioning \
+  --variant task_signature_only \
+  --output-jsonl reports/demo/smoke_queue.jsonl \
+  --output-tsv reports/demo/smoke_queue.tsv \
+  --output-sh reports/demo/run_smoke_queue.sh
+```
+
+The generated shell queue defaults to `DRY_RUN=1`. Use `--dry-run-value 0` only
+after `scripts/check_demo_b2_shards.py` confirms the requested tier is present.
+
 Vast.ai dry-run launch for the light promotion path:
 
 ```bash

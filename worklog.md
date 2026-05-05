@@ -502,3 +502,14 @@ Experiment loop update (2026-05-04, demo cost tracking branch):
   - track remote experiment provider, instance, GPU type/count, wall-clock hours, GPU hours, and estimated USD
   - keep cost accounting outside the training runner so cheap remote runs can be compared without coupling to one cloud provider
   - make morning iteration decisions metric-aware and spend-aware
+
+Experiment loop update (2026-05-04, demo experiment queue branch):
+- Branch:
+  - created `codex/demo-experiment-queue` from `codex/demo-cost-tracking`
+- Added:
+  - `scripts/plan_demo_experiments.py`
+  - `tests/unit/test_plan_demo_experiments.py`
+- Purpose:
+  - generate JSONL, TSV, and shell queues for bounded smoke/light/medium variant matrices
+  - keep generated commands dry-run by default
+  - freeze the first variant set around current best, no-conditioning, task-signature-only, semigroup weight, joint-depth, and rollout-depth probes
