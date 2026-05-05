@@ -76,6 +76,11 @@ Apply or merge in this order if working from `main`:
     - packages remote artifacts and records missing paths
 25. `codex/require-b2-check-for-live-smoke`
     - refuses unchecked live smoke queue unless explicitly overridden
+26. `codex/safe-vast-smoke-launcher`
+    - dry-run-first Vast smoke launcher
+    - redacts B2/W&B secrets from dry-run launch output
+27. `codex/vast-offer-summary`
+    - compact Vast offer JSON/TSV snapshots without launching compute
 
 ## Current Evidence
 

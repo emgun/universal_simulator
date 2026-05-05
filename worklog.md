@@ -743,3 +743,13 @@ Experiment loop update (2026-05-04, Vast offer summary branch):
 - Live dry artifact check:
   - `python scripts/search_vast_smoke_offers.py --limit 3 --output-json /tmp/ups_vast_smoke_offers.json --output-tsv /tmp/ups_vast_smoke_offers.tsv`
   - cheapest returned RTX 4090 offers were about `$0.288-$0.298/hr` at query time
+
+Experiment loop update (2026-05-04, final remote launch audit branch):
+- Branch:
+  - created `codex/final-remote-launch-audit` from `codex/vast-offer-summary`
+- Updated:
+  - `docs/demo_runbook.md`
+  - `docs/demo_completion_audit.md`
+- Purpose:
+  - refresh canonical handoff docs with the safe Vast smoke launcher and Vast offer summary branches
+  - mark cheap remote discovery as ready but not launched
