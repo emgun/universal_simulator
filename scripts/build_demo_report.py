@@ -19,6 +19,7 @@ from ups.eval.demo_scorecard import (
     write_scorecard_json,
     write_scorecard_tsv,
 )
+from ups.eval.demo_plots import write_scorecard_plots
 
 
 def _git_commit() -> str:
@@ -62,8 +63,9 @@ def main() -> None:
 
     write_scorecard_tsv(scorecard, output_dir / "metrics.tsv")
     write_scorecard_json(scorecard, output_dir / "scorecard.json")
+    plots = write_scorecard_plots(scorecard, output_dir)
     (output_dir / "index.html").write_text(
-        render_scorecard_html(scorecard, title=args.title),
+        render_scorecard_html(scorecard, title=args.title, plots=plots),
         encoding="utf-8",
     )
 
@@ -81,4 +83,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

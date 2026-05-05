@@ -466,3 +466,15 @@ Experiment loop update (2026-05-04, remote shard prep wrapper):
 - Important:
   - this still requires roughly enough disk for Burgers train/val/test at once, so plan at least a 120-150 GiB scratch disk
   - dry-run first with `DRY_RUN=1`
+
+Experiment loop update (2026-05-04, demo report plots branch):
+- Branch:
+  - created `codex/demo-report-plots` from `codex/remote-shard-prep`
+- Added:
+  - `src/ups/eval/demo_plots.py`
+- Report polish:
+  - `scripts/build_demo_report.py` now writes compact PNG bar plots for `decoded_rollout_nrmse`, `decoded_step1_nrmse`, and the main metric when available
+  - `src/ups/eval/demo_scorecard.py` can embed generated plot paths in `index.html`
+- Purpose:
+  - make the demo report more inspectable without needing notebooks or browser-side dependencies
+  - keep this artifact generation local and cheap

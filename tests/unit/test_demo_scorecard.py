@@ -8,6 +8,7 @@ from ups.eval.demo_scorecard import (
     write_scorecard_json,
     write_scorecard_tsv,
 )
+from ups.eval.demo_plots import write_scorecard_plots
 
 
 def _write_summary(path, *, run_name: str, decoded_rollout_nrmse: float, step1: float = 0.5):
@@ -70,3 +71,16 @@ def test_write_scorecard_outputs(tmp_path):
     assert "Demo &lt;Scorecard&gt;" in html
     assert "run_a" in html
 
+
+def test_write_scorecard_plots_and_embed_html(tmp_path):
+    summary = tmp_path / "run_a" / "summary.json"
+    _write_summary(summary, run_name="run_a", decoded_rollout_nrmse=0.8)
+    scorecard = collect_scorecard([summary])
+
+    plots = write_scorecard_plots(scorecard, tmp_path / "report")
+    html = render_scorecard_html(scorecard, plots=plots)
+
+    assert "decoded_rollout_nrmse" in plots
+    assert (tmp_path / "report" / plots["decoded_rollout_nrmse"]).exists()
+    assert "Metric Plots" in html
+    assert "plots/decoded_rollout_nrmse.png" in html

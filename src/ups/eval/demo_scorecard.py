@@ -155,7 +155,12 @@ def write_scorecard_json(scorecard: Scorecard, path: str | Path) -> None:
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def render_scorecard_html(scorecard: Scorecard, *, title: str = "UPS Demo Scorecard") -> str:
+def render_scorecard_html(
+    scorecard: Scorecard,
+    *,
+    title: str = "UPS Demo Scorecard",
+    plots: Mapping[str, str] | None = None,
+) -> str:
     fields = list(BASE_FIELDS) + scorecard.metric_keys
     header_cells = "".join(f"<th>{html.escape(field)}</th>" for field in fields)
     body_rows = []
@@ -164,6 +169,14 @@ def render_scorecard_html(scorecard: Scorecard, *, title: str = "UPS Demo Scorec
         body_rows.append(f"<tr>{cells}</tr>")
     body = "\n".join(body_rows) or f"<tr><td colspan=\"{len(fields)}\">No runs found.</td></tr>"
     escaped_title = html.escape(title)
+    plot_html = ""
+    if plots:
+        cards = []
+        for label, src in plots.items():
+            cards.append(
+                f"<figure><img src=\"{html.escape(src)}\" alt=\"{html.escape(label)}\"><figcaption>{html.escape(label)}</figcaption></figure>"
+            )
+        plot_html = "<section><h2>Metric Plots</h2>" + "\n".join(cards) + "</section>"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -175,11 +188,15 @@ def render_scorecard_html(scorecard: Scorecard, *, title: str = "UPS Demo Scorec
     th, td {{ border: 1px solid #d0d7de; padding: 0.4rem; text-align: left; vertical-align: top; }}
     th {{ background: #f6f8fa; position: sticky; top: 0; }}
     .note {{ color: #57606a; max-width: 68rem; }}
+    figure {{ display: inline-block; margin: 0 1rem 1rem 0; max-width: 48%; vertical-align: top; }}
+    img {{ max-width: 100%; border: 1px solid #d0d7de; }}
+    figcaption {{ color: #57606a; font-size: 0.9rem; margin-top: 0.25rem; }}
   </style>
 </head>
 <body>
   <h1>{escaped_title}</h1>
   <p class="note">Generated from UPS light experiment <code>summary.json</code> artifacts. Use held-out split rows for benchmark claims; smoke rows are plumbing checks only.</p>
+  {plot_html}
   <table>
     <thead><tr>{header_cells}</tr></thead>
     <tbody>{body}</tbody>
@@ -187,4 +204,3 @@ def render_scorecard_html(scorecard: Scorecard, *, title: str = "UPS Demo Scorec
 </body>
 </html>
 """
-
