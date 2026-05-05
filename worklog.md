@@ -698,3 +698,11 @@ Experiment loop update (2026-05-04, package demo artifacts branch):
 - Purpose:
   - package remote readiness JSON, logs, queues, summaries, reports, and manifests before tearing down a remote box
   - record missing default artifact paths in a manifest instead of silently omitting them
+
+Experiment loop update (2026-05-04, require B2 check for live smoke branch):
+- Branch:
+  - created `codex/require-b2-check-for-live-smoke` from `codex/package-demo-artifacts`
+- Fixed:
+  - `scripts/run_remote_smoke_pipeline.sh` refuses live smoke queue execution when `CHECK_B2=0`, unless `ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set
+- Purpose:
+  - prevent bypassing the B2 shard readiness gate during paid smoke experiments

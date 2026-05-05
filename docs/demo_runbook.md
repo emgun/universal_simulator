@@ -219,6 +219,9 @@ This prepares/publishes missing `smoke-v1` shards, writes readiness artifacts,
 and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after
 reviewing `reports/demo/remote_smoke_pipeline/queue/run_smoke_queue.sh`.
 `QUEUE_DRY_RUN` defaults to `1` even when `DRY_RUN=0` is used for shard prep.
+Live smoke queue execution requires `CHECK_B2=1` unless
+`ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set for a controlled test
+environment.
 
 Before tearing down the remote box, package artifacts:
 

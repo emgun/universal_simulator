@@ -25,6 +25,7 @@ DRY_RUN=${DRY_RUN:-1}
 QUEUE_DRY_RUN=${QUEUE_DRY_RUN:-1}
 RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-ups}
 CHECK_B2=${CHECK_B2:-1}
+ALLOW_UNCHECKED_LIVE_QUEUE=${ALLOW_UNCHECKED_LIVE_QUEUE:-0}
 
 mkdir -p "$PIPELINE_ROOT" "$QUEUE_DIR"
 
@@ -107,6 +108,11 @@ fi
 
 if [ "$RUN_EXPERIMENTS" -eq 1 ] && [ "$QUEUE_DRY_RUN" -eq 0 ] && [ "$CHECK_B2" -eq 1 ] && [ "$shards_are_ready" -ne 1 ]; then
   echo "Refusing live smoke experiments because smoke shards are not ready. See ${shard_status_json}." >&2
+  exit 1
+fi
+
+if [ "$RUN_EXPERIMENTS" -eq 1 ] && [ "$QUEUE_DRY_RUN" -eq 0 ] && [ "$CHECK_B2" -ne 1 ] && [ "$ALLOW_UNCHECKED_LIVE_QUEUE" -ne 1 ]; then
+  echo "Refusing live smoke experiments without CHECK_B2=1. Set ALLOW_UNCHECKED_LIVE_QUEUE=1 only for controlled test environments." >&2
   exit 1
 fi
 

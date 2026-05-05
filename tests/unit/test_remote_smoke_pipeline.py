@@ -106,3 +106,29 @@ exit 2
     assert proc.returncode == 1
     assert "Refusing live smoke experiments because smoke shards are not ready" in proc.stderr
     assert not (tmp_path / "pipeline" / "queue" / "run_smoke_queue.sh").exists()
+
+
+def test_remote_smoke_pipeline_refuses_unchecked_live_queue(tmp_path):
+    env = os.environ.copy()
+    env.update(
+        {
+            "CHECK_B2": "0",
+            "PREP_SHARDS": "0",
+            "RUN_EXPERIMENTS": "1",
+            "QUEUE_DRY_RUN": "0",
+            "DRY_RUN": "0",
+            "PIPELINE_ROOT": str(tmp_path / "pipeline"),
+            "QUEUE_VARIANTS": "current_best",
+        }
+    )
+
+    proc = subprocess.run(
+        ["bash", "scripts/run_remote_smoke_pipeline.sh"],
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    assert "Refusing live smoke experiments without CHECK_B2=1" in proc.stderr
+    assert not (tmp_path / "pipeline" / "queue" / "run_smoke_queue.sh").exists()
