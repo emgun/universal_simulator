@@ -730,3 +730,16 @@ Experiment loop update (2026-05-04, safe Vast smoke launcher branch):
 - Purpose:
   - make the next remote smoke step dry-run-first and log-safe
   - avoid copying secrets into dry-run output while still allowing actual launch commands to pass B2 credentials
+
+Experiment loop update (2026-05-04, Vast offer summary branch):
+- Branch:
+  - created `codex/vast-offer-summary` from `codex/safe-vast-smoke-launcher`
+- Added:
+  - `scripts/search_vast_smoke_offers.py`
+  - `tests/unit/test_search_vast_smoke_offers.py`
+- Purpose:
+  - summarize current Vast offers into JSON/TSV artifacts without launching paid compute
+  - avoid brittle `vastai --raw | head` usage, which produced a broken-pipe traceback locally
+- Live dry artifact check:
+  - `python scripts/search_vast_smoke_offers.py --limit 3 --output-json /tmp/ups_vast_smoke_offers.json --output-tsv /tmp/ups_vast_smoke_offers.tsv`
+  - cheapest returned RTX 4090 offers were about `$0.288-$0.298/hr` at query time

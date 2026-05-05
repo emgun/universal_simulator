@@ -240,6 +240,15 @@ DISK_GB=32 \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
+Summarize current cheap Vast offers without launching:
+
+```bash
+python scripts/search_vast_smoke_offers.py \
+  --limit 10 \
+  --output-json reports/demo/vast_smoke_offers.json \
+  --output-tsv reports/demo/vast_smoke_offers.tsv
+```
+
 This prepares/publishes missing `smoke-v1` shards, writes readiness artifacts,
 and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after
 reviewing `reports/demo/remote_smoke_pipeline/queue/run_smoke_queue.sh`.

@@ -71,6 +71,15 @@ DISK_GB=32 \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
+Current offer snapshot command:
+
+```bash
+python scripts/search_vast_smoke_offers.py \
+  --limit 10 \
+  --output-json reports/demo/vast_smoke_offers.json \
+  --output-tsv reports/demo/vast_smoke_offers.tsv
+```
+
 After reviewing the generated queue:
 
 ```bash
