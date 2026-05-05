@@ -523,3 +523,13 @@ Experiment loop update (2026-05-04, demo baseline delta branch):
   - make the demo keep/discard gate explicit in generated artifacts
   - compare UPS rows against the matched persistence baseline on held-out decoded rollout nRMSE
   - track lower-is-better delta, ratio, improvement fraction, and pass/fail state
+
+Experiment loop update (2026-05-04, demo readiness check branch):
+- Branch:
+  - created `codex/demo-readiness-check` from `codex/demo-baseline-delta`
+- Added:
+  - `scripts/check_demo_readiness.py`
+  - `tests/unit/test_check_demo_readiness.py`
+- Purpose:
+  - summarize manifest, expected shard keys, optional live B2 presence, summary artifacts, baseline presence, and candidate presence
+  - provide a single JSON readiness payload before launching remote experiments or building the final report

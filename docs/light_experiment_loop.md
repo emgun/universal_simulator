@@ -307,6 +307,17 @@ After uploading those outputs to B2, run the remote promotion wrapper with `REMO
 Check whether the manifest's expected B2 keys exist before launching compute:
 
 ```bash
+python scripts/check_demo_readiness.py \
+  --manifest docs/demo_data_manifest.yaml \
+  --summary-glob "reports/light_experiments_remote/*/summary.json" \
+  --baseline-run persistence_light_v1_test \
+  --candidate-run ups_light_v1_current_best
+```
+
+Use `--check-b2` when credentials are available and you need a live shard
+presence check.
+
+```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 python scripts/check_demo_b2_shards.py \
   --manifest docs/demo_data_manifest.yaml \

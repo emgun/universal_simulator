@@ -72,6 +72,19 @@ val, and test source files at the same time if using native splits.
 
 ## Step 1: Preflight Expected Shards
 
+Overall readiness check:
+
+```bash
+python scripts/check_demo_readiness.py \
+  --manifest docs/demo_data_manifest.yaml \
+  --summary-glob "reports/light_experiments_remote/*/summary.json" \
+  --baseline-run persistence_light_v1_test \
+  --candidate-run ups_light_v1_current_best
+```
+
+Add `--check-b2 --env-file /Users/emerygunselman/Code/universal_simulator/.env`
+when you want the readiness report to contact B2.
+
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 python scripts/check_demo_b2_shards.py \
