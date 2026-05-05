@@ -197,7 +197,7 @@ if [ "$PUBLISH_SHARDS" -eq 1 ]; then
   flat_out="${OUT_ROOT}/${VERSION}_flat"
   rm -rf "$flat_out"
   mkdir -p "$flat_out"
-  find "$OUT_ROOT" -mindepth 2 -maxdepth 2 -type f -name "*.h5" -exec cp {} "$flat_out" \;
+  find "$OUT_ROOT" -mindepth 2 -maxdepth 2 -type f -name "*.h5" ! -path "$flat_out/*" -exec cp {} "$flat_out" \;
 
   DRY_RUN=0 \
   BUILD_SHARDS=0 \

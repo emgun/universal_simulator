@@ -69,6 +69,41 @@ append_unique_word() {
   fi
 }
 
+configure_artifact_rclone() {
+  : "${B2_KEY_ID:?Set B2_KEY_ID to publish promotion artifacts}"
+  : "${B2_APP_KEY:?Set B2_APP_KEY to publish promotion artifacts}"
+  : "${B2_BUCKET:?Set B2_BUCKET to publish promotion artifacts}"
+  if ! command -v rclone >/dev/null 2>&1; then
+    echo "rclone is required to publish promotion artifacts." >&2
+    exit 1
+  fi
+  if [ -n "${B2_S3_ENDPOINT:-}" ] || [ -n "${B2_S3_REGION:-}" ]; then
+    export RCLONE_CONFIG_UPSB2_TYPE=s3
+    export RCLONE_CONFIG_UPSB2_PROVIDER=Other
+    export RCLONE_CONFIG_UPSB2_ACCESS_KEY_ID="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_SECRET_ACCESS_KEY="${B2_APP_KEY}"
+    [ -n "${B2_S3_ENDPOINT:-}" ] && export RCLONE_CONFIG_UPSB2_ENDPOINT="${B2_S3_ENDPOINT}"
+    [ -n "${B2_S3_REGION:-}" ] && export RCLONE_CONFIG_UPSB2_REGION="${B2_S3_REGION}"
+  else
+    export RCLONE_CONFIG_UPSB2_TYPE=b2
+    export RCLONE_CONFIG_UPSB2_ACCOUNT="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_KEY="${B2_APP_KEY}"
+  fi
+}
+
+publish_artifacts() {
+  local stamp artifact_name artifact_path remote_key
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  artifact_name=${PROMOTION_ARTIFACT_NAME:-remote_light_promotion_${stamp}.tar.gz}
+  artifact_path="/tmp/${artifact_name}"
+  remote_key="${PROMOTION_ARTIFACT_PREFIX%/}/${artifact_name}"
+
+  tar -czf "$artifact_path" "$OUTPUT_ROOT/$RUN_NAME"
+  configure_artifact_rclone
+  rclone copyto "$artifact_path" "UPSB2:${B2_BUCKET}/${remote_key}"
+  echo "Published promotion artifacts: b2://${B2_BUCKET}/${remote_key}"
+}
+
 apply_cli_assignments() {
   local assignment
   for assignment in "$@"; do
@@ -126,6 +161,8 @@ ALLOW_WANDB=${ALLOW_WANDB:-0}
 ALLOW_FULL_DATA=${ALLOW_FULL_DATA:-0}
 REQUIRED_GB=${REQUIRED_GB:-180}
 DRY_RUN=${DRY_RUN:-0}
+PUBLISH_PROMOTION_ARTIFACTS=${PUBLISH_PROMOTION_ARTIFACTS:-0}
+PROMOTION_ARTIFACT_PREFIX=${PROMOTION_ARTIFACT_PREFIX:-remote-runs/light}
 
 mkdir -p "$DATA_ROOT" "$OUTPUT_ROOT"
 
@@ -241,3 +278,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 PYTHONPATH=src "${cmd[@]}"
+
+if [ "$PUBLISH_PROMOTION_ARTIFACTS" -eq 1 ]; then
+  publish_artifacts
+fi
+
+echo "Remote light promotion complete."
