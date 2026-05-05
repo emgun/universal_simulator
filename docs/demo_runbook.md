@@ -3,6 +3,9 @@
 This is the execution runbook for turning the current light-experiment plumbing
 into a working held-out demo.
 
+For current completion status and missing gates, see
+`docs/demo_completion_audit.md`.
+
 ## Current Branch Stack
 
 Apply or merge in this order if working from `main`:

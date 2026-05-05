@@ -668,3 +668,13 @@ Experiment loop update (2026-05-04, smoke disk guard branch):
 - Purpose:
   - fail before B2 hydration when the remote/data-prep box does not have enough scratch disk
   - encode the current optimized smoke source-set estimate as an executable guard
+
+Experiment loop update (2026-05-04, demo completion audit branch):
+- Branch:
+  - created `codex/demo-completion-audit` from `codex/smoke-disk-guard`
+- Added:
+  - `docs/demo_completion_audit.md`
+- Purpose:
+  - preserve an explicit prompt-to-artifact checklist for the working-demo goal
+  - distinguish completed tooling from missing remote data, smoke summaries, light summaries, report artifacts, and baseline-gated performance evidence
+  - prevent treating smoke plumbing or green unit tests as a completed demo
