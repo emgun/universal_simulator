@@ -134,6 +134,25 @@ Interpretation: the pipeline is now ready for cheap iteration, but the current
 UPS config should not be scaled until it beats persistence on bounded held-out
 shards.
 
+The first smoke-v1 variant matrix completed on 2026-05-05 UTC:
+
+- B2 artifact: `remote-runs/smoke/smoke_variants_20260505T0625Z.tar.gz`
+- local summaries:
+  `reports/light_experiments_remote/ups_smoke_no_conditioning/summary.json`,
+  `reports/light_experiments_remote/ups_smoke_task_signature_only/summary.json`,
+  `reports/light_experiments_remote/ups_smoke_semigroup0/summary.json`, and
+  `reports/light_experiments_remote/ups_smoke_semigroup10/summary.json`
+- best UPS row: `ups_smoke_task_signature_only`
+- metric: `decoded_rollout_nrmse = 0.4793234406026068`
+- comparison: better than `ups_smoke_current_best`
+  (`0.6297059754071941`) but still worse than persistence
+  (`0.1876487120420463`)
+
+Interpretation: the smoke harness is now useful for screening candidate
+directions. The strongest observed UPS change is narrower task-signature
+conditioning, but the demo still needs either a stronger candidate or a more
+appropriate held-out gate before scale-up.
+
 ## B2 State
 
 External env file:
@@ -514,9 +533,11 @@ Keep current UPS candidate only if:
 If current UPS does not beat persistence:
 
 - do not scale it
-- inspect split/data handling first
+- inspect split/data handling and the persistence task breakdown first
 - then run the planned variant matrix from
   `docs/superpowers/plans/2026-05-04-working-demo-sota-roadmap.md`
+- prioritize task-signature-only style conditioning and per-task failure
+  analysis before increasing data scale
 
 ## Stop Rules
 

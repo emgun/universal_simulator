@@ -67,6 +67,43 @@ VARIANTS: tuple[Variant, ...] = (
         priority=30,
     ),
     Variant(
+        name="task_signature_semigroup0",
+        description="Task-signature conditioning with semigroup loss disabled.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "training.lambda_semigroup=0.0",
+        ),
+        priority=31,
+    ),
+    Variant(
+        name="task_signature_joint48",
+        description="Task-signature conditioning with a longer joint codec/operator stage.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.joint_codec_operator.epochs=48",
+        ),
+        priority=32,
+    ),
+    Variant(
+        name="task_signature_rollout4",
+        description="Task-signature conditioning with longer decoded rollout loss.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.joint_codec_operator.rollout_steps=4",
+        ),
+        priority=33,
+    ),
+    Variant(
+        name="task_signature_joint48_rollout4",
+        description="Task-signature conditioning with longer joint training and rollout loss.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.joint_codec_operator.epochs=48",
+            "stages.joint_codec_operator.rollout_steps=4",
+        ),
+        priority=34,
+    ),
+    Variant(
         name="semigroup0",
         description="Disable semigroup loss to test whether it helps real held-out rollouts.",
         overrides=("training.lambda_semigroup=0.0",),

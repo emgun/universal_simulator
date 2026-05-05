@@ -45,6 +45,21 @@ progress and learnings in repo artifacts.
   - Baseline comparison: `ups_smoke_current_best` fails the baseline
     improvement gate (`baseline_improvement_passed=false`) because its rollout
     NRMSE is higher than persistence.
+- Remote smoke-v1 variant matrix:
+  - B2 tarball:
+    `remote-runs/smoke/smoke_variants_20260505T0625Z.tar.gz`
+  - local summaries:
+    `reports/light_experiments_remote/ups_smoke_no_conditioning/summary.json`,
+    `reports/light_experiments_remote/ups_smoke_task_signature_only/summary.json`,
+    `reports/light_experiments_remote/ups_smoke_semigroup0/summary.json`, and
+    `reports/light_experiments_remote/ups_smoke_semigroup10/summary.json`
+  - local scorecard: `reports/demo/smoke_latest/scorecard.json`
+  - best UPS variant: `ups_smoke_task_signature_only` with
+    `decoded_rollout_nrmse = 0.4793234406026068`
+  - Interpretation: task-signature-only conditioning improves over
+    `ups_smoke_current_best` (`0.6297059754071941`) but still fails the matched
+    persistence baseline (`0.1876487120420463`), so this is a useful direction
+    for cheap iteration but not a scale-up candidate yet.
 - Live B2 readiness:
   - `smoke-v1`: `9/9` expected keys present after remote args-mode shard prep
     on 2026-05-05 UTC.
@@ -62,11 +77,11 @@ progress and learnings in repo artifacts.
 | Avoid local training | no local training launched; only tests/dry-runs ran | Done |
 | Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Done for smoke, light pending |
 | Publish smoke shards | `reports/demo/smoke_readiness_after_remote.json`, live B2 check shows `9/9` keys | Done |
-| Run smoke experiments | `ups_smoke_current_best`, B2 artifact tarball, local smoke scorecard | Done for `current_best` smoke |
+| Run smoke experiments | `ups_smoke_current_best`, four variant summaries, B2 artifact tarballs, local smoke scorecard | Done for smoke |
 | Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Done for smoke prep |
 | Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
 | Run persistence baseline | `persistence_smoke_v1_test`, B2 artifact tarball, local smoke scorecard | Done for smoke, light pending |
-| Run UPS candidate | `ups_smoke_current_best`, baseline comparison columns | Done for smoke, light pending |
+| Run UPS candidate | `ups_smoke_task_signature_only` is best smoke UPS row; baseline comparison columns show persistence still wins | Done for smoke, light pending |
 | Build demo report | `reports/demo/smoke_latest/index.html`, `metrics.tsv`, `scorecard.json` | Done for smoke with baseline, light pending |
 | Make performance claim | baseline-delta scorecard fields | Blocked on held-out results |
 

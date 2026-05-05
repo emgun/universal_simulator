@@ -88,6 +88,36 @@ Stop conditions:
 - a new change breaks the light experiment loop or its smoke verification
 - the next step requires real benchmark runs on remote held-out data rather than more local plumbing
 
+Experiment loop update (2026-05-05, remote smoke variant matrix):
+- Branch:
+  - continued on `codex/remote-smoke-baseline`
+- Remote execution:
+  - provider: Vast.ai RTX 4090 instance
+  - instance was destroyed after B2 artifact publication; `vastai show instances --raw` returned an empty list
+  - B2 artifact: `remote-runs/smoke/smoke_variants_20260505T0625Z.tar.gz`
+- Harness:
+  - smoke-v1 shards from B2
+  - `data.max_samples=8`
+  - eval split `test`
+  - stages: `operator -> decoder -> operator_decoded -> joint_codec_operator`
+- Results:
+  - persistence baseline: `0.1876487120420463`
+  - current best UPS: `0.6297059754071941`
+  - no conditioning: `0.6020991206609253`
+  - task signature only: `0.4793234406026068`
+  - semigroup 0: `0.6120762323925264`
+  - semigroup 10: `0.6481950749556429`
+- Keep:
+  - `ups_smoke_task_signature_only` as the best UPS variant in this smoke batch
+- Discard for now:
+  - `ups_smoke_semigroup10`
+  - `ups_smoke_semigroup0`
+  - `ups_smoke_no_conditioning`
+- Interpretation:
+  - Task-signature-only conditioning improves over the current smoke best but still loses badly to persistence.
+  - The immediate blocker is not remote plumbing anymore; it is model behavior against a strong simple physical-space baseline.
+  - Next iteration should inspect per-task/family failures and test a candidate that narrows conditioning while improving the decoded rollout objective, rather than scaling this config.
+
 Experiment loop update (2026-04-15):
 - Objective metric:
   - `decoded_rollout_nrmse` on decoded multitask joint runs from `scripts/run_light_experiment.py`

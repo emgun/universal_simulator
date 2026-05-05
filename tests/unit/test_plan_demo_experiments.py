@@ -47,3 +47,27 @@ def test_write_shell_defaults_to_dry_run_commands(tmp_path):
     assert "RUN_NAME=ups_smoke_task_signature_only" in text
     assert "operator.conditioning.sources=" in text
     assert "bash scripts/run_remote_light_promotion.sh" in text
+
+
+def test_task_signature_focused_variants_compose_overrides():
+    rows = build_rows(
+        tier="smoke",
+        variants=["task_signature_semigroup0", "task_signature_joint48_rollout4"],
+        train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+        tasks="burgers1d,advection1d,darcy2d",
+        output_root="reports/light_experiments_remote",
+        eval_split="test",
+        stages="operator,decoder,operator_decoded,joint_codec_operator",
+        run_prefix="ups",
+        remote_b2_prefix=None,
+        required_gb=None,
+    )
+
+    assert [row["variant"] for row in rows] == [
+        "task_signature_semigroup0",
+        "task_signature_joint48_rollout4",
+    ]
+    assert 'operator.conditioning.sources={"task_id":3,"equation_signature":15}' in rows[0]["light_extra_args"]
+    assert "training.lambda_semigroup=0.0" in rows[0]["light_extra_args"]
+    assert "stages.joint_codec_operator.epochs=48" in rows[1]["light_extra_args"]
+    assert "stages.joint_codec_operator.rollout_steps=4" in rows[1]["light_extra_args"]
