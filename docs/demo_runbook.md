@@ -119,6 +119,21 @@ The first three-task remote smoke-v1 run completed on 2026-05-05 UTC:
 This is useful evidence that the remote smoke loop works end-to-end, but still
 not a benchmark claim because `smoke-v1` is tiny and uses shortcut split sources.
 
+The matched smoke persistence baseline also completed:
+
+- run: `persistence_smoke_v1_test`
+- B2 artifact:
+  `remote-runs/smoke/persistence_smoke_v1_test_20260505T0615Z.tar.gz`
+- local summary:
+  `reports/light_experiments_remote/persistence_smoke_v1_test/summary.json`
+- metric: `decoded_rollout_nrmse = 0.1876487120420463`
+- comparison: `ups_smoke_current_best` fails baseline improvement on smoke
+  (`0.6297059754071941` vs persistence `0.1876487120420463`)
+
+Interpretation: the pipeline is now ready for cheap iteration, but the current
+UPS config should not be scaled until it beats persistence on bounded held-out
+shards.
+
 ## B2 State
 
 External env file:
