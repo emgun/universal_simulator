@@ -443,3 +443,26 @@ Experiment loop update (2026-05-04, B2 shard check branch):
   - live check currently reports all 9 `light-v1` keys missing, matching the earlier prefix listing
 - Next gate:
   - validate and push this branch, then use the checker after actual `smoke-v1` or `light-v1` publishing.
+
+Experiment loop update (2026-05-04, remote shard prep wrapper):
+- B2 full source sizes checked:
+  - `full/burgers1d/burgers1d_train.h5`: about `69.045 GiB`
+  - `full/burgers1d/burgers1d_val.h5`: about `7.704 GiB`
+  - `full/burgers1d/burgers1d_test.h5`: about `15.36 GiB`
+  - `full/burgers1d/burgers1d_train_000.h5`: about `1.57 GiB`
+  - `full/advection1d/advection1d_train.h5`: about `46.03 GiB`
+  - `full/advection1d/advection1d_val.h5`: about `7.704 GiB`
+  - `full/advection1d/advection1d_test.h5`: about `7.704 GiB`
+  - `full/darcy2d/darcy2d_train.h5`: about `2.441 GiB`
+  - `full/darcy2d/darcy2d_test.h5`: about `0.613 GiB`
+- Added:
+  - `scripts/run_remote_shard_prep_b2.sh`
+- Purpose:
+  - run on a cheap remote/data-prep box, not during GPU training
+  - hydrate only one task source set at a time from B2 `full/`
+  - cut small shards with manifest records
+  - delete full source files between tasks
+  - publish all small shards plus the aggregate manifest to B2 `light-v1`
+- Important:
+  - this still requires roughly enough disk for Burgers train/val/test at once, so plan at least a 120-150 GiB scratch disk
+  - dry-run first with `DRY_RUN=1`

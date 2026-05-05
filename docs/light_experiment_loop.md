@@ -285,6 +285,23 @@ MANIFEST=docs/demo_data_manifest.yaml \
 bash scripts/publish_light_hdf5_shards_b2.sh
 ```
 
+If source files are only available in B2 `full/`, use a remote/data-prep box and hydrate one task at a time:
+
+```bash
+DRY_RUN=1 \
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+VERSION=light-v1 \
+DATA_ROOT=/workspace/pdebench_full \
+OUT_ROOT=/workspace/pdebench_light \
+bash scripts/run_remote_shard_prep_b2.sh
+```
+
+The actual run needs enough disk for the largest single task source set. Current B2 source sizes are approximately:
+
+- `full/burgers1d`: train 69.045 GiB, val 7.704 GiB, test 15.36 GiB, plus an existing train shard 1.57 GiB
+- `full/advection1d`: train 46.03 GiB, val 7.704 GiB, test 7.704 GiB
+- `full/darcy2d`: train 2.441 GiB, test 0.613 GiB
+
 After uploading those outputs to B2, run the remote promotion wrapper with `REMOTE_B2_PREFIX=light-v1`. The default generated keys match the publish layout, e.g. `light-v1/burgers1d/burgers1d_train.h5`.
 
 Check whether the manifest's expected B2 keys exist before launching compute:
