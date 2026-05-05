@@ -144,6 +144,29 @@ The cross-run table is:
 
 `results.tsv` is keyed by `run_name`. Re-running the same name updates that row instead of appending duplicates.
 
+For demo-ready aggregation across arbitrary local or remote `summary.json` files:
+
+```bash
+python scripts/collect_light_results.py \
+  reports/light_experiments_remote/*/summary.json \
+  --output-tsv reports/demo/latest/metrics.tsv \
+  --output-json reports/demo/latest/scorecard.json \
+  --data-manifest docs/demo_data_manifest.yaml \
+  --promotion-rule "decoded_rollout_nrmse<=1.0"
+```
+
+To render a static HTML scorecard:
+
+```bash
+python scripts/build_demo_report.py \
+  --glob "reports/light_experiments_remote/*/summary.json" \
+  --output-dir reports/demo/latest \
+  --title "UPS Demo Scorecard" \
+  --data-manifest docs/demo_data_manifest.yaml \
+  --promotion-rule "decoded_rollout_nrmse<=1.0" \
+  --copy-summaries
+```
+
 ## Promotion guidance
 
 Use this sequence:

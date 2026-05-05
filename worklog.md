@@ -372,3 +372,29 @@ Experiment loop update (2026-05-04, unattended demo roadmap start):
   - temp-source dry-run of `scripts/publish_light_hdf5_shards_b2.sh` generated 9 shard upload commands and a manifest upload command
 - Next gate:
   - run broader focused tests, commit this checkpoint, then proceed to demo scorecard/report skeleton if time remains.
+
+Experiment loop update (2026-05-04, demo scorecard branch):
+- Branch:
+  - created `codex/demo-scorecard-loop` after checkpoint `2109117`
+- Scorecard module:
+  - added `src/ups/eval/demo_scorecard.py`
+  - loads one or more `summary.json` files from `scripts/run_light_experiment.py`
+  - records run name, config paths, stages, duration, commit, data manifest, main metric, metric columns, and promotion-rule result
+  - uses existing wildcard-aware promotion rules from `src/ups/eval/promotion.py`
+- CLIs:
+  - added `scripts/collect_light_results.py`
+  - added `scripts/build_demo_report.py`
+  - report output includes `index.html`, `metrics.tsv`, and `scorecard.json`
+  - optional `--copy-summaries` preserves source summaries under the report directory
+- Validation:
+  - `python -m py_compile src/ups/eval/demo_scorecard.py scripts/collect_light_results.py scripts/build_demo_report.py`
+  - `pytest tests/unit/test_demo_scorecard.py tests/unit/test_eval_promotion.py -q`
+  - `python scripts/build_demo_report.py reports/light_experiments_remote/vast_burgers_shard_cap8/summary.json --output-dir /tmp/ups_demo_report_smoke --title 'UPS Smoke Report' --data-manifest docs/demo_data_manifest.yaml --promotion-rule 'decoded_rollout_nrmse<=1.0' --copy-summaries`
+  - `python scripts/collect_light_results.py reports/light_experiments_remote/vast_burgers_shard_cap8/summary.json --output-tsv /tmp/ups_collect_metrics.tsv --output-json /tmp/ups_collect_scorecard.json --data-manifest docs/demo_data_manifest.yaml --promotion-rule 'decoded_rollout_nrmse<=1.0'`
+- Observed smoke aggregation:
+  - `vast_burgers_shard_cap8`
+  - `decoded_rollout_nrmse = 0.9488316819858322`
+  - promotion rule `decoded_rollout_nrmse<=1.0` passed
+- Next gate:
+  - commit and push `codex/demo-scorecard-loop`
+  - then either publish `smoke-v1`/`light-v1` shards if source data is locally available, or continue with baseline/report visualizations locally.
