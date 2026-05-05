@@ -27,6 +27,15 @@ progress and learnings in repo artifacts.
   - `reports/light_experiments_remote/vast_burgers_shard_cap8/summary.json`
   - `decoded_rollout_nrmse = 0.9488316819858322`
   - Status: plumbing smoke only, not benchmark evidence.
+- Remote smoke-v1 experiment artifact:
+  - B2 tarball:
+    `remote-runs/smoke/smoke_current_best_20260505T0600Z.tar.gz`
+  - local summary:
+    `reports/light_experiments_remote/ups_smoke_current_best/summary.json`
+  - local scorecard: `reports/demo/smoke_latest/scorecard.json`
+  - `decoded_rollout_nrmse = 0.6297059754071941`
+  - Status: three-task smoke gate passed; still not benchmark evidence because
+    smoke shards are tiny and partly derived from shortcut splits.
 - Live B2 readiness:
   - `smoke-v1`: `9/9` expected keys present after remote args-mode shard prep
     on 2026-05-05 UTC.
@@ -44,12 +53,12 @@ progress and learnings in repo artifacts.
 | Avoid local training | no local training launched; only tests/dry-runs ran | Done |
 | Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Done for smoke, light pending |
 | Publish smoke shards | `reports/demo/smoke_readiness_after_remote.json`, live B2 check shows `9/9` keys | Done |
-| Run smoke experiments | `scripts/run_remote_smoke_pipeline.sh`, live queue requires `CHECK_B2=1` and ready shards | Ready, not run |
+| Run smoke experiments | `ups_smoke_current_best`, B2 artifact tarball, local smoke scorecard | Done for `current_best` smoke |
 | Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Done for smoke prep |
 | Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
 | Run persistence baseline | `scripts/run_persistence_baseline.py` | Missing summary |
 | Run UPS candidate | `scripts/run_remote_light_promotion.sh`, queue planner | Missing summary |
-| Build demo report | `scripts/build_demo_report.py` | Blocked on summaries |
+| Build demo report | `reports/demo/smoke_latest/index.html`, `metrics.tsv`, `scorecard.json` | Done for smoke, light pending |
 | Make performance claim | baseline-delta scorecard fields | Blocked on held-out results |
 
 ## Next Command On Remote

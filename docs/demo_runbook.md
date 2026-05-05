@@ -107,6 +107,18 @@ The only real-data run so far is a plumbing smoke, not a benchmark:
 
 Do not use this as a benchmark claim.
 
+The first three-task remote smoke-v1 run completed on 2026-05-05 UTC:
+
+- run: `ups_smoke_current_best`
+- B2 artifact: `remote-runs/smoke/smoke_current_best_20260505T0600Z.tar.gz`
+- local summary: `reports/light_experiments_remote/ups_smoke_current_best/summary.json`
+- local smoke scorecard: `reports/demo/smoke_latest/scorecard.json`
+- metric: `decoded_rollout_nrmse = 0.6297059754071941`
+- status: passes the smoke promotion rule `decoded_rollout_nrmse<=1.0`
+
+This is useful evidence that the remote smoke loop works end-to-end, but still
+not a benchmark claim because `smoke-v1` is tiny and uses shortcut split sources.
+
 ## B2 State
 
 External env file:
