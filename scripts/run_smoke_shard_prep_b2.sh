@@ -10,6 +10,7 @@ set -euo pipefail
 export VERSION=${VERSION:-smoke-v1}
 export REMOTE_PREFIX=${REMOTE_PREFIX:-$VERSION}
 export MANIFEST=${MANIFEST:-docs/demo_smoke_data_manifest.yaml}
+export OUT_ROOT=${OUT_ROOT:-data/pdebench_smoke}
 export TRAIN_COUNT=${TRAIN_COUNT:-8}
 export VAL_COUNT=${VAL_COUNT:-4}
 export TEST_COUNT=${TEST_COUNT:-4}

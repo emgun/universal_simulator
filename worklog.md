@@ -585,3 +585,12 @@ Experiment loop update (2026-05-04, smoke shard prep wrapper branch):
   - provide one dry-run-default command for plumbing-only smoke shard prep
   - use the known small Burgers train source by default
   - keep benchmark-safe `light-v1` shard prep separate from smoke shortcuts
+
+Experiment loop update (2026-05-04, smoke output root fix branch):
+- Branch:
+  - created `codex/fix-smoke-output-root` from `codex/smoke-shard-prep-wrapper`
+- Fixed:
+  - `scripts/run_smoke_shard_prep_b2.sh` now defaults `OUT_ROOT=data/pdebench_smoke`
+- Purpose:
+  - align the wrapper output path with `docs/demo_smoke_data_manifest.yaml`
+  - avoid mixing smoke plumbing artifacts with held-out light artifacts

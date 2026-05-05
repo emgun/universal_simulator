@@ -42,4 +42,4 @@ def test_smoke_shard_prep_wrapper_uses_smoke_defaults():
     assert "fetch full/burgers1d/burgers1d_train_000.h5" in proc.stdout
     assert "fetch full/advection1d/advection1d_train.h5" in proc.stdout
     assert "fetch full/darcy2d/darcy2d_train.h5" in proc.stdout
-    assert "publish data/pdebench_light/*.h5 and docs/demo_smoke_data_manifest.yaml to prefix smoke-v1" in proc.stdout
+    assert "publish data/pdebench_smoke/*.h5 and docs/demo_smoke_data_manifest.yaml to prefix smoke-v1" in proc.stdout
