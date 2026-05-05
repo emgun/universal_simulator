@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +19,11 @@ REDACTED = "<redacted>"
 def run(cmd: list[str], *, check: bool = True, display_cmd: list[str] | None = None) -> int:
     shown = display_cmd if display_cmd is not None else cmd
     print("$", " ".join(shlex.quote(part) for part in shown))
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.stdout:
+        print(_redact_text(result.stdout), end="")
+    if result.stderr:
+        print(_redact_text(result.stderr), end="", file=sys.stderr)
     if check and result.returncode != 0:
         raise SystemExit(result.returncode)
     return result.returncode
@@ -53,6 +59,21 @@ def _redact_command(cmd: list[str]) -> list[str]:
                 part = ",".join(pieces)
         redacted.append(part)
     return redacted
+
+
+def _redact_text(text: str) -> str:
+    text = re.sub(
+        r"(instance_api_key['\"]?\s*[:=]\s*['\"])[^'\"]+(['\"])",
+        rf"\1{REDACTED}\2",
+        text,
+    )
+    text = re.sub(r"(B2_KEY_ID=)[^,\s'\"]+", rf"\1{REDACTED}", text)
+    text = re.sub(r"(B2_APP_KEY=)[^,\s'\"]+", rf"\1{REDACTED}", text)
+    text = re.sub(r"(WANDB_API_KEY=)[^,\s'\"]+", rf"\1{REDACTED}", text)
+    text = re.sub(r'(export B2_KEY_ID=")[^"]+(")', rf"\1{REDACTED}\2", text)
+    text = re.sub(r'(export B2_APP_KEY=")[^"]+(")', rf"\1{REDACTED}\2", text)
+    text = re.sub(r'(export WANDB_API_KEY=")[^"]+(")', rf"\1{REDACTED}\2", text)
+    return text
 
 
 def ensure_onstart(

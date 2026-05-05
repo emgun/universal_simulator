@@ -92,11 +92,13 @@ def test_run_can_display_redacted_command_without_changing_executed_command(monk
     vast_launch = load_vast_launch_module()
     executed = []
 
-    def fake_run(cmd):
+    def fake_run(cmd, **kwargs):
         executed.append(cmd)
 
         class Result:
             returncode = 0
+            stdout = "Started. {'instance_api_key': 'secret-instance-key'}\n"
+            stderr = ""
 
         return Result()
 
@@ -109,4 +111,5 @@ def test_run_can_display_redacted_command_without_changing_executed_command(monk
     assert executed == [command]
     captured = capsys.readouterr()
     assert "B2_APP_KEY=<redacted>" in captured.out
+    assert "instance_api_key': '<redacted>'" in captured.out
     assert "secret" not in captured.out
