@@ -135,6 +135,12 @@ def ensure_onstart(
             '"$PYTHON_BIN" -m pip install -e . --no-deps',
             '"$PYTHON_BIN" -m pip install h5py numpy PyYAML',
         ]
+    elif install_mode == "experiment":
+        install_cmds = [
+            '"$PYTHON_BIN" -m pip install --upgrade pip',
+            '"$PYTHON_BIN" -m pip install -e . --no-deps',
+            '"$PYTHON_BIN" -m pip install h5py numpy PyYAML matplotlib',
+        ]
     elif install_mode == "full":
         install_cmds = [
             '"$PYTHON_BIN" -m pip install --upgrade pip',
@@ -448,9 +454,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_launch.add_argument(
         "--install-mode",
-        choices=("full", "smoke"),
+        choices=("full", "smoke", "experiment"),
         default="full",
-        help="Remote dependency install profile. 'smoke' avoids full Torch/CUDA dev deps.",
+        help=(
+            "Remote dependency install profile. 'smoke' avoids full Torch/CUDA dev deps; "
+            "'experiment' adds lightweight plotting/eval deps without upgrading Torch."
+        ),
     )
     p_launch.add_argument(
         "--b2-key-id",

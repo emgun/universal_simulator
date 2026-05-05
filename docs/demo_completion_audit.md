@@ -28,12 +28,13 @@ progress and learnings in repo artifacts.
   - `decoded_rollout_nrmse = 0.9488316819858322`
   - Status: plumbing smoke only, not benchmark evidence.
 - Live B2 readiness:
-  - `smoke-v1`: `0/9` expected keys present.
+  - `smoke-v1`: `9/9` expected keys present after remote args-mode shard prep
+    on 2026-05-05 UTC.
   - `light-v1`: `0/9` expected keys present.
 - Local machine readiness:
-  - local filesystem has about `1.9 GiB` free.
+  - local filesystem has about `3.0 GiB` free.
   - optimized smoke shard prep needs roughly `10-12 GiB` scratch plus output
-    room, so smoke prep should not run locally.
+    room, so shard prep should not run locally.
 
 ## Prompt-To-Artifact Checklist
 
@@ -41,10 +42,10 @@ progress and learnings in repo artifacts.
 | --- | --- | --- |
 | Preserve branch/work progress | `worklog.md`, `docs/demo_runbook.md` | Done |
 | Avoid local training | no local training launched; only tests/dry-runs ran | Done |
-| Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Ready, not complete |
-| Publish smoke shards | `docs/demo_smoke_data_manifest.yaml`, `scripts/run_smoke_shard_prep_b2.sh` | Missing remote run |
-| Run smoke experiments | `scripts/run_remote_smoke_pipeline.sh`, live queue requires `CHECK_B2=1` and ready shards | Missing remote run |
-| Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Ready, not launched |
+| Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Done for smoke, light pending |
+| Publish smoke shards | `reports/demo/smoke_readiness_after_remote.json`, live B2 check shows `9/9` keys | Done |
+| Run smoke experiments | `scripts/run_remote_smoke_pipeline.sh`, live queue requires `CHECK_B2=1` and ready shards | Ready, not run |
+| Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Done for smoke prep |
 | Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
 | Run persistence baseline | `scripts/run_persistence_baseline.py` | Missing summary |
 | Run UPS candidate | `scripts/run_remote_light_promotion.sh`, queue planner | Missing summary |
@@ -121,6 +122,10 @@ with `SSH=0 ARGS_MODE=1 INSTALL_MODE=smoke` when running a one-shot smoke
 pipeline. Earlier launch attempts reached paid instances but stalled in
 Vast/Ubuntu apt setup before repo checkout, then a full dev install started
 pulling a large replacement Torch/CUDA stack.
+For one cheap smoke experiment, use `INSTALL_MODE=experiment` and
+`EXTRA_PIPELINE_ARGS="PREP_SHARDS=0 RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0
+QUEUE_VARIANTS=current_best"` so the launcher does not republish shards or run
+the full variant matrix.
 
 Before tearing down the remote box:
 

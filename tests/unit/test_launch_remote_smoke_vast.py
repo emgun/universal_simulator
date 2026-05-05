@@ -172,3 +172,49 @@ def test_launch_remote_smoke_vast_args_mode_skips_onstart_runtime(tmp_path):
     assert "--ssh" not in command_line
     assert "secret-key-id" not in proc.stdout
     assert "secret-app-key" not in proc.stdout
+
+
+def test_launch_remote_smoke_vast_can_pass_experiment_pipeline_args(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "B2_KEY_ID=secret-key-id",
+                "B2_APP_KEY=secret-app-key",
+                "B2_BUCKET=bucket",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "ENV_FILE": str(env_file),
+            "DRY_RUN": "1",
+            "GIT_REF": "codex/test",
+            "OFFER_ID": "123456",
+            "ARGS_MODE": "1",
+            "SSH": "0",
+            "INSTALL_MODE": "experiment",
+            "EXTRA_PIPELINE_ARGS": (
+                "PREP_SHARDS=0 RUN_EXPERIMENTS=1 " "QUEUE_DRY_RUN=0 QUEUE_VARIANTS=current_best"
+            ),
+        }
+    )
+
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/launch_remote_smoke_vast.sh",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "pip install h5py numpy PyYAML matplotlib" in proc.stdout
+    assert "PREP_SHARDS=0 RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0" in proc.stdout
+    assert "QUEUE_VARIANTS=current_best" in proc.stdout
+    assert "pip install -e .[dev]" not in proc.stdout

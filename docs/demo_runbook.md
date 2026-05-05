@@ -93,6 +93,7 @@ Apply or merge in this order if working from `main`:
     - supports `SSH=0` one-shot launches to skip Vast SSH runtime injection when that setup stalls
     - supports `ARGS_MODE=1` to run `bash -lc` directly and bypass Vast onstart bootstrap
     - defaults the smoke launcher to `INSTALL_MODE=smoke` so shard prep does not pull full Torch/CUDA dev deps
+    - supports `INSTALL_MODE=experiment` plus `EXTRA_PIPELINE_ARGS` for one-off smoke experiment runs
 
 ## Current Evidence
 
@@ -117,12 +118,12 @@ ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env
 Known B2 layout:
 
 - full source data is under top-level `full/`
-- `smoke-v1` is not published
+- `smoke-v1` is published and live-checked as ready (`9/9` keys present on
+  2026-05-05 UTC)
 - `light-v1` is not published
 - live readiness check still reports `0/9` `light-v1` keys present
-- live readiness check also reports `0/9` `smoke-v1` keys present
 - `pdebench/full` is not the active prefix
-- local machine has only about `1.9 GiB` free, so do not run smoke prep here
+- local machine has only about `3.0 GiB` free, so do not run shard prep here
 
 Approximate source sizes:
 
@@ -303,6 +304,25 @@ Before tearing down the remote box, package artifacts:
 OUTPUT=reports/demo/demo_artifacts.tar.gz \
 bash scripts/package_demo_artifacts.sh
 ```
+
+To run one cheap smoke experiment after `smoke-v1` readiness passes, launch a
+new one-shot Vast instance with the experiment install profile:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=1 \
+GIT_REF=codex/vast-no-apt-onstart \
+DISK_GB=32 \
+OFFER_ID=<offer_id_from_search> \
+SSH=0 \
+ARGS_MODE=1 \
+INSTALL_MODE=experiment \
+EXTRA_PIPELINE_ARGS="PREP_SHARDS=0 RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0 QUEUE_VARIANTS=current_best" \
+bash scripts/launch_remote_smoke_vast.sh
+```
+
+Use `DRY_RUN=0` only after reviewing the generated command. This runs just the
+`current_best` smoke queue entry against `smoke-v1`.
 
 ## Step 3: Run Remote Shard Prep
 
