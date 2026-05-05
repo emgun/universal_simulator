@@ -38,7 +38,7 @@ records: []
         manifest=manifest,
         summary_patterns=[str(tmp_path / "missing" / "*" / "summary.json")],
         baseline_run="persistence_light_v1_test",
-        candidate_run="ups_light_v1_current_best",
+        candidate_run="ups_light_v1_task_signature_only",
         check_b2=False,
         env_file=tmp_path / ".env",
     )
@@ -46,7 +46,7 @@ records: []
     assert payload["ready"] is False
     assert payload["manifest"]["expected_key_count"] == 2
     assert "Missing baseline summary: persistence_light_v1_test" in payload["blockers"]
-    assert "Missing candidate summary: ups_light_v1_current_best" in payload["blockers"]
+    assert "Missing candidate summary: ups_light_v1_task_signature_only" in payload["blockers"]
 
 
 def test_readiness_is_ready_with_manifest_and_required_summaries(tmp_path):
@@ -69,8 +69,8 @@ records: []
         decoded_rollout_nrmse=1.0,
     )
     _write_summary(
-        summaries / "ups_light_v1_current_best" / "summary.json",
-        run_name="ups_light_v1_current_best",
+        summaries / "ups_light_v1_task_signature_only" / "summary.json",
+        run_name="ups_light_v1_task_signature_only",
         decoded_rollout_nrmse=0.75,
     )
 
@@ -78,7 +78,7 @@ records: []
         manifest=manifest,
         summary_patterns=[str(summaries / "*" / "summary.json")],
         baseline_run="persistence_light_v1_test",
-        candidate_run="ups_light_v1_current_best",
+        candidate_run="ups_light_v1_task_signature_only",
         check_b2=False,
         env_file=tmp_path / ".env",
     )
@@ -86,4 +86,4 @@ records: []
     assert payload["ready"] is True
     assert payload["summaries"]["has_baseline"] is True
     assert payload["summaries"]["has_candidate"] is True
-    assert "Build reports/demo/latest with scripts/build_demo_report.py." in payload["next_steps"]
+    assert "Build reports/demo/light_latest with scripts/build_demo_report.py." in payload["next_steps"]

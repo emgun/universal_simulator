@@ -845,3 +845,35 @@ Experiment loop update (2026-05-04, Vast cheap launch order branch):
   - `scripts/launch_remote_smoke_vast.sh` defaults to `ORDER=dph_total` and `LIMIT=10`
 - Purpose:
   - make the dry-run-first smoke launcher prefer cheap RTX 4090 offers instead of Vast's default score ordering
+
+Experiment loop update (2026-05-05, smoke-focused variants and light-v1 readiness):
+- Branch:
+  - continued on `codex/smoke-focused-variants`
+- Remote smoke results:
+  - broad smoke matrix artifact: `remote-runs/smoke/smoke_variants_20260505T0625Z.tar.gz`
+  - best broad UPS row: `ups_smoke_task_signature_only`, `decoded_rollout_nrmse = 0.4793234406026068`
+  - focused task-signature artifact: `remote-runs/smoke/smoke_focused_variants_20260505T0613Z.tar.gz`
+  - best focused row: `ups_smoke_task_signature_joint48`, `decoded_rollout_nrmse = 0.4971677039442661`
+  - decoded/reconstruction artifact: `remote-runs/smoke/smoke_decoded_variants_20260505T0621Z.tar.gz`
+  - best decoded follow-up row: `ups_smoke_task_signature_joint16`, `decoded_rollout_nrmse = 0.5951420314812053`
+- Remote light-v1 data prep:
+  - published `light-v1` held-out shards to B2
+  - readiness artifact: `reports/demo/light_readiness_after_prep.json`
+  - live B2 check: `9/9` expected keys present
+- Remote light-v1 held-out runs:
+  - UPS candidate artifact: `remote-runs/light/ups_light_task_signature_20260505T0731Z.tar.gz`
+  - UPS summary: `reports/light_experiments_remote/ups_light_v1_task_signature_only/summary.json`
+  - UPS `decoded_rollout_nrmse = 0.8881691012411048`
+  - persistence artifact: `remote-runs/light/persistence_light_v1_test_20260505T0740Z.tar.gz`
+  - persistence summary: `reports/light_experiments_remote/persistence_light_v1_test/summary.json`
+  - persistence `decoded_rollout_nrmse = 0.5701633411507036`
+- Demo report:
+  - generated `reports/demo/light_latest/index.html`
+  - generated `reports/demo/light_latest/metrics.tsv`
+  - generated `reports/demo/light_latest/scorecard.json`
+  - readiness artifact: `reports/demo/light_readiness_after_runs.json`, `ready=true`
+- Decision:
+  - the light experiment loop is operational and B2-backed
+  - current UPS task-signature-only candidate passes the absolute rule but fails the held-out persistence gate
+  - `baseline_improvement_passed=false`, baseline delta `0.31800576009040127`, ratio `1.5577450129441892`
+  - decoded rollout spectral energy error is much worse than persistence, so the next iteration should change the objective or architecture toward persistence-residual and stability-aware decoded rollout instead of scaling this candidate

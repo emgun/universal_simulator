@@ -24,6 +24,8 @@ from scripts.check_demo_b2_shards import (  # noqa: E402
 )
 from ups.eval.demo_scorecard import load_summary  # noqa: E402
 
+DEFAULT_LIGHT_REPORT_DIR = "reports/demo/light_latest"
+
 
 def _glob_paths(patterns: list[str]) -> list[Path]:
     paths: list[Path] = []
@@ -111,7 +113,7 @@ def readiness_payload(
         and (not check_b2 or bool(b2_status.get("ok")))
     )
     if report_ready:
-        next_steps.append("Build reports/demo/latest with scripts/build_demo_report.py.")
+        next_steps.append(f"Build {DEFAULT_LIGHT_REPORT_DIR} with scripts/build_demo_report.py.")
 
     return {
         "ready": report_ready,
@@ -128,7 +130,7 @@ def main() -> None:
     parser.add_argument("--manifest", default="docs/demo_data_manifest.yaml")
     parser.add_argument("--summary-glob", action="append", default=["reports/light_experiments_remote/*/summary.json"])
     parser.add_argument("--baseline-run", default="persistence_light_v1_test")
-    parser.add_argument("--candidate-run", default="ups_light_v1_current_best")
+    parser.add_argument("--candidate-run", default="ups_light_v1_task_signature_only")
     parser.add_argument("--check-b2", action="store_true")
     parser.add_argument("--env-file", default=os.environ.get("ENV_FILE", ".env"))
     parser.add_argument("--json", default="", help="Optional output JSON path")

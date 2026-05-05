@@ -13,6 +13,8 @@ default_paths=(
   "docs/demo_smoke_data_manifest.yaml"
   "docs/demo_data_manifest.yaml"
   "reports/demo/remote_smoke_pipeline"
+  "reports/demo/smoke_latest"
+  "reports/demo/light_latest"
   "reports/demo/latest"
   "reports/light_experiments_remote"
 )

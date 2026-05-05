@@ -16,7 +16,7 @@ progress and learnings in repo artifacts.
 - Held-out light shards are published to B2 under `light-v1`.
 - Matched persistence baseline summary exists for `light-v1`.
 - UPS candidate summary exists for `light-v1`.
-- `reports/demo/latest/index.html`, `metrics.tsv`, `scorecard.json`, plots,
+- `reports/demo/light_latest/index.html`, `metrics.tsv`, `scorecard.json`, plots,
   copied summaries, and cost fields are generated from real summaries.
 - UPS candidate beats persistence on held-out `decoded_rollout_nrmse` by the
   configured baseline gate before any scale-up or SOTA-style claim.
@@ -77,10 +77,45 @@ progress and learnings in repo artifacts.
     fine-tuning, and disabling joint reconstruction loss all regress versus
     plain `ups_smoke_task_signature_only`. Further smoke micro-tuning is lower
     value than preparing `light-v1` held-out shards.
+- Held-out `light-v1` shard prep:
+  - B2 readiness artifact: `reports/demo/light_readiness_after_prep.json`
+  - live B2 check: `9/9` expected `light-v1` keys present.
+  - Status: bounded held-out light data is ready for cheap remote experiments.
+- Held-out `light-v1` UPS candidate:
+  - run: `ups_light_v1_task_signature_only`
+  - B2 tarball:
+    `remote-runs/light/ups_light_task_signature_20260505T0731Z.tar.gz`
+  - local summary:
+    `reports/light_experiments_remote/ups_light_v1_task_signature_only/summary.json`
+  - `decoded_rollout_nrmse = 0.8881691012411048`
+  - Status: passes the absolute promotion rule `decoded_rollout_nrmse<=1.0`
+    but is not demo-good because it loses to persistence.
+- Matched held-out `light-v1` persistence baseline:
+  - run: `persistence_light_v1_test`
+  - B2 tarball:
+    `remote-runs/light/persistence_light_v1_test_20260505T0740Z.tar.gz`
+  - local summary:
+    `reports/light_experiments_remote/persistence_light_v1_test/summary.json`
+  - `decoded_rollout_nrmse = 0.5701633411507036`
+  - local scorecard: `reports/demo/light_latest/scorecard.json`
+  - readiness artifact: `reports/demo/light_readiness_after_runs.json`
+    reports `ready=true` with no blockers.
+  - Baseline comparison: `ups_light_v1_task_signature_only` fails the
+    baseline improvement gate (`baseline_improvement_passed=false`) with delta
+    `0.31800576009040127` and ratio `1.5577450129441892`.
+  - Per-task failure pattern: UPS is worse on Burgers
+    (`0.801173912475701` vs persistence `0.17446879799698398`), Advection
+    (`0.9816829335662135` vs `0.8086701258529039`), and Darcy
+    (`0.7462278194548689` vs `0.20909552146272067`). UPS decoded rollout
+    spectral energy error is `74.20507275975494` versus persistence
+    `0.06721624190029686`, so the next candidate should prioritize
+    persistence-residual or stability-aware decoded rollout changes before
+    scale-up.
 - Live B2 readiness:
   - `smoke-v1`: `9/9` expected keys present after remote args-mode shard prep
     on 2026-05-05 UTC.
-  - `light-v1`: `0/9` expected keys present.
+  - `light-v1`: `9/9` expected keys present after remote shard prep on
+    2026-05-05 UTC.
 - Local machine readiness:
   - local filesystem has about `3.0 GiB` free.
   - optimized smoke shard prep needs roughly `10-12 GiB` scratch plus output
@@ -92,17 +127,26 @@ progress and learnings in repo artifacts.
 | --- | --- | --- |
 | Preserve branch/work progress | `worklog.md`, `docs/demo_runbook.md` | Done |
 | Avoid local training | no local training launched; only tests/dry-runs ran | Done |
-| Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Done for smoke, light pending |
+| Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Done for smoke and light |
 | Publish smoke shards | `reports/demo/smoke_readiness_after_remote.json`, live B2 check shows `9/9` keys | Done |
 | Run smoke experiments | baseline, broad variants, focused task-signature variants, B2 artifact tarballs, local smoke scorecard | Done for smoke |
 | Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Done for smoke prep |
-| Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh`; shard-prep script accepts launcher `KEY=VALUE` args | Ready to launch |
-| Run persistence baseline | `persistence_smoke_v1_test`, B2 artifact tarball, local smoke scorecard | Done for smoke, light pending |
-| Run UPS candidate | `ups_smoke_task_signature_only` is best smoke UPS row; baseline comparison columns show persistence still wins | Done for smoke, light pending |
-| Build demo report | `reports/demo/smoke_latest/index.html`, `metrics.tsv`, `scorecard.json` | Done for smoke with baseline, light pending |
-| Make performance claim | baseline-delta scorecard fields | Blocked on held-out results |
+| Publish light shards | `reports/demo/light_readiness_after_prep.json`; live B2 check shows `9/9` `light-v1` keys | Done |
+| Run persistence baseline | `persistence_light_v1_test`, B2 artifact tarball, local light scorecard | Done |
+| Run UPS candidate | `ups_light_v1_task_signature_only`, B2 artifact tarball, local light scorecard | Done |
+| Build demo report | `reports/demo/light_latest/index.html`, `metrics.tsv`, `scorecard.json` | Done for light |
+| Make performance claim | baseline-delta scorecard fields | Blocked: UPS loses to persistence on held-out light |
 
-## Next Command On Remote
+## Next Remote Iteration
+
+The light experiment loop is ready. Do not spend more budget on smoke-only
+hyperparameter tweaks unless the objective or architecture changes. The next
+useful remote work is a baseline-aware candidate, for example a
+persistence-residual decoder/operator or stability-regularized decoded rollout
+loss, evaluated against `persistence_light_v1_test` on the existing `light-v1`
+test shards.
+
+## Historical Remote Commands
 
 Run on a remote/data-prep box with at least 12 GiB scratch for smoke prep:
 

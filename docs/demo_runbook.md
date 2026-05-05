@@ -94,6 +94,10 @@ Apply or merge in this order if working from `main`:
     - supports `ARGS_MODE=1` to run `bash -lc` directly and bypass Vast onstart bootstrap
     - defaults the smoke launcher to `INSTALL_MODE=smoke` so shard prep does not pull full Torch/CUDA dev deps
     - supports `INSTALL_MODE=experiment` plus `EXTRA_PIPELINE_ARGS` for one-off smoke experiment runs
+31. `codex/smoke-focused-variants`
+    - focused smoke variants around task-signature conditioning
+    - B2 artifact publishing for remote light promotion runs
+    - remote `light-v1` shard prep, candidate, persistence baseline, and light scorecard records
 
 ## Current Evidence
 
@@ -189,6 +193,49 @@ Interpretation: more decoded fine-tuning and simple reconstruction-weight
 tweaks are not enough on smoke-v1. The next useful step is held-out `light-v1`
 shard prep, then rerun only the best observed UPS and persistence rows.
 
+Held-out `light-v1` shard prep completed on 2026-05-05 UTC:
+
+- B2 readiness: `9/9` expected `light-v1` keys present
+- local readiness artifact: `reports/demo/light_readiness_after_prep.json`
+- status: bounded held-out data is ready for cheap remote experiments
+
+The first held-out `light-v1` UPS candidate completed:
+
+- run: `ups_light_v1_task_signature_only`
+- B2 artifact: `remote-runs/light/ups_light_task_signature_20260505T0731Z.tar.gz`
+- local summary: `reports/light_experiments_remote/ups_light_v1_task_signature_only/summary.json`
+- metric: `decoded_rollout_nrmse = 0.8881691012411048`
+- absolute promotion rule: passed `decoded_rollout_nrmse<=1.0`
+
+The matched held-out `light-v1` persistence baseline completed:
+
+- run: `persistence_light_v1_test`
+- B2 artifact:
+  `remote-runs/light/persistence_light_v1_test_20260505T0740Z.tar.gz`
+- local summary:
+  `reports/light_experiments_remote/persistence_light_v1_test/summary.json`
+- metric: `decoded_rollout_nrmse = 0.5701633411507036`
+
+The local light scorecard is `reports/demo/light_latest/scorecard.json`.
+`reports/demo/light_readiness_after_runs.json` reports `ready=true` with no
+blockers, so the experiment loop is now operational. Performance is not yet
+demo-good: `ups_light_v1_task_signature_only` fails the baseline improvement
+gate with delta `0.31800576009040127`, ratio `1.5577450129441892`, and
+`baseline_improvement_passed=false`.
+
+Task-level failure pattern on `light-v1`:
+
+- Burgers: UPS `0.801173912475701` vs persistence `0.17446879799698398`
+- Advection: UPS `0.9816829335662135` vs persistence `0.8086701258529039`
+- Darcy: UPS `0.7462278194548689` vs persistence `0.20909552146272067`
+- Spectral stability: UPS decoded rollout spectral energy error
+  `74.20507275975494` vs persistence `0.06721624190029686`
+
+Interpretation: stop scaling this candidate. The next useful architecture
+iteration should be baseline-aware, such as a persistence-residual
+decoder/operator path or a stability-regularized decoded rollout objective,
+then rerun the same light scorecard.
+
 ## B2 State
 
 External env file:
@@ -202,8 +249,9 @@ Known B2 layout:
 - full source data is under top-level `full/`
 - `smoke-v1` is published and live-checked as ready (`9/9` keys present on
   2026-05-05 UTC)
-- `light-v1` is not published
-- live readiness check still reports `0/9` `light-v1` keys present
+- `light-v1` is published and live-checked as ready (`9/9` keys present on
+  2026-05-05 UTC)
+- held-out `light-v1` candidate and persistence summaries are present locally
 - `pdebench/full` is not the active prefix
 - local machine has only about `3.0 GiB` free, so do not run shard prep here
 
@@ -247,7 +295,7 @@ python scripts/check_demo_readiness.py \
   --manifest docs/demo_data_manifest.yaml \
   --summary-glob "reports/light_experiments_remote/*/summary.json" \
   --baseline-run persistence_light_v1_test \
-  --candidate-run ups_light_v1_current_best
+  --candidate-run ups_light_v1_task_signature_only
 ```
 
 Add `--check-b2 --env-file /Users/emerygunselman/Code/universal_simulator/.env`
@@ -269,6 +317,13 @@ Expected after publishing:
 
 - exit code zero
 - all 9 `light-v1` keys present
+
+Current expected result:
+
+- `reports/demo/light_readiness_after_runs.json` has `ready=true`
+- B2 readiness shows all 9 `light-v1` keys present
+- baseline summary is `persistence_light_v1_test`
+- candidate summary is `ups_light_v1_task_signature_only`
 
 ## Step 2: Dry-Run Remote Shard Prep
 
@@ -489,13 +544,13 @@ REMOTE_B2_PREFIX=light-v1 \
 EVAL_SPLIT=test \
 REQUIRED_GB=10 \
 STAGES=operator,decoder,operator_decoded,joint_codec_operator \
-RUN_NAME=ups_light_v1_current_best \
+RUN_NAME=ups_light_v1_task_signature_only \
 OUTPUT_ROOT=reports/light_experiments_remote \
 LIGHT_EXTRA_ARGS="--override data.max_samples=128 --eval-override data.max_samples=32 --decoded-rollout-steps 16" \
 bash scripts/run_remote_light_promotion.sh
 ```
 
-Copy `reports/light_experiments_remote/ups_light_v1_current_best/summary.json`
+Copy `reports/light_experiments_remote/ups_light_v1_task_signature_only/summary.json`
 back before destroying the instance.
 
 ## Step 5: Run Persistence Baseline
@@ -524,7 +579,7 @@ Example `cost.json`:
 
 ```json
 {
-  "run_name": "ups_light_v1_current_best",
+  "run_name": "ups_light_v1_task_signature_only",
   "provider": "vast",
   "instance_type": "rtx4090-spot",
   "gpu_type": "RTX 4090",
@@ -537,10 +592,10 @@ Example `cost.json`:
 ```bash
 python scripts/build_demo_report.py \
   --glob "reports/light_experiments_remote/*/summary.json" \
-  --output-dir reports/demo/latest \
+  --output-dir reports/demo/light_latest \
   --title "UPS Light-v1 Demo Scorecard" \
   --data-manifest docs/demo_data_manifest.yaml \
-  --cost-json reports/light_experiments_remote/ups_light_v1_current_best/cost.json \
+  --cost-json reports/light_experiments_remote/ups_light_v1_task_signature_only/cost.json \
   --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json \
   --baseline-run persistence_light_v1_test \
   --baseline-metric decoded_rollout_nrmse \
@@ -551,15 +606,15 @@ python scripts/build_demo_report.py \
 
 Expected artifacts:
 
-- `reports/demo/latest/index.html`
-- `reports/demo/latest/metrics.tsv`
-- `reports/demo/latest/scorecard.json`
-- `reports/demo/latest/plots/decoded_rollout_nrmse.png`
-- `reports/demo/latest/plots/decoded_step1_nrmse.png`
-- copied summaries under `reports/demo/latest/summaries/`
+- `reports/demo/light_latest/index.html`
+- `reports/demo/light_latest/metrics.tsv`
+- `reports/demo/light_latest/scorecard.json`
+- `reports/demo/light_latest/plots/decoded_rollout_nrmse.png`
+- `reports/demo/light_latest/plots/decoded_step1_nrmse.png`
+- copied summaries under `reports/demo/light_latest/summaries/`
 
 The baseline columns are lower-is-better. A strong demo candidate should show
-`baseline_improvement_passed=true` for `ups_light_v1_current_best` against
+`baseline_improvement_passed=true` for `ups_light_v1_task_signature_only` against
 `persistence_light_v1_test`.
 
 ## Step 7: Decide Keep/Discard
@@ -573,11 +628,10 @@ Keep current UPS candidate only if:
 If current UPS does not beat persistence:
 
 - do not scale it
-- inspect split/data handling and the persistence task breakdown first
-- then run the planned variant matrix from
-  `docs/superpowers/plans/2026-05-04-working-demo-sota-roadmap.md`
-- prioritize task-signature-only style conditioning and per-task failure
-  analysis before increasing data scale
+- inspect the persistence task breakdown and decoded rollout stability first
+- prioritize a persistence-residual architecture or stability-aware decoded
+  rollout objective before increasing data scale
+- reuse the existing `light-v1` scorecard gate before any medium/full run
 
 ## Stop Rules
 
