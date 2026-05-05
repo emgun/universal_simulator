@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+from scripts.build_demo_report import _summary_paths as report_summary_paths
+from scripts.collect_light_results import _summary_paths as collect_summary_paths
 from ups.eval.demo_scorecard import (
     collect_scorecard,
     load_cost_index,
@@ -141,3 +143,36 @@ def test_load_cost_index_supports_aggregate_runs_file(tmp_path):
 
     assert cost_index["run_a"]["provider"] == "runpod"
     assert cost_index["/tmp/run_a/summary.json"]["estimated_usd"] == 1.25
+
+
+def test_collect_scorecard_adds_baseline_delta_fields(tmp_path):
+    baseline = tmp_path / "persistence" / "summary.json"
+    candidate = tmp_path / "ups_candidate" / "summary.json"
+    _write_summary(baseline, run_name="persistence", decoded_rollout_nrmse=1.0)
+    _write_summary(candidate, run_name="ups_candidate", decoded_rollout_nrmse=0.75)
+
+    scorecard = collect_scorecard(
+        [candidate, baseline],
+        baseline_run_name="persistence",
+        baseline_metric_name="decoded_rollout_nrmse",
+        baseline_min_improvement=0.2,
+    )
+    rows = {row["run_name"]: row for row in scorecard.rows}
+
+    assert rows["ups_candidate"]["baseline_metric_value"] == 1.0
+    assert rows["ups_candidate"]["baseline_metric_delta"] == -0.25
+    assert rows["ups_candidate"]["baseline_metric_ratio"] == 0.75
+    assert rows["ups_candidate"]["baseline_improvement_fraction"] == 0.25
+    assert rows["ups_candidate"]["baseline_improvement_passed"] is True
+    assert rows["persistence"]["baseline_improvement_passed"] is None
+
+
+def test_report_clis_accept_absolute_glob_patterns(tmp_path):
+    first = tmp_path / "run_a" / "summary.json"
+    second = tmp_path / "run_b" / "summary.json"
+    _write_summary(first, run_name="run_a", decoded_rollout_nrmse=0.8)
+    _write_summary(second, run_name="run_b", decoded_rollout_nrmse=0.9)
+    pattern = str(tmp_path / "*" / "summary.json")
+
+    assert report_summary_paths([], [pattern]) == [first.resolve(), second.resolve()]
+    assert collect_summary_paths([], [pattern]) == [first.resolve(), second.resolve()]

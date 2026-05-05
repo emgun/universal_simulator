@@ -334,7 +334,10 @@ python scripts/build_demo_report.py \
   --glob "reports/light_experiments_remote/*/summary.json" \
   --output-dir reports/demo/latest \
   --cost-json reports/light_experiments_remote/ups_light_v1_current_best/cost.json \
-  --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json
+  --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json \
+  --baseline-run persistence_light_v1_test \
+  --baseline-metric decoded_rollout_nrmse \
+  --baseline-min-improvement 0.2
 ```
 
 Generate bounded smoke/light variant queues from the current roadmap:

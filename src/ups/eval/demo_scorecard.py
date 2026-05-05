@@ -41,6 +41,13 @@ BASE_FIELDS = (
     "cost_wall_clock_hours",
     "cost_gpu_hours",
     "cost_estimated_usd",
+    "baseline_run_name",
+    "baseline_metric_name",
+    "baseline_metric_value",
+    "baseline_metric_delta",
+    "baseline_metric_ratio",
+    "baseline_improvement_fraction",
+    "baseline_improvement_passed",
 )
 
 
@@ -186,6 +193,18 @@ def _cost_fields(cost_record: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _baseline_fields() -> dict[str, Any]:
+    return {
+        "baseline_run_name": "",
+        "baseline_metric_name": "",
+        "baseline_metric_value": None,
+        "baseline_metric_delta": None,
+        "baseline_metric_ratio": None,
+        "baseline_improvement_fraction": None,
+        "baseline_improvement_passed": None,
+    }
+
+
 def scorecard_row_from_summary(
     summary: Mapping[str, Any],
     *,
@@ -224,10 +243,53 @@ def scorecard_row_from_summary(
         "data_manifest": data_manifest,
         "commit": commit,
         **cost_fields,
+        **_baseline_fields(),
     }
     for key, value in metrics.items():
         row[f"metric:{key}"] = value
     return row
+
+
+def annotate_baseline_comparison(
+    scorecard: Scorecard,
+    *,
+    baseline_run_name: str,
+    metric_name: str = "",
+    min_improvement: float = 0.2,
+) -> Scorecard:
+    """Annotate rows with lower-is-better improvement against a baseline row."""
+    baseline_rows = [row for row in scorecard.rows if row.get("run_name") == baseline_run_name]
+    if not baseline_rows:
+        raise ValueError(f"Baseline run not found: {baseline_run_name}")
+    baseline = baseline_rows[0]
+
+    annotated_rows: list[dict[str, Any]] = []
+    for row in scorecard.rows:
+        selected_metric = metric_name or str(row.get("main_metric_name", ""))
+        metric_key = f"metric:{selected_metric}" if selected_metric else ""
+        baseline_value = _as_float(baseline.get(metric_key)) if metric_key else None
+        row_value = _as_float(row.get(metric_key)) if metric_key else None
+
+        fields = _baseline_fields()
+        fields["baseline_run_name"] = baseline_run_name
+        fields["baseline_metric_name"] = selected_metric
+        fields["baseline_metric_value"] = baseline_value
+
+        if baseline_value is not None and row_value is not None:
+            fields["baseline_metric_delta"] = row_value - baseline_value
+            if baseline_value != 0:
+                fields["baseline_metric_ratio"] = row_value / baseline_value
+                fields["baseline_improvement_fraction"] = (baseline_value - row_value) / baseline_value
+                fields["baseline_improvement_passed"] = fields["baseline_improvement_fraction"] >= min_improvement
+            else:
+                fields["baseline_improvement_passed"] = False
+        annotated = dict(row)
+        annotated.update(fields)
+        if annotated.get("run_name") == baseline_run_name:
+            annotated["baseline_improvement_passed"] = None
+        annotated_rows.append(annotated)
+
+    return Scorecard(rows=annotated_rows, metric_keys=scorecard.metric_keys)
 
 
 def collect_scorecard(
@@ -237,6 +299,9 @@ def collect_scorecard(
     commit: str | None = None,
     promotion_rules: Sequence[str] = (),
     cost_paths: Iterable[str | Path] = (),
+    baseline_run_name: str = "",
+    baseline_metric_name: str = "",
+    baseline_min_improvement: float = 0.2,
 ) -> Scorecard:
     cost_index = load_cost_index(cost_paths)
     rows = [
@@ -251,7 +316,15 @@ def collect_scorecard(
     ]
     metric_keys = sorted({key for row in rows for key in row if key.startswith("metric:")})
     rows.sort(key=lambda row: str(row.get("run_name", "")))
-    return Scorecard(rows=rows, metric_keys=metric_keys)
+    scorecard = Scorecard(rows=rows, metric_keys=metric_keys)
+    if baseline_run_name:
+        scorecard = annotate_baseline_comparison(
+            scorecard,
+            baseline_run_name=baseline_run_name,
+            metric_name=baseline_metric_name,
+            min_improvement=baseline_min_improvement,
+        )
+    return scorecard
 
 
 def write_scorecard_tsv(scorecard: Scorecard, path: str | Path) -> None:

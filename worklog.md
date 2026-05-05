@@ -513,3 +513,13 @@ Experiment loop update (2026-05-04, demo experiment queue branch):
   - generate JSONL, TSV, and shell queues for bounded smoke/light/medium variant matrices
   - keep generated commands dry-run by default
   - freeze the first variant set around current best, no-conditioning, task-signature-only, semigroup weight, joint-depth, and rollout-depth probes
+
+Experiment loop update (2026-05-04, demo baseline delta branch):
+- Branch:
+  - created `codex/demo-baseline-delta` from `codex/demo-experiment-queue`
+- Added:
+  - optional `--baseline-run`, `--baseline-metric`, and `--baseline-min-improvement` scorecard/report arguments
+- Purpose:
+  - make the demo keep/discard gate explicit in generated artifacts
+  - compare UPS rows against the matched persistence baseline on held-out decoded rollout nRMSE
+  - track lower-is-better delta, ratio, improvement fraction, and pass/fail state

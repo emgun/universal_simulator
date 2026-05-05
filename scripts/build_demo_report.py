@@ -4,6 +4,7 @@ from __future__ import annotations
 """Build a static UPS demo report from light experiment summaries."""
 
 import argparse
+import glob
 import shutil
 import subprocess
 from pathlib import Path
@@ -32,7 +33,10 @@ def _git_commit() -> str:
 def _summary_paths(inputs: list[str], patterns: list[str]) -> list[Path]:
     paths = [Path(item) for item in inputs]
     for pattern in patterns:
-        paths.extend(Path().glob(pattern))
+        if Path(pattern).is_absolute():
+            paths.extend(Path(item) for item in glob.glob(pattern))
+        else:
+            paths.extend(Path().glob(pattern))
     unique = sorted({path.resolve() for path in paths if path.exists()})
     if not unique:
         raise SystemExit("No summary files found")
@@ -48,6 +52,9 @@ def main() -> None:
     parser.add_argument("--data-manifest", default="")
     parser.add_argument("--commit", default=None, help="Commit SHA to record; defaults to current HEAD")
     parser.add_argument("--promotion-rule", action="append", default=[])
+    parser.add_argument("--baseline-run", default="", help="Run name to compare every row against")
+    parser.add_argument("--baseline-metric", default="", help="Metric for baseline comparison; defaults to row main metric")
+    parser.add_argument("--baseline-min-improvement", type=float, default=0.2)
     parser.add_argument(
         "--cost-json",
         action="append",
@@ -66,6 +73,9 @@ def main() -> None:
         commit=args.commit if args.commit is not None else _git_commit(),
         promotion_rules=args.promotion_rule,
         cost_paths=args.cost_json,
+        baseline_run_name=args.baseline_run,
+        baseline_metric_name=args.baseline_metric,
+        baseline_min_improvement=args.baseline_min_improvement,
     )
 
     write_scorecard_tsv(scorecard, output_dir / "metrics.tsv")

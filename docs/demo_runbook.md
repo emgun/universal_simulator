@@ -237,6 +237,9 @@ python scripts/build_demo_report.py \
   --data-manifest docs/demo_data_manifest.yaml \
   --cost-json reports/light_experiments_remote/ups_light_v1_current_best/cost.json \
   --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json \
+  --baseline-run persistence_light_v1_test \
+  --baseline-metric decoded_rollout_nrmse \
+  --baseline-min-improvement 0.2 \
   --promotion-rule "decoded_rollout_nrmse<=1.0" \
   --copy-summaries
 ```
@@ -249,6 +252,10 @@ Expected artifacts:
 - `reports/demo/latest/plots/decoded_rollout_nrmse.png`
 - `reports/demo/latest/plots/decoded_step1_nrmse.png`
 - copied summaries under `reports/demo/latest/summaries/`
+
+The baseline columns are lower-is-better. A strong demo candidate should show
+`baseline_improvement_passed=true` for `ups_light_v1_current_best` against
+`persistence_light_v1_test`.
 
 ## Step 7: Decide Keep/Discard
 
