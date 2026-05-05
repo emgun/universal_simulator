@@ -341,3 +341,34 @@ Experiment loop update (2026-05-01, bounded real-data smoke):
   - this is a plumbing and bounded-real-data smoke, not a benchmark, because it trains/evaluates on a tiny train-shard slice.
 - Next gate:
   - publish small train/val/test shards for `burgers1d`, `advection1d`, and `darcy2d`, then run the same bounded harness against held-out shards.
+
+Experiment loop update (2026-05-04, unattended demo roadmap start):
+- Goal:
+  - turn the working-demo/SOTA roadmap into executable local progress before spending more remote compute
+  - preserve all progress in tracked repo artifacts for morning continuation
+- Plan artifact:
+  - added `docs/superpowers/plans/2026-05-04-working-demo-sota-roadmap.md`
+- Benchmark contract:
+  - added `docs/demo_benchmark_contract.md`
+  - defines `smoke`, `light`, `medium`, and `benchmark` claim tiers
+  - primary promotion metric is `decoded_rollout_nrmse`
+  - train-shard evaluation remains plumbing only, not benchmark evidence
+- Data manifest:
+  - added schema placeholder at `docs/demo_data_manifest.yaml`
+  - shard generation can now write records with source split, source offset, sample count, dataset shapes, bytes, sha256, and B2 remote keys
+- Shard builder:
+  - `scripts/make_light_hdf5_shards.py` now prefers native source splits when present
+  - missing native splits fall back to `train` and are marked `derived_from_source_split: true`
+  - remote keys are recorded as `<version>/<task>/<task>_<split>.h5`, matching `scripts/run_remote_light_promotion.sh` default generated keys when `REMOTE_B2_PREFIX=<version>`
+- Publish wrapper:
+  - added `scripts/publish_light_hdf5_shards_b2.sh`
+  - default is `DRY_RUN=1`
+  - can optionally build shards before publishing via `BUILD_SHARDS=1`
+  - loads B2 credentials from `ENV_FILE` without printing secrets
+- Validation so far:
+  - `bash -n scripts/publish_light_hdf5_shards_b2.sh`
+  - `python -m py_compile scripts/make_light_hdf5_shards.py`
+  - `pytest tests/unit/test_make_light_hdf5_shards.py -q`
+  - temp-source dry-run of `scripts/publish_light_hdf5_shards_b2.sh` generated 9 shard upload commands and a manifest upload command
+- Next gate:
+  - run broader focused tests, commit this checkpoint, then proceed to demo scorecard/report skeleton if time remains.

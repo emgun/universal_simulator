@@ -1,0 +1,27 @@
+# Demo data manifest.
+#
+# This file is updated by `scripts/make_light_hdf5_shards.py --manifest ...`
+# when smoke/light shards are generated. The checked-in version documents the
+# intended schema before any local or remote data prep has been run.
+
+version: light-v1
+created_at: null
+source_root: data/pdebench
+out_root: data/pdebench_light
+remote_prefix: light-v1
+tasks:
+  - burgers1d
+  - advection1d
+  - darcy2d
+splits:
+  train:
+    samples: 128
+    preferred_source_split: train
+  val:
+    samples: 32
+    preferred_source_split: val
+    fallback_source_split: train
+  test:
+    samples: 32
+    preferred_source_split: test
+records: []

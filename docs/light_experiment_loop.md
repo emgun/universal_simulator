@@ -215,10 +215,40 @@ python scripts/make_light_hdf5_shards.py \
   --train-count 16 \
   --val-count 8 \
   --test-count 8 \
+  --manifest docs/demo_data_manifest.yaml \
+  --version light-v1 \
+  --remote-prefix light-v1 \
   --overwrite
 ```
 
-After uploading those outputs to B2, point `REMOTE_DATASET_FILES` at the small shard keys and keep `REQUIRED_GB` low.
+The shard builder prefers native split files when they exist. If a native split is missing, it falls back to `train` and records `derived_from_source_split: true` in the manifest; this is expected for `darcy2d` validation until a real `val` split exists.
+
+Dry-run shard publishing without exposing B2 secrets:
+
+```bash
+DRY_RUN=1 \
+BUILD_SHARDS=1 \
+VERSION=light-v1 \
+SOURCE_ROOT=data/pdebench \
+OUT_ROOT=data/pdebench_light \
+MANIFEST=docs/demo_data_manifest.yaml \
+bash scripts/publish_light_hdf5_shards_b2.sh
+```
+
+When the dry run is correct and the local source files are present, publish with:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=0 \
+BUILD_SHARDS=1 \
+VERSION=light-v1 \
+SOURCE_ROOT=data/pdebench \
+OUT_ROOT=data/pdebench_light \
+MANIFEST=docs/demo_data_manifest.yaml \
+bash scripts/publish_light_hdf5_shards_b2.sh
+```
+
+After uploading those outputs to B2, run the remote promotion wrapper with `REMOTE_B2_PREFIX=light-v1`. The default generated keys match the publish layout, e.g. `light-v1/burgers1d/burgers1d_train.h5`.
 
 Vast.ai dry-run launch for the light promotion path:
 
