@@ -658,3 +658,13 @@ Experiment loop update (2026-05-04, safe smoke queue default branch):
   - `scripts/run_remote_smoke_pipeline.sh` now keeps generated smoke queue commands at `DRY_RUN=1` by default, even when shard prep uses `DRY_RUN=0`
 - Purpose:
   - prevent an operator from publishing shards and accidentally generating live training commands without explicitly setting `QUEUE_DRY_RUN=0`
+
+Experiment loop update (2026-05-04, smoke disk guard branch):
+- Branch:
+  - created `codex/smoke-disk-guard` from `codex/safe-smoke-queue-default`
+- Added:
+  - `REQUIRED_GB` guard in `scripts/run_remote_shard_prep_b2.sh`
+  - `REQUIRED_GB=12` default in `scripts/run_smoke_shard_prep_b2.sh`
+- Purpose:
+  - fail before B2 hydration when the remote/data-prep box does not have enough scratch disk
+  - encode the current optimized smoke source-set estimate as an executable guard

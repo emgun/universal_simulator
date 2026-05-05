@@ -102,6 +102,7 @@ DRY_RUN=${DRY_RUN:-1}
 CLEAN_SOURCE=${CLEAN_SOURCE:-1}
 FETCH_DATA=${FETCH_DATA:-1}
 PUBLISH_SHARDS=${PUBLISH_SHARDS:-1}
+REQUIRED_GB=${REQUIRED_GB:-0}
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: would build ${VERSION} shards for tasks: ${TASKS}"
@@ -123,6 +124,14 @@ fi
 
 rm -f "$MANIFEST"
 mkdir -p "$DATA_ROOT" "$OUT_ROOT"
+
+if [ "$REQUIRED_GB" -gt 0 ]; then
+  avail_gb=$(df -Pm "$DATA_ROOT" | awk 'NR==2{print int($4/1024)}')
+  if [ "$avail_gb" -lt "$REQUIRED_GB" ]; then
+    echo "Insufficient free disk for shard prep: have ${avail_gb}GB, require ${REQUIRED_GB}GB at ${DATA_ROOT}." >&2
+    exit 1
+  fi
+fi
 
 for task in $(normalize_list "$TASKS"); do
   echo "Preparing task ${task}"

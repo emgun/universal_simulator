@@ -119,3 +119,31 @@ def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp
     assert [record["derived_from_source_split"] for record in payload["records"]] == [True, False, True]
     with h5py.File(out_root / "advection1d" / "advection1d_train.h5", "r") as handle:
         assert handle["data"].shape == (4, 2)
+
+
+def test_remote_shard_prep_fails_early_when_required_disk_is_unavailable(tmp_path):
+    data_root = tmp_path / "source"
+    data_root.mkdir()
+
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/run_remote_shard_prep_b2.sh",
+        ],
+        capture_output=True,
+        env={
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "DRY_RUN": "0",
+            "FETCH_DATA": "0",
+            "PUBLISH_SHARDS": "0",
+            "TASKS": "advection1d",
+            "DATA_ROOT": str(data_root),
+            "OUT_ROOT": str(tmp_path / "out"),
+            "MANIFEST": str(tmp_path / "manifest.yaml"),
+            "REQUIRED_GB": "999999",
+        },
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    assert "Insufficient free disk for shard prep" in proc.stderr

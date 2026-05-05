@@ -200,6 +200,8 @@ shortcuts:
 Plan roughly 12 GiB scratch for default three-task smoke prep. The wrapper
 derives Advection and Darcy smoke train/val/test slices from smaller non-train
 sources by default; this is why the output is plumbing-only.
+`scripts/run_smoke_shard_prep_b2.sh` enforces `REQUIRED_GB=12` by default when
+`DRY_RUN=0`; override it only if you have checked the source set manually.
 
 To run the whole remote smoke pipeline on a remote/data-prep or cheap GPU box:
 

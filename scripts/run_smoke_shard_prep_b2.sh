@@ -16,6 +16,7 @@ export VAL_COUNT=${VAL_COUNT:-4}
 export TEST_COUNT=${TEST_COUNT:-4}
 export TASKS=${TASKS:-"burgers1d advection1d darcy2d"}
 export DRY_RUN=${DRY_RUN:-1}
+export REQUIRED_GB=${REQUIRED_GB:-12}
 
 # Keep smoke prep cheap by default. Advection currently has no known small
 # train shard, so smoke derives from the smaller validation source by default.
