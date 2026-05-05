@@ -60,6 +60,14 @@ progress and learnings in repo artifacts.
     `ups_smoke_current_best` (`0.6297059754071941`) but still fails the matched
     persistence baseline (`0.1876487120420463`), so this is a useful direction
     for cheap iteration but not a scale-up candidate yet.
+- Remote smoke-v1 focused task-signature matrix:
+  - B2 tarball:
+    `remote-runs/smoke/smoke_focused_variants_20260505T0613Z.tar.gz`
+  - best focused row: `ups_smoke_task_signature_joint48` with
+    `decoded_rollout_nrmse = 0.4971677039442661`
+  - Interpretation: the focused batch did not beat plain
+    `ups_smoke_task_signature_only`; disabling semigroup, extending joint
+    training, and increasing rollout loss are not the next scale-up direction.
 - Live B2 readiness:
   - `smoke-v1`: `9/9` expected keys present after remote args-mode shard prep
     on 2026-05-05 UTC.
@@ -77,7 +85,7 @@ progress and learnings in repo artifacts.
 | Avoid local training | no local training launched; only tests/dry-runs ran | Done |
 | Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Done for smoke, light pending |
 | Publish smoke shards | `reports/demo/smoke_readiness_after_remote.json`, live B2 check shows `9/9` keys | Done |
-| Run smoke experiments | `ups_smoke_current_best`, four variant summaries, B2 artifact tarballs, local smoke scorecard | Done for smoke |
+| Run smoke experiments | baseline, broad variants, focused task-signature variants, B2 artifact tarballs, local smoke scorecard | Done for smoke |
 | Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Done for smoke prep |
 | Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
 | Run persistence baseline | `persistence_smoke_v1_test`, B2 artifact tarball, local smoke scorecard | Done for smoke, light pending |

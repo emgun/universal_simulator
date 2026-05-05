@@ -118,6 +118,31 @@ Experiment loop update (2026-05-05, remote smoke variant matrix):
   - The immediate blocker is not remote plumbing anymore; it is model behavior against a strong simple physical-space baseline.
   - Next iteration should inspect per-task/family failures and test a candidate that narrows conditioning while improving the decoded rollout objective, rather than scaling this config.
 
+Experiment loop update (2026-05-05, focused task-signature smoke matrix):
+- Branch:
+  - created and pushed `codex/smoke-focused-variants`
+  - commit: `32102aa`
+- Remote execution:
+  - first Vast offer failed during host GPU CDI injection; instance was destroyed
+  - second Vast RTX 4090 instance completed and was destroyed after artifact publication
+  - `vastai show instances --raw` returned an empty list after teardown
+  - B2 artifact: `remote-runs/smoke/smoke_focused_variants_20260505T0613Z.tar.gz`
+- Results:
+  - previous best task signature only: `0.4793234406026068`
+  - task signature + semigroup disabled: `0.6230334342451865`
+  - task signature + joint 48: `0.4971677039442661`
+  - task signature + rollout 4: `0.617963100106149`
+  - task signature + joint 48 + rollout 4: `0.617963100106149`
+- Keep:
+  - plain `ups_smoke_task_signature_only` remains the best UPS smoke row
+  - `task_signature_joint48` is useful only as a diagnostic: step-1 improved but rollout/Darcy worsened
+- Discard for now:
+  - semigroup disabled
+  - longer rollout loss
+  - longer joint training as an isolated scale-up lever
+- Next hypothesis:
+  - test decoded fine-tuning and reconstruction-weight probes under the same task-signature conditioning before changing data scale
+
 Experiment loop update (2026-04-15):
 - Objective metric:
   - `decoded_rollout_nrmse` on decoded multitask joint runs from `scripts/run_light_experiment.py`

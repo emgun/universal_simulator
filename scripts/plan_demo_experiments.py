@@ -76,13 +76,50 @@ VARIANTS: tuple[Variant, ...] = (
         priority=31,
     ),
     Variant(
+        name="task_signature_joint16",
+        description="Task-signature conditioning with a shorter joint codec/operator stage.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.joint_codec_operator.epochs=16",
+        ),
+        priority=32,
+    ),
+    Variant(
         name="task_signature_joint48",
         description="Task-signature conditioning with a longer joint codec/operator stage.",
         overrides=(
             'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
             "stages.joint_codec_operator.epochs=48",
         ),
-        priority=32,
+        priority=33,
+    ),
+    Variant(
+        name="task_signature_opdecoded4",
+        description="Task-signature conditioning with more frozen-codec decoded operator fine-tuning.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.operator_decoded.epochs=4",
+        ),
+        priority=34,
+    ),
+    Variant(
+        name="task_signature_opdecoded4_joint16",
+        description="Task-signature conditioning with more decoded fine-tuning and a shorter joint stage.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.operator_decoded.epochs=4",
+            "stages.joint_codec_operator.epochs=16",
+        ),
+        priority=35,
+    ),
+    Variant(
+        name="task_signature_recon0",
+        description="Task-signature conditioning with joint reconstruction loss disabled.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.joint_codec_operator.lambda_reconstruction=0.0",
+        ),
+        priority=36,
     ),
     Variant(
         name="task_signature_rollout4",
@@ -91,7 +128,7 @@ VARIANTS: tuple[Variant, ...] = (
             'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
             "stages.joint_codec_operator.rollout_steps=4",
         ),
-        priority=33,
+        priority=37,
     ),
     Variant(
         name="task_signature_joint48_rollout4",
@@ -101,7 +138,7 @@ VARIANTS: tuple[Variant, ...] = (
             "stages.joint_codec_operator.epochs=48",
             "stages.joint_codec_operator.rollout_steps=4",
         ),
-        priority=34,
+        priority=38,
     ),
     Variant(
         name="semigroup0",

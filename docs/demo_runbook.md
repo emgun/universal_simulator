@@ -153,6 +153,24 @@ directions. The strongest observed UPS change is narrower task-signature
 conditioning, but the demo still needs either a stronger candidate or a more
 appropriate held-out gate before scale-up.
 
+A focused task-signature smoke-v1 matrix also completed on 2026-05-05 UTC:
+
+- B2 artifact: `remote-runs/smoke/smoke_focused_variants_20260505T0613Z.tar.gz`
+- rows:
+  `ups_smoke_task_signature_semigroup0`,
+  `ups_smoke_task_signature_joint48`,
+  `ups_smoke_task_signature_rollout4`, and
+  `ups_smoke_task_signature_joint48_rollout4`
+- best focused row: `ups_smoke_task_signature_joint48`
+- metric: `decoded_rollout_nrmse = 0.4971677039442661`
+- comparison: worse than `ups_smoke_task_signature_only`
+  (`0.4793234406026068`) and still worse than persistence
+  (`0.1876487120420463`)
+
+Interpretation: do not spend more smoke budget on semigroup-off, longer joint
+training, or longer rollout-loss variants until a stronger decoded objective or
+baseline-aware architecture exists.
+
 ## B2 State
 
 External env file:

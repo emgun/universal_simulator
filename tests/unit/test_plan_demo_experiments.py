@@ -71,3 +71,28 @@ def test_task_signature_focused_variants_compose_overrides():
     assert "training.lambda_semigroup=0.0" in rows[0]["light_extra_args"]
     assert "stages.joint_codec_operator.epochs=48" in rows[1]["light_extra_args"]
     assert "stages.joint_codec_operator.rollout_steps=4" in rows[1]["light_extra_args"]
+
+
+def test_task_signature_decoded_and_reconstruction_variants():
+    rows = build_rows(
+        tier="smoke",
+        variants=["task_signature_joint16", "task_signature_opdecoded4_joint16", "task_signature_recon0"],
+        train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+        tasks="burgers1d,advection1d,darcy2d",
+        output_root="reports/light_experiments_remote",
+        eval_split="test",
+        stages="operator,decoder,operator_decoded,joint_codec_operator",
+        run_prefix="ups",
+        remote_b2_prefix=None,
+        required_gb=None,
+    )
+
+    assert [row["variant"] for row in rows] == [
+        "task_signature_joint16",
+        "task_signature_opdecoded4_joint16",
+        "task_signature_recon0",
+    ]
+    assert "stages.joint_codec_operator.epochs=16" in rows[0]["light_extra_args"]
+    assert "stages.operator_decoded.epochs=4" in rows[1]["light_extra_args"]
+    assert "stages.joint_codec_operator.epochs=16" in rows[1]["light_extra_args"]
+    assert "stages.joint_codec_operator.lambda_reconstruction=0.0" in rows[2]["light_extra_args"]
