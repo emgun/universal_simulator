@@ -417,3 +417,29 @@ Experiment loop update (2026-05-04, persistence baseline branch):
   - `pytest tests/unit/test_persistence_baseline.py tests/unit/test_demo_scorecard.py -q`
 - Next gate:
   - run broader focused tests, commit and push the branch, then add visual rollout artifact generation or create/publish real held-out shards if source data becomes available.
+
+Experiment loop update (2026-05-04, B2 shard check branch):
+- Branch:
+  - created `codex/demo-b2-shard-check` from `codex/demo-persistence-baseline`
+- B2 inspection:
+  - external env exists at `/Users/emerygunselman/Code/universal_simulator/.env`
+  - `rclone` is installed locally
+  - no secret values were printed
+  - checked prefixes: `pdebench/smoke-v1`, `pdebench/light-v1`, `smoke-v1`, `light-v1`, `pdebench/full`, `full`
+  - `smoke-v1` and `light-v1` are not present yet
+  - real data is under top-level `full/`, not `pdebench/full/`
+  - top-level `full/` listed 32 entries including `advection1d`, `burgers1d`, `darcy2d`, and `navier_stokes2d`
+- Added:
+  - `scripts/check_demo_b2_shards.py`
+  - `tests/unit/test_check_demo_b2_shards.py`
+- Purpose:
+  - read `docs/demo_data_manifest.yaml`
+  - derive expected B2 keys when manifest records are empty
+  - prefer explicit `records[].remote_key` after shard generation
+  - report present/missing shard keys before paid compute is launched
+- Bug caught and fixed during live check:
+  - `rclone lsjson` can return success with an empty list for missing exact keys
+  - checker now uses `rclone size --json` and requires `count > 0`
+  - live check currently reports all 9 `light-v1` keys missing, matching the earlier prefix listing
+- Next gate:
+  - validate and push this branch, then use the checker after actual `smoke-v1` or `light-v1` publishing.

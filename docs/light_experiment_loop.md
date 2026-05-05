@@ -287,6 +287,15 @@ bash scripts/publish_light_hdf5_shards_b2.sh
 
 After uploading those outputs to B2, run the remote promotion wrapper with `REMOTE_B2_PREFIX=light-v1`. The default generated keys match the publish layout, e.g. `light-v1/burgers1d/burgers1d_train.h5`.
 
+Check whether the manifest's expected B2 keys exist before launching compute:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+python scripts/check_demo_b2_shards.py \
+  --manifest docs/demo_data_manifest.yaml \
+  --env-file /Users/emerygunselman/Code/universal_simulator/.env
+```
+
 Vast.ai dry-run launch for the light promotion path:
 
 ```bash
