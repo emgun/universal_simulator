@@ -605,3 +605,15 @@ Experiment loop update (2026-05-04, smoke prep size handoff branch):
 - Purpose:
   - document that default three-task smoke prep still needs roughly 60 GiB scratch
   - identify smaller Advection source shard creation as the next cost reducer
+
+Experiment loop update (2026-05-04, cheap smoke split-source branch):
+- Branch:
+  - created `codex/cheap-smoke-split-sources` from `codex/smoke-prep-size-handoff`
+- Added:
+  - per-task split-source mapping support in `scripts/run_remote_shard_prep_b2.sh`
+- Updated:
+  - `scripts/run_smoke_shard_prep_b2.sh` now derives Advection smoke splits from `advection1d_val.h5`
+  - `scripts/run_smoke_shard_prep_b2.sh` now derives Darcy smoke splits from `darcy2d_test.h5`
+- Purpose:
+  - reduce default three-task smoke source hydration from roughly 50 GiB to roughly 10 GiB
+  - keep the shortcut explicitly plumbing-only because train/val/test may be derived from the same source file

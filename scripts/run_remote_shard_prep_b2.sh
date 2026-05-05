@@ -46,6 +46,21 @@ source_keys_for_task_split() {
   echo "${task}/${task}_${split}.h5"
 }
 
+split_source_args_for_task() {
+  local task="$1"
+  local env_name
+  env_name="$(echo "${task}_SPLIT_SOURCES" | tr '[:lower:]' '[:upper:]')"
+  local configured="${!env_name:-}"
+  if [ -z "$configured" ]; then
+    return 0
+  fi
+  local item
+  for item in $(normalize_list "$configured"); do
+    echo "--split-source"
+    echo "$item"
+  done
+}
+
 append_manifest_records() {
   local aggregate="$1"
   local task_manifest="$2"
@@ -90,6 +105,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: would build ${VERSION} shards for tasks: ${TASKS}"
   for task in $(normalize_list "$TASKS"); do
     echo "DRY_RUN: task=${task} source_splits=$(source_splits_for_task "$task")"
+    if [ -n "$(split_source_args_for_task "$task")" ]; then
+      echo "DRY_RUN: task=${task} split_source_args=$(split_source_args_for_task "$task" | xargs)"
+    fi
     for split in $(source_splits_for_task "$task"); do
       for key in $(source_keys_for_task_split "$task" "$split"); do
         echo "DRY_RUN: fetch full/${key} -> ${DATA_ROOT}"
@@ -126,6 +144,7 @@ for task in $(normalize_list "$TASKS"); do
     --root "$DATA_ROOT" \
     --out-root "$task_out" \
     --tasks "$task" \
+    $(split_source_args_for_task "$task") \
     --train-count "$TRAIN_COUNT" \
     --val-count "$VAL_COUNT" \
     --test-count "$TEST_COUNT" \

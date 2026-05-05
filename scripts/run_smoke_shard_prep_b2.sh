@@ -18,10 +18,14 @@ export TASKS=${TASKS:-"burgers1d advection1d darcy2d"}
 export DRY_RUN=${DRY_RUN:-1}
 
 # Keep smoke prep cheap by default. Advection currently has no known small
-# source shard, so it still hydrates the native train file unless overridden.
+# train shard, so smoke derives from the smaller validation source by default.
 export BURGERS1D_SOURCE_SPLITS=${BURGERS1D_SOURCE_SPLITS:-train}
 export BURGERS1D_TRAIN_SOURCE_KEYS=${BURGERS1D_TRAIN_SOURCE_KEYS:-burgers1d/burgers1d_train_000.h5}
-export ADVECTION1D_SOURCE_SPLITS=${ADVECTION1D_SOURCE_SPLITS:-train}
-export DARCY2D_SOURCE_SPLITS=${DARCY2D_SOURCE_SPLITS:-train}
+export ADVECTION1D_SOURCE_SPLITS=${ADVECTION1D_SOURCE_SPLITS:-val}
+export ADVECTION1D_VAL_SOURCE_KEYS=${ADVECTION1D_VAL_SOURCE_KEYS:-advection1d/advection1d_val.h5}
+export ADVECTION1D_SPLIT_SOURCES=${ADVECTION1D_SPLIT_SOURCES:-"train=val,val=val,test=val"}
+export DARCY2D_SOURCE_SPLITS=${DARCY2D_SOURCE_SPLITS:-test}
+export DARCY2D_TEST_SOURCE_KEYS=${DARCY2D_TEST_SOURCE_KEYS:-darcy2d/darcy2d_test.h5}
+export DARCY2D_SPLIT_SOURCES=${DARCY2D_SPLIT_SOURCES:-"train=test,val=test,test=test"}
 
 bash scripts/run_remote_shard_prep_b2.sh "$@"

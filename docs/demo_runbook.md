@@ -161,15 +161,16 @@ this shortcut for benchmark claims.
 DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
 ```
 
-Default smoke source set size from live B2 inspection:
+Default smoke source set size from live B2 inspection after split-source
+shortcuts:
 
 - `full/burgers1d/burgers1d_train_000.h5`: `1.570 GiB`
-- `full/advection1d/advection1d_train.h5`: `46.030 GiB`
-- `full/darcy2d/darcy2d_train.h5`: `2.441 GiB`
+- `full/advection1d/advection1d_val.h5`: `7.704 GiB`
+- `full/darcy2d/darcy2d_test.h5`: `0.613 GiB`
 
-Plan roughly 60 GiB scratch for default three-task smoke prep. To make smoke
-prep materially cheaper, find or publish a smaller Advection source shard and
-set `ADVECTION1D_TRAIN_SOURCE_KEYS`.
+Plan roughly 12 GiB scratch for default three-task smoke prep. The wrapper
+derives Advection and Darcy smoke train/val/test slices from smaller non-train
+sources by default; this is why the output is plumbing-only.
 
 ## Step 3: Run Remote Shard Prep
 
