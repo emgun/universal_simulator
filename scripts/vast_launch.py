@@ -57,6 +57,7 @@ def _redact_command(cmd: list[str]) -> list[str]:
                     else:
                         pieces.append(item)
                 part = ",".join(pieces)
+        part = _redact_text(part)
         redacted.append(part)
     return redacted
 
@@ -339,9 +340,12 @@ def cmd_launch(args: argparse.Namespace) -> None:
             cmd.extend(["--limit", str(args.limit)])
     if env_str:
         cmd.extend(["--env", env_str])
-    if not args.no_ssh:
-        cmd.append("--ssh")
-    cmd.extend(["--onstart", str(onstart)])
+    if args.args_mode:
+        cmd.extend(["--entrypoint", "bash", "--args", "-lc", onstart.read_text()])
+    else:
+        if not args.no_ssh:
+            cmd.append("--ssh")
+        cmd.extend(["--onstart", str(onstart)])
     if args.dry_run:
         print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
@@ -418,6 +422,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Do not request Vast SSH runtime injection. Useful for one-shot jobs when "
             "SSH bootstrap stalls on apt mirrors."
+        ),
+    )
+    p_launch.add_argument(
+        "--args-mode",
+        action="store_true",
+        help=(
+            "Run the generated script with 'bash -lc' via Vast --args instead of --onstart. "
+            "This avoids Vast SSH/Jupyter/onstart bootstrap for one-shot jobs."
         ),
     )
     p_launch.add_argument(

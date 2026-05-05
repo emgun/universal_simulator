@@ -20,6 +20,7 @@ PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_smoke_pipeline.sh}
 AUTO_SHUTDOWN=${AUTO_SHUTDOWN:-1}
 SSH=${SSH:-1}
+ARGS_MODE=${ARGS_MODE:-0}
 
 read_env_key() {
   local file="$1"; shift
@@ -83,6 +84,10 @@ fi
 
 if [ "$SSH" -eq 0 ]; then
   args+=(--no-ssh)
+fi
+
+if [ "$ARGS_MODE" -eq 1 ]; then
+  args+=(--args-mode)
 fi
 
 [ -n "${B2_KEY_ID:-}" ] && args+=(--b2-key-id "$B2_KEY_ID")

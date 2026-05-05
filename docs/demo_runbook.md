@@ -91,6 +91,7 @@ Apply or merge in this order if working from `main`:
     - avoids `apt-get` in Vast onstart after setup stalls on Ubuntu mirrors
     - downloads `rclone` directly and falls back to a GitHub branch zip when `git` is unavailable
     - supports `SSH=0` one-shot launches to skip Vast SSH runtime injection when that setup stalls
+    - supports `ARGS_MODE=1` to run `bash -lc` directly and bypass Vast onstart bootstrap
 
 ## Current Evidence
 
@@ -255,6 +256,7 @@ DISK_GB=32 \
 ORDER=dph_total \
 LIMIT=10 \
 SSH=0 \
+ARGS_MODE=1 \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
@@ -277,6 +279,7 @@ GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 OFFER_ID=<offer_id_from_search> \
 SSH=0 \
+ARGS_MODE=1 \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
