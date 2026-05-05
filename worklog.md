@@ -706,3 +706,13 @@ Experiment loop update (2026-05-04, require B2 check for live smoke branch):
   - `scripts/run_remote_smoke_pipeline.sh` refuses live smoke queue execution when `CHECK_B2=0`, unless `ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set
 - Purpose:
   - prevent bypassing the B2 shard readiness gate during paid smoke experiments
+
+Experiment loop update (2026-05-04, final pipeline audit refresh branch):
+- Branch:
+  - created `codex/final-pipeline-audit-refresh` from `codex/require-b2-check-for-live-smoke`
+- Updated:
+  - `docs/demo_runbook.md`
+  - `docs/demo_completion_audit.md`
+- Purpose:
+  - refresh the branch stack through remote smoke pipeline, packaging, and live-execution safeguards
+  - document that live smoke queue execution requires B2 readiness checks unless explicitly overridden for controlled tests

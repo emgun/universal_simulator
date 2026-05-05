@@ -43,7 +43,7 @@ progress and learnings in repo artifacts.
 | Avoid local training | no local training launched; only tests/dry-runs ran | Done |
 | Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Ready, not complete |
 | Publish smoke shards | `docs/demo_smoke_data_manifest.yaml`, `scripts/run_smoke_shard_prep_b2.sh` | Missing remote run |
-| Run smoke experiments | `scripts/run_remote_smoke_pipeline.sh`, generated queue path | Missing remote run |
+| Run smoke experiments | `scripts/run_remote_smoke_pipeline.sh`, live queue requires `CHECK_B2=1` and ready shards | Missing remote run |
 | Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
 | Run persistence baseline | `scripts/run_persistence_baseline.py` | Missing summary |
 | Run UPS candidate | `scripts/run_remote_light_promotion.sh`, queue planner | Missing summary |
@@ -73,6 +73,9 @@ bash scripts/run_remote_smoke_pipeline.sh
 
 The pipeline refuses live smoke experiment execution when `CHECK_B2=1` and
 `smoke-v1` shards are not ready.
+It also refuses unchecked live queue execution when `CHECK_B2=0` unless
+`ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set for a controlled test
+environment.
 
 Before tearing down the remote box:
 

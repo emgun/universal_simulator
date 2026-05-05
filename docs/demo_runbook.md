@@ -62,6 +62,20 @@ Apply or merge in this order if working from `main`:
     - reduces default smoke source hydration to roughly 10 GiB
 18. `codex/local-shard-prep-test-mode`
     - `FETCH_DATA=0` and `PUBLISH_SHARDS=0` for already-hydrated/test-mode shard cutting
+19. `codex/remote-smoke-pipeline`
+    - one-command remote smoke readiness, prep, and queue generation
+20. `codex/safe-smoke-queue-default`
+    - generated queue stays dry-run even when shard prep is live
+21. `codex/smoke-disk-guard`
+    - `REQUIRED_GB` guard for shard prep
+22. `codex/demo-completion-audit`
+    - explicit prompt-to-artifact completion checklist
+23. `codex/enforce-smoke-ready-before-queue`
+    - refuses live smoke queue when B2 smoke shards are missing
+24. `codex/package-demo-artifacts`
+    - packages remote artifacts and records missing paths
+25. `codex/require-b2-check-for-live-smoke`
+    - refuses unchecked live smoke queue unless explicitly overridden
 
 ## Current Evidence
 
