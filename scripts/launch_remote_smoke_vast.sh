@@ -14,6 +14,7 @@ GPU=${GPU:-RTX_4090}
 NUM_GPUS=${NUM_GPUS:-1}
 ORDER=${ORDER:-dph_total}
 LIMIT=${LIMIT:-10}
+OFFER_ID=${OFFER_ID:-}
 WORKDIR=${WORKDIR:-/workspace}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_smoke_pipeline.sh}
@@ -58,14 +59,18 @@ args=(
   --gpu "$GPU"
   --num-gpus "$NUM_GPUS"
   --disk "$DISK_GB"
-  --order "$ORDER"
-  --limit "$LIMIT"
   --git-ref "$GIT_REF"
   --workdir "$WORKDIR"
   --remote-script "$REMOTE_SCRIPT"
   --skip-prefetch
   --script-args "DRY_RUN=0 ENV_FILE=.env PIPELINE_ROOT=$PIPELINE_ROOT"
 )
+
+if [ -n "$OFFER_ID" ]; then
+  args+=(--offer-id "$OFFER_ID")
+else
+  args+=(--order "$ORDER" --limit "$LIMIT")
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   args+=(--dry-run)

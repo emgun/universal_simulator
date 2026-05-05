@@ -81,6 +81,12 @@ Apply or merge in this order if working from `main`:
     - redacts B2/W&B secrets from dry-run launch output
 27. `codex/vast-offer-summary`
     - compact Vast offer JSON/TSV snapshots without launching compute
+28. `codex/vast-cheap-launch-order`
+    - orders implicit Vast launch searches by `dph_total`
+    - caps candidate search with `LIMIT`
+29. `codex/vast-offer-id-launch`
+    - optional `OFFER_ID` pinning for a reviewed Vast search result
+    - uses `vastai create instance <offer_id>` instead of implicit launch search
 
 ## Current Evidence
 
@@ -240,7 +246,7 @@ values:
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=1 \
-GIT_REF=codex/final-pipeline-audit-refresh \
+GIT_REF=codex/vast-offer-id-launch \
 DISK_GB=32 \
 ORDER=dph_total \
 LIMIT=10 \
@@ -255,6 +261,21 @@ python scripts/search_vast_smoke_offers.py \
   --output-json reports/demo/vast_smoke_offers.json \
   --output-tsv reports/demo/vast_smoke_offers.tsv
 ```
+
+If you choose a specific reviewed offer from that snapshot, pin it explicitly
+instead of letting `vastai launch instance` re-run the search at launch time:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=1 \
+GIT_REF=codex/vast-offer-id-launch \
+DISK_GB=32 \
+OFFER_ID=<offer_id_from_search> \
+bash scripts/launch_remote_smoke_vast.sh
+```
+
+Only switch that command to `DRY_RUN=0` after reviewing the generated onstart
+script. Vast offer IDs are time-sensitive and single-use.
 
 This prepares/publishes missing `smoke-v1` shards, writes readiness artifacts,
 and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after

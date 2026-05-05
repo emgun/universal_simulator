@@ -1,14 +1,13 @@
 #!/usr/bin/env python
-from __future__ import annotations
-
 """Helper utilities for launching Vast.ai training runs."""
+
+from __future__ import annotations
 
 import argparse
 import os
 import shlex
 import subprocess
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ONSTART_DIR = REPO_ROOT / ".vast"
@@ -25,10 +24,14 @@ def run(cmd: list[str], *, check: bool = True) -> int:
 
 def git_remote_url() -> str:
     try:
-        out = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], cwd=REPO_ROOT)
+        out = subprocess.check_output(
+            ["git", "config", "--get", "remote.origin.url"], cwd=REPO_ROOT
+        )
         return out.decode().strip()
-    except subprocess.CalledProcessError:
-        raise SystemExit("Could not determine git remote URL. Configure remote.origin first.")
+    except subprocess.CalledProcessError as err:
+        raise SystemExit(
+            "Could not determine git remote URL. Configure remote.origin first."
+        ) from err
 
 
 def _secret_for_dry_run(value: str | None) -> str | None:
@@ -73,14 +76,22 @@ def ensure_onstart(
 ) -> Path:
     ONSTART_DIR.mkdir(exist_ok=True)
     script_path = ONSTART_DIR / "onstart.sh"
-    datasets_export = f"export WANDB_DATASETS=\"{datasets}\"" if datasets else "# WANDB_DATASETS optional"
-    wandb_project_export = f"export WANDB_PROJECT=\"{wandb_project}\"" if wandb_project else "# WANDB_PROJECT optional"
-    wandb_entity_export = f"export WANDB_ENTITY=\"{wandb_entity}\"" if wandb_entity else "# WANDB_ENTITY optional"
-    wandb_api_key_export = f"export WANDB_API_KEY=\"{wandb_api_key}\"" if wandb_api_key else "# WANDB_API_KEY optional"
+    datasets_export = (
+        f'export WANDB_DATASETS="{datasets}"' if datasets else "# WANDB_DATASETS optional"
+    )
+    wandb_project_export = (
+        f'export WANDB_PROJECT="{wandb_project}"' if wandb_project else "# WANDB_PROJECT optional"
+    )
+    wandb_entity_export = (
+        f'export WANDB_ENTITY="{wandb_entity}"' if wandb_entity else "# WANDB_ENTITY optional"
+    )
+    wandb_api_key_export = (
+        f'export WANDB_API_KEY="{wandb_api_key}"' if wandb_api_key else "# WANDB_API_KEY optional"
+    )
     fetch_cmd = (
         "# Prefetch disabled; the remote script is responsible for hydration"
         if skip_prefetch
-        else "if [ -n \"$WANDB_DATASETS\" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi"
+        else 'if [ -n "$WANDB_DATASETS" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi'
     )
     combined_args = " ".join(part for part in (overrides, script_args) if part)
     remote_cmd = "bash " + shlex.quote(remote_script)
@@ -93,7 +104,11 @@ def ensure_onstart(
             "git fetch --all --prune",
             f"git checkout {quoted_ref} || git checkout -b {quoted_ref} origin/{quoted_ref}",
         ]
-    shutdown_cmd = "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi" if auto_shutdown else ""
+    shutdown_cmd = (
+        "\nif command -v poweroff >/dev/null 2>&1; then\n  sync\n  poweroff\nfi"
+        if auto_shutdown
+        else ""
+    )
     lines = [
         "#!/bin/bash",
         "set -euo pipefail",
@@ -115,12 +130,16 @@ def ensure_onstart(
         "python3 -m pip install -e .[dev]",
         "",
         datasets_export,
-        (f"export B2_KEY_ID=\"{b2_key_id}\"" if b2_key_id else "# B2_KEY_ID optional"),
-        (f"export B2_APP_KEY=\"{b2_app_key}\"" if b2_app_key else "# B2_APP_KEY optional"),
-        (f"export B2_BUCKET=\"{b2_bucket}\"" if b2_bucket else "# B2_BUCKET optional"),
-        (f"export B2_PREFIX=\"{b2_prefix}\"" if b2_prefix else "# B2_PREFIX optional"),
-        (f"export B2_S3_ENDPOINT=\"{b2_s3_endpoint}\"" if b2_s3_endpoint else "# B2_S3_ENDPOINT optional"),
-        (f"export B2_S3_REGION=\"{b2_s3_region}\"" if b2_s3_region else "# B2_S3_REGION optional"),
+        (f'export B2_KEY_ID="{b2_key_id}"' if b2_key_id else "# B2_KEY_ID optional"),
+        (f'export B2_APP_KEY="{b2_app_key}"' if b2_app_key else "# B2_APP_KEY optional"),
+        (f'export B2_BUCKET="{b2_bucket}"' if b2_bucket else "# B2_BUCKET optional"),
+        (f'export B2_PREFIX="{b2_prefix}"' if b2_prefix else "# B2_PREFIX optional"),
+        (
+            f'export B2_S3_ENDPOINT="{b2_s3_endpoint}"'
+            if b2_s3_endpoint
+            else "# B2_S3_ENDPOINT optional"
+        ),
+        (f'export B2_S3_REGION="{b2_s3_region}"' if b2_s3_region else "# B2_S3_REGION optional"),
         wandb_project_export,
         wandb_entity_export,
         wandb_api_key_export,
@@ -193,25 +212,37 @@ def cmd_launch(args: argparse.Namespace) -> None:
         env_parts.append(f"B2_S3_REGION={args.b2_s3_region}")
     env_str = ",".join(env_parts) if env_parts else None
 
-    cmd = [
-        "vastai",
-        "launch",
-        "instance",
-        "-g",
-        args.gpu,
-        "-n",
-        str(args.num_gpus),
-        "-i",
-        args.image,
-        "-d",
-        str(args.disk),
-    ]
-    if args.region:
-        cmd.extend(["-r", args.region])
-    if args.order:
-        cmd.extend(["-o", args.order])
-    if args.limit is not None:
-        cmd.extend(["--limit", str(args.limit)])
+    if args.offer_id:
+        cmd = [
+            "vastai",
+            "create",
+            "instance",
+            str(args.offer_id),
+            "--image",
+            args.image,
+            "--disk",
+            str(args.disk),
+        ]
+    else:
+        cmd = [
+            "vastai",
+            "launch",
+            "instance",
+            "-g",
+            args.gpu,
+            "-n",
+            str(args.num_gpus),
+            "-i",
+            args.image,
+            "-d",
+            str(args.disk),
+        ]
+        if args.region:
+            cmd.extend(["-r", args.region])
+        if args.order:
+            cmd.extend(["-o", args.order])
+        if args.limit is not None:
+            cmd.extend(["--limit", str(args.limit)])
     if env_str:
         cmd.extend(["--env", env_str])
     cmd.extend(["--ssh", "--onstart", str(onstart)])
@@ -237,29 +268,84 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch = sub.add_parser("launch", help="Launch instance and run training on Vast")
     p_launch.add_argument("--gpu", default="RTX_4090", help="GPU model (default RTX_4090)")
     p_launch.add_argument("--num-gpus", type=int, default=1, help="Number of GPUs")
-    p_launch.add_argument("--image", default="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime", help="Docker image")
+    p_launch.add_argument(
+        "--image", default="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime", help="Docker image"
+    )
     p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
     p_launch.add_argument("--region", help="Region filter for launch instance")
     p_launch.add_argument("--order", help="Vast launch offer ordering, e.g. dph_total")
     p_launch.add_argument("--limit", type=int, help="Limit launch search candidates")
-    p_launch.add_argument("--datasets", default=os.environ.get("WANDB_DATASETS"), help="WANDB_DATASETS value to pass to training")
-    p_launch.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT"), help="WANDB project name")
-    p_launch.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY"), help="WANDB entity name")
-    p_launch.add_argument("--wandb-api-key", default=os.environ.get("WANDB_API_KEY"), help="WANDB API key")
-    p_launch.add_argument("--overrides", help="Legacy extra arguments to append to the remote script")
-    p_launch.add_argument("--remote-script", default="scripts/run_remote_scale.sh", help="Remote script to run after setup")
+    p_launch.add_argument(
+        "--offer-id",
+        help=(
+            "Explicit Vast offer ID from search results. Uses 'vastai create instance' "
+            "instead of an implicit launch search."
+        ),
+    )
+    p_launch.add_argument(
+        "--datasets",
+        default=os.environ.get("WANDB_DATASETS"),
+        help="WANDB_DATASETS value to pass to training",
+    )
+    p_launch.add_argument(
+        "--wandb-project", default=os.environ.get("WANDB_PROJECT"), help="WANDB project name"
+    )
+    p_launch.add_argument(
+        "--wandb-entity", default=os.environ.get("WANDB_ENTITY"), help="WANDB entity name"
+    )
+    p_launch.add_argument(
+        "--wandb-api-key", default=os.environ.get("WANDB_API_KEY"), help="WANDB API key"
+    )
+    p_launch.add_argument(
+        "--overrides", help="Legacy extra arguments to append to the remote script"
+    )
+    p_launch.add_argument(
+        "--remote-script",
+        default="scripts/run_remote_scale.sh",
+        help="Remote script to run after setup",
+    )
     p_launch.add_argument("--script-args", help="Additional arguments appended after --overrides")
-    p_launch.add_argument("--skip-prefetch", action="store_true", help="Skip onstart dataset prefetch; useful when the remote script fetches data")
+    p_launch.add_argument(
+        "--skip-prefetch",
+        action="store_true",
+        help="Skip onstart dataset prefetch; useful when the remote script fetches data",
+    )
     p_launch.add_argument("--git-ref", help="Git branch, tag, or ref to checkout before running")
     p_launch.add_argument("--repo-url", help="Git remote URL (defaults to origin)")
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
-    p_launch.add_argument("--auto-shutdown", action="store_true", help="Power off instance after training completes")
-    p_launch.add_argument("--b2-key-id", default=os.environ.get("B2_KEY_ID"), help="B2 application key ID for dataset fetch")
-    p_launch.add_argument("--b2-app-key", default=os.environ.get("B2_APP_KEY"), help="B2 application key secret for dataset fetch")
-    p_launch.add_argument("--b2-bucket", default=os.environ.get("B2_BUCKET"), help="Override B2 bucket for dataset fetch")
-    p_launch.add_argument("--b2-prefix", default=os.environ.get("B2_PREFIX"), help="Override B2 prefix for dataset fetch")
-    p_launch.add_argument("--b2-s3-endpoint", default=os.environ.get("B2_S3_ENDPOINT"), help="Override B2 S3 endpoint for dataset fetch")
-    p_launch.add_argument("--b2-s3-region", default=os.environ.get("B2_S3_REGION"), help="Override B2 S3 region for dataset fetch")
+    p_launch.add_argument(
+        "--auto-shutdown", action="store_true", help="Power off instance after training completes"
+    )
+    p_launch.add_argument(
+        "--b2-key-id",
+        default=os.environ.get("B2_KEY_ID"),
+        help="B2 application key ID for dataset fetch",
+    )
+    p_launch.add_argument(
+        "--b2-app-key",
+        default=os.environ.get("B2_APP_KEY"),
+        help="B2 application key secret for dataset fetch",
+    )
+    p_launch.add_argument(
+        "--b2-bucket",
+        default=os.environ.get("B2_BUCKET"),
+        help="Override B2 bucket for dataset fetch",
+    )
+    p_launch.add_argument(
+        "--b2-prefix",
+        default=os.environ.get("B2_PREFIX"),
+        help="Override B2 prefix for dataset fetch",
+    )
+    p_launch.add_argument(
+        "--b2-s3-endpoint",
+        default=os.environ.get("B2_S3_ENDPOINT"),
+        help="Override B2 S3 endpoint for dataset fetch",
+    )
+    p_launch.add_argument(
+        "--b2-s3-region",
+        default=os.environ.get("B2_S3_REGION"),
+        help="Override B2 S3 region for dataset fetch",
+    )
     p_launch.add_argument("--dry-run", action="store_true", help="Print commands without launching")
     p_launch.set_defaults(func=cmd_launch)
 

@@ -44,7 +44,7 @@ progress and learnings in repo artifacts.
 | Use B2-backed data | B2 readiness and shard-prep scripts use `.env` and `rclone` | Ready, not complete |
 | Publish smoke shards | `docs/demo_smoke_data_manifest.yaml`, `scripts/run_smoke_shard_prep_b2.sh` | Missing remote run |
 | Run smoke experiments | `scripts/run_remote_smoke_pipeline.sh`, live queue requires `CHECK_B2=1` and ready shards | Missing remote run |
-| Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh` | Ready, not launched |
+| Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Ready, not launched |
 | Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
 | Run persistence baseline | `scripts/run_persistence_baseline.py` | Missing summary |
 | Run UPS candidate | `scripts/run_remote_light_promotion.sh`, queue planner | Missing summary |
@@ -67,10 +67,21 @@ Dry-run Vast launch wrapper:
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=1 \
-GIT_REF=codex/final-pipeline-audit-refresh \
+GIT_REF=codex/vast-offer-id-launch \
 DISK_GB=32 \
 ORDER=dph_total \
 LIMIT=10 \
+bash scripts/launch_remote_smoke_vast.sh
+```
+
+Pin a reviewed Vast offer ID instead of re-running implicit launch search:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=1 \
+GIT_REF=codex/vast-offer-id-launch \
+DISK_GB=32 \
+OFFER_ID=<offer_id_from_search> \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
