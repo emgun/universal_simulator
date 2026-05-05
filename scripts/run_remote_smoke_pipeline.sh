@@ -12,6 +12,23 @@ set -euo pipefail
 # QUEUE_DRY_RUN=0 only on a remote box with enough scratch space and after
 # reviewing the generated queue.
 
+apply_cli_assignments() {
+  local assignment
+  for assignment in "$@"; do
+    case "$assignment" in
+      *=*) export "$assignment" ;;
+      "")
+        ;;
+      *)
+        echo "Unexpected argument '${assignment}'. Pass options as KEY=VALUE assignments." >&2
+        exit 2
+        ;;
+    esac
+  done
+}
+
+apply_cli_assignments "$@"
+
 ENV_FILE=${ENV_FILE:-.env}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
 SMOKE_MANIFEST=${SMOKE_MANIFEST:-docs/demo_smoke_data_manifest.yaml}

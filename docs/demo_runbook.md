@@ -229,6 +229,17 @@ PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
 bash scripts/run_remote_smoke_pipeline.sh
 ```
 
+Dry-run a Vast.ai launch plan for the same pipeline without printing B2 secret
+values:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=1 \
+GIT_REF=codex/final-pipeline-audit-refresh \
+DISK_GB=32 \
+bash scripts/launch_remote_smoke_vast.sh
+```
+
 This prepares/publishes missing `smoke-v1` shards, writes readiness artifacts,
 and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after
 reviewing `reports/demo/remote_smoke_pipeline/queue/run_smoke_queue.sh`.

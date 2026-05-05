@@ -12,6 +12,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ONSTART_DIR = REPO_ROOT / ".vast"
+REDACTED = "<redacted>"
 
 
 def run(cmd: list[str], *, check: bool = True) -> int:
@@ -28,6 +29,26 @@ def git_remote_url() -> str:
         return out.decode().strip()
     except subprocess.CalledProcessError:
         raise SystemExit("Could not determine git remote URL. Configure remote.origin first.")
+
+
+def _secret_for_dry_run(value: str | None) -> str | None:
+    return REDACTED if value else None
+
+
+def _redact_command(cmd: list[str]) -> list[str]:
+    redacted: list[str] = []
+    for part in cmd:
+        for key in ("WANDB_API_KEY", "B2_KEY_ID", "B2_APP_KEY"):
+            if f"{key}=" in part:
+                pieces = []
+                for item in part.split(","):
+                    if item.startswith(f"{key}="):
+                        pieces.append(f"{key}={REDACTED}")
+                    else:
+                        pieces.append(item)
+                part = ",".join(pieces)
+        redacted.append(part)
+    return redacted
 
 
 def ensure_onstart(
@@ -129,6 +150,7 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 def cmd_launch(args: argparse.Namespace) -> None:
     repo_url = args.repo_url or git_remote_url()
+    dry_run = bool(args.dry_run)
     onstart = ensure_onstart(
         args.datasets,
         args.overrides,
@@ -141,9 +163,9 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.auto_shutdown,
         args.wandb_project,
         args.wandb_entity,
-        args.wandb_api_key,
-        args.b2_key_id,
-        args.b2_app_key,
+        _secret_for_dry_run(args.wandb_api_key) if dry_run else args.wandb_api_key,
+        _secret_for_dry_run(args.b2_key_id) if dry_run else args.b2_key_id,
+        _secret_for_dry_run(args.b2_app_key) if dry_run else args.b2_app_key,
         args.b2_bucket,
         args.b2_prefix,
         args.b2_s3_endpoint,
@@ -190,7 +212,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         cmd.extend(["--env", env_str])
     cmd.extend(["--ssh", "--onstart", str(onstart)])
     if args.dry_run:
-        print("DRY RUN: would execute ->", " ".join(cmd))
+        print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
         return
     run(cmd)

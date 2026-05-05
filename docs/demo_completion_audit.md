@@ -61,6 +61,16 @@ PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
 bash scripts/run_remote_smoke_pipeline.sh
 ```
 
+Dry-run Vast launch wrapper:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=1 \
+GIT_REF=codex/final-pipeline-audit-refresh \
+DISK_GB=32 \
+bash scripts/launch_remote_smoke_vast.sh
+```
+
 After reviewing the generated queue:
 
 ```bash

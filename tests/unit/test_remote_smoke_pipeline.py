@@ -36,6 +36,27 @@ def test_remote_smoke_pipeline_generates_queue_without_b2_or_training(tmp_path):
     assert "ups_smoke_no_conditioning" in (queue_dir / "run_smoke_queue.sh").read_text(encoding="utf-8")
 
 
+def test_remote_smoke_pipeline_accepts_cli_assignments(tmp_path):
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/run_remote_smoke_pipeline.sh",
+            "CHECK_B2=0",
+            "PREP_SHARDS=0",
+            "RUN_EXPERIMENTS=0",
+            "DRY_RUN=1",
+            f"PIPELINE_ROOT={tmp_path / 'pipeline'}",
+            "QUEUE_VARIANTS=current_best",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "RUN_EXPERIMENTS=0: generated queue only." in proc.stdout
+    assert (tmp_path / "pipeline" / "queue" / "run_smoke_queue.sh").exists()
+
+
 def test_remote_smoke_pipeline_keeps_queue_dry_run_when_prep_is_live(tmp_path):
     env = os.environ.copy()
     env.update(

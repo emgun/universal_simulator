@@ -716,3 +716,17 @@ Experiment loop update (2026-05-04, final pipeline audit refresh branch):
 - Purpose:
   - refresh the branch stack through remote smoke pipeline, packaging, and live-execution safeguards
   - document that live smoke queue execution requires B2 readiness checks unless explicitly overridden for controlled tests
+
+Experiment loop update (2026-05-04, safe Vast smoke launcher branch):
+- Branch:
+  - created `codex/safe-vast-smoke-launcher` from `codex/final-pipeline-audit-refresh`
+- Added:
+  - `scripts/launch_remote_smoke_vast.sh`
+  - `tests/unit/test_launch_remote_smoke_vast.py`
+  - `tests/unit/test_vast_launch.py`
+- Fixed:
+  - `scripts/vast_launch.py` dry-run output redacts B2 and W&B secret values
+  - `scripts/run_remote_smoke_pipeline.sh` accepts `KEY=VALUE` CLI assignments from the Vast onstart command
+- Purpose:
+  - make the next remote smoke step dry-run-first and log-safe
+  - avoid copying secrets into dry-run output while still allowing actual launch commands to pass B2 credentials
