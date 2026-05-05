@@ -678,3 +678,13 @@ Experiment loop update (2026-05-04, demo completion audit branch):
   - preserve an explicit prompt-to-artifact checklist for the working-demo goal
   - distinguish completed tooling from missing remote data, smoke summaries, light summaries, report artifacts, and baseline-gated performance evidence
   - prevent treating smoke plumbing or green unit tests as a completed demo
+
+Experiment loop update (2026-05-04, enforce smoke-ready before queue branch):
+- Branch:
+  - created `codex/enforce-smoke-ready-before-queue` from `codex/demo-completion-audit`
+- Fixed:
+  - `scripts/run_remote_smoke_pipeline.sh` refuses live smoke queue execution when `CHECK_B2=1`, `QUEUE_DRY_RUN=0`, and smoke shards are not ready
+- Validation:
+  - fake `rclone size` test returns zero objects and confirms no live queue script is generated
+- Purpose:
+  - avoid paying for smoke experiments before `smoke-v1` shards actually exist in B2

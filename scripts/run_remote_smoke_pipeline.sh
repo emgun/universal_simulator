@@ -69,7 +69,10 @@ else
   readiness_status=$?
 fi
 
+shard_status_json="$readiness_json"
+shards_are_ready=0
 if shards_ready "$readiness_json"; then
+  shards_are_ready=1
   echo "Smoke shards are already ready."
 else
   echo "Smoke shards are not ready."
@@ -90,6 +93,9 @@ else
       fi
       if ! shards_ready "$readiness_after_json"; then
         readiness_status=1
+      else
+        shards_are_ready=1
+        shard_status_json="$readiness_after_json"
       fi
     else
       echo "DRY_RUN=1: skipping post-prep readiness enforcement."
@@ -97,6 +103,11 @@ else
   else
     echo "PREP_SHARDS=0: leaving smoke shards missing."
   fi
+fi
+
+if [ "$RUN_EXPERIMENTS" -eq 1 ] && [ "$QUEUE_DRY_RUN" -eq 0 ] && [ "$CHECK_B2" -eq 1 ] && [ "$shards_are_ready" -ne 1 ]; then
+  echo "Refusing live smoke experiments because smoke shards are not ready. See ${shard_status_json}." >&2
+  exit 1
 fi
 
 variant_args=()

@@ -71,6 +71,9 @@ PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
 bash scripts/run_remote_smoke_pipeline.sh
 ```
 
+The pipeline refuses live smoke experiment execution when `CHECK_B2=1` and
+`smoke-v1` shards are not ready.
+
 ## Stop Conditions
 
 - Do not run shard prep on a machine with less than required scratch space.
