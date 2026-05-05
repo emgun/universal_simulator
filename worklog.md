@@ -594,3 +594,14 @@ Experiment loop update (2026-05-04, smoke output root fix branch):
 - Purpose:
   - align the wrapper output path with `docs/demo_smoke_data_manifest.yaml`
   - avoid mixing smoke plumbing artifacts with held-out light artifacts
+
+Experiment loop update (2026-05-04, smoke prep size handoff branch):
+- Branch:
+  - created `codex/smoke-prep-size-handoff` from `codex/fix-smoke-output-root`
+- Live B2 source-size check:
+  - `full/burgers1d/burgers1d_train_000.h5`: `1.570 GiB`
+  - `full/advection1d/advection1d_train.h5`: `46.030 GiB`
+  - `full/darcy2d/darcy2d_train.h5`: `2.441 GiB`
+- Purpose:
+  - document that default three-task smoke prep still needs roughly 60 GiB scratch
+  - identify smaller Advection source shard creation as the next cost reducer

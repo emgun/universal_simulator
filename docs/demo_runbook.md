@@ -161,6 +161,16 @@ this shortcut for benchmark claims.
 DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
 ```
 
+Default smoke source set size from live B2 inspection:
+
+- `full/burgers1d/burgers1d_train_000.h5`: `1.570 GiB`
+- `full/advection1d/advection1d_train.h5`: `46.030 GiB`
+- `full/darcy2d/darcy2d_train.h5`: `2.441 GiB`
+
+Plan roughly 60 GiB scratch for default three-task smoke prep. To make smoke
+prep materially cheaper, find or publish a smaller Advection source shard and
+set `ADVECTION1D_TRAIN_SOURCE_KEYS`.
+
 ## Step 3: Run Remote Shard Prep
 
 Use a cheap remote/data-prep machine, not a training GPU, unless GPU rental is

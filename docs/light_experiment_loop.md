@@ -307,6 +307,10 @@ This is only a plumbing shortcut. It intentionally derives smoke validation and
 test slices from the fetched train source and must not be used for held-out
 benchmark claims.
 
+The default smoke wrapper is still about 50 GiB of source hydration because
+`advection1d_train.h5` is about 46.030 GiB. Plan roughly 60 GiB scratch, or set
+`ADVECTION1D_TRAIN_SOURCE_KEYS` after a smaller Advection source shard exists.
+
 The actual run needs enough disk for the largest single task source set. Current B2 source sizes are approximately:
 
 - `full/burgers1d`: train 69.045 GiB, val 7.704 GiB, test 15.36 GiB, plus an existing train shard 1.57 GiB
