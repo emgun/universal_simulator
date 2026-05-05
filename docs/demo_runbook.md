@@ -323,6 +323,10 @@ bash scripts/launch_remote_smoke_vast.sh
 
 Use `DRY_RUN=0` only after reviewing the generated command. This runs just the
 `current_best` smoke queue entry against `smoke-v1`.
+For no-SSH runs where files cannot be copied back directly, add
+`PUBLISH_PIPELINE_ARTIFACTS=1` and a stable `PIPELINE_ARTIFACT_NAME=...` inside
+`EXTRA_PIPELINE_ARGS` so the remote uploads a tarball under
+`remote-runs/smoke/` in B2 before exit.
 
 ## Step 3: Run Remote Shard Prep
 

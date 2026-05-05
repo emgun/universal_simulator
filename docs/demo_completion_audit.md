@@ -126,6 +126,9 @@ For one cheap smoke experiment, use `INSTALL_MODE=experiment` and
 `EXTRA_PIPELINE_ARGS="PREP_SHARDS=0 RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0
 QUEUE_VARIANTS=current_best"` so the launcher does not republish shards or run
 the full variant matrix.
+Add `PUBLISH_PIPELINE_ARTIFACTS=1 PIPELINE_ARTIFACT_NAME=<name>.tar.gz` to that
+same argument string for no-SSH runs so summaries/logs are uploaded to B2 before
+the instance is destroyed.
 
 Before tearing down the remote box:
 

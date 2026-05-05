@@ -43,6 +43,8 @@ QUEUE_DRY_RUN=${QUEUE_DRY_RUN:-1}
 RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-ups}
 CHECK_B2=${CHECK_B2:-1}
 ALLOW_UNCHECKED_LIVE_QUEUE=${ALLOW_UNCHECKED_LIVE_QUEUE:-0}
+PUBLISH_PIPELINE_ARTIFACTS=${PUBLISH_PIPELINE_ARTIFACTS:-0}
+PIPELINE_ARTIFACT_PREFIX=${PIPELINE_ARTIFACT_PREFIX:-remote-runs/smoke}
 
 mkdir -p "$PIPELINE_ROOT" "$QUEUE_DIR"
 
@@ -50,6 +52,41 @@ readiness_json="$PIPELINE_ROOT/readiness_before.json"
 readiness_after_json="$PIPELINE_ROOT/readiness_after.json"
 prep_log="$PIPELINE_ROOT/smoke_shard_prep.log"
 queue_log="$PIPELINE_ROOT/smoke_queue.log"
+
+configure_artifact_rclone() {
+  : "${B2_KEY_ID:?Set B2_KEY_ID to publish pipeline artifacts}"
+  : "${B2_APP_KEY:?Set B2_APP_KEY to publish pipeline artifacts}"
+  : "${B2_BUCKET:?Set B2_BUCKET to publish pipeline artifacts}"
+  if ! command -v rclone >/dev/null 2>&1; then
+    echo "rclone is required to publish pipeline artifacts." >&2
+    exit 1
+  fi
+  if [ -n "${B2_S3_ENDPOINT:-}" ] || [ -n "${B2_S3_REGION:-}" ]; then
+    export RCLONE_CONFIG_UPSB2_TYPE=s3
+    export RCLONE_CONFIG_UPSB2_PROVIDER=Other
+    export RCLONE_CONFIG_UPSB2_ACCESS_KEY_ID="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_SECRET_ACCESS_KEY="${B2_APP_KEY}"
+    [ -n "${B2_S3_ENDPOINT:-}" ] && export RCLONE_CONFIG_UPSB2_ENDPOINT="${B2_S3_ENDPOINT}"
+    [ -n "${B2_S3_REGION:-}" ] && export RCLONE_CONFIG_UPSB2_REGION="${B2_S3_REGION}"
+  else
+    export RCLONE_CONFIG_UPSB2_TYPE=b2
+    export RCLONE_CONFIG_UPSB2_ACCOUNT="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_KEY="${B2_APP_KEY}"
+  fi
+}
+
+publish_pipeline_artifacts() {
+  local stamp artifact_name artifact_path remote_key
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  artifact_name=${PIPELINE_ARTIFACT_NAME:-remote_smoke_${stamp}.tar.gz}
+  artifact_path="/tmp/${artifact_name}"
+  remote_key="${PIPELINE_ARTIFACT_PREFIX%/}/${artifact_name}"
+
+  tar -czf "$artifact_path" "$PIPELINE_ROOT" "$OUTPUT_ROOT"
+  configure_artifact_rclone
+  rclone copyto "$artifact_path" "UPSB2:${B2_BUCKET}/${remote_key}"
+  echo "Published pipeline artifacts: b2://${B2_BUCKET}/${remote_key}"
+}
 
 check_readiness() {
   local output_json="$1"
@@ -168,6 +205,10 @@ fi
 if [ "$readiness_status" -ne 0 ] && [ "$DRY_RUN" -eq 0 ]; then
   echo "Smoke readiness is still failing after requested actions." >&2
   exit "$readiness_status"
+fi
+
+if [ "$PUBLISH_PIPELINE_ARTIFACTS" -eq 1 ]; then
+  publish_pipeline_artifacts
 fi
 
 echo "Remote smoke pipeline complete."
