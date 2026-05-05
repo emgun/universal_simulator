@@ -27,6 +27,24 @@ Apply or merge in this order if working from `main`:
    - `scripts/run_remote_shard_prep_b2.sh`
 6. `codex/demo-report-plots`
    - static metric plots embedded into `index.html`
+7. `codex/demo-runbook-handoff`
+   - this execution runbook
+   - README quickstart pointer
+8. `codex/demo-cost-tracking`
+   - optional `cost.json` ingestion
+   - provider, instance, GPU-hour, and estimated-dollar report fields
+9. `codex/demo-experiment-queue`
+   - smoke/light/medium JSONL, TSV, and shell queue generation
+   - dry-run remote commands by default
+10. `codex/demo-baseline-delta`
+    - baseline comparison columns for the demo keep/discard gate
+    - absolute glob support for report input discovery
+11. `codex/demo-readiness-check`
+    - one-command JSON readiness report
+    - optional live B2 shard presence check
+12. `codex/smoke-source-key-shards`
+    - smoke-only source key overrides for cheaper shard-prep dry runs
+    - explicit warning that derived smoke slices are not benchmark evidence
 
 ## Current Evidence
 
@@ -53,6 +71,7 @@ Known B2 layout:
 - full source data is under top-level `full/`
 - `smoke-v1` is not published
 - `light-v1` is not published
+- live readiness check still reports `0/9` `light-v1` keys present
 - `pdebench/full` is not the active prefix
 
 Approximate source sizes:

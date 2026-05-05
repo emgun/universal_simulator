@@ -544,3 +544,12 @@ Experiment loop update (2026-05-04, smoke source-key override):
 - Purpose:
   - allow smoke-only data-prep runs to hydrate known smaller source files such as `full/burgers1d/burgers1d_train_000.h5`
   - keep this explicitly out of benchmark claims because smoke val/test may be derived from train
+
+Experiment loop update (2026-05-04, branch stack refresh):
+- Branch:
+  - created `codex/demo-branch-stack-refresh` from `codex/smoke-source-key-shards`
+- Updated:
+  - `docs/demo_runbook.md`
+- Purpose:
+  - refresh the morning handoff branch stack through the cost, queue, baseline, readiness, and smoke source-key override branches
+  - record the live B2 readiness result that `light-v1` still has 0 present and 9 missing expected keys
