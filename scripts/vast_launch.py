@@ -14,8 +14,9 @@ ONSTART_DIR = REPO_ROOT / ".vast"
 REDACTED = "<redacted>"
 
 
-def run(cmd: list[str], *, check: bool = True) -> int:
-    print("$", " ".join(shlex.quote(part) for part in cmd))
+def run(cmd: list[str], *, check: bool = True, display_cmd: list[str] | None = None) -> int:
+    shown = display_cmd if display_cmd is not None else cmd
+    print("$", " ".join(shlex.quote(part) for part in shown))
     result = subprocess.run(cmd)
     if check and result.returncode != 0:
         raise SystemExit(result.returncode)
@@ -164,7 +165,7 @@ def cmd_set_key(args: argparse.Namespace) -> None:
 def cmd_search(args: argparse.Namespace) -> None:
     cmd = ["vastai", "search", "offers"]
     cmd.extend(args.filters)
-    run(cmd)
+    run(cmd, display_cmd=_redact_command(cmd))
 
 
 def cmd_launch(args: argparse.Namespace) -> None:
@@ -250,7 +251,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
         return
-    run(cmd)
+    run(cmd, display_cmd=_redact_command(cmd))
 
 
 def build_parser() -> argparse.ArgumentParser:
