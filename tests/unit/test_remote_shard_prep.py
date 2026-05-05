@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import os
 import subprocess
+
+import h5py
+import numpy as np
+import yaml
 
 
 def test_remote_shard_prep_dry_run_supports_source_key_overrides():
@@ -67,3 +72,50 @@ def test_smoke_shard_prep_wrapper_uses_smoke_defaults():
     assert "fetch full/advection1d/advection1d_val.h5" in proc.stdout
     assert "fetch full/darcy2d/darcy2d_test.h5" in proc.stdout
     assert "publish data/pdebench_smoke/*.h5 and docs/demo_smoke_data_manifest.yaml to prefix smoke-v1" in proc.stdout
+
+
+def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp_path):
+    data_root = tmp_path / "source"
+    out_root = tmp_path / "out"
+    manifest = tmp_path / "manifest.yaml"
+    data_root.mkdir()
+    with h5py.File(data_root / "advection1d_val.h5", "w") as handle:
+        handle.create_dataset("data", data=np.arange(20 * 2, dtype=np.float32).reshape(20, 2))
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "DRY_RUN": "0",
+            "FETCH_DATA": "0",
+            "PUBLISH_SHARDS": "0",
+            "CLEAN_SOURCE": "0",
+            "TASKS": "advection1d",
+            "ADVECTION1D_SOURCE_SPLITS": "val",
+            "ADVECTION1D_SPLIT_SOURCES": "train=val,val=val,test=val",
+            "DATA_ROOT": str(data_root),
+            "OUT_ROOT": str(out_root),
+            "MANIFEST": str(manifest),
+            "TRAIN_COUNT": "4",
+            "VAL_COUNT": "2",
+            "TEST_COUNT": "2",
+        }
+    )
+
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/run_remote_shard_prep_b2.sh",
+        ],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "Skipping fetch for advection1d/advection1d_val.h5" in proc.stdout
+    assert "PUBLISH_SHARDS=0: skipping B2 publish." in proc.stdout
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    assert [record["source_split"] for record in payload["records"]] == ["val", "val", "val"]
+    assert [record["derived_from_source_split"] for record in payload["records"]] == [True, False, True]
+    with h5py.File(out_root / "advection1d" / "advection1d_train.h5", "r") as handle:
+        assert handle["data"].shape == (4, 2)

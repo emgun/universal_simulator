@@ -617,3 +617,13 @@ Experiment loop update (2026-05-04, cheap smoke split-source branch):
 - Purpose:
   - reduce default three-task smoke source hydration from roughly 50 GiB to roughly 10 GiB
   - keep the shortcut explicitly plumbing-only because train/val/test may be derived from the same source file
+
+Experiment loop update (2026-05-04, local shard-prep test mode branch):
+- Branch:
+  - created `codex/local-shard-prep-test-mode` from `codex/cheap-smoke-split-sources`
+- Added:
+  - `FETCH_DATA=0` support for `scripts/run_remote_shard_prep_b2.sh`
+  - `PUBLISH_SHARDS=0` support for `scripts/run_remote_shard_prep_b2.sh`
+- Purpose:
+  - allow shard cutting against already-hydrated sources
+  - test the actual split-source generation path locally with tiny HDF5 files without contacting B2 or publishing

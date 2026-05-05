@@ -100,6 +100,8 @@ TEST_COUNT=${TEST_COUNT:-32}
 START_INDEX=${START_INDEX:-0}
 DRY_RUN=${DRY_RUN:-1}
 CLEAN_SOURCE=${CLEAN_SOURCE:-1}
+FETCH_DATA=${FETCH_DATA:-1}
+PUBLISH_SHARDS=${PUBLISH_SHARDS:-1}
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: would build ${VERSION} shards for tasks: ${TASKS}"
@@ -131,12 +133,16 @@ for task in $(normalize_list "$TASKS"); do
 
   for split in $(source_splits_for_task "$task"); do
     for key in $(source_keys_for_task_split "$task" "$split"); do
-      B2_ENV_FILE="$ENV_FILE" \
-        B2_PREFIX=full \
-        DATA_ROOT="$DATA_ROOT" \
-        CLEAN_OLD_SPLITS=0 \
-        DRY_RUN=0 \
-        bash scripts/fetch_datasets_b2.sh "$key"
+      if [ "$FETCH_DATA" -eq 1 ]; then
+        B2_ENV_FILE="$ENV_FILE" \
+          B2_PREFIX=full \
+          DATA_ROOT="$DATA_ROOT" \
+          CLEAN_OLD_SPLITS=0 \
+          DRY_RUN=0 \
+          bash scripts/fetch_datasets_b2.sh "$key"
+      else
+        echo "Skipping fetch for ${key}; expecting source under ${DATA_ROOT}"
+      fi
     done
   done
 
@@ -161,18 +167,22 @@ for task in $(normalize_list "$TASKS"); do
   fi
 done
 
-flat_out="${OUT_ROOT}/${VERSION}_flat"
-rm -rf "$flat_out"
-mkdir -p "$flat_out"
-find "$OUT_ROOT" -mindepth 2 -maxdepth 2 -type f -name "*.h5" -exec cp {} "$flat_out" \;
+if [ "$PUBLISH_SHARDS" -eq 1 ]; then
+  flat_out="${OUT_ROOT}/${VERSION}_flat"
+  rm -rf "$flat_out"
+  mkdir -p "$flat_out"
+  find "$OUT_ROOT" -mindepth 2 -maxdepth 2 -type f -name "*.h5" -exec cp {} "$flat_out" \;
 
-DRY_RUN=0 \
-BUILD_SHARDS=0 \
-ENV_FILE="$ENV_FILE" \
-VERSION="$VERSION" \
-REMOTE_PREFIX="$REMOTE_PREFIX" \
-OUT_ROOT="$flat_out" \
-MANIFEST="$MANIFEST" \
-bash scripts/publish_light_hdf5_shards_b2.sh
+  DRY_RUN=0 \
+  BUILD_SHARDS=0 \
+  ENV_FILE="$ENV_FILE" \
+  VERSION="$VERSION" \
+  REMOTE_PREFIX="$REMOTE_PREFIX" \
+  OUT_ROOT="$flat_out" \
+  MANIFEST="$MANIFEST" \
+  bash scripts/publish_light_hdf5_shards_b2.sh
+else
+  echo "PUBLISH_SHARDS=0: skipping B2 publish."
+fi
 
 echo "Remote shard prep complete. Manifest: ${MANIFEST}"

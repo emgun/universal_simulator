@@ -161,6 +161,19 @@ this shortcut for benchmark claims.
 DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
 ```
 
+If the source files are already hydrated on the remote box, skip fetching and
+only cut local shards:
+
+```bash
+DRY_RUN=0 \
+FETCH_DATA=0 \
+PUBLISH_SHARDS=0 \
+DATA_ROOT=/workspace/pdebench_full \
+OUT_ROOT=/workspace/pdebench_smoke \
+MANIFEST=/workspace/demo_smoke_data_manifest.yaml \
+bash scripts/run_smoke_shard_prep_b2.sh
+```
+
 Default smoke source set size from live B2 inspection after split-source
 shortcuts:
 
