@@ -533,3 +533,14 @@ Experiment loop update (2026-05-04, demo readiness check branch):
 - Purpose:
   - summarize manifest, expected shard keys, optional live B2 presence, summary artifacts, baseline presence, and candidate presence
   - provide a single JSON readiness payload before launching remote experiments or building the final report
+
+Experiment loop update (2026-05-04, smoke source-key override):
+- Read-only live check:
+  - `light-v1` B2 readiness still reports 0 present and 9 missing shard keys
+  - matched `persistence_light_v1_test` and `ups_light_v1_current_best` summaries are not present yet
+- Added:
+  - source-key override support in `scripts/run_remote_shard_prep_b2.sh`
+  - `tests/unit/test_remote_shard_prep.py`
+- Purpose:
+  - allow smoke-only data-prep runs to hydrate known smaller source files such as `full/burgers1d/burgers1d_train_000.h5`
+  - keep this explicitly out of benchmark claims because smoke val/test may be derived from train

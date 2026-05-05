@@ -122,6 +122,22 @@ Expected:
 - fetch plan for Darcy train/test
 - no network writes
 
+For a cheaper smoke-only data-prep pass, you can opt into known smaller source
+keys and derive smoke validation/test from the same small source. Do not use
+this shortcut for benchmark claims.
+
+```bash
+DRY_RUN=1 \
+VERSION=smoke-v1 \
+TRAIN_COUNT=8 \
+VAL_COUNT=4 \
+TEST_COUNT=4 \
+TASKS=burgers1d \
+BURGERS1D_SOURCE_SPLITS=train \
+BURGERS1D_TRAIN_SOURCE_KEYS=burgers1d/burgers1d_train_000.h5 \
+bash scripts/run_remote_shard_prep_b2.sh
+```
+
 ## Step 3: Run Remote Shard Prep
 
 Use a cheap remote/data-prep machine, not a training GPU, unless GPU rental is

@@ -296,6 +296,25 @@ OUT_ROOT=/workspace/pdebench_light \
 bash scripts/run_remote_shard_prep_b2.sh
 ```
 
+For smoke-only preparation, source-key overrides can avoid hydrating the
+largest native source files when a smaller shard already exists:
+
+```bash
+DRY_RUN=1 \
+VERSION=smoke-v1 \
+TRAIN_COUNT=8 \
+VAL_COUNT=4 \
+TEST_COUNT=4 \
+TASKS=burgers1d \
+BURGERS1D_SOURCE_SPLITS=train \
+BURGERS1D_TRAIN_SOURCE_KEYS=burgers1d/burgers1d_train_000.h5 \
+bash scripts/run_remote_shard_prep_b2.sh
+```
+
+This is only a plumbing shortcut. It intentionally derives smoke validation and
+test slices from the fetched train source and must not be used for held-out
+benchmark claims.
+
 The actual run needs enough disk for the largest single task source set. Current B2 source sizes are approximately:
 
 - `full/burgers1d`: train 69.045 GiB, val 7.704 GiB, test 15.36 GiB, plus an existing train shard 1.57 GiB

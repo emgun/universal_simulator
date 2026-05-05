@@ -33,6 +33,19 @@ source_splits_for_task() {
   esac
 }
 
+source_keys_for_task_split() {
+  local task="$1"
+  local split="$2"
+  local env_name
+  env_name="$(echo "${task}_${split}_SOURCE_KEYS" | tr '[:lower:]' '[:upper:]')"
+  local configured="${!env_name:-}"
+  if [ -n "$configured" ]; then
+    normalize_list "$configured"
+    return 0
+  fi
+  echo "${task}/${task}_${split}.h5"
+}
+
 append_manifest_records() {
   local aggregate="$1"
   local task_manifest="$2"
@@ -78,7 +91,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   for task in $(normalize_list "$TASKS"); do
     echo "DRY_RUN: task=${task} source_splits=$(source_splits_for_task "$task")"
     for split in $(source_splits_for_task "$task"); do
-      echo "DRY_RUN: fetch full/${task}/${task}_${split}.h5 -> ${DATA_ROOT}"
+      for key in $(source_keys_for_task_split "$task" "$split"); do
+        echo "DRY_RUN: fetch full/${key} -> ${DATA_ROOT}"
+      done
     done
     echo "DRY_RUN: cut ${task} shards into ${OUT_ROOT}/${task}"
   done
@@ -97,12 +112,14 @@ for task in $(normalize_list "$TASKS"); do
   mkdir -p "$task_out"
 
   for split in $(source_splits_for_task "$task"); do
-    B2_ENV_FILE="$ENV_FILE" \
-      B2_PREFIX=full \
-      DATA_ROOT="$DATA_ROOT" \
-      CLEAN_OLD_SPLITS=0 \
-      DRY_RUN=0 \
-      bash scripts/fetch_datasets_b2.sh "${task}/${task}_${split}.h5"
+    for key in $(source_keys_for_task_split "$task" "$split"); do
+      B2_ENV_FILE="$ENV_FILE" \
+        B2_PREFIX=full \
+        DATA_ROOT="$DATA_ROOT" \
+        CLEAN_OLD_SPLITS=0 \
+        DRY_RUN=0 \
+        bash scripts/fetch_datasets_b2.sh "$key"
+    done
   done
 
   python scripts/make_light_hdf5_shards.py \
