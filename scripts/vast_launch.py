@@ -339,7 +339,9 @@ def cmd_launch(args: argparse.Namespace) -> None:
             cmd.extend(["--limit", str(args.limit)])
     if env_str:
         cmd.extend(["--env", env_str])
-    cmd.extend(["--ssh", "--onstart", str(onstart)])
+    if not args.no_ssh:
+        cmd.append("--ssh")
+    cmd.extend(["--onstart", str(onstart)])
     if args.dry_run:
         print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
@@ -409,6 +411,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_launch.add_argument(
         "--auto-shutdown", action="store_true", help="Power off instance after training completes"
+    )
+    p_launch.add_argument(
+        "--no-ssh",
+        action="store_true",
+        help=(
+            "Do not request Vast SSH runtime injection. Useful for one-shot jobs when "
+            "SSH bootstrap stalls on apt mirrors."
+        ),
     )
     p_launch.add_argument(
         "--b2-key-id",

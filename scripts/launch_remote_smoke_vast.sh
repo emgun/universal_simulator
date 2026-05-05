@@ -19,6 +19,7 @@ WORKDIR=${WORKDIR:-/workspace}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_smoke_pipeline.sh}
 AUTO_SHUTDOWN=${AUTO_SHUTDOWN:-1}
+SSH=${SSH:-1}
 
 read_env_key() {
   local file="$1"; shift
@@ -78,6 +79,10 @@ fi
 
 if [ "$AUTO_SHUTDOWN" -eq 1 ]; then
   args+=(--auto-shutdown)
+fi
+
+if [ "$SSH" -eq 0 ]; then
+  args+=(--no-ssh)
 fi
 
 [ -n "${B2_KEY_ID:-}" ] && args+=(--b2-key-id "$B2_KEY_ID")

@@ -71,6 +71,7 @@ GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 ORDER=dph_total \
 LIMIT=10 \
+SSH=0 \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
@@ -82,6 +83,7 @@ DRY_RUN=1 \
 GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 OFFER_ID=<offer_id_from_search> \
+SSH=0 \
 bash scripts/launch_remote_smoke_vast.sh
 ```
 
@@ -110,9 +112,10 @@ It also refuses unchecked live queue execution when `CHECK_B2=0` unless
 `ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set for a controlled test
 environment.
 
-Vast launch note: use `codex/vast-no-apt-onstart` or later for remote launches.
-Earlier launch attempts reached paid instances but stalled in onstart
-`apt-get update` before repo checkout.
+Vast launch note: use `codex/vast-no-apt-onstart` or later for remote launches
+with `SSH=0` when running a one-shot smoke pipeline. Earlier launch attempts
+reached paid instances but stalled in Vast/Ubuntu apt setup before repo
+checkout.
 
 Before tearing down the remote box:
 
