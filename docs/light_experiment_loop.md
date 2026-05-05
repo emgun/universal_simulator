@@ -302,6 +302,7 @@ largest native source files when a smaller shard already exists:
 ```bash
 DRY_RUN=1 \
 VERSION=smoke-v1 \
+MANIFEST=docs/demo_smoke_data_manifest.yaml \
 TRAIN_COUNT=8 \
 VAL_COUNT=4 \
 TEST_COUNT=4 \
@@ -323,7 +324,19 @@ The actual run needs enough disk for the largest single task source set. Current
 
 After uploading those outputs to B2, run the remote promotion wrapper with `REMOTE_B2_PREFIX=light-v1`. The default generated keys match the publish layout, e.g. `light-v1/burgers1d/burgers1d_train.h5`.
 
-Check whether the manifest's expected B2 keys exist before launching compute:
+Check whether the manifest's expected B2 keys exist before launching compute.
+Use `docs/demo_smoke_data_manifest.yaml` for smoke-tier plumbing checks and
+`docs/demo_data_manifest.yaml` for held-out light-tier checks:
+
+```bash
+python scripts/check_demo_readiness.py \
+  --manifest docs/demo_smoke_data_manifest.yaml \
+  --summary-glob "reports/light_experiments_remote/*/summary.json" \
+  --baseline-run "" \
+  --candidate-run "" \
+  --check-b2 \
+  --env-file /Users/emerygunselman/Code/universal_simulator/.env
+```
 
 ```bash
 python scripts/check_demo_readiness.py \

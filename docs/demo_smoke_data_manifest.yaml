@@ -1,0 +1,27 @@
+# Smoke demo data manifest.
+#
+# This is a plumbing-only shard contract for cheap remote iteration. It may use
+# derived validation/test slices and must not be used for benchmark claims.
+
+version: smoke-v1
+created_at: null
+source_root: data/pdebench
+out_root: data/pdebench_smoke
+remote_prefix: smoke-v1
+tasks:
+  - burgers1d
+  - advection1d
+  - darcy2d
+splits:
+  train:
+    samples: 8
+    preferred_source_split: train
+  val:
+    samples: 4
+    preferred_source_split: val
+    fallback_source_split: train
+  test:
+    samples: 4
+    preferred_source_split: test
+    fallback_source_split: train
+records: []

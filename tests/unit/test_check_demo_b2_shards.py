@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import yaml
 
 from scripts.check_demo_b2_shards import expected_keys_from_manifest
@@ -54,3 +56,16 @@ def test_expected_keys_from_manifest_records_take_precedence(tmp_path):
 
     assert expected_keys_from_manifest(manifest) == ["custom/a.h5", "custom/b.h5"]
 
+
+def test_checked_in_smoke_manifest_expected_keys():
+    assert expected_keys_from_manifest(Path("docs/demo_smoke_data_manifest.yaml")) == [
+        "smoke-v1/advection1d/advection1d_test.h5",
+        "smoke-v1/advection1d/advection1d_train.h5",
+        "smoke-v1/advection1d/advection1d_val.h5",
+        "smoke-v1/burgers1d/burgers1d_test.h5",
+        "smoke-v1/burgers1d/burgers1d_train.h5",
+        "smoke-v1/burgers1d/burgers1d_val.h5",
+        "smoke-v1/darcy2d/darcy2d_test.h5",
+        "smoke-v1/darcy2d/darcy2d_train.h5",
+        "smoke-v1/darcy2d/darcy2d_val.h5",
+    ]

@@ -91,7 +91,19 @@ val, and test source files at the same time if using native splits.
 
 ## Step 1: Preflight Expected Shards
 
-Overall readiness check:
+Smoke readiness check for plumbing-only remote iteration:
+
+```bash
+python scripts/check_demo_readiness.py \
+  --manifest docs/demo_smoke_data_manifest.yaml \
+  --summary-glob "reports/light_experiments_remote/*/summary.json" \
+  --baseline-run "" \
+  --candidate-run "" \
+  --check-b2 \
+  --env-file /Users/emerygunselman/Code/universal_simulator/.env
+```
+
+Held-out light readiness check:
 
 ```bash
 python scripts/check_demo_readiness.py \
@@ -148,6 +160,7 @@ this shortcut for benchmark claims.
 ```bash
 DRY_RUN=1 \
 VERSION=smoke-v1 \
+MANIFEST=docs/demo_smoke_data_manifest.yaml \
 TRAIN_COUNT=8 \
 VAL_COUNT=4 \
 TEST_COUNT=4 \

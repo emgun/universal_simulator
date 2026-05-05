@@ -553,3 +553,14 @@ Experiment loop update (2026-05-04, branch stack refresh):
 - Purpose:
   - refresh the morning handoff branch stack through the cost, queue, baseline, readiness, and smoke source-key override branches
   - record the live B2 readiness result that `light-v1` still has 0 present and 9 missing expected keys
+
+Experiment loop update (2026-05-04, smoke manifest readiness branch):
+- Branch:
+  - created `codex/smoke-manifest-readiness` from `codex/demo-branch-stack-refresh`
+- Added:
+  - `docs/demo_smoke_data_manifest.yaml`
+- Purpose:
+  - make smoke-tier B2/readiness checks first-class instead of overloading the held-out `light-v1` manifest
+  - keep smoke manifests explicitly labeled as plumbing-only, not benchmark evidence
+  - document smoke readiness commands separately from held-out light readiness commands
+  - require live `--check-b2` in the smoke readiness examples before remote launch decisions
