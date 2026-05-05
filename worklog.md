@@ -478,3 +478,16 @@ Experiment loop update (2026-05-04, demo report plots branch):
 - Purpose:
   - make the demo report more inspectable without needing notebooks or browser-side dependencies
   - keep this artifact generation local and cheap
+
+Experiment loop update (2026-05-04, demo runbook handoff branch):
+- Branch:
+  - created `codex/demo-runbook-handoff` from `codex/demo-report-plots`
+- Added:
+  - `docs/demo_runbook.md`
+- Purpose:
+  - preserve the exact branch stack and execution order
+  - document current B2 state and source sizes
+  - document preflight, remote shard prep, UPS light run, persistence baseline run, and report build commands
+  - state keep/discard and stop rules for the morning continuation
+- README:
+  - added a Quickstart pointer to `docs/demo_runbook.md`

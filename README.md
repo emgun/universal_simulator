@@ -6,6 +6,7 @@ Quickstart
 - Create env and install: `pip install -e .[dev]`
 - Prepare deterministic flags: `bash scripts/prepare_env.sh`
 - See milestone checklist: `MILESTONES_TODO.md`
+- For the current held-out demo push, start with `docs/demo_runbook.md`.
 
 Repository Structure (namespaced under `ups`)
 - `src/ups/core`: latent state, conditioning, PDE‑Transformer blocks
