@@ -688,3 +688,13 @@ Experiment loop update (2026-05-04, enforce smoke-ready before queue branch):
   - fake `rclone size` test returns zero objects and confirms no live queue script is generated
 - Purpose:
   - avoid paying for smoke experiments before `smoke-v1` shards actually exist in B2
+
+Experiment loop update (2026-05-04, package demo artifacts branch):
+- Branch:
+  - created `codex/package-demo-artifacts` from `codex/enforce-smoke-ready-before-queue`
+- Added:
+  - `scripts/package_demo_artifacts.sh`
+  - `tests/unit/test_package_demo_artifacts.py`
+- Purpose:
+  - package remote readiness JSON, logs, queues, summaries, reports, and manifests before tearing down a remote box
+  - record missing default artifact paths in a manifest instead of silently omitting them

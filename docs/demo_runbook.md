@@ -220,6 +220,13 @@ and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after
 reviewing `reports/demo/remote_smoke_pipeline/queue/run_smoke_queue.sh`.
 `QUEUE_DRY_RUN` defaults to `1` even when `DRY_RUN=0` is used for shard prep.
 
+Before tearing down the remote box, package artifacts:
+
+```bash
+OUTPUT=reports/demo/demo_artifacts.tar.gz \
+bash scripts/package_demo_artifacts.sh
+```
+
 ## Step 3: Run Remote Shard Prep
 
 Use a cheap remote/data-prep machine, not a training GPU, unless GPU rental is

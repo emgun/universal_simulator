@@ -74,6 +74,13 @@ bash scripts/run_remote_smoke_pipeline.sh
 The pipeline refuses live smoke experiment execution when `CHECK_B2=1` and
 `smoke-v1` shards are not ready.
 
+Before tearing down the remote box:
+
+```bash
+OUTPUT=reports/demo/demo_artifacts.tar.gz \
+bash scripts/package_demo_artifacts.sh
+```
+
 ## Stop Conditions
 
 - Do not run shard prep on a machine with less than required scratch space.
