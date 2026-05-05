@@ -55,6 +55,25 @@ def test_remote_shard_prep_dry_run_supports_split_source_mapping():
     assert "advection1d_train.h5" not in proc.stdout
 
 
+def test_remote_shard_prep_accepts_cli_assignments():
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/run_remote_shard_prep_b2.sh",
+            "DRY_RUN=1",
+            "TASKS=darcy2d",
+            "REMOTE_PREFIX=light-v1",
+        ],
+        check=True,
+        capture_output=True,
+        env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+        text=True,
+    )
+
+    assert "would build light-v1 shards for tasks: darcy2d" in proc.stdout
+    assert "task=darcy2d source_splits=train test" in proc.stdout
+
+
 def test_smoke_shard_prep_wrapper_uses_smoke_defaults():
     proc = subprocess.run(
         [

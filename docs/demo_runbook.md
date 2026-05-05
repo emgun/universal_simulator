@@ -171,6 +171,24 @@ Interpretation: do not spend more smoke budget on semigroup-off, longer joint
 training, or longer rollout-loss variants until a stronger decoded objective or
 baseline-aware architecture exists.
 
+A decoded/reconstruction smoke-v1 matrix completed on 2026-05-05 UTC:
+
+- B2 artifact: `remote-runs/smoke/smoke_decoded_variants_20260505T0621Z.tar.gz`
+- rows:
+  `ups_smoke_task_signature_joint16`,
+  `ups_smoke_task_signature_opdecoded4`,
+  `ups_smoke_task_signature_opdecoded4_joint16`, and
+  `ups_smoke_task_signature_recon0`
+- best decoded follow-up row: `ups_smoke_task_signature_joint16`
+- metric: `decoded_rollout_nrmse = 0.5951420314812053`
+- comparison: worse than `ups_smoke_task_signature_only`
+  (`0.4793234406026068`) and still worse than persistence
+  (`0.1876487120420463`)
+
+Interpretation: more decoded fine-tuning and simple reconstruction-weight
+tweaks are not enough on smoke-v1. The next useful step is held-out `light-v1`
+shard prep, then rerun only the best observed UPS and persistence rows.
+
 ## B2 State
 
 External env file:
@@ -203,6 +221,10 @@ Approximate source sizes:
 
 Plan at least 120-150 GiB scratch for shard prep, because Burgers needs train,
 val, and test source files at the same time if using native splits.
+
+`scripts/run_remote_shard_prep_b2.sh` accepts `KEY=VALUE` CLI assignments, so it
+can be launched through `scripts/vast_launch.py --remote-script` without a
+custom wrapper.
 
 ## Step 1: Preflight Expected Shards
 

@@ -14,6 +14,23 @@ set -euo pipefail
 #   DRY_RUN=0 ENV_FILE=/path/to/.env DATA_ROOT=/workspace/pdebench_full \
 #     OUT_ROOT=/workspace/pdebench_light bash scripts/run_remote_shard_prep_b2.sh
 
+apply_cli_assignments() {
+  local assignment
+  for assignment in "$@"; do
+    case "$assignment" in
+      *=*) export "$assignment" ;;
+      "")
+        ;;
+      *)
+        echo "Unexpected argument '${assignment}'. Pass options as KEY=VALUE assignments." >&2
+        exit 2
+        ;;
+    esac
+  done
+}
+
+apply_cli_assignments "$@"
+
 normalize_list() {
   echo "$1" | tr ',' ' '
 }

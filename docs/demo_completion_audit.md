@@ -68,6 +68,15 @@ progress and learnings in repo artifacts.
   - Interpretation: the focused batch did not beat plain
     `ups_smoke_task_signature_only`; disabling semigroup, extending joint
     training, and increasing rollout loss are not the next scale-up direction.
+- Remote smoke-v1 decoded/reconstruction matrix:
+  - B2 tarball:
+    `remote-runs/smoke/smoke_decoded_variants_20260505T0621Z.tar.gz`
+  - best decoded follow-up row: `ups_smoke_task_signature_joint16` with
+    `decoded_rollout_nrmse = 0.5951420314812053`
+  - Interpretation: shorter joint training, more frozen-codec decoded
+    fine-tuning, and disabling joint reconstruction loss all regress versus
+    plain `ups_smoke_task_signature_only`. Further smoke micro-tuning is lower
+    value than preparing `light-v1` held-out shards.
 - Live B2 readiness:
   - `smoke-v1`: `9/9` expected keys present after remote args-mode shard prep
     on 2026-05-05 UTC.
@@ -87,7 +96,7 @@ progress and learnings in repo artifacts.
 | Publish smoke shards | `reports/demo/smoke_readiness_after_remote.json`, live B2 check shows `9/9` keys | Done |
 | Run smoke experiments | baseline, broad variants, focused task-signature variants, B2 artifact tarballs, local smoke scorecard | Done for smoke |
 | Find cheap remote box | `scripts/search_vast_smoke_offers.py`, `scripts/launch_remote_smoke_vast.sh`, optional `OFFER_ID` pinning | Done for smoke prep |
-| Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh` | Missing remote run |
+| Publish light shards | `docs/demo_data_manifest.yaml`, `scripts/run_remote_shard_prep_b2.sh`; shard-prep script accepts launcher `KEY=VALUE` args | Ready to launch |
 | Run persistence baseline | `persistence_smoke_v1_test`, B2 artifact tarball, local smoke scorecard | Done for smoke, light pending |
 | Run UPS candidate | `ups_smoke_task_signature_only` is best smoke UPS row; baseline comparison columns show persistence still wins | Done for smoke, light pending |
 | Build demo report | `reports/demo/smoke_latest/index.html`, `metrics.tsv`, `scorecard.json` | Done for smoke with baseline, light pending |

@@ -143,6 +143,34 @@ Experiment loop update (2026-05-05, focused task-signature smoke matrix):
 - Next hypothesis:
   - test decoded fine-tuning and reconstruction-weight probes under the same task-signature conditioning before changing data scale
 
+Experiment loop update (2026-05-05, decoded/reconstruction smoke matrix):
+- Branch:
+  - continued on `codex/smoke-focused-variants`
+  - commit before launch: `4376658`
+- Remote execution:
+  - provider: Vast.ai RTX 4090 instance at roughly `$0.249/hr`
+  - instance was destroyed after artifact publication; `vastai show instances --raw` returned an empty list
+  - B2 artifact: `remote-runs/smoke/smoke_decoded_variants_20260505T0621Z.tar.gz`
+- Results:
+  - previous best task signature only: `0.4793234406026068`
+  - task signature + joint 16: `0.5951420314812053`
+  - task signature + operator_decoded 4: `0.6698199513986969`
+  - task signature + operator_decoded 4 + joint 16: `0.705799969920023`
+  - task signature + reconstruction loss disabled: `0.6537664796371954`
+- Interpretation:
+  - No decoded/reconstruction smoke probe improved on the best task-signature row.
+  - More frozen-codec decoded fine-tuning actively regressed rollout and Darcy.
+  - Further smoke-only hyperparameter search is now lower value than preparing held-out `light-v1` shards.
+
+Experiment loop update (2026-05-05, light shard-prep launch fix):
+- Fixed:
+  - `scripts/run_remote_shard_prep_b2.sh` now accepts `KEY=VALUE` CLI assignments like the smoke pipeline.
+- Validation:
+  - `pytest tests/unit/test_remote_shard_prep.py -q`
+  - `bash -n scripts/run_remote_shard_prep_b2.sh`
+- Purpose:
+  - allow `scripts/vast_launch.py --remote-script scripts/run_remote_shard_prep_b2.sh --script-args "DRY_RUN=0 ..."` to launch held-out `light-v1` prep without a custom wrapper.
+
 Experiment loop update (2026-04-15):
 - Objective metric:
   - `decoded_rollout_nrmse` on decoded multitask joint runs from `scripts/run_light_experiment.py`
