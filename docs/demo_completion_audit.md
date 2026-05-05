@@ -67,7 +67,7 @@ Dry-run Vast launch wrapper:
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=1 \
-GIT_REF=codex/vast-offer-id-launch \
+GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 ORDER=dph_total \
 LIMIT=10 \
@@ -79,7 +79,7 @@ Pin a reviewed Vast offer ID instead of re-running implicit launch search:
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=1 \
-GIT_REF=codex/vast-offer-id-launch \
+GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 OFFER_ID=<offer_id_from_search> \
 bash scripts/launch_remote_smoke_vast.sh
@@ -109,6 +109,10 @@ The pipeline refuses live smoke experiment execution when `CHECK_B2=1` and
 It also refuses unchecked live queue execution when `CHECK_B2=0` unless
 `ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set for a controlled test
 environment.
+
+Vast launch note: use `codex/vast-no-apt-onstart` or later for remote launches.
+Earlier launch attempts reached paid instances but stalled in onstart
+`apt-get update` before repo checkout.
 
 Before tearing down the remote box:
 

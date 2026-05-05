@@ -52,6 +52,9 @@ def test_vast_launch_dry_run_redacts_secret_values():
     assert "B2_APP_KEY=<redacted>" in proc.stdout
     assert "WANDB_API_KEY=<redacted>" in proc.stdout
     assert "-o dph_total --limit 5" in proc.stdout
+    assert "apt-get" not in proc.stdout
+    assert "rclone-current-linux-amd64.zip" in proc.stdout
+    assert "codeload.github.com" in proc.stdout
 
 
 def test_vast_launch_offer_id_uses_create_instance():

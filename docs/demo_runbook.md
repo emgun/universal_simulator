@@ -87,6 +87,9 @@ Apply or merge in this order if working from `main`:
 29. `codex/vast-offer-id-launch`
     - optional `OFFER_ID` pinning for a reviewed Vast search result
     - uses `vastai create instance <offer_id>` instead of implicit launch search
+30. `codex/vast-no-apt-onstart`
+    - avoids `apt-get` in Vast onstart after setup stalls on Ubuntu mirrors
+    - downloads `rclone` directly and falls back to a GitHub branch zip when `git` is unavailable
 
 ## Current Evidence
 
@@ -246,7 +249,7 @@ values:
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=1 \
-GIT_REF=codex/vast-offer-id-launch \
+GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 ORDER=dph_total \
 LIMIT=10 \
@@ -268,7 +271,7 @@ instead of letting `vastai launch instance` re-run the search at launch time:
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=1 \
-GIT_REF=codex/vast-offer-id-launch \
+GIT_REF=codex/vast-no-apt-onstart \
 DISK_GB=32 \
 OFFER_ID=<offer_id_from_search> \
 bash scripts/launch_remote_smoke_vast.sh
