@@ -650,3 +650,11 @@ Experiment loop update (2026-05-04, remote smoke pipeline branch):
   - provide one remote-safe orchestration command for smoke shard readiness, shard prep, queue generation, and optional smoke experiment execution
   - keep defaults safe: dry-run shard prep, dry-run generated queue, and `RUN_EXPERIMENTS=0`
   - preserve readiness JSON, prep logs, queue artifacts, and optional queue run logs under `reports/demo/remote_smoke_pipeline`
+
+Experiment loop update (2026-05-04, safe smoke queue default branch):
+- Branch:
+  - created `codex/safe-smoke-queue-default` from `codex/remote-smoke-pipeline`
+- Fixed:
+  - `scripts/run_remote_smoke_pipeline.sh` now keeps generated smoke queue commands at `DRY_RUN=1` by default, even when shard prep uses `DRY_RUN=0`
+- Purpose:
+  - prevent an operator from publishing shards and accidentally generating live training commands without explicitly setting `QUEUE_DRY_RUN=0`

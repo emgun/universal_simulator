@@ -8,8 +8,9 @@ set -euo pipefail
 # 4. Optionally run that queue when RUN_EXPERIMENTS=1.
 #
 # Defaults are safe: dry-run shard prep, dry-run generated queue, and no
-# training. Set DRY_RUN=0 RUN_EXPERIMENTS=1 only on a remote box with enough
-# scratch space and after reviewing the generated queue.
+# training. Set DRY_RUN=0 to publish shards. Set RUN_EXPERIMENTS=1 and
+# QUEUE_DRY_RUN=0 only on a remote box with enough scratch space and after
+# reviewing the generated queue.
 
 ENV_FILE=${ENV_FILE:-.env}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
@@ -21,7 +22,7 @@ OUTPUT_ROOT=${OUTPUT_ROOT:-reports/light_experiments_remote}
 PREP_SHARDS=${PREP_SHARDS:-1}
 RUN_EXPERIMENTS=${RUN_EXPERIMENTS:-0}
 DRY_RUN=${DRY_RUN:-1}
-QUEUE_DRY_RUN=${QUEUE_DRY_RUN:-$DRY_RUN}
+QUEUE_DRY_RUN=${QUEUE_DRY_RUN:-1}
 RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-ups}
 CHECK_B2=${CHECK_B2:-1}
 

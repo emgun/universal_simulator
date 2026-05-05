@@ -34,3 +34,29 @@ def test_remote_smoke_pipeline_generates_queue_without_b2_or_training(tmp_path):
     assert (queue_dir / "run_smoke_queue.sh").exists()
     assert "ups_smoke_current_best" in (queue_dir / "run_smoke_queue.sh").read_text(encoding="utf-8")
     assert "ups_smoke_no_conditioning" in (queue_dir / "run_smoke_queue.sh").read_text(encoding="utf-8")
+
+
+def test_remote_smoke_pipeline_keeps_queue_dry_run_when_prep_is_live(tmp_path):
+    env = os.environ.copy()
+    env.update(
+        {
+            "CHECK_B2": "0",
+            "PREP_SHARDS": "0",
+            "RUN_EXPERIMENTS": "0",
+            "DRY_RUN": "0",
+            "PIPELINE_ROOT": str(tmp_path / "pipeline"),
+            "QUEUE_VARIANTS": "current_best",
+        }
+    )
+
+    subprocess.run(
+        ["bash", "scripts/run_remote_smoke_pipeline.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    queue_script = (tmp_path / "pipeline" / "queue" / "run_smoke_queue.sh").read_text(encoding="utf-8")
+    assert "DRY_RUN=1" in queue_script
+    assert "RUN_NAME=ups_smoke_current_best" in queue_script
