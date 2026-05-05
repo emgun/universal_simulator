@@ -4,6 +4,7 @@ import json
 
 from ups.eval.demo_scorecard import (
     collect_scorecard,
+    load_cost_index,
     render_scorecard_html,
     write_scorecard_json,
     write_scorecard_tsv,
@@ -84,3 +85,59 @@ def test_write_scorecard_plots_and_embed_html(tmp_path):
     assert (tmp_path / "report" / plots["decoded_rollout_nrmse"]).exists()
     assert "Metric Plots" in html
     assert "plots/decoded_rollout_nrmse.png" in html
+
+
+def test_collect_scorecard_includes_optional_cost_json(tmp_path):
+    summary = tmp_path / "run_a" / "summary.json"
+    cost_json = tmp_path / "run_a" / "cost.json"
+    _write_summary(summary, run_name="run_a", decoded_rollout_nrmse=0.8)
+    cost_json.write_text(
+        json.dumps(
+            {
+                "run_name": "run_a",
+                "provider": "vast",
+                "instance_type": "rtx4090-spot",
+                "gpu_type": "RTX 4090",
+                "gpu_count": 1,
+                "wall_clock_hours": 0.5,
+                "hourly_usd": 0.35,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    scorecard = collect_scorecard([summary], cost_paths=[cost_json])
+    row = scorecard.rows[0]
+
+    assert row["cost_provider"] == "vast"
+    assert row["cost_instance_type"] == "rtx4090-spot"
+    assert row["cost_gpu_hours"] == 0.5
+    assert row["cost_estimated_usd"] == 0.175
+
+    tsv_path = tmp_path / "metrics.tsv"
+    write_scorecard_tsv(scorecard, tsv_path)
+    assert "cost_estimated_usd" in tsv_path.read_text(encoding="utf-8")
+
+
+def test_load_cost_index_supports_aggregate_runs_file(tmp_path):
+    cost_json = tmp_path / "costs.json"
+    cost_json.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {
+                        "run_name": "run_a",
+                        "summary_json": "/tmp/run_a/summary.json",
+                        "provider": "runpod",
+                        "estimated_usd": 1.25,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cost_index = load_cost_index([cost_json])
+
+    assert cost_index["run_a"]["provider"] == "runpod"
+    assert cost_index["/tmp/run_a/summary.json"]["estimated_usd"] == 1.25

@@ -491,3 +491,14 @@ Experiment loop update (2026-05-04, demo runbook handoff branch):
   - state keep/discard and stop rules for the morning continuation
 - README:
   - added a Quickstart pointer to `docs/demo_runbook.md`
+
+Experiment loop update (2026-05-04, demo cost tracking branch):
+- Branch:
+  - created `codex/demo-cost-tracking` from `codex/demo-runbook-handoff`
+- Added:
+  - optional `--cost-json` inputs for `scripts/collect_light_results.py`
+  - optional `--cost-json` inputs for `scripts/build_demo_report.py`
+- Purpose:
+  - track remote experiment provider, instance, GPU type/count, wall-clock hours, GPU hours, and estimated USD
+  - keep cost accounting outside the training runner so cheap remote runs can be compared without coupling to one cloud provider
+  - make morning iteration decisions metric-aware and spend-aware

@@ -48,6 +48,12 @@ def main() -> None:
     parser.add_argument("--data-manifest", default="")
     parser.add_argument("--commit", default=None, help="Commit SHA to record; defaults to current HEAD")
     parser.add_argument("--promotion-rule", action="append", default=[])
+    parser.add_argument(
+        "--cost-json",
+        action="append",
+        default=[],
+        help="Optional cost.json files keyed by run_name or summary_json",
+    )
     parser.add_argument("--copy-summaries", action="store_true", help="Copy input summaries into output-dir/summaries")
     args = parser.parse_args()
 
@@ -59,6 +65,7 @@ def main() -> None:
         data_manifest=args.data_manifest or None,
         commit=args.commit if args.commit is not None else _git_commit(),
         promotion_rules=args.promotion_rule,
+        cost_paths=args.cost_json,
     )
 
     write_scorecard_tsv(scorecard, output_dir / "metrics.tsv")

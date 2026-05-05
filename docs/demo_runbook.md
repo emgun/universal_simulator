@@ -195,12 +195,32 @@ python scripts/run_persistence_baseline.py \
 
 ## Step 6: Build Demo Report
 
+Optional per-run cost files can be passed with `--cost-json`. The report will
+match records by `run_name` or `summary_json` and compute `cost_gpu_hours` and
+`cost_estimated_usd` when possible.
+
+Example `cost.json`:
+
+```json
+{
+  "run_name": "ups_light_v1_current_best",
+  "provider": "vast",
+  "instance_type": "rtx4090-spot",
+  "gpu_type": "RTX 4090",
+  "gpu_count": 1,
+  "wall_clock_hours": 1.5,
+  "hourly_usd": 0.35
+}
+```
+
 ```bash
 python scripts/build_demo_report.py \
   --glob "reports/light_experiments_remote/*/summary.json" \
   --output-dir reports/demo/latest \
   --title "UPS Light-v1 Demo Scorecard" \
   --data-manifest docs/demo_data_manifest.yaml \
+  --cost-json reports/light_experiments_remote/ups_light_v1_current_best/cost.json \
+  --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json \
   --promotion-rule "decoded_rollout_nrmse<=1.0" \
   --copy-summaries
 ```
@@ -237,4 +257,3 @@ Stop and ask before:
 - running any full-data benchmark
 - spending beyond light/medium cost tier
 - making SOTA claims
-

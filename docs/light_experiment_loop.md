@@ -313,6 +313,30 @@ python scripts/check_demo_b2_shards.py \
   --env-file /Users/emerygunselman/Code/universal_simulator/.env
 ```
 
+After remote runs, record cheap resource metadata beside each `summary.json`:
+
+```json
+{
+  "run_name": "ups_light_v1_current_best",
+  "provider": "vast",
+  "instance_type": "rtx4090-spot",
+  "gpu_type": "RTX 4090",
+  "gpu_count": 1,
+  "wall_clock_hours": 1.5,
+  "hourly_usd": 0.35
+}
+```
+
+Then include those files in the demo report:
+
+```bash
+python scripts/build_demo_report.py \
+  --glob "reports/light_experiments_remote/*/summary.json" \
+  --output-dir reports/demo/latest \
+  --cost-json reports/light_experiments_remote/ups_light_v1_current_best/cost.json \
+  --cost-json reports/light_experiments_remote/persistence_light_v1_test/cost.json
+```
+
 Vast.ai dry-run launch for the light promotion path:
 
 ```bash
