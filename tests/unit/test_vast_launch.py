@@ -24,6 +24,10 @@ def test_vast_launch_dry_run_redacts_secret_values():
             "bucket",
             "--wandb-api-key",
             "secret-wandb-key",
+            "--order",
+            "dph_total",
+            "--limit",
+            "5",
         ],
         check=True,
         capture_output=True,
@@ -36,3 +40,4 @@ def test_vast_launch_dry_run_redacts_secret_values():
     assert "B2_KEY_ID=<redacted>" in proc.stdout
     assert "B2_APP_KEY=<redacted>" in proc.stdout
     assert "WANDB_API_KEY=<redacted>" in proc.stdout
+    assert "-o dph_total --limit 5" in proc.stdout

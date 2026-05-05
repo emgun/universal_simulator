@@ -753,3 +753,12 @@ Experiment loop update (2026-05-04, final remote launch audit branch):
 - Purpose:
   - refresh canonical handoff docs with the safe Vast smoke launcher and Vast offer summary branches
   - mark cheap remote discovery as ready but not launched
+
+Experiment loop update (2026-05-04, Vast cheap launch order branch):
+- Branch:
+  - created `codex/vast-cheap-launch-order` from `codex/final-remote-launch-audit`
+- Updated:
+  - `scripts/vast_launch.py` supports `--order` and `--limit` for `vastai launch instance`
+  - `scripts/launch_remote_smoke_vast.sh` defaults to `ORDER=dph_total` and `LIMIT=10`
+- Purpose:
+  - make the dry-run-first smoke launcher prefer cheap RTX 4090 offers instead of Vast's default score ordering

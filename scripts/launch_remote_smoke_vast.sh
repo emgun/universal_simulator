@@ -12,6 +12,8 @@ GIT_REF=${GIT_REF:-$(git rev-parse --abbrev-ref HEAD)}
 DISK_GB=${DISK_GB:-32}
 GPU=${GPU:-RTX_4090}
 NUM_GPUS=${NUM_GPUS:-1}
+ORDER=${ORDER:-dph_total}
+LIMIT=${LIMIT:-10}
 WORKDIR=${WORKDIR:-/workspace}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_smoke_pipeline.sh}
@@ -56,6 +58,8 @@ args=(
   --gpu "$GPU"
   --num-gpus "$NUM_GPUS"
   --disk "$DISK_GB"
+  --order "$ORDER"
+  --limit "$LIMIT"
   --git-ref "$GIT_REF"
   --workdir "$WORKDIR"
   --remote-script "$REMOTE_SCRIPT"

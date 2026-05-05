@@ -208,6 +208,10 @@ def cmd_launch(args: argparse.Namespace) -> None:
     ]
     if args.region:
         cmd.extend(["-r", args.region])
+    if args.order:
+        cmd.extend(["-o", args.order])
+    if args.limit is not None:
+        cmd.extend(["--limit", str(args.limit)])
     if env_str:
         cmd.extend(["--env", env_str])
     cmd.extend(["--ssh", "--onstart", str(onstart)])
@@ -236,6 +240,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--image", default="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime", help="Docker image")
     p_launch.add_argument("--disk", type=int, default=64, help="Disk in GB")
     p_launch.add_argument("--region", help="Region filter for launch instance")
+    p_launch.add_argument("--order", help="Vast launch offer ordering, e.g. dph_total")
+    p_launch.add_argument("--limit", type=int, help="Limit launch search candidates")
     p_launch.add_argument("--datasets", default=os.environ.get("WANDB_DATASETS"), help="WANDB_DATASETS value to pass to training")
     p_launch.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT"), help="WANDB project name")
     p_launch.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY"), help="WANDB entity name")

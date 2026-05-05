@@ -41,3 +41,4 @@ def test_launch_remote_smoke_vast_dry_run_redacts_env_file_secrets(tmp_path):
     assert "secret-app-key" not in proc.stdout
     assert "scripts/run_remote_smoke_pipeline.sh DRY_RUN=0 ENV_FILE=.env" in proc.stdout
     assert "B2_KEY_ID=<redacted>" in proc.stdout
+    assert "-o dph_total --limit 10" in proc.stdout
