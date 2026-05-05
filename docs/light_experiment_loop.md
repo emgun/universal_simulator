@@ -300,16 +300,7 @@ For smoke-only preparation, source-key overrides can avoid hydrating the
 largest native source files when a smaller shard already exists:
 
 ```bash
-DRY_RUN=1 \
-VERSION=smoke-v1 \
-MANIFEST=docs/demo_smoke_data_manifest.yaml \
-TRAIN_COUNT=8 \
-VAL_COUNT=4 \
-TEST_COUNT=4 \
-TASKS=burgers1d \
-BURGERS1D_SOURCE_SPLITS=train \
-BURGERS1D_TRAIN_SOURCE_KEYS=burgers1d/burgers1d_train_000.h5 \
-bash scripts/run_remote_shard_prep_b2.sh
+DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
 ```
 
 This is only a plumbing shortcut. It intentionally derives smoke validation and

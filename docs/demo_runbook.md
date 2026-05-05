@@ -158,16 +158,7 @@ keys and derive smoke validation/test from the same small source. Do not use
 this shortcut for benchmark claims.
 
 ```bash
-DRY_RUN=1 \
-VERSION=smoke-v1 \
-MANIFEST=docs/demo_smoke_data_manifest.yaml \
-TRAIN_COUNT=8 \
-VAL_COUNT=4 \
-TEST_COUNT=4 \
-TASKS=burgers1d \
-BURGERS1D_SOURCE_SPLITS=train \
-BURGERS1D_TRAIN_SOURCE_KEYS=burgers1d/burgers1d_train_000.h5 \
-bash scripts/run_remote_shard_prep_b2.sh
+DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
 ```
 
 ## Step 3: Run Remote Shard Prep

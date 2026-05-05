@@ -575,3 +575,13 @@ Experiment loop update (2026-05-04, hardened B2 fetcher branch):
 - Purpose:
   - prevent remote shard prep from treating missing B2 keys as found
   - align the fetcher with the earlier `scripts/check_demo_b2_shards.py` lesson that `rclone lsjson` success alone is not enough
+
+Experiment loop update (2026-05-04, smoke shard prep wrapper branch):
+- Branch:
+  - created `codex/smoke-shard-prep-wrapper` from `codex/harden-b2-fetcher`
+- Added:
+  - `scripts/run_smoke_shard_prep_b2.sh`
+- Purpose:
+  - provide one dry-run-default command for plumbing-only smoke shard prep
+  - use the known small Burgers train source by default
+  - keep benchmark-safe `light-v1` shard prep separate from smoke shortcuts
