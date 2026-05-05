@@ -564,3 +564,14 @@ Experiment loop update (2026-05-04, smoke manifest readiness branch):
   - keep smoke manifests explicitly labeled as plumbing-only, not benchmark evidence
   - document smoke readiness commands separately from held-out light readiness commands
   - require live `--check-b2` in the smoke readiness examples before remote launch decisions
+
+Experiment loop update (2026-05-04, hardened B2 fetcher branch):
+- Branch:
+  - created `codex/harden-b2-fetcher` from `codex/smoke-manifest-readiness`
+- Added:
+  - `tests/unit/test_fetch_datasets_b2.py`
+- Fixed:
+  - `scripts/fetch_datasets_b2.sh` now requires `rclone lsjson` to return a non-empty JSON list before treating a candidate as present
+- Purpose:
+  - prevent remote shard prep from treating missing B2 keys as found
+  - align the fetcher with the earlier `scripts/check_demo_b2_shards.py` lesson that `rclone lsjson` success alone is not enough

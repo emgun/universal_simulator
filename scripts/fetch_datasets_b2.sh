@@ -165,6 +165,16 @@ fetch_directory() {
   rclone copy "$remote_path" "$destination" --create-empty-src-dirs
 }
 
+remote_lsjson_has_entries() {
+  local mode="$1"
+  local remote_path="$2"
+  local payload
+  if ! payload="$(rclone lsjson "$mode" "$remote_path" 2>/dev/null)"; then
+    return 1
+  fi
+  python -c 'import json,sys; data=json.loads(sys.stdin.read() or "[]"); sys.exit(0 if isinstance(data, list) and len(data) > 0 else 1)' <<< "$payload"
+}
+
 download_dataset() {
   local key="$1"
   local remote_root="$2"
@@ -182,12 +192,12 @@ download_dataset() {
     local remote_candidate="$remote_root"
     [ -n "$candidate" ] && remote_candidate="${remote_candidate}/${candidate}"
 
-    if rclone lsjson --files-only "$remote_candidate" >/dev/null 2>&1; then
+    if remote_lsjson_has_entries --files-only "$remote_candidate"; then
       fetch_file "$remote_candidate" "$DATA_ROOT"
       return 0
     fi
 
-    if rclone lsjson --dirs-only "$remote_candidate" >/dev/null 2>&1; then
+    if remote_lsjson_has_entries --dirs-only "$remote_candidate"; then
       fetch_directory "$remote_candidate" "$DATA_ROOT/$key"
       return 0
     fi
