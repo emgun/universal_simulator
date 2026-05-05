@@ -29,6 +29,10 @@ apply_cli_assignments() {
 
 apply_cli_assignments "$@"
 
+normalize_list() {
+  echo "$1" | tr ',' ' '
+}
+
 ENV_FILE=${ENV_FILE:-.env}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
 SMOKE_MANIFEST=${SMOKE_MANIFEST:-docs/demo_smoke_data_manifest.yaml}
@@ -171,7 +175,7 @@ if [ "$RUN_EXPERIMENTS" -eq 1 ] && [ "$QUEUE_DRY_RUN" -eq 0 ] && [ "$CHECK_B2" -
 fi
 
 variant_args=()
-for variant in $QUEUE_VARIANTS; do
+for variant in $(normalize_list "$QUEUE_VARIANTS"); do
   variant_args+=(--variant "$variant")
 done
 
