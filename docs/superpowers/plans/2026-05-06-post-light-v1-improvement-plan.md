@@ -269,3 +269,26 @@ bash scripts/run_remote_light_promotion.sh
 Promotion remains unchanged: do not scale until held-out `decoded_rollout_nrmse`
 beats `persistence_light_v1_test` by at least 20% or produces a clearly
 documented task-level reason to revise the gate.
+
+## Remote Result: `task_signature_trained_residual`
+
+- Vast contract: `36250467`
+- B2 artifact: `remote-runs/light/ups_light_trained_residual_20260506T1755Z.tar.gz`
+- Local summary: `reports/light_experiments_remote/ups_light_task_signature_trained_residual/summary.json`
+- W&B runs: `4wps03re`, `u76hpryu`, `kv2z579u`, `quw7vz35`, `3dr2jyfa`
+- Benchmark-summary W&B run: `3dr2jyfa`
+- Decoded rollout NRMSE: `0.530536668470072`
+- Persistence baseline decoded rollout NRMSE: `0.5701633411507036`
+- Baseline ratio: `0.9304994379318442`
+- Baseline improvement fraction: `0.06950056206815583`
+- Gate result: absolute promotion passed, 20% baseline-improvement gate failed.
+- Task decoded rollout NRMSE:
+  - Burgers: `0.21524346565356076`
+  - Advection: `0.7362082121022959`
+  - Darcy: `0.27036938921296805`
+
+Interpretation: this is the new best held-out `light-v1` candidate and validates
+the trained residual/stability direction, but it is not demo-ready. The failure
+is now concentrated in the transport/advection family, so the next queue should
+test transport-specific conditioning/loss scaling or a per-family residual gate
+instead of increasing the global residual weight.

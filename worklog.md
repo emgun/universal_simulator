@@ -994,3 +994,31 @@ Experiment loop update (2026-05-06, trained residual iteration surface):
 - Purpose:
   - make W&B contain the benchmark truth, not only training curves
   - move the next paid light-v1 candidate from scalar eval blending to a trained persistence-residual/stability objective
+
+Experiment loop update (2026-05-06, trained residual remote result):
+- Remote run:
+  - successful Vast contract: `36250467`
+  - pinned offer: `36109890`, RTX 4090, California, US, about `$0.268/hr`
+  - B2 artifact: `remote-runs/light/ups_light_trained_residual_20260506T1755Z.tar.gz`
+  - local extracted artifact: `reports/demo/remote_artifacts/ups_light_trained_residual_20260506T1755Z/`
+  - local summary copy: `reports/light_experiments_remote/ups_light_task_signature_trained_residual/summary.json`
+  - rebuilt scorecard: `reports/demo/light_latest/scorecard.json`
+- W&B:
+  - tracked completed run set: `4wps03re`, `u76hpryu`, `kv2z579u`, `quw7vz35`, `3dr2jyfa`
+  - `3dr2jyfa` is the new `benchmark-summary` run containing final benchmark metrics
+  - destroyed the instance after artifact publication because the Vast `--args-mode` container restarted the entrypoint
+- Metrics:
+  - trained residual decoded rollout NRMSE: `0.530536668470072`
+  - persistence decoded rollout NRMSE: `0.5701633411507036`
+  - previous best alpha25 decoded rollout NRMSE: `0.5486869325531744`
+  - previous UPS light decoded rollout NRMSE: `0.8881691012411048`
+  - baseline metric delta: `-0.03962667268063158`
+  - baseline ratio: `0.9304994379318442`
+  - baseline improvement fraction: `0.06950056206815583`
+  - baseline improvement gate: `false`
+  - decoded rollout spectral energy error: `4.541018111181074`
+  - absolute promotion rule `decoded_rollout_nrmse<=1.0`: `true`
+- Interpretation:
+  - trained residual/stability loss produced another real improvement and is now the best held-out light-v1 candidate
+  - the improvement is still only about `6.95%` over persistence, below the `20%` demo gate
+  - task metrics show Burgers and Darcy are strong (`0.2152`, `0.2704`) while Advection remains the main failure (`0.7362`), so the next iteration should isolate transport/advection rather than globally increase residual loss weights
