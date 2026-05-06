@@ -73,6 +73,29 @@ def _spectral_energy_loss(pred: torch.Tensor, target: torch.Tensor, dim: int = 1
     return torch.abs(pred_energy - tgt_energy) / (tgt_energy + eps)
 
 
+def _decoded_field_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    previous: torch.Tensor,
+    *,
+    stage_cfg: Dict[str, Any],
+) -> torch.Tensor:
+    loss = F.mse_loss(pred, target)
+    residual_weight = float(stage_cfg.get("lambda_persistence_residual", 0.0) or 0.0)
+    if residual_weight > 0.0:
+        loss = loss + residual_weight * F.mse_loss(pred - previous, target - previous)
+    spectral_weight = float(stage_cfg.get("lambda_spectral", 0.0) or 0.0)
+    if spectral_weight > 0.0:
+        loss = loss + spectral_weight * _spectral_energy_loss(pred, target, dim=1)
+    residual_spectral_weight = float(stage_cfg.get("lambda_persistence_residual_spectral", 0.0) or 0.0)
+    if residual_spectral_weight > 0.0:
+        loss = loss + residual_spectral_weight * _spectral_energy_loss(pred - previous, target - previous, dim=1)
+    relative_weight = float(stage_cfg.get("lambda_relative", 0.0) or 0.0)
+    if relative_weight > 0.0:
+        loss = loss + relative_weight * _nrmse(pred, target)
+    return loss
+
+
 def load_config(path: str) -> dict:
     try:
         from ups.utils.config_loader import load_config_with_includes
@@ -1050,7 +1073,14 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                         state = LatentState(z=state.z, t=state.t, cond=cond)
                         state = operator(state, dt_tensor)
                         decoded = decoder(coords_batch, state.z, conditioning={})
-                        decoded_losses.append(F.mse_loss(decoded[field_name], targets[:, step]))
+                        decoded_losses.append(
+                            _decoded_field_loss(
+                                decoded[field_name],
+                                targets[:, step],
+                                targets[:, step - 1],
+                                stage_cfg=stage_cfg,
+                            )
+                        )
                     if not decoded_losses:
                         continue
                     sample_loss = decoded_losses[0]
@@ -1118,7 +1148,14 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                 state = LatentState(z=state.z, t=state.t, cond=cond)
                 state = operator(state, dt_tensor)
                 decoded = decoder(coords_batch, state.z, conditioning={})
-                decoded_losses.append(F.mse_loss(decoded[field_name], targets[:, step]))
+                decoded_losses.append(
+                    _decoded_field_loss(
+                        decoded[field_name],
+                        targets[:, step],
+                        targets[:, step - 1],
+                        stage_cfg=stage_cfg,
+                    )
+                )
 
             if not decoded_losses:
                 continue
@@ -1285,7 +1322,14 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                 state = LatentState(z=state.z, t=state.t, cond=cond)
                                 state = operator(state, dt_tensor)
                                 decoded = decoder(coords_batch, state.z, conditioning={})
-                                decoded_losses.append(F.mse_loss(decoded[field_name], targets[:, step]))
+                                decoded_losses.append(
+                                    _decoded_field_loss(
+                                        decoded[field_name],
+                                        targets[:, step],
+                                        targets[:, step - 1],
+                                        stage_cfg=stage_cfg,
+                                    )
+                                )
 
                             if decoded_losses:
                                 losses.append(decoded_losses[0])
@@ -1368,7 +1412,14 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         state = LatentState(z=state.z, t=state.t, cond=cond)
                         state = operator(state, dt_tensor)
                         decoded = decoder(coords_batch, state.z, conditioning={})
-                        decoded_losses.append(F.mse_loss(decoded[field_name], targets[:, step]))
+                        decoded_losses.append(
+                            _decoded_field_loss(
+                                decoded[field_name],
+                                targets[:, step],
+                                targets[:, step - 1],
+                                stage_cfg=stage_cfg,
+                            )
+                        )
 
                     if decoded_losses:
                         losses.append(decoded_losses[0])

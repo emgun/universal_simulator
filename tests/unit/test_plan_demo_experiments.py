@@ -118,3 +118,23 @@ def test_task_signature_residual_variants_add_eval_blend_override():
     ]
     assert "evaluation.decoded_persistence_residual_alpha=0.25" in rows[0]["light_extra_args"]
     assert "evaluation.decoded_persistence_residual_alpha=0.5" in rows[1]["light_extra_args"]
+
+
+def test_task_signature_trained_residual_variant_adds_training_losses():
+    rows = build_rows(
+        tier="light",
+        variants=["task_signature_trained_residual"],
+        train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+        tasks="burgers1d,advection1d,darcy2d",
+        output_root="reports/light_experiments_remote",
+        eval_split="test",
+        stages="operator,decoder,operator_decoded,joint_codec_operator",
+        run_prefix="ups",
+        remote_b2_prefix=None,
+        required_gb=None,
+    )
+
+    assert rows[0]["variant"] == "task_signature_trained_residual"
+    assert "stages.operator_decoded.lambda_persistence_residual=0.5" in rows[0]["light_extra_args"]
+    assert "stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05" in rows[0]["light_extra_args"]
+    assert "evaluation.decoded_persistence_residual_alpha=0.25" in rows[0]["light_extra_args"]

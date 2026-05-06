@@ -148,6 +148,55 @@ def test_run_light_experiment_can_reuse_checkpoints_for_eval_only(tmp_path, monk
     assert "metrics" in summary
 
 
+def test_run_light_experiment_logs_benchmark_summary_to_wandb(tmp_path, monkeypatch):
+    output_root = tmp_path / "light_runs"
+    logged_payloads = []
+
+    class FakeSession:
+        metadata = {"id": "summary123", "url": "https://wandb.ai/entity/project/runs/summary123"}
+
+        def log(self, payload):
+            logged_payloads.append(payload)
+
+        def finish(self):
+            pass
+
+    def fake_init_monitoring_session(cfg, *, component, file_path=None):
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        with (Path(file_path).parent / "wandb_runs.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"component": component, "id": "summary123", "url": FakeSession.metadata["url"]}) + "\n")
+        return FakeSession()
+
+    monkeypatch.setattr(runner_script, "init_monitoring_session", fake_init_monitoring_session)
+    monkeypatch.setattr(train_script, "init_monitoring_session", fake_init_monitoring_session)
+    args = [
+        "run_light_experiment",
+        "--config",
+        "configs/train_burgers_light_operator.yaml",
+        "--eval-config",
+        "configs/eval_burgers_light_proxy.yaml",
+        "--name",
+        "wandb_summary",
+        "--output-root",
+        str(output_root),
+        "--bootstrap-synthetic",
+        "--device",
+        "cpu",
+        "--allow-wandb",
+        "--wandb-project",
+        "universal-simulator",
+    ]
+    monkeypatch.setattr(sys, "argv", args)
+
+    runner_script.main()
+
+    summary = json.loads((output_root / "wandb_summary" / "summary.json").read_text(encoding="utf-8"))
+    assert logged_payloads
+    assert "summary/mse" in logged_payloads[-1]
+    assert summary["tracking"]["wandb"]["run_count"] >= 1
+    assert "summary123" in [run["id"] for run in summary["tracking"]["wandb"]["runs"]]
+
+
 def test_bootstrap_synthetic_2d_scalar_keeps_channel_dim(tmp_path):
     root = tmp_path / "synthetic"
     runner_script.bootstrap_synthetic_pdebench(

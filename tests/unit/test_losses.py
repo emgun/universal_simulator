@@ -13,6 +13,7 @@ from ups.training.losses import (
     semigroup_consistency_loss,
     spectral_loss,
 )
+from scripts.train import _decoded_field_loss
 
 
 def test_individual_losses_shapes():
@@ -89,3 +90,19 @@ def test_compute_loss_bundle():
 def test_semigroup_consistency_rejects_shape_mismatch():
     with pytest.raises(ValueError):
         semigroup_consistency_loss(torch.randn(2, 3), torch.randn(2, 4))
+
+
+def test_decoded_field_loss_can_weight_persistence_residual():
+    previous = torch.zeros(1, 4, 1)
+    target = torch.ones(1, 4, 1)
+    pred = torch.full((1, 4, 1), 0.5)
+
+    base = _decoded_field_loss(pred, target, previous, stage_cfg={})
+    residual = _decoded_field_loss(
+        pred,
+        target,
+        previous,
+        stage_cfg={"lambda_persistence_residual": 1.0},
+    )
+
+    assert residual > base

@@ -11,7 +11,9 @@ Mutable files:
 - `scripts/run_light_experiment.py`
 - `scripts/run_remote_light_promotion.sh`
 - `scripts/collect_wandb_runs.py`
+- `scripts/train.py`
 - `src/ups/utils/monitoring.py`
+- `scripts/plan_demo_experiments.py`
 - `src/ups/eval/demo_scorecard.py`
 - `docs/demo_runbook.md`
 - `docs/demo_completion_audit.md`
@@ -219,3 +221,51 @@ python scripts/run_light_experiment.py \
   --eval-override data.root=/path/to/light-v1 \
   --eval-override data.split=test
 ```
+
+## Implemented Next Iteration Surface
+
+The next remote candidate should be `task_signature_trained_residual`, not
+another eval-only scalar alpha sweep. The implementation now adds:
+
+- A W&B `benchmark-summary` run from `scripts/run_light_experiment.py` that logs final benchmark metrics under `summary/*`, including decoded rollout metrics when decoded evaluation is enabled.
+- Decoded training loss knobs for `operator_decoded` and `joint_codec_operator`:
+  - `lambda_persistence_residual`
+  - `lambda_persistence_residual_spectral`
+  - `lambda_spectral`
+  - `lambda_relative`
+- Planner variant `task_signature_trained_residual`, which combines task-signature conditioning, persistence-residual decoded losses, residual-spectral loss, and the current best eval blend `evaluation.decoded_persistence_residual_alpha=0.25`.
+
+Queue generation:
+
+```bash
+python scripts/plan_demo_experiments.py \
+  --tier light \
+  --variant task_signature_trained_residual \
+  --run-prefix ups \
+  --env-file /workspace/.env \
+  --output-jsonl reports/demo/trained_residual_light_queue.jsonl \
+  --output-tsv reports/demo/trained_residual_light_queue.tsv \
+  --output-sh reports/demo/run_trained_residual_light_queue.sh
+```
+
+Remote dry-run shape:
+
+```bash
+ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
+DRY_RUN=1 \
+ALLOW_WANDB=1 \
+WANDB_GROUP=light-v1-trained-residual \
+WANDB_TAGS=light-v1,trained-residual,baseline-gated \
+TASKS=burgers1d,advection1d,darcy2d \
+REMOTE_B2_PREFIX=light-v1 \
+EVAL_SPLIT=test \
+REQUIRED_GB=10 \
+STAGES=operator,decoder,operator_decoded,joint_codec_operator \
+RUN_NAME=ups_light_task_signature_trained_residual \
+LIGHT_EXTRA_ARGS="--override data.max_samples=128 --eval-override data.max_samples=32 --decoded-rollout-steps 16 --override operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15} --override stages.operator_decoded.lambda_persistence_residual=0.5 --override stages.operator_decoded.lambda_persistence_residual_spectral=0.05 --override stages.joint_codec_operator.lambda_persistence_residual=0.5 --override stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05 --override evaluation.decoded_persistence_residual_alpha=0.25" \
+bash scripts/run_remote_light_promotion.sh
+```
+
+Promotion remains unchanged: do not scale until held-out `decoded_rollout_nrmse`
+beats `persistence_light_v1_test` by at least 20% or produces a clearly
+documented task-level reason to revise the gate.

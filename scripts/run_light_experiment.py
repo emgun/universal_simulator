@@ -29,6 +29,7 @@ from scripts import train as train_script
 from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
 from ups.eval.promotion import evaluate_promotion_rules, parse_promotion_rule, promotion_rules_from_config
 from ups.utils.config_loader import load_config_with_includes
+from ups.utils.monitoring import init_monitoring_session
 
 
 STAGE_FUNCTIONS = {
@@ -233,6 +234,51 @@ def _tracking_payload(
             "runs": runs,
         }
     }
+
+
+def _summary_wandb_payload(summary: Dict[str, Any]) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    for key, value in summary.get("metrics", {}).items():
+        if isinstance(value, (int, float)) and math.isfinite(float(value)):
+            payload[f"summary/{key}"] = float(value)
+    for key, value in summary.get("extra", {}).items():
+        if isinstance(value, bool):
+            payload[f"summary_extra/{key}"] = int(value)
+        elif isinstance(value, (int, float)) and math.isfinite(float(value)):
+            payload[f"summary_extra/{key}"] = float(value)
+        elif isinstance(value, str):
+            payload[f"summary_extra/{key}"] = value
+    for split, split_payload in summary.get("extra_evaluations", {}).items():
+        safe_split = _safe_artifact_name(str(split))
+        for key, value in split_payload.get("metrics", {}).items():
+            if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                payload[f"summary_{safe_split}/{key}"] = float(value)
+    payload["summary/run_name"] = str(summary.get("run_name", ""))
+    payload["summary/stages"] = ",".join(str(stage) for stage in summary.get("stages", ()))
+    payload["summary/skip_training"] = int(bool(summary.get("skip_training", False)))
+    if "duration_sec" in summary:
+        payload["summary/duration_sec"] = float(summary["duration_sec"])
+    return payload
+
+
+def _log_summary_to_wandb(
+    *,
+    allow_wandb: bool,
+    train_cfg: Dict[str, Any],
+    log_dir: Path,
+    summary: Dict[str, Any],
+) -> None:
+    if not allow_wandb or not train_cfg.get("logging", {}).get("wandb", {}).get("enabled"):
+        return
+    session = init_monitoring_session(
+        train_cfg,
+        component="benchmark-summary",
+        file_path=str(log_dir / "benchmark_summary.jsonl"),
+    )
+    try:
+        session.log(_summary_wandb_payload(summary))
+    finally:
+        session.finish()
 
 
 def _preferred_checkpoint(checkpoint_dir: Path, names: Sequence[str]) -> Path | None:
@@ -627,7 +673,6 @@ def main() -> None:
         summary["copied_checkpoints"] = [str(path) for path in copied_checkpoints]
     summary["config"] = str(train_cfg_path)
     summary["eval_config"] = str(eval_cfg_path)
-    summary["tracking"] = _tracking_payload(allow_wandb=args.allow_wandb, train_cfg=train_cfg, log_dir=log_dir)
 
     extra_evaluations: Dict[str, Any] = {}
     for split in args.extra_eval_split:
@@ -648,7 +693,6 @@ def main() -> None:
         split_summary["stages"] = stages
         split_summary["config"] = str(train_cfg_path)
         split_summary["eval_config"] = str(eval_cfg_path)
-        split_summary["tracking"] = summary["tracking"]
         split_path = run_dir / f"summary_{_safe_artifact_name(split_name)}.json"
         split_path.write_text(json.dumps(split_summary, indent=2), encoding="utf-8")
         extra_evaluations[split_name] = {
@@ -661,6 +705,19 @@ def main() -> None:
     summary["duration_sec"] = finished - started
     if extra_evaluations:
         summary["extra_evaluations"] = extra_evaluations
+
+    _log_summary_to_wandb(
+        allow_wandb=args.allow_wandb,
+        train_cfg=train_cfg,
+        log_dir=log_dir,
+        summary=summary,
+    )
+    summary["tracking"] = _tracking_payload(allow_wandb=args.allow_wandb, train_cfg=train_cfg, log_dir=log_dir)
+    for split in args.extra_eval_split:
+        split_path = run_dir / f"summary_{_safe_artifact_name(str(split))}.json"
+        split_summary = json.loads(split_path.read_text(encoding="utf-8"))
+        split_summary["tracking"] = summary["tracking"]
+        split_path.write_text(json.dumps(split_summary, indent=2), encoding="utf-8")
 
     summary_path = run_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")

@@ -149,6 +149,19 @@ VARIANTS: tuple[Variant, ...] = (
         priority=39,
     ),
     Variant(
+        name="task_signature_trained_residual",
+        description="Task-signature conditioning with decoded persistence-residual and spectral training losses.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.operator_decoded.lambda_persistence_residual=0.5",
+            "stages.operator_decoded.lambda_persistence_residual_spectral=0.05",
+            "stages.joint_codec_operator.lambda_persistence_residual=0.5",
+            "stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05",
+            "evaluation.decoded_persistence_residual_alpha=0.25",
+        ),
+        priority=40,
+    ),
+    Variant(
         name="task_signature_joint48_rollout4",
         description="Task-signature conditioning with longer joint training and rollout loss.",
         overrides=(
@@ -156,7 +169,7 @@ VARIANTS: tuple[Variant, ...] = (
             "stages.joint_codec_operator.epochs=48",
             "stages.joint_codec_operator.rollout_steps=4",
         ),
-        priority=40,
+        priority=41,
     ),
     Variant(
         name="semigroup0",

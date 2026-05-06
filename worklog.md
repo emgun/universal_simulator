@@ -982,3 +982,15 @@ Experiment loop update (2026-05-06, eval-only checkpoint reuse):
   - `git diff --check`
 - Purpose:
   - future alpha/stability probes can reuse an existing checkpoint directory instead of paying to retrain identical weights for every evaluation-only variant
+
+Experiment loop update (2026-05-06, trained residual iteration surface):
+- Added:
+  - `scripts/run_light_experiment.py` now opens a W&B `benchmark-summary` run when `--allow-wandb` is set and logs final benchmark metrics under `summary/*`.
+  - `scripts/train.py` decoded stages now accept persistence-residual, residual-spectral, spectral, and relative decoded loss weights without changing defaults.
+  - `scripts/plan_demo_experiments.py` now includes `task_signature_trained_residual`.
+  - `docs/superpowers/plans/2026-05-06-post-light-v1-improvement-plan.md` records the new queue and remote dry-run shape.
+- Validation:
+  - `pytest tests/unit/test_light_experiment_runner.py tests/unit/test_monitoring.py tests/unit/test_plan_demo_experiments.py tests/unit/test_losses.py tests/unit/test_pdebench_runner_eval.py tests/unit/test_demo_scorecard.py -q`
+- Purpose:
+  - make W&B contain the benchmark truth, not only training curves
+  - move the next paid light-v1 candidate from scalar eval blending to a trained persistence-residual/stability objective

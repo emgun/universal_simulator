@@ -153,6 +153,13 @@ run summaries into `reports/wandb/`. Use
 `docs/superpowers/plans/2026-05-06-post-light-v1-improvement-plan.md` as the
 current execution plan.
 
+Current next candidate: `task_signature_trained_residual`. This is the first
+post-alpha50 candidate that changes the decoded training objective instead of
+only blending evaluation outputs. It adds persistence-residual and
+residual-spectral decoded losses and should be run on `light-v1` with
+`ALLOW_WANDB=1` so final benchmark metrics appear in the W&B
+`benchmark-summary` run.
+
 ## Historical Remote Commands
 
 Run on a remote/data-prep box with at least 12 GiB scratch for smoke prep:
