@@ -246,6 +246,12 @@ scorecard surfaces those fields as `tracking_wandb_*` columns.
 Use the Vast `experiment` install profile from `codex/residual-light-candidate`
 or newer for W&B-backed remote runs; it installs `wandb`, and the monitoring
 layer fails fast instead of silently skipping tracking when `wandb` is missing.
+Pass the private `.env` Backblaze S3 endpoint and region to `vast_launch.py`
+(`--b2-s3-endpoint` and `--b2-s3-region`). The native B2 rclone path can hang on
+some Vast hosts; the S3 endpoint path copied `light-v1` reliably in the
+residual alpha25 run. In `--args-mode`, monitor for the B2 publish line and
+destroy the instance manually if the container restarts the entrypoint after
+completion.
 
 ## B2 State
 
@@ -593,6 +599,14 @@ python scripts/plan_demo_experiments.py \
   --output-tsv reports/demo/residual_light_queue.tsv \
   --output-sh reports/demo/run_residual_light_queue.sh
 ```
+
+Current residual alpha25 result:
+
+- B2 artifact: `remote-runs/light/ups_light_residual_alpha25_20260506T1528Z.tar.gz`
+- W&B runs: `00ud83aw`, `3ugaodok`, `i3ej1zp9`, `dm8y4ccc`
+- `decoded_rollout_nrmse = 0.5486869325531744`
+- Persistence baseline `decoded_rollout_nrmse = 0.5701633411507036`
+- Baseline improvement fraction `0.03766711580261458`, so it beats persistence slightly but fails the 20% baseline gate.
 
 ## Step 5: Run Persistence Baseline
 

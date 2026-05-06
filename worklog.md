@@ -923,3 +923,26 @@ Experiment loop update (2026-05-06, W&B remote launch guard):
   - W&B-enabled monitoring now raises immediately if the `wandb` package is unavailable
 - Purpose:
   - prevent paid remote runs from silently producing untracked summaries when W&B credentials are present but the dependency is absent
+
+Experiment loop update (2026-05-06, residual alpha25 remote result):
+- Remote run:
+  - successful Vast contract: `36245004`
+  - B2 artifact: `remote-runs/light/ups_light_residual_alpha25_20260506T1528Z.tar.gz`
+  - local extracted artifact: `reports/demo/remote_artifacts/ups_light_residual_alpha25_20260506T1528Z/`
+  - local summary copy: `reports/light_experiments_remote/ups_light_task_signature_residual_alpha25/summary.json`
+  - rebuilt scorecard: `reports/demo/light_latest/scorecard.json`
+- W&B:
+  - tracked first completed run set: `00ud83aw`, `3ugaodok`, `i3ej1zp9`, `dm8y4ccc`
+  - destroyed the instance after artifact publication because the Vast `--args-mode` container restarted the entrypoint instead of staying powered off
+- Metrics:
+  - residual alpha25 decoded rollout NRMSE: `0.5486869325531744`
+  - persistence decoded rollout NRMSE: `0.5701633411507036`
+  - previous UPS light decoded rollout NRMSE: `0.8881691012411048`
+  - baseline metric delta: `-0.021476408597529195`
+  - baseline ratio: `0.9623328841973854`
+  - baseline improvement fraction: `0.03766711580261458`
+  - baseline improvement gate: `false`
+  - absolute promotion rule `decoded_rollout_nrmse<=1.0`: `true`
+- Interpretation:
+  - alpha25 shows the UPS decoded prediction has useful residual signal over persistence
+  - the improvement is too small for demo promotion, and spectral energy remains much worse than persistence, so the next iteration should map alpha50 only as a cheap curve check and then move toward a trained residual/stability objective

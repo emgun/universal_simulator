@@ -151,6 +151,12 @@ For W&B-backed runs, use Vast `--install-mode experiment` from
 `codex/residual-light-candidate` or newer; that profile installs `wandb`.
 The monitoring layer now fails fast if W&B is enabled but the `wandb` package is
 missing, preventing silent untracked paid runs.
+Pass `--b2-s3-endpoint "$B2_S3_ENDPOINT"` and
+`--b2-s3-region "$B2_S3_REGION"` from the private `.env`; native B2 rclone
+hydration hung on one host, while the S3 endpoint path copied `light-v1`
+quickly. With `--args-mode`, do not trust auto-shutdown alone: watch for
+`Published promotion artifacts:` and destroy the instance if the container
+restarts the entrypoint.
 
 Queue generation:
 
@@ -172,3 +178,15 @@ python scripts/plan_demo_experiments.py \
 - Stop if B2 readiness fails for `light-v1`.
 - Stop if the next change requires full-data hydration or medium-scale spend before the light gate passes.
 - Stop if branch cleanup would delete an unpushed or unmerged branch.
+
+## Remote Result: `task_signature_residual_alpha25`
+
+- B2 artifact: `remote-runs/light/ups_light_residual_alpha25_20260506T1528Z.tar.gz`
+- Local summary: `reports/light_experiments_remote/ups_light_task_signature_residual_alpha25/summary.json`
+- W&B runs: `00ud83aw`, `3ugaodok`, `i3ej1zp9`, `dm8y4ccc`
+- Decoded rollout NRMSE: `0.5486869325531744`
+- Persistence baseline decoded rollout NRMSE: `0.5701633411507036`
+- Baseline ratio: `0.9623328841973854`
+- Baseline improvement fraction: `0.03766711580261458`
+- Gate result: absolute promotion passed, 20% baseline-improvement gate failed.
+- Interpretation: residual alpha `0.25` is a real improvement over persistence and a large improvement over the previous UPS light candidate (`0.8881691012411048`), but not enough for demo promotion. The high decoded rollout spectral energy error (`4.828118220727542` vs persistence `0.06721624190029686`) means the next iterations should optimize stability/energy, not just NRMSE.
