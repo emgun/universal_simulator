@@ -57,6 +57,11 @@ def init_monitoring_session(
     run = None
 
     wandb_cfg = logging_cfg.get("wandb", {})
+    if wandb_cfg.get("enabled") and wandb is None:
+        raise RuntimeError(
+            "W&B logging is enabled but the 'wandb' package is not installed. "
+            "Install wandb or disable logging.wandb.enabled."
+        )
     if wandb_cfg.get("enabled") and wandb is not None:  # pragma: no cover - optional
         run_name_cfg = wandb_cfg.get("run_name")
         run_name = f"{component}-{run_name_cfg}" if run_name_cfg else component

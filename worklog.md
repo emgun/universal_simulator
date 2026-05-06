@@ -912,3 +912,14 @@ Experiment loop update (2026-05-06, residual light candidate branch):
 - Purpose:
   - cheaply test whether UPS decoded predictions contain useful residual signal over persistence before changing training objective or scaling
   - keep `alpha=0.0` anchored to the exact physical persistence baseline and `alpha=1.0` anchored to the current UPS decoded rollout
+
+Experiment loop update (2026-05-06, W&B remote launch guard):
+- Remote attempt:
+  - launched `ups_light_task_signature_residual_alpha25` on Vast contract `36243886`
+  - artifact target was `remote-runs/light/ups_light_residual_alpha25_20260506T1457Z.tar.gz`
+  - destroyed the instance before completion after finding the remote `experiment` install profile did not install `wandb`
+- Fix:
+  - Vast `experiment` install profile now installs `wandb`
+  - W&B-enabled monitoring now raises immediately if the `wandb` package is unavailable
+- Purpose:
+  - prevent paid remote runs from silently producing untracked summaries when W&B credentials are present but the dependency is absent

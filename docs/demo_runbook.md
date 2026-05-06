@@ -243,6 +243,9 @@ Future paid remote runs should use W&B tracking. Set `ALLOW_WANDB=1` plus
 `WANDB_PROJECT`, `WANDB_ENTITY`, and optionally `WANDB_GROUP`/`WANDB_TAGS`.
 The light runner records W&B run IDs and URLs into each `summary.json`; the demo
 scorecard surfaces those fields as `tracking_wandb_*` columns.
+Use the Vast `experiment` install profile from `codex/residual-light-candidate`
+or newer for W&B-backed remote runs; it installs `wandb`, and the monitoring
+layer fails fast instead of silently skipping tracking when `wandb` is missing.
 
 ## B2 State
 

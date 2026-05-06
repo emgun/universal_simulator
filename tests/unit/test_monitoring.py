@@ -73,3 +73,19 @@ def test_monitoring_session_records_wandb_metadata(tmp_path, monkeypatch):
     assert payload["id"] == "abc123"
     assert payload["component"] == "training-operator"
     assert payload["url"].endswith("/abc123")
+
+
+def test_monitoring_session_fails_when_wandb_enabled_but_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(monitoring, "wandb", None)
+    cfg = {"logging": {"wandb": {"enabled": True}}}
+
+    try:
+        init_monitoring_session(
+            cfg,
+            component="training-operator",
+            file_path=str(tmp_path / "training.jsonl"),
+        )
+    except RuntimeError as exc:
+        assert "wandb" in str(exc)
+    else:
+        raise AssertionError("expected missing wandb to fail when W&B logging is enabled")

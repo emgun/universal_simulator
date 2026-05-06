@@ -91,6 +91,30 @@ def test_vast_launch_offer_id_uses_create_instance():
     assert "--limit 5" not in proc.stdout
 
 
+def test_vast_launch_experiment_mode_installs_wandb():
+    proc = subprocess.run(
+        [
+            "python",
+            "scripts/vast_launch.py",
+            "launch",
+            "--dry-run",
+            "--repo-url",
+            "https://example.invalid/repo.git",
+            "--remote-script",
+            "scripts/run_remote_light_promotion.sh",
+            "--git-ref",
+            "codex/test",
+            "--install-mode",
+            "experiment",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "pip install h5py numpy PyYAML matplotlib wandb" in proc.stdout
+
+
 def test_run_can_display_redacted_command_without_changing_executed_command(monkeypatch, capsys):
     vast_launch = load_vast_launch_module()
     executed = []

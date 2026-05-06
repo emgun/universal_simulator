@@ -139,7 +139,7 @@ def ensure_onstart(
         install_cmds = [
             '"$PYTHON_BIN" -m pip install --upgrade pip',
             '"$PYTHON_BIN" -m pip install -e . --no-deps',
-            '"$PYTHON_BIN" -m pip install h5py numpy PyYAML matplotlib',
+            '"$PYTHON_BIN" -m pip install h5py numpy PyYAML matplotlib wandb',
         ]
     elif install_mode == "full":
         install_cmds = [

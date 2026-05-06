@@ -147,6 +147,10 @@ bash scripts/run_remote_light_promotion.sh
 ```
 
 Switch `DRY_RUN=0` only after reviewing the generated command and Vast offer.
+For W&B-backed runs, use Vast `--install-mode experiment` from
+`codex/residual-light-candidate` or newer; that profile installs `wandb`.
+The monitoring layer now fails fast if W&B is enabled but the `wandb` package is
+missing, preventing silent untracked paid runs.
 
 Queue generation:
 
@@ -164,7 +168,7 @@ python scripts/plan_demo_experiments.py \
 
 ## Stop Conditions
 
-- Stop if W&B credentials are absent and a paid remote run would be untracked.
+- Stop if W&B credentials or the `wandb` package are absent and a paid remote run would be untracked.
 - Stop if B2 readiness fails for `light-v1`.
 - Stop if the next change requires full-data hydration or medium-scale spend before the light gate passes.
 - Stop if branch cleanup would delete an unpushed or unmerged branch.
