@@ -946,3 +946,39 @@ Experiment loop update (2026-05-06, residual alpha25 remote result):
 - Interpretation:
   - alpha25 shows the UPS decoded prediction has useful residual signal over persistence
   - the improvement is too small for demo promotion, and spectral energy remains much worse than persistence, so the next iteration should map alpha50 only as a cheap curve check and then move toward a trained residual/stability objective
+
+Experiment loop update (2026-05-06, residual alpha50 remote result):
+- Remote run:
+  - successful Vast contract: `36245771`
+  - B2 artifact: `remote-runs/light/ups_light_residual_alpha50_20260506T1548Z.tar.gz`
+  - local extracted artifact: `reports/demo/remote_artifacts/ups_light_residual_alpha50_20260506T1548Z/`
+  - local summary copy: `reports/light_experiments_remote/ups_light_task_signature_residual_alpha50/summary.json`
+  - rebuilt scorecard: `reports/demo/light_latest/scorecard.json`
+- W&B:
+  - tracked first completed run set: `dr5wpv23`, `tp1wbop8`, `e3v1o3ce`, `axcvkdcy`
+  - destroyed the instance after artifact publication because the Vast `--args-mode` container restarted the entrypoint
+- Metrics:
+  - residual alpha50 decoded rollout NRMSE: `0.6084554326486734`
+  - persistence decoded rollout NRMSE: `0.5701633411507036`
+  - residual alpha25 decoded rollout NRMSE: `0.5486869325531744`
+  - baseline metric delta: `0.03829209149796986`
+  - baseline ratio: `1.0671598623311852`
+  - baseline improvement fraction: `-0.06715986233118525`
+  - baseline improvement gate: `false`
+  - absolute promotion rule `decoded_rollout_nrmse<=1.0`: `true`
+- Interpretation:
+  - the scalar residual blend peaks below `alpha=0.50`; alpha50 is worse than persistence
+  - do not continue scalar blend sweeps; next useful implementation is eval-only checkpoint reuse plus a trained residual/stability objective
+
+Experiment loop update (2026-05-06, eval-only checkpoint reuse):
+- Added:
+  - `scripts/run_light_experiment.py --skip-training`
+  - `scripts/run_light_experiment.py --checkpoint-source <run-or-checkpoints-dir>`
+  - `scripts/run_remote_light_promotion.sh` passthrough envs `SKIP_TRAINING=1` and `CHECKPOINT_SOURCE=...`
+- Validation:
+  - `pytest tests/unit/test_light_experiment_runner.py tests/unit/test_vast_launch.py tests/unit/test_monitoring.py tests/unit/test_demo_scorecard.py -q`
+  - `python -m py_compile scripts/run_light_experiment.py scripts/vast_launch.py src/ups/utils/monitoring.py`
+  - `bash -n scripts/run_remote_light_promotion.sh`
+  - `git diff --check`
+- Purpose:
+  - future alpha/stability probes can reuse an existing checkpoint directory instead of paying to retrain identical weights for every evaluation-only variant

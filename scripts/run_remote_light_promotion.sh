@@ -166,6 +166,8 @@ REQUIRED_GB=${REQUIRED_GB:-180}
 DRY_RUN=${DRY_RUN:-0}
 PUBLISH_PROMOTION_ARTIFACTS=${PUBLISH_PROMOTION_ARTIFACTS:-0}
 PROMOTION_ARTIFACT_PREFIX=${PROMOTION_ARTIFACT_PREFIX:-remote-runs/light}
+SKIP_TRAINING=${SKIP_TRAINING:-0}
+CHECKPOINT_SOURCE=${CHECKPOINT_SOURCE:-}
 
 mkdir -p "$DATA_ROOT" "$OUTPUT_ROOT"
 
@@ -256,6 +258,14 @@ cmd=(
 for stage in $(normalize_list "$STAGES"); do
   cmd+=(--stage "$stage")
 done
+
+if [ "$SKIP_TRAINING" -eq 1 ]; then
+  cmd+=(--skip-training)
+fi
+
+if [ -n "$CHECKPOINT_SOURCE" ]; then
+  cmd+=(--checkpoint-source "$CHECKPOINT_SOURCE")
+fi
 
 for split in $(normalize_list "$EXTRA_EVAL_SPLITS"); do
   cmd+=(--extra-eval-split "$split")

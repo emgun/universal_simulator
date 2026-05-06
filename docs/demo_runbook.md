@@ -608,6 +608,14 @@ Current residual alpha25 result:
 - Persistence baseline `decoded_rollout_nrmse = 0.5701633411507036`
 - Baseline improvement fraction `0.03766711580261458`, so it beats persistence slightly but fails the 20% baseline gate.
 
+Current residual alpha50 result:
+
+- B2 artifact: `remote-runs/light/ups_light_residual_alpha50_20260506T1548Z.tar.gz`
+- W&B runs: `dr5wpv23`, `tp1wbop8`, `e3v1o3ce`, `axcvkdcy`
+- `decoded_rollout_nrmse = 0.6084554326486734`
+- Baseline improvement fraction `-0.06715986233118525`, so it is worse than persistence and worse than alpha25.
+- Decision: stop scalar alpha sweeps beyond this point; use `--skip-training --checkpoint-source <run-or-checkpoints-dir>` for any future alpha probes and prioritize trained residual/stability objectives.
+
 ## Step 5: Run Persistence Baseline
 
 Run on the same hydrated `light-v1` data root:

@@ -9,6 +9,7 @@ import csv
 import json
 import math
 import os
+import shutil
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Sequence
@@ -240,6 +241,21 @@ def _preferred_checkpoint(checkpoint_dir: Path, names: Sequence[str]) -> Path | 
         if candidate.exists():
             return candidate
     return None
+
+
+def _copy_checkpoint_source(source: Path, checkpoint_dir: Path) -> list[Path]:
+    source_dir = source / "checkpoints" if (source / "checkpoints").is_dir() else source
+    if not source_dir.is_dir():
+        raise FileNotFoundError(f"Checkpoint source directory not found: {source}")
+    copied: list[Path] = []
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    for path in sorted(source_dir.glob("*.pt")):
+        target = checkpoint_dir / path.name
+        shutil.copy2(path, target)
+        copied.append(target)
+    if not copied:
+        raise FileNotFoundError(f"No .pt checkpoints found in {source_dir}")
+    return copied
 
 
 def _synthetic_task_shape(task: str) -> tuple[int, ...]:
@@ -481,6 +497,8 @@ def main() -> None:
     parser.add_argument("--name", required=True, help="Experiment name used for the output directory")
     parser.add_argument("--output-root", default="reports/light_experiments", help="Root directory for experiment outputs")
     parser.add_argument("--stage", action="append", default=None, choices=sorted(STAGE_FUNCTIONS), help="Training stage(s) to run in order")
+    parser.add_argument("--skip-training", action="store_true", help="Skip training stages and evaluate existing/copied checkpoints")
+    parser.add_argument("--checkpoint-source", help="Directory containing checkpoints or a run directory with checkpoints/")
     parser.add_argument("--override", action="append", default=[], help="Config override like latent.dim=16")
     parser.add_argument("--eval-override", action="append", default=[], help="Eval-only override like data.split=val")
     parser.add_argument(
@@ -508,7 +526,7 @@ def main() -> None:
     parser.add_argument("--wandb-job-type", default=os.environ.get("WANDB_JOB_TYPE", "light-experiment"), help="W&B job type")
     args = parser.parse_args()
 
-    stages = args.stage or ["operator"]
+    stages = [] if args.skip_training else (args.stage or ["operator"])
     output_root = Path(args.output_root)
     run_dir = output_root / args.name
     checkpoint_dir = run_dir / "checkpoints"
@@ -582,6 +600,10 @@ def main() -> None:
     train_cfg_path.write_text(yaml.safe_dump(train_cfg, sort_keys=False), encoding="utf-8")
     eval_cfg_path.write_text(yaml.safe_dump(eval_cfg, sort_keys=False), encoding="utf-8")
 
+    copied_checkpoints: list[Path] = []
+    if args.checkpoint_source:
+        copied_checkpoints = _copy_checkpoint_source(Path(args.checkpoint_source), checkpoint_dir)
+
     train_script.set_seed(train_cfg)
     started = time.time()
     for stage in stages:
@@ -599,6 +621,10 @@ def main() -> None:
     )
     summary["run_name"] = args.name
     summary["stages"] = stages
+    summary["skip_training"] = bool(args.skip_training)
+    if copied_checkpoints:
+        summary["checkpoint_source"] = str(Path(args.checkpoint_source))
+        summary["copied_checkpoints"] = [str(path) for path in copied_checkpoints]
     summary["config"] = str(train_cfg_path)
     summary["eval_config"] = str(eval_cfg_path)
     summary["tracking"] = _tracking_payload(allow_wandb=args.allow_wandb, train_cfg=train_cfg, log_dir=log_dir)

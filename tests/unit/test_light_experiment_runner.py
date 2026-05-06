@@ -100,6 +100,54 @@ def test_run_light_experiment_applies_eval_overrides_without_eval_config(tmp_pat
         assert handle["data"].shape == (3, 5, 8)
 
 
+def test_run_light_experiment_can_reuse_checkpoints_for_eval_only(tmp_path, monkeypatch):
+    output_root = tmp_path / "light_runs"
+    train_args = [
+        "run_light_experiment",
+        "--config",
+        "configs/train_burgers_light_operator.yaml",
+        "--eval-config",
+        "configs/eval_burgers_light_proxy.yaml",
+        "--name",
+        "trained_operator",
+        "--output-root",
+        str(output_root),
+        "--bootstrap-synthetic",
+        "--device",
+        "cpu",
+    ]
+    monkeypatch.setattr(sys, "argv", train_args)
+    runner_script.main()
+
+    eval_args = [
+        "run_light_experiment",
+        "--config",
+        "configs/train_burgers_light_operator.yaml",
+        "--eval-config",
+        "configs/eval_burgers_light_proxy.yaml",
+        "--name",
+        "eval_only",
+        "--output-root",
+        str(output_root),
+        "--checkpoint-source",
+        str(output_root / "trained_operator"),
+        "--skip-training",
+        "--bootstrap-synthetic",
+        "--device",
+        "cpu",
+    ]
+    monkeypatch.setattr(sys, "argv", eval_args)
+    runner_script.main()
+
+    run_dir = output_root / "eval_only"
+    summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["skip_training"] is True
+    assert summary["stages"] == []
+    assert summary["checkpoint_source"].endswith("trained_operator")
+    assert (run_dir / "checkpoints" / "operator.pt").exists()
+    assert "metrics" in summary
+
+
 def test_bootstrap_synthetic_2d_scalar_keeps_channel_dim(tmp_path):
     root = tmp_path / "synthetic"
     runner_script.bootstrap_synthetic_pdebench(

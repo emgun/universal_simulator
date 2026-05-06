@@ -190,3 +190,32 @@ python scripts/plan_demo_experiments.py \
 - Baseline improvement fraction: `0.03766711580261458`
 - Gate result: absolute promotion passed, 20% baseline-improvement gate failed.
 - Interpretation: residual alpha `0.25` is a real improvement over persistence and a large improvement over the previous UPS light candidate (`0.8881691012411048`), but not enough for demo promotion. The high decoded rollout spectral energy error (`4.828118220727542` vs persistence `0.06721624190029686`) means the next iterations should optimize stability/energy, not just NRMSE.
+
+## Remote Result: `task_signature_residual_alpha50`
+
+- B2 artifact: `remote-runs/light/ups_light_residual_alpha50_20260506T1548Z.tar.gz`
+- Local summary: `reports/light_experiments_remote/ups_light_task_signature_residual_alpha50/summary.json`
+- W&B runs: `dr5wpv23`, `tp1wbop8`, `e3v1o3ce`, `axcvkdcy`
+- Decoded rollout NRMSE: `0.6084554326486734`
+- Persistence baseline decoded rollout NRMSE: `0.5701633411507036`
+- Baseline ratio: `1.0671598623311852`
+- Baseline improvement fraction: `-0.06715986233118525`
+- Gate result: absolute promotion passed, baseline-improvement gate failed.
+- Interpretation: alpha `0.50` is worse than persistence and worse than alpha `0.25`, confirming the useful residual blend is small and that simply mixing more UPS prediction into persistence is not the path to a demo-quality model.
+
+Current decision: do not spend on more scalar blend sweeps. An eval-only checkpoint reuse path is now available for cheap alpha/stability probes; use it before any future scalar probe, then move to a trained persistence-residual or stability-regularized decoded objective.
+
+Eval-only reuse command shape:
+
+```bash
+python scripts/run_light_experiment.py \
+  --config configs/train_multitask_heterogeneous_light_best.yaml \
+  --name ups_light_eval_only_candidate \
+  --output-root reports/light_experiments_remote \
+  --checkpoint-source reports/light_experiments_remote/ups_light_task_signature_residual_alpha25 \
+  --skip-training \
+  --decoded \
+  --override data.root=/path/to/light-v1 \
+  --eval-override data.root=/path/to/light-v1 \
+  --eval-override data.split=test
+```
