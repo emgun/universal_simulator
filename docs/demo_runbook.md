@@ -577,6 +577,20 @@ python scripts/collect_wandb_runs.py \
   --out-tsv reports/wandb/runs.tsv
 ```
 
+To queue the first post-light residual candidates:
+
+```bash
+python scripts/plan_demo_experiments.py \
+  --tier light \
+  --variant task_signature_residual_alpha25 \
+  --variant task_signature_residual_alpha50 \
+  --run-prefix ups \
+  --env-file /workspace/.env \
+  --output-jsonl reports/demo/residual_light_queue.jsonl \
+  --output-tsv reports/demo/residual_light_queue.tsv \
+  --output-sh reports/demo/run_residual_light_queue.sh
+```
+
 ## Step 5: Run Persistence Baseline
 
 Run on the same hydrated `light-v1` data root:

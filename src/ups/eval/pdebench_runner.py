@@ -307,6 +307,9 @@ def evaluate_decoded_operator(
     field_name = data_cfg.get("field_name", "u")
     dt = cfg.get("training", {}).get("dt", 0.1)
     dt_tensor = torch.tensor(dt, device=device)
+    residual_alpha = float(cfg.get("evaluation", {}).get("decoded_persistence_residual_alpha", 1.0))
+    if residual_alpha < 0.0:
+        raise ValueError("evaluation.decoded_persistence_residual_alpha must be non-negative")
 
     total_pred = []
     total_target = []
@@ -390,6 +393,9 @@ def evaluate_decoded_operator(
                     if field_name not in decoded:
                         raise KeyError(f"Decoder did not produce requested field '{field_name}'")
                     pred_field = decoded[field_name].detach().cpu()
+                    if residual_alpha != 1.0:
+                        persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
+                        pred_field = persistence_field + residual_alpha * (pred_field - persistence_field)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
                     total_target.append(target_field)
@@ -451,7 +457,14 @@ def evaluate_decoded_operator(
             step1_stats = _aggregate_chunk_metrics(step1_pred, step1_target)
             metrics[f"family_{family_name}_decoded_step1_nrmse"] = step1_stats["nrmse"]
     task_extra: str | list[str] = task_names[0] if len(task_names) == 1 else task_names
-    return MetricReport(metrics=metrics, extra={"task": task_extra, "split": data_cfg.get("split", "train")})
+    return MetricReport(
+        metrics=metrics,
+        extra={
+            "task": task_extra,
+            "split": data_cfg.get("split", "train"),
+            "decoded_persistence_residual_alpha": residual_alpha,
+        },
+    )
 
 
 def evaluate_latent_model(

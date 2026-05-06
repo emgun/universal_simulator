@@ -131,6 +131,24 @@ VARIANTS: tuple[Variant, ...] = (
         priority=37,
     ),
     Variant(
+        name="task_signature_residual_alpha25",
+        description="Task-signature conditioning evaluated as a 25% UPS residual over physical persistence.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "evaluation.decoded_persistence_residual_alpha=0.25",
+        ),
+        priority=38,
+    ),
+    Variant(
+        name="task_signature_residual_alpha50",
+        description="Task-signature conditioning evaluated as a 50% UPS residual over physical persistence.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "evaluation.decoded_persistence_residual_alpha=0.5",
+        ),
+        priority=39,
+    ),
+    Variant(
         name="task_signature_joint48_rollout4",
         description="Task-signature conditioning with longer joint training and rollout loss.",
         overrides=(
@@ -138,37 +156,37 @@ VARIANTS: tuple[Variant, ...] = (
             "stages.joint_codec_operator.epochs=48",
             "stages.joint_codec_operator.rollout_steps=4",
         ),
-        priority=38,
+        priority=40,
     ),
     Variant(
         name="semigroup0",
         description="Disable semigroup loss to test whether it helps real held-out rollouts.",
         overrides=("training.lambda_semigroup=0.0",),
-        priority=40,
+        priority=50,
     ),
     Variant(
         name="semigroup10",
         description="Increase semigroup loss modestly without changing architecture.",
         overrides=("training.lambda_semigroup=0.1",),
-        priority=50,
+        priority=60,
     ),
     Variant(
         name="joint16",
         description="Cheaper joint codec/operator stage.",
         overrides=("stages.joint_codec_operator.epochs=16",),
-        priority=60,
+        priority=70,
     ),
     Variant(
         name="joint48",
         description="Longer joint codec/operator stage for decoded training depth.",
         overrides=("stages.joint_codec_operator.epochs=48",),
-        priority=70,
+        priority=80,
     ),
     Variant(
         name="rollout4",
         description="Train joint stage against longer decoded rollout loss.",
         overrides=("stages.joint_codec_operator.rollout_steps=4",),
-        priority=80,
+        priority=90,
     ),
 )
 

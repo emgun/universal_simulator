@@ -111,6 +111,17 @@ Candidate order:
 3. Hybrid residual gate: learn a per-task blend between persistence and UPS decoded prediction.
 4. Task-specific failure isolation: run Burgers-only and Darcy-only residual variants if multitask instability masks wins.
 
+Implemented first cheap residual screen:
+
+- `evaluation.decoded_persistence_residual_alpha=0.0` exactly matches physical persistence in decoded evaluation.
+- `evaluation.decoded_persistence_residual_alpha=1.0` is the existing UPS decoded rollout.
+- `task_signature_residual_alpha25` evaluates `persistence + 0.25 * (UPS - persistence)`.
+- `task_signature_residual_alpha50` evaluates `persistence + 0.50 * (UPS - persistence)`.
+- Generated local ignored queue artifacts:
+  - `reports/demo/residual_light_queue.jsonl`
+  - `reports/demo/residual_light_queue.tsv`
+  - `reports/demo/run_residual_light_queue.sh`
+
 Keep/discard rule:
 
 - Keep only if held-out `decoded_rollout_nrmse` improves over persistence by at least 20% overall or wins two of three tasks without a catastrophic third-task regression.
@@ -136,6 +147,20 @@ bash scripts/run_remote_light_promotion.sh
 ```
 
 Switch `DRY_RUN=0` only after reviewing the generated command and Vast offer.
+
+Queue generation:
+
+```bash
+python scripts/plan_demo_experiments.py \
+  --tier light \
+  --variant task_signature_residual_alpha25 \
+  --variant task_signature_residual_alpha50 \
+  --run-prefix ups \
+  --env-file /workspace/.env \
+  --output-jsonl reports/demo/residual_light_queue.jsonl \
+  --output-tsv reports/demo/residual_light_queue.tsv \
+  --output-sh reports/demo/run_residual_light_queue.sh
+```
 
 ## Stop Conditions
 

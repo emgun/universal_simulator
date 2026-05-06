@@ -11,6 +11,7 @@ from scripts import benchmark as benchmark_script
 from scripts import train as train_script
 from scripts import train_baselines as train_baselines_script
 from ups.core.latent_state import LatentState
+from ups.eval.persistence_baselines import evaluate_persistence_decoded
 from ups.eval import pdebench_runner
 from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
 
@@ -50,6 +51,15 @@ class _DummyEncoder(torch.nn.Module):
 class _IdentityOperator(torch.nn.Module):
     def forward(self, state: LatentState, dt):
         return LatentState(z=state.z, t=dt if state.t is None else state.t + dt, cond=state.cond)
+
+
+class _AddOperator(torch.nn.Module):
+    def __init__(self, delta: float) -> None:
+        super().__init__()
+        self.delta = delta
+
+    def forward(self, state: LatentState, dt):
+        return LatentState(z=state.z + self.delta, t=dt if state.t is None else state.t + dt, cond=state.cond)
 
 
 class _DummyDecoder(torch.nn.Module):
@@ -126,6 +136,38 @@ def test_evaluate_decoded_operator_reports_horizon_metrics_when_available(tmp_pa
 
     assert report.metrics["decoded_h4_nrmse"] == 0.0
     assert report.metrics["decoded_h16_nrmse"] == 0.0
+
+
+def test_evaluate_decoded_operator_can_blend_against_persistence_residual(tmp_path):
+    data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]]], dtype=torch.float32)
+    file_path = tmp_path / "burgers1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {"decoded_persistence_residual_alpha": 0.5},
+        "data": {
+            "task": "burgers1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    persistence_cfg = {**cfg, "evaluation": {"decoded_persistence_residual_alpha": 0.0}}
+    persistence = evaluate_persistence_decoded(persistence_cfg, rollout_steps=1)
+    report = evaluate_decoded_operator(
+        persistence_cfg,
+        _DummyEncoder(),
+        _AddOperator(delta=2.0),
+        _DummyDecoder(),
+        rollout_steps=1,
+    )
+
+    assert report.metrics["decoded_rollout_nrmse"] == persistence.metrics["decoded_rollout_nrmse"]
+    assert report.extra["decoded_persistence_residual_alpha"] == 0.0
 
 
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):

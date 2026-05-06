@@ -894,3 +894,21 @@ Experiment loop update (2026-05-06, W&B-tracked post-light plan):
   - make future paid experiments traceable in both W&B and local/B2 artifacts
   - backfill historical W&B metrics into `reports/wandb/`
   - narrow the next model loop to persistence-residual or stability-aware decoded rollout candidates before any medium-scale spend
+
+Experiment loop update (2026-05-06, residual light candidate branch):
+- Branch:
+  - created `codex/residual-light-candidate` from `codex/wandb-post-light-loop`
+- W&B backfill:
+  - wrote ignored local artifacts `reports/wandb/runs.json` and `reports/wandb/runs.tsv`
+  - collected 200 recent W&B runs for local review
+- Added:
+  - decoded persistence-residual blend gate via `evaluation.decoded_persistence_residual_alpha`
+  - `task_signature_residual_alpha25`
+  - `task_signature_residual_alpha50`
+- Local generated queue artifacts:
+  - `reports/demo/residual_light_queue.jsonl`
+  - `reports/demo/residual_light_queue.tsv`
+  - `reports/demo/run_residual_light_queue.sh`
+- Purpose:
+  - cheaply test whether UPS decoded predictions contain useful residual signal over persistence before changing training objective or scaling
+  - keep `alpha=0.0` anchored to the exact physical persistence baseline and `alpha=1.0` anchored to the current UPS decoded rollout
