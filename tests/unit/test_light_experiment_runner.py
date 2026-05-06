@@ -51,10 +51,13 @@ def test_run_light_experiment_bootstraps_and_records_results(tmp_path, monkeypat
     assert summary["extra"]["promotion_passed"] is True
     assert summary["run_name"] == "smoke_operator"
     assert summary["stages"] == ["operator"]
+    assert summary["tracking"]["wandb"]["requested"] is False
+    assert summary["tracking"]["wandb"]["enabled"] is False
 
     lines = results_tsv.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
     assert "smoke_operator" in lines[1]
+    assert "wandb_run_ids" in lines[0]
 
 
 def test_run_light_experiment_applies_eval_overrides_without_eval_config(tmp_path, monkeypatch):

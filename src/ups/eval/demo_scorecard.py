@@ -41,6 +41,15 @@ BASE_FIELDS = (
     "cost_wall_clock_hours",
     "cost_gpu_hours",
     "cost_estimated_usd",
+    "tracking_wandb_requested",
+    "tracking_wandb_enabled",
+    "tracking_wandb_project",
+    "tracking_wandb_entity",
+    "tracking_wandb_group",
+    "tracking_wandb_run_name",
+    "tracking_wandb_run_count",
+    "tracking_wandb_run_ids",
+    "tracking_wandb_urls",
     "baseline_run_name",
     "baseline_metric_name",
     "baseline_metric_value",
@@ -193,6 +202,28 @@ def _cost_fields(cost_record: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _tracking_fields(summary: Mapping[str, Any]) -> dict[str, Any]:
+    tracking = summary.get("tracking", {})
+    wandb_tracking = tracking.get("wandb", {}) if isinstance(tracking, Mapping) else {}
+    if not isinstance(wandb_tracking, Mapping):
+        wandb_tracking = {}
+    runs = wandb_tracking.get("runs", [])
+    run_records = [run for run in runs if isinstance(run, Mapping)] if isinstance(runs, list) else []
+    run_ids = [str(run.get("id", "")) for run in run_records if run.get("id")]
+    urls = [str(run.get("url", "")) for run in run_records if run.get("url")]
+    return {
+        "tracking_wandb_requested": wandb_tracking.get("requested"),
+        "tracking_wandb_enabled": wandb_tracking.get("enabled"),
+        "tracking_wandb_project": wandb_tracking.get("project", ""),
+        "tracking_wandb_entity": wandb_tracking.get("entity", ""),
+        "tracking_wandb_group": wandb_tracking.get("group", ""),
+        "tracking_wandb_run_name": wandb_tracking.get("run_name", ""),
+        "tracking_wandb_run_count": wandb_tracking.get("run_count", len(run_records)),
+        "tracking_wandb_run_ids": ",".join(run_ids),
+        "tracking_wandb_urls": ",".join(urls),
+    }
+
+
 def _baseline_fields() -> dict[str, Any]:
     return {
         "baseline_run_name": "",
@@ -243,6 +274,7 @@ def scorecard_row_from_summary(
         "data_manifest": data_manifest,
         "commit": commit,
         **cost_fields,
+        **_tracking_fields(summary),
         **_baseline_fields(),
     }
     for key, value in metrics.items():

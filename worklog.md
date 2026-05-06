@@ -877,3 +877,20 @@ Experiment loop update (2026-05-05, smoke-focused variants and light-v1 readines
   - current UPS task-signature-only candidate passes the absolute rule but fails the held-out persistence gate
   - `baseline_improvement_passed=false`, baseline delta `0.31800576009040127`, ratio `1.5577450129441892`
   - decoded rollout spectral energy error is much worse than persistence, so the next iteration should change the objective or architecture toward persistence-residual and stability-aware decoded rollout instead of scaling this candidate
+
+Experiment loop update (2026-05-06, W&B-tracked post-light plan):
+- Branch:
+  - created `codex/wandb-post-light-loop` from `codex/smoke-focused-variants`
+- Added:
+  - `docs/superpowers/plans/2026-05-06-post-light-v1-improvement-plan.md`
+  - `scripts/collect_wandb_runs.py`
+- Updated:
+  - light runs can set W&B project/entity/group/tags/job type from args or env when `--allow-wandb` is used
+  - remote light promotion loads `WANDB_GROUP`, `WANDB_TAGS`, and `WANDB_JOB_TYPE` from `.env`
+  - monitoring writes W&B run metadata to `logs/wandb_runs.jsonl`
+  - light `summary.json` records W&B requested/enabled state, run IDs, and URLs
+  - demo scorecards include `tracking_wandb_*` columns
+- Purpose:
+  - make future paid experiments traceable in both W&B and local/B2 artifacts
+  - backfill historical W&B metrics into `reports/wandb/`
+  - narrow the next model loop to persistence-residual or stability-aware decoded rollout candidates before any medium-scale spend

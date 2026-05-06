@@ -8,6 +8,7 @@ import copy
 import csv
 import json
 import math
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Sequence
@@ -145,6 +146,92 @@ def _prepare_eval_cfg(
     if disable_wandb:
         prepared["logging"]["wandb"]["enabled"] = False
     return prepared
+
+
+def _dedupe_text(values: Iterable[str]) -> list[str]:
+    seen: dict[str, None] = {}
+    for value in values:
+        text = str(value).strip()
+        if text:
+            seen.setdefault(text, None)
+    return list(seen)
+
+
+def _split_env_list(text: str) -> list[str]:
+    return [item.strip() for item in text.replace(";", ",").split(",") if item.strip()]
+
+
+def _configure_wandb(
+    cfg: Dict[str, Any],
+    *,
+    enabled: bool,
+    run_name: str,
+    project: str,
+    entity: str,
+    group: str,
+    tags: Sequence[str],
+    job_type: str,
+) -> Dict[str, Any]:
+    updated = copy.deepcopy(cfg)
+    wandb_cfg = updated.setdefault("logging", {}).setdefault("wandb", {})
+    wandb_cfg["enabled"] = bool(enabled)
+    if enabled:
+        wandb_cfg["run_name"] = run_name
+        if project:
+            wandb_cfg["project"] = project
+        if entity:
+            wandb_cfg["entity"] = entity
+        if group:
+            wandb_cfg["group"] = group
+        if job_type:
+            wandb_cfg["job_type"] = job_type
+        existing_tags = wandb_cfg.get("tags", [])
+        if isinstance(existing_tags, str):
+            existing_tags = [existing_tags]
+        wandb_cfg["tags"] = _dedupe_text([*existing_tags, *tags, "light-experiment"])
+    return updated
+
+
+def _read_wandb_run_records(log_dir: Path) -> list[Dict[str, Any]]:
+    path = log_dir / "wandb_runs.jsonl"
+    if not path.exists():
+        return []
+    records: list[Dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+def _tracking_payload(
+    *,
+    allow_wandb: bool,
+    train_cfg: Dict[str, Any],
+    log_dir: Path,
+) -> Dict[str, Any]:
+    wandb_cfg = train_cfg.get("logging", {}).get("wandb", {})
+    runs = _read_wandb_run_records(log_dir)
+    return {
+        "wandb": {
+            "requested": bool(allow_wandb),
+            "enabled": bool(wandb_cfg.get("enabled")),
+            "mode": os.environ.get("WANDB_MODE", ""),
+            "project": wandb_cfg.get("project", ""),
+            "entity": wandb_cfg.get("entity", ""),
+            "group": wandb_cfg.get("group", ""),
+            "run_name": wandb_cfg.get("run_name", ""),
+            "tags": wandb_cfg.get("tags", []),
+            "job_type": wandb_cfg.get("job_type", ""),
+            "run_count": len(runs),
+            "runs": runs,
+        }
+    }
 
 
 def _preferred_checkpoint(checkpoint_dir: Path, names: Sequence[str]) -> Path | None:
@@ -369,6 +456,8 @@ def _append_results_row(path: Path, row: Dict[str, Any]) -> None:
         "main_metric_name",
         "main_metric_value",
         "summary_json",
+        "wandb_run_ids",
+        "wandb_urls",
     ]
     row_map: Dict[str, Dict[str, Any]] = {}
     if path.exists():
@@ -412,6 +501,11 @@ def main() -> None:
     parser.add_argument("--synthetic-steps", type=int, default=4, help="Number of synthetic time steps per trajectory")
     parser.add_argument("--keep-existing-synthetic", action="store_true", help="Reuse an existing synthetic root without regenerating files")
     parser.add_argument("--allow-wandb", action="store_true", help="Keep W&B enabled instead of forcing it off for lightweight runs")
+    parser.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT", ""), help="W&B project override when --allow-wandb is set")
+    parser.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY", ""), help="W&B entity override when --allow-wandb is set")
+    parser.add_argument("--wandb-group", default=os.environ.get("WANDB_GROUP", ""), help="W&B group for this experiment batch")
+    parser.add_argument("--wandb-tag", action="append", default=[], help="Extra W&B tag; can be repeated")
+    parser.add_argument("--wandb-job-type", default=os.environ.get("WANDB_JOB_TYPE", "light-experiment"), help="W&B job type")
     args = parser.parse_args()
 
     stages = args.stage or ["operator"]
@@ -425,6 +519,27 @@ def main() -> None:
     train_cfg = _apply_overrides(load_config_with_includes(args.config), args.override)
     eval_source = load_config_with_includes(args.eval_config) if args.eval_config else {}
     eval_cfg = _apply_overrides(eval_source, args.eval_override) if args.eval_config or args.eval_override else None
+    train_cfg = _configure_wandb(
+        train_cfg,
+        enabled=args.allow_wandb,
+        run_name=args.name,
+        project=args.wandb_project,
+        entity=args.wandb_entity,
+        group=args.wandb_group,
+        tags=[*_split_env_list(os.environ.get("WANDB_TAGS", "")), *args.wandb_tag],
+        job_type=args.wandb_job_type,
+    )
+    if eval_cfg is not None:
+        eval_cfg = _configure_wandb(
+            eval_cfg,
+            enabled=args.allow_wandb,
+            run_name=args.name,
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            group=args.wandb_group,
+            tags=[*_split_env_list(os.environ.get("WANDB_TAGS", "")), *args.wandb_tag],
+            job_type=args.wandb_job_type,
+        )
 
     if args.bootstrap_synthetic:
         synthetic_root = Path(args.synthetic_root) if args.synthetic_root else (run_dir / "synthetic_pdebench")
@@ -486,6 +601,7 @@ def main() -> None:
     summary["stages"] = stages
     summary["config"] = str(train_cfg_path)
     summary["eval_config"] = str(eval_cfg_path)
+    summary["tracking"] = _tracking_payload(allow_wandb=args.allow_wandb, train_cfg=train_cfg, log_dir=log_dir)
 
     extra_evaluations: Dict[str, Any] = {}
     for split in args.extra_eval_split:
@@ -506,6 +622,7 @@ def main() -> None:
         split_summary["stages"] = stages
         split_summary["config"] = str(train_cfg_path)
         split_summary["eval_config"] = str(eval_cfg_path)
+        split_summary["tracking"] = summary["tracking"]
         split_path = run_dir / f"summary_{_safe_artifact_name(split_name)}.json"
         split_path.write_text(json.dumps(split_summary, indent=2), encoding="utf-8")
         extra_evaluations[split_name] = {
@@ -535,6 +652,8 @@ def main() -> None:
         "main_metric_name": main_metric_name,
         "main_metric_value": main_metric_value,
         "summary_json": str(summary_path),
+        "wandb_run_ids": ",".join(str(run.get("id", "")) for run in summary["tracking"]["wandb"]["runs"] if run.get("id")),
+        "wandb_urls": ",".join(str(run.get("url", "")) for run in summary["tracking"]["wandb"]["runs"] if run.get("url")),
     }
     _append_results_row(output_root / "results.tsv", results_row)
 

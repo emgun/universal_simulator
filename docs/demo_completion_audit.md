@@ -146,6 +146,13 @@ persistence-residual decoder/operator or stability-regularized decoded rollout
 loss, evaluated against `persistence_light_v1_test` on the existing `light-v1`
 test shards.
 
+Tracking requirement: future paid remote runs should set `ALLOW_WANDB=1`.
+`scripts/run_light_experiment.py` now records W&B run IDs and URLs into
+`summary.json`, and `scripts/collect_wandb_runs.py` can backfill historical W&B
+run summaries into `reports/wandb/`. Use
+`docs/superpowers/plans/2026-05-06-post-light-v1-improvement-plan.md` as the
+current execution plan.
+
 ## Historical Remote Commands
 
 Run on a remote/data-prep box with at least 12 GiB scratch for smoke prep:

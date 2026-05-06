@@ -29,6 +29,23 @@ def _write_summary(path, *, run_name: str, decoded_rollout_nrmse: float, step1: 
                     "decoded_step1_nrmse": step1,
                     "task_burgers1d_decoded_rollout_nrmse": decoded_rollout_nrmse,
                 },
+                "tracking": {
+                    "wandb": {
+                        "requested": True,
+                        "enabled": True,
+                        "project": "universal-simulator",
+                        "entity": "physics-team",
+                        "group": "light-v1",
+                        "run_name": run_name,
+                        "run_count": 1,
+                        "runs": [
+                            {
+                                "id": f"{run_name}-id",
+                                "url": f"https://wandb.ai/physics-team/universal-simulator/runs/{run_name}-id",
+                            }
+                        ],
+                    }
+                },
                 "extra": {},
             }
         ),
@@ -55,6 +72,8 @@ def test_collect_scorecard_rows_and_promotion_rules(tmp_path):
     assert scorecard.rows[1]["promotion_passed"] is False
     assert scorecard.rows[0]["data_manifest"] == "docs/demo_data_manifest.yaml"
     assert scorecard.rows[0]["commit"] == "abc123"
+    assert scorecard.rows[0]["tracking_wandb_run_ids"] == "run_a-id"
+    assert scorecard.rows[0]["tracking_wandb_urls"].endswith("/run_a-id")
 
 
 def test_write_scorecard_outputs(tmp_path):

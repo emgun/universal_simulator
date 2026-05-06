@@ -42,12 +42,15 @@ load_optional_env() {
   : "${WANDB_API_KEY:=$(read_env_key "$env_file" WANDB_API_KEY || true)}"
   : "${WANDB_PROJECT:=$(read_env_key "$env_file" WANDB_PROJECT || true)}"
   : "${WANDB_ENTITY:=$(read_env_key "$env_file" WANDB_ENTITY || true)}"
+  : "${WANDB_GROUP:=$(read_env_key "$env_file" WANDB_GROUP || true)}"
+  : "${WANDB_TAGS:=$(read_env_key "$env_file" WANDB_TAGS || true)}"
+  : "${WANDB_JOB_TYPE:=$(read_env_key "$env_file" WANDB_JOB_TYPE || true)}"
   : "${B2_KEY_ID:=$(read_env_key "$env_file" B2_KEY_ID || read_env_key "$env_file" B2_ACCOUNT_ID || true)}"
   : "${B2_APP_KEY:=$(read_env_key "$env_file" B2_APP_KEY || read_env_key "$env_file" B2_APPLICATION_KEY || true)}"
   : "${B2_BUCKET:=$(read_env_key "$env_file" B2_BUCKET || read_env_key "$env_file" B2_BUCKET_NAME || true)}"
   : "${B2_S3_ENDPOINT:=$(read_env_key "$env_file" B2_S3_ENDPOINT || true)}"
   : "${B2_S3_REGION:=$(read_env_key "$env_file" B2_S3_REGION || true)}"
-  export WANDB_API_KEY WANDB_PROJECT WANDB_ENTITY B2_KEY_ID B2_APP_KEY B2_BUCKET B2_S3_ENDPOINT B2_S3_REGION
+  export WANDB_API_KEY WANDB_PROJECT WANDB_ENTITY WANDB_GROUP WANDB_TAGS WANDB_JOB_TYPE B2_KEY_ID B2_APP_KEY B2_BUCKET B2_S3_ENDPOINT B2_S3_REGION
 }
 
 normalize_list() {

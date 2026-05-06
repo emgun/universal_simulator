@@ -6,6 +6,9 @@ into a working held-out demo.
 For current completion status and missing gates, see
 `docs/demo_completion_audit.md`.
 
+For the post-light-v1 iteration loop, use
+`docs/superpowers/plans/2026-05-06-post-light-v1-improvement-plan.md`.
+
 ## Current Branch Stack
 
 Apply or merge in this order if working from `main`:
@@ -235,6 +238,11 @@ Interpretation: stop scaling this candidate. The next useful architecture
 iteration should be baseline-aware, such as a persistence-residual
 decoder/operator path or a stability-regularized decoded rollout objective,
 then rerun the same light scorecard.
+
+Future paid remote runs should use W&B tracking. Set `ALLOW_WANDB=1` plus
+`WANDB_PROJECT`, `WANDB_ENTITY`, and optionally `WANDB_GROUP`/`WANDB_TAGS`.
+The light runner records W&B run IDs and URLs into each `summary.json`; the demo
+scorecard surfaces those fields as `tracking_wandb_*` columns.
 
 ## B2 State
 
@@ -538,6 +546,9 @@ Actual:
 ```bash
 ENV_FILE=/workspace/.env \
 DRY_RUN=0 \
+ALLOW_WANDB=1 \
+WANDB_GROUP=light-v1-residual \
+WANDB_TAGS=light-v1,residual,baseline-gated \
 TASKS=burgers1d,advection1d,darcy2d \
 TRAIN_CONFIG=configs/train_multitask_heterogeneous_light_best.yaml \
 REMOTE_B2_PREFIX=light-v1 \
@@ -552,6 +563,19 @@ bash scripts/run_remote_light_promotion.sh
 
 Copy `reports/light_experiments_remote/ups_light_v1_task_signature_only/summary.json`
 back before destroying the instance.
+
+After W&B-backed runs complete, backfill the local W&B registry:
+
+```bash
+python scripts/collect_wandb_runs.py \
+  --entity "$WANDB_ENTITY" \
+  --project "${WANDB_PROJECT:-universal-simulator}" \
+  --limit 200 \
+  --metric-prefix decoded_ \
+  --metric-prefix task_ \
+  --out-json reports/wandb/runs.json \
+  --out-tsv reports/wandb/runs.tsv
+```
 
 ## Step 5: Run Persistence Baseline
 
