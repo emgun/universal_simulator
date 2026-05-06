@@ -292,3 +292,23 @@ the trained residual/stability direction, but it is not demo-ready. The failure
 is now concentrated in the transport/advection family, so the next queue should
 test transport-specific conditioning/loss scaling or a per-family residual gate
 instead of increasing the global residual weight.
+
+## Local Eval-Only Result: `transport_residual_gate_alpha0p42`
+
+- Local summary: `reports/light_experiments_remote/ups_light_transport_residual_gate_alpha0p42_eval/summary.json`
+- Checkpoint source: `reports/light_experiments_remote/ups_light_task_signature_trained_residual`
+- Data: held-out `light-v1` test shards only
+- Training: skipped
+- Gate config:
+  - global `evaluation.decoded_persistence_residual_alpha=0.0`
+  - `evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.42}`
+- Decoded rollout NRMSE: `0.5126627282110727`
+- Persistence baseline decoded rollout NRMSE: `0.5701633411507036`
+- Baseline ratio: `0.8991506314250525`
+- Baseline improvement fraction: `0.10084936857494749`
+- Gate result: absolute promotion passed, 20% baseline-improvement gate failed.
+
+Interpretation: per-family residual gating is the best current light-v1 path and
+roughly halves the remaining gap to the 20% baseline-improvement gate without
+retraining. The next implementation should make this gate learned or improve the
+transport/advection dynamics directly.

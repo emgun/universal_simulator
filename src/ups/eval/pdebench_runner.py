@@ -307,9 +307,21 @@ def evaluate_decoded_operator(
     field_name = data_cfg.get("field_name", "u")
     dt = cfg.get("training", {}).get("dt", 0.1)
     dt_tensor = torch.tensor(dt, device=device)
-    residual_alpha = float(cfg.get("evaluation", {}).get("decoded_persistence_residual_alpha", 1.0))
+    eval_cfg = cfg.get("evaluation", {})
+    residual_alpha = float(eval_cfg.get("decoded_persistence_residual_alpha", 1.0))
     if residual_alpha < 0.0:
         raise ValueError("evaluation.decoded_persistence_residual_alpha must be non-negative")
+    residual_alpha_by_task = {
+        str(key): float(value)
+        for key, value in (eval_cfg.get("decoded_persistence_residual_alpha_by_task") or {}).items()
+    }
+    residual_alpha_by_family = {
+        str(key): float(value)
+        for key, value in (eval_cfg.get("decoded_persistence_residual_alpha_by_family") or {}).items()
+    }
+    for key, value in {**residual_alpha_by_task, **residual_alpha_by_family}.items():
+        if value < 0.0:
+            raise ValueError(f"decoded persistence residual alpha for '{key}' must be non-negative")
 
     total_pred = []
     total_target = []
@@ -393,9 +405,13 @@ def evaluate_decoded_operator(
                     if field_name not in decoded:
                         raise KeyError(f"Decoder did not produce requested field '{field_name}'")
                     pred_field = decoded[field_name].detach().cpu()
-                    if residual_alpha != 1.0:
+                    task_residual_alpha = residual_alpha_by_task.get(
+                        task_name,
+                        residual_alpha_by_family.get(task_family, residual_alpha),
+                    )
+                    if task_residual_alpha != 1.0:
                         persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
-                        pred_field = persistence_field + residual_alpha * (pred_field - persistence_field)
+                        pred_field = persistence_field + task_residual_alpha * (pred_field - persistence_field)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
                     total_target.append(target_field)
@@ -463,6 +479,8 @@ def evaluate_decoded_operator(
             "task": task_extra,
             "split": data_cfg.get("split", "train"),
             "decoded_persistence_residual_alpha": residual_alpha,
+            "decoded_persistence_residual_alpha_by_task": residual_alpha_by_task,
+            "decoded_persistence_residual_alpha_by_family": residual_alpha_by_family,
         },
     )
 

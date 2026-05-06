@@ -170,6 +170,41 @@ def test_evaluate_decoded_operator_can_blend_against_persistence_residual(tmp_pa
     assert report.extra["decoded_persistence_residual_alpha"] == 0.0
 
 
+def test_evaluate_decoded_operator_can_apply_task_specific_residual_alpha(tmp_path):
+    for task_name in ("burgers1d", "advection1d"):
+        data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]]], dtype=torch.float32)
+        file_path = tmp_path / f"{task_name}_train.h5"
+        with h5py.File(file_path, "w") as handle:
+            handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_persistence_residual_alpha_by_task": {"advection1d": 1.0},
+        },
+        "data": {
+            "task": ["burgers1d", "advection1d"],
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _AddOperator(delta=1.0),
+        _DummyDecoder(),
+        rollout_steps=1,
+    )
+
+    assert report.metrics["task_burgers1d_decoded_rollout_nrmse"] > report.metrics["task_advection1d_decoded_rollout_nrmse"]
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] > 0.0
+    assert report.extra["decoded_persistence_residual_alpha_by_task"] == {"advection1d": 1.0}
+
+
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
     for task_name in ("burgers1d", "advection1d"):
         data = torch.ones(1, 3, 4, dtype=torch.float32)

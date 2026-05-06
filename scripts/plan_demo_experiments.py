@@ -162,6 +162,16 @@ VARIANTS: tuple[Variant, ...] = (
         priority=40,
     ),
     Variant(
+        name="task_signature_transport_residual_gate",
+        description="Eval-only blend that uses calibrated UPS residual only for the transport/advection family.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.42}',
+            "evaluation.decoded_persistence_residual_alpha=0.0",
+        ),
+        priority=41,
+    ),
+    Variant(
         name="task_signature_joint48_rollout4",
         description="Task-signature conditioning with longer joint training and rollout loss.",
         overrides=(
@@ -169,7 +179,7 @@ VARIANTS: tuple[Variant, ...] = (
             "stages.joint_codec_operator.epochs=48",
             "stages.joint_codec_operator.rollout_steps=4",
         ),
-        priority=41,
+        priority=42,
     ),
     Variant(
         name="semigroup0",

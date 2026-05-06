@@ -138,3 +138,22 @@ def test_task_signature_trained_residual_variant_adds_training_losses():
     assert "stages.operator_decoded.lambda_persistence_residual=0.5" in rows[0]["light_extra_args"]
     assert "stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05" in rows[0]["light_extra_args"]
     assert "evaluation.decoded_persistence_residual_alpha=0.25" in rows[0]["light_extra_args"]
+
+
+def test_task_signature_transport_residual_gate_adds_family_alpha_overrides():
+    rows = build_rows(
+        tier="light",
+        variants=["task_signature_transport_residual_gate"],
+        train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+        tasks="burgers1d,advection1d,darcy2d",
+        output_root="reports/light_experiments_remote",
+        eval_split="test",
+        stages="operator,decoder,operator_decoded,joint_codec_operator",
+        run_prefix="ups",
+        remote_b2_prefix=None,
+        required_gb=None,
+    )
+
+    assert rows[0]["variant"] == "task_signature_transport_residual_gate"
+    assert 'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.42}' in rows[0]["light_extra_args"]
+    assert "evaluation.decoded_persistence_residual_alpha=0.0" in rows[0]["light_extra_args"]

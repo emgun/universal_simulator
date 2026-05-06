@@ -1022,3 +1022,25 @@ Experiment loop update (2026-05-06, trained residual remote result):
   - trained residual/stability loss produced another real improvement and is now the best held-out light-v1 candidate
   - the improvement is still only about `6.95%` over persistence, below the `20%` demo gate
   - task metrics show Burgers and Darcy are strong (`0.2152`, `0.2704`) while Advection remains the main failure (`0.7362`), so the next iteration should isolate transport/advection rather than globally increase residual loss weights
+
+Experiment loop update (2026-05-06, eval-only transport residual gate):
+- Added:
+  - evaluation supports `evaluation.decoded_persistence_residual_alpha_by_task`
+  - evaluation supports `evaluation.decoded_persistence_residual_alpha_by_family`
+  - planner variant `task_signature_transport_residual_gate` now uses global persistence with transport-only residual alpha `0.42`
+- Local eval-only setup:
+  - reused checkpoints from `reports/light_experiments_remote/ups_light_task_signature_trained_residual`
+  - hydrated only held-out `light-v1` test shards locally
+  - no local training
+- Best local eval-only result:
+  - run: `ups_light_transport_residual_gate_alpha0p42_eval`
+  - decoded rollout NRMSE: `0.5126627282110727`
+  - persistence decoded rollout NRMSE: `0.5701633411507036`
+  - baseline ratio: `0.8991506314250525`
+  - baseline improvement fraction: `0.10084936857494749`
+  - baseline improvement gate: `false`
+  - decoded rollout spectral energy error: `0.1945553537247434`
+  - task Advection decoded rollout NRMSE: `0.7223984441272786`
+- Interpretation:
+  - selective residual gating is now the best cheap path and improves over the trained residual run without retraining
+  - the remaining gap is still transport/advection; next candidate should train the gate or improve advection dynamics, not spend on larger scale yet
