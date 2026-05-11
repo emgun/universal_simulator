@@ -312,3 +312,26 @@ Interpretation: per-family residual gating is the best current light-v1 path and
 roughly halves the remaining gap to the 20% baseline-improvement gate without
 retraining. The next implementation should make this gate learned or improve the
 transport/advection dynamics directly.
+
+## Clean Calibration Result: `transport_gate_valcal_alpha0p2`
+
+- Calibration tool: `scripts/calibrate_residual_gate.py`
+- Checkpoint source: `reports/light_experiments_remote/ups_light_task_signature_trained_residual`
+- Calibration split: `val`
+- Frozen evaluation split: `test`
+- Selected gate:
+  - global `evaluation.decoded_persistence_residual_alpha=0.0`
+  - `evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.2}`
+- Best validation run: `reports/light_experiments_remote/ups_light_transport_gate_valcal_val_family_transport_alpha0p2/summary.json`
+- Best validation decoded rollout NRMSE: `0.35679104424840724`
+- Frozen test run: `reports/light_experiments_remote/ups_light_transport_gate_valcal_test_family_transport_alpha0p2/summary.json`
+- Frozen test decoded rollout NRMSE: `0.5283710326453532`
+- Frozen test baseline ratio: `0.9267011652818558`
+- Frozen test baseline improvement fraction: `0.07329883471814426`
+- Gate result: absolute promotion passed, 20% baseline-improvement gate failed.
+
+Interpretation: the earlier `alpha=0.42` score is useful exploratory evidence
+but was selected on `test`. The clean val-calibrated alpha is `0.20`, and its
+single frozen test run is the result that should be used for demo-gate claims.
+This keeps the benchmark story honest and points the next implementation toward
+a learned gate or an advection-specific dynamics fix.

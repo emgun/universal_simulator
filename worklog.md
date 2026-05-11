@@ -1044,3 +1044,28 @@ Experiment loop update (2026-05-06, eval-only transport residual gate):
 - Interpretation:
   - selective residual gating is now the best cheap path and improves over the trained residual run without retraining
   - the remaining gap is still transport/advection; next candidate should train the gate or improve advection dynamics, not spend on larger scale yet
+
+Experiment loop update (2026-05-11, validation-calibrated transport residual gate):
+- Added:
+  - `scripts/calibrate_residual_gate.py`
+  - unit tests for calibration helper selection and override serialization
+  - planner default for `task_signature_transport_residual_gate` now uses validation-calibrated transport alpha `0.20`
+- Local calibration setup:
+  - checkpoint source: `reports/light_experiments_remote/ups_light_task_signature_trained_residual`
+  - hydrated held-out `light-v1` validation shards locally
+  - swept transport-family alpha on `val`: `0.0`, `0.1`, `0.2`, `0.3`, `0.36`, `0.4`, `0.42`, `0.44`, `0.5`, `0.75`, `1.0`
+  - selected alpha by minimum `decoded_rollout_nrmse` on `val`
+  - ran exactly one frozen held-out `test` eval with selected alpha
+- Calibration result:
+  - best validation run: `ups_light_transport_gate_valcal_val_family_transport_alpha0p2`
+  - validation decoded rollout NRMSE: `0.35679104424840724`
+  - frozen test run: `ups_light_transport_gate_valcal_test_family_transport_alpha0p2`
+  - frozen test decoded rollout NRMSE: `0.5283710326453532`
+  - persistence decoded rollout NRMSE: `0.5701633411507036`
+  - baseline ratio: `0.9267011652818558`
+  - baseline improvement fraction: `0.07329883471814426`
+  - baseline improvement gate: `false`
+- Interpretation:
+  - the prior test-swept alpha `0.42` remains the best exploratory score (`0.5126627282110727`) but is not benchmark-clean
+  - validation-calibrated alpha `0.20` is the clean result and modestly improves over persistence and the trained residual run
+  - next useful work is a learned gate or advection-specific dynamics improvement; more manual alpha sweeps are unlikely to reach the 20% gate alone

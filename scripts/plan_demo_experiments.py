@@ -163,10 +163,10 @@ VARIANTS: tuple[Variant, ...] = (
     ),
     Variant(
         name="task_signature_transport_residual_gate",
-        description="Eval-only blend that uses calibrated UPS residual only for the transport/advection family.",
+        description="Eval-only blend that uses validation-calibrated UPS residual only for the transport/advection family.",
         overrides=(
             'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
-            'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.42}',
+            'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.2}',
             "evaluation.decoded_persistence_residual_alpha=0.0",
         ),
         priority=41,

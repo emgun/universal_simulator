@@ -155,5 +155,5 @@ def test_task_signature_transport_residual_gate_adds_family_alpha_overrides():
     )
 
     assert rows[0]["variant"] == "task_signature_transport_residual_gate"
-    assert 'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.42}' in rows[0]["light_extra_args"]
+    assert 'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.2}' in rows[0]["light_extra_args"]
     assert "evaluation.decoded_persistence_residual_alpha=0.0" in rows[0]["light_extra_args"]
