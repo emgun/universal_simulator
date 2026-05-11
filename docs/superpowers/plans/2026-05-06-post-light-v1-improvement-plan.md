@@ -335,3 +335,26 @@ but was selected on `test`. The clean val-calibrated alpha is `0.20`, and its
 single frozen test run is the result that should be used for demo-gate claims.
 This keeps the benchmark story honest and points the next implementation toward
 a learned gate or an advection-specific dynamics fix.
+
+## Guarded Result: `transport_horizon_gate_valcal`
+
+- Calibration tool: `scripts/calibrate_residual_gate.py --schedule-by-horizon`
+- Checkpoint source: `reports/light_experiments_remote/ups_light_task_signature_trained_residual`
+- Calibration record: `reports/light_experiments_remote/ups_light_transport_horizon_gate_valcal_calibration.json`
+- Proposed horizon schedule:
+  - h1: `0.3`
+  - h2-h3, h5-h10: `0.2`
+  - h4, h11-h16: `0.1`
+- Best constant validation decoded rollout NRMSE: `0.35679104424840724`
+- Schedule validation decoded rollout NRMSE: `0.3562364331301045`
+- Schedule relative validation improvement: `0.0015544423752873247`
+- Required relative improvement for selecting schedule: `0.01`
+- Selected gate: constant transport alpha `0.20`
+- Selected frozen test decoded rollout NRMSE: `0.5283710326453532`
+- Non-promoted exploratory schedule test decoded rollout NRMSE: `0.5352231399077773`
+
+Interpretation: per-horizon diagnostics are useful, but this hand-tuned schedule
+does not clear the complexity guard and should not be promoted. The next useful
+iteration is not another eval-only scalar or horizon sweep; it is a learned
+transport gate, advection-specific dynamics objective, or architecture change
+that can improve the transport family without regressing Burgers/Darcy.

@@ -1069,3 +1069,34 @@ Experiment loop update (2026-05-11, validation-calibrated transport residual gat
   - the prior test-swept alpha `0.42` remains the best exploratory score (`0.5126627282110727`) but is not benchmark-clean
   - validation-calibrated alpha `0.20` is the clean result and modestly improves over persistence and the trained residual run
   - next useful work is a learned gate or advection-specific dynamics improvement; more manual alpha sweeps are unlikely to reach the 20% gate alone
+
+Experiment loop update (2026-05-11, horizon-calibrated residual gate):
+- Added:
+  - decoded evaluation supports residual-alpha schedules by rollout horizon, task, and family
+  - decoded evaluation can emit all global/task/family horizon metrics with `evaluation.report_all_horizon_metrics=true`
+  - `scripts/calibrate_residual_gate.py --schedule-by-horizon`
+  - `scripts/calibrate_residual_gate.py --reuse-existing`
+  - a 1% default complexity guard via `--schedule-min-relative-improvement`
+- Local calibration setup:
+  - checkpoint source: `reports/light_experiments_remote/ups_light_task_signature_trained_residual`
+  - reused the same `light-v1` validation/test shards and eval-only checkpoints
+  - swept transport-family alphas on `val`, selected per-horizon candidates, then evaluated the proposed schedule on `val` as a full rollout
+  - selected the horizon schedule only if aggregate validation improvement cleared the 1% complexity guard
+- Calibration artifacts:
+  - record: `reports/light_experiments_remote/ups_light_transport_horizon_gate_valcal_calibration.json`
+  - validation schedule run: `reports/light_experiments_remote/ups_light_transport_horizon_gate_valcal_val_family_transport_horizon_schedule/summary.json`
+  - guarded selected test run: `reports/light_experiments_remote/ups_light_transport_horizon_gate_valcal_test_family_transport_alpha0p2/summary.json`
+  - non-promoted exploratory schedule test: `reports/light_experiments_remote/ups_light_transport_horizon_gate_valcal_test_family_transport_horizon_schedule/summary.json`
+  - rebuilt scorecard: `reports/demo/light_latest/scorecard.json`
+- Metrics:
+  - best constant validation decoded rollout NRMSE: `0.35679104424840724`
+  - schedule validation decoded rollout NRMSE: `0.3562364331301045`
+  - schedule relative validation improvement: `0.0015544423752873247`
+  - schedule selection threshold: `0.01`
+  - selected gate: constant alpha `0.20`
+  - selected frozen test decoded rollout NRMSE: `0.5283710326453532`
+  - exploratory schedule frozen test decoded rollout NRMSE: `0.5352231399077773`
+- Interpretation:
+  - per-horizon schedule selection overfits the validation split at this scale; the tiny validation gain did not justify the more complex gate
+  - the benchmark-clean result remains the simpler validation-calibrated transport alpha `0.20`
+  - horizon metrics are still useful diagnostics, but the next real SOTA step should learn the gate or improve transport/advection dynamics rather than hand-tune schedules

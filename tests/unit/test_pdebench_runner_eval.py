@@ -205,6 +205,54 @@ def test_evaluate_decoded_operator_can_apply_task_specific_residual_alpha(tmp_pa
     assert report.extra["decoded_persistence_residual_alpha_by_task"] == {"advection1d": 1.0}
 
 
+def test_evaluate_decoded_operator_can_apply_task_horizon_residual_alpha(tmp_path):
+    data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_persistence_residual_alpha_by_task_horizon": {"advection1d": {"1": 0.5, 2: 1.0 / 3.0}},
+            "report_all_horizon_metrics": True,
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    baseline_report = evaluate_decoded_operator(
+        {
+            **cfg,
+            "evaluation": {
+                "decoded_persistence_residual_alpha": 0.0,
+                "report_all_horizon_metrics": True,
+            },
+        },
+        _DummyEncoder(),
+        _AddOperator(delta=2.0),
+        _DummyDecoder(),
+        rollout_steps=2,
+    )
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _AddOperator(delta=2.0),
+        _DummyDecoder(),
+        rollout_steps=2,
+    )
+
+    assert report.metrics["task_advection1d_decoded_h2_nrmse"] < baseline_report.metrics["task_advection1d_decoded_h2_nrmse"]
+    assert report.metrics["family_transport_decoded_h2_nrmse"] < baseline_report.metrics["family_transport_decoded_h2_nrmse"]
+    assert report.extra["decoded_persistence_residual_alpha_by_task_horizon"] == {"advection1d": {1: 0.5, 2: 1.0 / 3.0}}
+
+
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
     for task_name in ("burgers1d", "advection1d"):
         data = torch.ones(1, 3, 4, dtype=torch.float32)

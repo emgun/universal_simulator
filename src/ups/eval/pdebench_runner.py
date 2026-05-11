@@ -3,6 +3,7 @@ from __future__ import annotations
 """PDEBench evaluation helpers."""
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -29,6 +30,9 @@ from ups.models.latent_operator import LatentOperator
 @dataclass
 class BaselineModel:
     forward: Callable[[torch.Tensor], torch.Tensor]
+
+
+_DEFAULT_DECODED_HORIZONS = (1, 4, 16)
 
 
 def _flatten_field_step(field_step: torch.Tensor, grid_shape: tuple[int, int]) -> torch.Tensor:
@@ -111,6 +115,76 @@ def _aggregate_chunk_metrics(
         "rrmse": nrmse_val,
         "spectral_energy_error": spectral_total / len(pred_chunks),
     }
+
+
+def _nonnegative_alpha(value: Any, *, setting: str) -> float:
+    alpha = float(value)
+    if alpha < 0.0:
+        raise ValueError(f"{setting} must be non-negative")
+    return alpha
+
+
+def _alpha_map(raw: Any, *, setting: str) -> dict[str, float]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    return {str(key): _nonnegative_alpha(value, setting=f"{setting}[{key!r}]") for key, value in raw.items()}
+
+
+def _horizon_alpha_map(raw: Any, *, setting: str) -> dict[int, float]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    result: dict[int, float] = {}
+    for key, value in raw.items():
+        try:
+            horizon = int(key)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{setting} horizon keys must be positive integers") from exc
+        if horizon <= 0:
+            raise ValueError(f"{setting} horizon keys must be positive integers")
+        result[horizon] = _nonnegative_alpha(value, setting=f"{setting}[{key!r}]")
+    return result
+
+
+def _nested_horizon_alpha_map(raw: Any, *, setting: str) -> dict[str, dict[int, float]]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    return {
+        str(key): _horizon_alpha_map(value, setting=f"{setting}[{key!r}]")
+        for key, value in raw.items()
+    }
+
+
+def _resolve_residual_alpha(
+    *,
+    task_name: str,
+    task_family: str,
+    horizon: int,
+    residual_alpha: float,
+    residual_alpha_by_task: Mapping[str, float],
+    residual_alpha_by_family: Mapping[str, float],
+    residual_alpha_by_horizon: Mapping[int, float],
+    residual_alpha_by_task_horizon: Mapping[str, Mapping[int, float]],
+    residual_alpha_by_family_horizon: Mapping[str, Mapping[int, float]],
+) -> float:
+    task_horizon_alpha = residual_alpha_by_task_horizon.get(task_name, {})
+    if horizon in task_horizon_alpha:
+        return task_horizon_alpha[horizon]
+    family_horizon_alpha = residual_alpha_by_family_horizon.get(task_family, {})
+    if horizon in family_horizon_alpha:
+        return family_horizon_alpha[horizon]
+    if task_name in residual_alpha_by_task:
+        return residual_alpha_by_task[task_name]
+    if task_family in residual_alpha_by_family:
+        return residual_alpha_by_family[task_family]
+    if horizon in residual_alpha_by_horizon:
+        return residual_alpha_by_horizon[horizon]
+    return residual_alpha
 
 
 def evaluate_pdebench(task: str, split: str = "test", root: str | None = None) -> MetricReport:
@@ -308,33 +382,48 @@ def evaluate_decoded_operator(
     dt = cfg.get("training", {}).get("dt", 0.1)
     dt_tensor = torch.tensor(dt, device=device)
     eval_cfg = cfg.get("evaluation", {})
-    residual_alpha = float(eval_cfg.get("decoded_persistence_residual_alpha", 1.0))
-    if residual_alpha < 0.0:
-        raise ValueError("evaluation.decoded_persistence_residual_alpha must be non-negative")
-    residual_alpha_by_task = {
-        str(key): float(value)
-        for key, value in (eval_cfg.get("decoded_persistence_residual_alpha_by_task") or {}).items()
-    }
-    residual_alpha_by_family = {
-        str(key): float(value)
-        for key, value in (eval_cfg.get("decoded_persistence_residual_alpha_by_family") or {}).items()
-    }
-    for key, value in {**residual_alpha_by_task, **residual_alpha_by_family}.items():
-        if value < 0.0:
-            raise ValueError(f"decoded persistence residual alpha for '{key}' must be non-negative")
+    residual_alpha = _nonnegative_alpha(
+        eval_cfg.get("decoded_persistence_residual_alpha", 1.0),
+        setting="evaluation.decoded_persistence_residual_alpha",
+    )
+    residual_alpha_by_task = _alpha_map(
+        eval_cfg.get("decoded_persistence_residual_alpha_by_task"),
+        setting="evaluation.decoded_persistence_residual_alpha_by_task",
+    )
+    residual_alpha_by_family = _alpha_map(
+        eval_cfg.get("decoded_persistence_residual_alpha_by_family"),
+        setting="evaluation.decoded_persistence_residual_alpha_by_family",
+    )
+    residual_alpha_by_horizon = _horizon_alpha_map(
+        eval_cfg.get("decoded_persistence_residual_alpha_by_horizon"),
+        setting="evaluation.decoded_persistence_residual_alpha_by_horizon",
+    )
+    residual_alpha_by_task_horizon = _nested_horizon_alpha_map(
+        eval_cfg.get("decoded_persistence_residual_alpha_by_task_horizon"),
+        setting="evaluation.decoded_persistence_residual_alpha_by_task_horizon",
+    )
+    residual_alpha_by_family_horizon = _nested_horizon_alpha_map(
+        eval_cfg.get("decoded_persistence_residual_alpha_by_family_horizon"),
+        setting="evaluation.decoded_persistence_residual_alpha_by_family_horizon",
+    )
+    report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
 
     total_pred = []
     total_target = []
-    horizon_pred: Dict[int, List[torch.Tensor]] = {1: [], 4: [], 16: []}
-    horizon_target: Dict[int, List[torch.Tensor]] = {1: [], 4: [], 16: []}
+    horizon_pred: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
+    horizon_target: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
     per_task_pred: Dict[str, List[torch.Tensor]] = {}
     per_task_target: Dict[str, List[torch.Tensor]] = {}
     per_task_step1_pred: Dict[str, List[torch.Tensor]] = {}
     per_task_step1_target: Dict[str, List[torch.Tensor]] = {}
+    per_task_horizon_pred: Dict[str, Dict[int, List[torch.Tensor]]] = {}
+    per_task_horizon_target: Dict[str, Dict[int, List[torch.Tensor]]] = {}
     per_family_pred: Dict[str, List[torch.Tensor]] = {}
     per_family_target: Dict[str, List[torch.Tensor]] = {}
     per_family_step1_pred: Dict[str, List[torch.Tensor]] = {}
     per_family_step1_target: Dict[str, List[torch.Tensor]] = {}
+    per_family_horizon_pred: Dict[str, Dict[int, List[torch.Tensor]]] = {}
+    per_family_horizon_target: Dict[str, Dict[int, List[torch.Tensor]]] = {}
 
     with torch.no_grad():
         for task_name in task_names:
@@ -405,9 +494,17 @@ def evaluate_decoded_operator(
                     if field_name not in decoded:
                         raise KeyError(f"Decoder did not produce requested field '{field_name}'")
                     pred_field = decoded[field_name].detach().cpu()
-                    task_residual_alpha = residual_alpha_by_task.get(
-                        task_name,
-                        residual_alpha_by_family.get(task_family, residual_alpha),
+                    horizon = step + 1
+                    task_residual_alpha = _resolve_residual_alpha(
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=horizon,
+                        residual_alpha=residual_alpha,
+                        residual_alpha_by_task=residual_alpha_by_task,
+                        residual_alpha_by_family=residual_alpha_by_family,
+                        residual_alpha_by_horizon=residual_alpha_by_horizon,
+                        residual_alpha_by_task_horizon=residual_alpha_by_task_horizon,
+                        residual_alpha_by_family_horizon=residual_alpha_by_family_horizon,
                     )
                     if task_residual_alpha != 1.0:
                         persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
@@ -419,10 +516,14 @@ def evaluate_decoded_operator(
                     per_task_target.setdefault(task_name, []).append(target_field)
                     per_family_pred.setdefault(task_family, []).append(pred_field)
                     per_family_target.setdefault(task_family, []).append(target_field)
-                    horizon = step + 1
-                    if horizon in horizon_pred:
-                        horizon_pred[horizon].append(pred_field)
-                        horizon_target[horizon].append(target_field)
+                    track_horizon = report_all_horizon_metrics or horizon in _DEFAULT_DECODED_HORIZONS
+                    if track_horizon:
+                        horizon_pred.setdefault(horizon, []).append(pred_field)
+                        horizon_target.setdefault(horizon, []).append(target_field)
+                        per_task_horizon_pred.setdefault(task_name, {}).setdefault(horizon, []).append(pred_field)
+                        per_task_horizon_target.setdefault(task_name, {}).setdefault(horizon, []).append(target_field)
+                        per_family_horizon_pred.setdefault(task_family, {}).setdefault(horizon, []).append(pred_field)
+                        per_family_horizon_target.setdefault(task_family, {}).setdefault(horizon, []).append(target_field)
                     if horizon == 1:
                         per_task_step1_pred.setdefault(task_name, []).append(pred_field)
                         per_task_step1_target.setdefault(task_name, []).append(target_field)
@@ -445,12 +546,16 @@ def evaluate_decoded_operator(
         "decoded_rollout_rrmse": rollout_stats["rrmse"],
         "decoded_rollout_spectral_energy_error": rollout_stats["spectral_energy_error"],
     }
-    if horizon_pred[1]:
+    if horizon_pred.get(1):
         step1_stats = _aggregate_chunk_metrics(horizon_pred[1], horizon_target[1])
         metrics["decoded_step1_nrmse"] = step1_stats["nrmse"]
         metrics["decoded_step1_rrmse"] = step1_stats["rrmse"]
-    for horizon in (4, 16):
-        if horizon_pred[horizon]:
+    for horizon in sorted(horizon_pred):
+        if horizon == 1 and not report_all_horizon_metrics:
+            continue
+        if horizon in (4, 16) or report_all_horizon_metrics:
+            if not horizon_pred[horizon]:
+                continue
             horizon_stats = _aggregate_chunk_metrics(horizon_pred[horizon], horizon_target[horizon])
             metrics[f"decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
             metrics[f"decoded_h{horizon}_rrmse"] = horizon_stats["rrmse"]
@@ -463,6 +568,16 @@ def evaluate_decoded_operator(
         if step1_pred and step1_target:
             step1_stats = _aggregate_chunk_metrics(step1_pred, step1_target)
             metrics[f"task_{task_name}_decoded_step1_nrmse"] = step1_stats["nrmse"]
+        for horizon, horizon_pred_chunks in sorted(per_task_horizon_pred.get(task_name, {}).items()):
+            if horizon == 1 and not report_all_horizon_metrics:
+                continue
+            if horizon in (4, 16) or report_all_horizon_metrics:
+                horizon_stats = _aggregate_chunk_metrics(
+                    horizon_pred_chunks,
+                    per_task_horizon_target[task_name][horizon],
+                )
+                metrics[f"task_{task_name}_decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
+                metrics[f"task_{task_name}_decoded_h{horizon}_rrmse"] = horizon_stats["rrmse"]
     for family_name, pred_chunks in per_family_pred.items():
         family_stats = _aggregate_chunk_metrics(pred_chunks, per_family_target[family_name])
         metrics[f"family_{family_name}_decoded_rollout_nrmse"] = family_stats["nrmse"]
@@ -472,6 +587,16 @@ def evaluate_decoded_operator(
         if step1_pred and step1_target:
             step1_stats = _aggregate_chunk_metrics(step1_pred, step1_target)
             metrics[f"family_{family_name}_decoded_step1_nrmse"] = step1_stats["nrmse"]
+        for horizon, horizon_pred_chunks in sorted(per_family_horizon_pred.get(family_name, {}).items()):
+            if horizon == 1 and not report_all_horizon_metrics:
+                continue
+            if horizon in (4, 16) or report_all_horizon_metrics:
+                horizon_stats = _aggregate_chunk_metrics(
+                    horizon_pred_chunks,
+                    per_family_horizon_target[family_name][horizon],
+                )
+                metrics[f"family_{family_name}_decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
+                metrics[f"family_{family_name}_decoded_h{horizon}_rrmse"] = horizon_stats["rrmse"]
     task_extra: str | list[str] = task_names[0] if len(task_names) == 1 else task_names
     return MetricReport(
         metrics=metrics,
@@ -481,6 +606,10 @@ def evaluate_decoded_operator(
             "decoded_persistence_residual_alpha": residual_alpha,
             "decoded_persistence_residual_alpha_by_task": residual_alpha_by_task,
             "decoded_persistence_residual_alpha_by_family": residual_alpha_by_family,
+            "decoded_persistence_residual_alpha_by_horizon": residual_alpha_by_horizon,
+            "decoded_persistence_residual_alpha_by_task_horizon": residual_alpha_by_task_horizon,
+            "decoded_persistence_residual_alpha_by_family_horizon": residual_alpha_by_family_horizon,
+            "report_all_horizon_metrics": report_all_horizon_metrics,
         },
     )
 
