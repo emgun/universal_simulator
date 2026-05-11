@@ -720,3 +720,49 @@ Validation-only findings:
 Next step:
 
 - Add a calibration/training path that learns gate parameters on train/validation data and exports a frozen `decoded_persistence_residual_gate` config. Do not run held-out `test` until validation beats the clean constant gate by the plan threshold.
+
+### 2026-05-11: Learned Gate Calibration Export
+
+Status: Phase 1 calibration/export path implemented; still validation-only.
+
+Implemented:
+
+- `scripts/calibrate_residual_gate.py --use-decoded-residual-gate`.
+- Repeatable `--gate-config-candidate` JSON configs for decoded gate sweeps.
+- `--gate-feature-weight name=value` convenience wiring into gate `feature_weights`.
+- `--export-selected-gate-config` to write the selected validation gate as reusable overrides.
+
+Smoke validation:
+
+- Command used `--skip-test`, `--eval-max-samples 8`, and `--decoded-rollout-steps 4`.
+- Exported selected gate: `reports/research/sota_loop/gate_calibrator_smoke/selected_gate.json`.
+- Selected alpha `0.2` over `0.3`, with smoke `decoded_rollout_nrmse = 0.2900588529988161`.
+- This is an integration smoke only, not benchmark-comparable.
+
+Next step:
+
+- Run a full comparable validation-only decoded gate config sweep over 32 samples and 16 rollout steps. Candidate weights should start with small residual/horizon terms around the clean transport alpha `0.2`. Only run held-out `test` if the validation result improves at least `1%` over `0.35679104424840724`.
+
+### 2026-05-11: Learned Gate Feature Sweep
+
+Status: validation-only feature sweep completed; no held-out test run.
+
+Implemented:
+
+- Calibrator held-out test guard: `--reference-metric-value` plus `--test-min-relative-improvement`.
+- Selected-gate records now include `test_guard` and `test_skipped` when the guard blocks test.
+
+Comparable validation results:
+
+- Reference clean constant transport alpha: `0.35679104424840724`.
+- Neutral decoded gate: `0.3567910081081011`.
+- Best feature gate: alpha `0.2`, `feature_weights.horizon_norm=-0.5`.
+- Best validation decoded rollout NRMSE: `0.35560983348888475`.
+- Relative validation improvement: `0.0033106513702179665`.
+- Guard threshold: `0.01`; held-out test skipped.
+
+Learning:
+
+- Decreasing residual trust over rollout horizon is directionally useful.
+- The scalar target-free gate is too weak to justify test budget.
+- Next implementation should target transport/advection dynamics directly or train a richer sidecar with per-sample supervision rather than continue manual scalar-feature sweeps.

@@ -1118,3 +1118,44 @@ Experiment loop update (2026-05-11, learned-gate execution setup):
   - setting `decoded_persistence_residual_gate.base_alpha=0.2` overrides all families and regresses validation because Burgers/Darcy no longer stay at persistence
   - omitting `base_alpha` lets the gate inherit the resolved family/task alpha, reproducing the clean transport-only gate
   - this confirms the hook is usable for learned deltas around the clean transport gate without changing the benchmark harness
+
+Experiment loop update (2026-05-11, learned-gate calibration/export path):
+- Added:
+  - `scripts/calibrate_residual_gate.py --use-decoded-residual-gate`
+  - repeatable `--gate-config-candidate` JSON sweeps for decoded residual gate configs
+  - `--gate-feature-weight name=value` convenience wiring into gate `feature_weights`
+  - `--export-selected-gate-config` for a frozen validation-selected override payload
+  - unit tests for gate config serialization, candidate merging, and selected override construction
+- Local smoke validation:
+  - command used `--skip-test`, `--eval-max-samples 8`, and `--decoded-rollout-steps 4`
+  - output root: `reports/research/sota_loop/gate_calibrator_smoke`
+  - exported selected gate: `reports/research/sota_loop/gate_calibrator_smoke/selected_gate.json`
+  - candidates: transport alpha `0.2` and `0.3` with a neutral decoded gate config
+  - selected validation alpha: `0.2`
+  - smoke decoded rollout NRMSE: `0.2900588529988161`
+- Learning:
+  - the export path works end-to-end and preserves the clean no-test-budget workflow
+  - the smoke metric is not comparable to the benchmark because it used only 8 samples and 4 rollout steps
+  - next useful experiment is a validation-only gate-config sweep with nonzero target-free feature weights over the full 32-sample, 16-step validation setup
+
+Experiment loop update (2026-05-11, learned-gate feature sweep):
+- Added:
+  - calibrator held-out test guard via `--reference-metric-value` and `--test-min-relative-improvement`
+  - selected-gate records now include `test_guard` and `test_skipped` when validation does not clear the guard
+- Comparable validation-only sweep:
+  - output root: `reports/research/sota_loop/gate_config_sweep`
+  - reference: clean constant transport alpha validation NRMSE `0.35679104424840724`
+  - neutral decoded gate: `0.3567910081081011`
+  - best candidate: alpha `0.2`, gate `feature_weights.horizon_norm=-0.5`
+  - best validation decoded rollout NRMSE: `0.35560983348888475`
+  - relative validation improvement vs reference: `0.0033106513702179665`
+- Refinement sweep:
+  - output root: `reports/research/sota_loop/gate_config_refine`
+  - swept alphas `0.15`, `0.2`, `0.25` with negative horizon/residual feature weights
+  - selected gate remained alpha `0.2` with `feature_weights.horizon_norm=-0.5`
+  - exported selected gate: `reports/research/sota_loop/gate_config_refine/selected_gate.json`
+  - held-out test was skipped by guard because improvement was below the required `0.01`
+- Learning:
+  - decreasing residual trust over rollout horizon is directionally useful
+  - target-free scalar gate features produce only a small validation gain, not enough for a clean held-out test
+  - next high-leverage local step should move from scalar blending to a transport/advection dynamics correction or a trained sidecar with per-sample supervision
