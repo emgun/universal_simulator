@@ -297,6 +297,49 @@ def test_evaluate_decoded_operator_can_apply_bounded_residual_gate(tmp_path):
     assert report.extra["decoded_persistence_residual_gate"]["base_alpha"] == 0.5
 
 
+def test_evaluate_decoded_operator_can_apply_task_roll_shift(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    base_cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {"decoded_persistence_residual_alpha": 0.0},
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+    shifted_cfg = {
+        **base_cfg,
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_roll_shift_by_task": {"advection1d": 1},
+        },
+    }
+
+    baseline_report = evaluate_decoded_operator(
+        base_cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+    shifted_report = evaluate_decoded_operator(
+        shifted_cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert shifted_report.metrics["task_advection1d_decoded_rollout_nrmse"] == 0.0
+    assert shifted_report.metrics["decoded_rollout_nrmse"] < baseline_report.metrics["decoded_rollout_nrmse"]
+    assert shifted_report.extra["decoded_roll_shift_by_task"] == {"advection1d": 1}
+
+
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
     for task_name in ("burgers1d", "advection1d"):
         data = torch.ones(1, 3, 4, dtype=torch.float32)

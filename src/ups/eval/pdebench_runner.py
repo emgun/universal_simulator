@@ -160,6 +160,39 @@ def _nested_horizon_alpha_map(raw: Any, *, setting: str) -> dict[str, dict[int, 
     }
 
 
+def _int_map(raw: Any, *, setting: str) -> dict[str, int]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    return {str(key): int(value) for key, value in raw.items()}
+
+
+def _horizon_int_map(raw: Any, *, setting: str) -> dict[int, int]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    result: dict[int, int] = {}
+    for key, value in raw.items():
+        try:
+            horizon = int(key)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{setting} horizon keys must be positive integers") from exc
+        if horizon <= 0:
+            raise ValueError(f"{setting} horizon keys must be positive integers")
+        result[horizon] = int(value)
+    return result
+
+
+def _nested_horizon_int_map(raw: Any, *, setting: str) -> dict[str, dict[int, int]]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    return {str(key): _horizon_int_map(value, setting=f"{setting}[{key!r}]") for key, value in raw.items()}
+
+
 def _resolve_residual_alpha(
     *,
     task_name: str,
@@ -185,6 +218,43 @@ def _resolve_residual_alpha(
     if horizon in residual_alpha_by_horizon:
         return residual_alpha_by_horizon[horizon]
     return residual_alpha
+
+
+def _resolve_roll_shift(
+    *,
+    task_name: str,
+    task_family: str,
+    horizon: int,
+    shift_by_task: Mapping[str, int],
+    shift_by_family: Mapping[str, int],
+    shift_by_task_horizon: Mapping[str, Mapping[int, int]],
+    shift_by_family_horizon: Mapping[str, Mapping[int, int]],
+) -> int:
+    task_horizon_shift = shift_by_task_horizon.get(task_name, {})
+    if horizon in task_horizon_shift:
+        return task_horizon_shift[horizon]
+    family_horizon_shift = shift_by_family_horizon.get(task_family, {})
+    if horizon in family_horizon_shift:
+        return family_horizon_shift[horizon]
+    if task_name in shift_by_task:
+        return shift_by_task[task_name]
+    if task_family in shift_by_family:
+        return shift_by_family[task_family]
+    return 0
+
+
+def _roll_flattened_grid(field: torch.Tensor, grid_shape: tuple[int, int], *, shift_x: int) -> torch.Tensor:
+    if shift_x == 0:
+        return field
+    if field.dim() != 3:
+        raise ValueError(f"Expected flattened grid field shaped (B, N, C), got {tuple(field.shape)}")
+    batch, nodes, channels = field.shape
+    H, W = grid_shape
+    if nodes != H * W:
+        raise ValueError(f"Flattened grid has {nodes} nodes, expected {H * W} for grid shape {grid_shape}")
+    grid = field.transpose(1, 2).reshape(batch, channels, H, W)
+    rolled = torch.roll(grid, shifts=int(shift_x), dims=-1)
+    return rolled.reshape(batch, channels, H * W).transpose(1, 2).contiguous()
 
 
 def _logit(value: float, *, eps: float = 1e-6) -> float:
@@ -504,6 +574,22 @@ def evaluate_decoded_operator(
         setting="evaluation.decoded_persistence_residual_alpha_by_family_horizon",
     )
     residual_gate_cfg = _residual_gate_config(eval_cfg.get("decoded_persistence_residual_gate"))
+    roll_shift_by_task = _int_map(
+        eval_cfg.get("decoded_roll_shift_by_task"),
+        setting="evaluation.decoded_roll_shift_by_task",
+    )
+    roll_shift_by_family = _int_map(
+        eval_cfg.get("decoded_roll_shift_by_family"),
+        setting="evaluation.decoded_roll_shift_by_family",
+    )
+    roll_shift_by_task_horizon = _nested_horizon_int_map(
+        eval_cfg.get("decoded_roll_shift_by_task_horizon"),
+        setting="evaluation.decoded_roll_shift_by_task_horizon",
+    )
+    roll_shift_by_family_horizon = _nested_horizon_int_map(
+        eval_cfg.get("decoded_roll_shift_by_family_horizon"),
+        setting="evaluation.decoded_roll_shift_by_family_horizon",
+    )
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
 
     total_pred = []
@@ -627,6 +713,16 @@ def evaluate_decoded_operator(
                         _append_stat(alpha_stats, f"decoded_residual_gate_h{horizon}_alpha", task_residual_alpha)
                     if task_residual_alpha != 1.0:
                         pred_field = persistence_field + task_residual_alpha * (pred_field - persistence_field)
+                    roll_shift = _resolve_roll_shift(
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=horizon,
+                        shift_by_task=roll_shift_by_task,
+                        shift_by_family=roll_shift_by_family,
+                        shift_by_task_horizon=roll_shift_by_task_horizon,
+                        shift_by_family_horizon=roll_shift_by_family_horizon,
+                    )
+                    pred_field = _roll_flattened_grid(pred_field, grid_shape, shift_x=roll_shift)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
                     total_target.append(target_field)
@@ -729,6 +825,10 @@ def evaluate_decoded_operator(
             "decoded_persistence_residual_alpha_by_task_horizon": residual_alpha_by_task_horizon,
             "decoded_persistence_residual_alpha_by_family_horizon": residual_alpha_by_family_horizon,
             "decoded_persistence_residual_gate": residual_gate_cfg,
+            "decoded_roll_shift_by_task": roll_shift_by_task,
+            "decoded_roll_shift_by_family": roll_shift_by_family,
+            "decoded_roll_shift_by_task_horizon": roll_shift_by_task_horizon,
+            "decoded_roll_shift_by_family_horizon": roll_shift_by_family_horizon,
             "report_all_horizon_metrics": report_all_horizon_metrics,
         },
     )

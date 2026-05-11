@@ -766,3 +766,45 @@ Learning:
 - Decreasing residual trust over rollout horizon is directionally useful.
 - The scalar target-free gate is too weak to justify test budget.
 - Next implementation should target transport/advection dynamics directly or train a richer sidecar with per-sample supervision rather than continue manual scalar-feature sweeps.
+
+### 2026-05-11: Advection Roll-Shift Transport Correction
+
+Status: light-v1 held-out test win found; needs generalization into a learned/parameterized transport head.
+
+Implemented:
+
+- `evaluation.decoded_roll_shift_by_task`.
+- `evaluation.decoded_roll_shift_by_family`.
+- `evaluation.decoded_roll_shift_by_task_horizon`.
+- `evaluation.decoded_roll_shift_by_family_horizon`.
+- Synthetic unit coverage for exact one-cell periodic advection correction.
+
+Validation selection:
+
+- Setup: persistence residual alpha `0.0`, advection-only periodic roll shift, 32 validation samples, 16 rollout steps.
+- Best selected shift: `+40`.
+- Selected validation run: `ups_light_advection_roll_shift_40_val`.
+- Selected validation decoded rollout NRMSE: `0.11155091371736849`.
+- Local neighbors: `+38 -> 0.11443604286804047`, `+42 -> 0.11160543416536953`, `+44 -> 0.11459499323130662`.
+
+Frozen held-out test:
+
+- Run: `ups_light_advection_roll_shift_40_test`.
+- Summary: `reports/light_experiments_remote/ups_light_advection_roll_shift_40_test/summary.json`.
+- Decoded rollout NRMSE: `0.30780652221851373`.
+- Persistence baseline: `0.5701633411507036`.
+- Clean transport alpha gate: `0.5283710326453532`.
+- Baseline ratio vs persistence: `0.5398567392938639`.
+- Baseline improvement fraction: `0.46014326070613615`.
+- Rebuilt scorecard: `reports/demo/light_latest/scorecard.json`.
+- Scorecard gate: `baseline_improvement_passed=true`.
+
+Interpretation:
+
+- This is the first light-v1 held-out result in this loop that clears the 20% persistence improvement gate.
+- The result shows the transport/advection weakness is largely phase/translation error.
+- It should not yet be presented as SOTA or foundation-model evidence by itself because the shift is validation-selected and task-specific.
+
+Next step:
+
+- Convert the hand-selected shift into a learned or parameter-conditioned transport head, then rerun the same validation/test discipline. The target is to preserve the held-out gain while removing the hard-coded advection postprocess.

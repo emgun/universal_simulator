@@ -1159,3 +1159,29 @@ Experiment loop update (2026-05-11, learned-gate feature sweep):
   - decreasing residual trust over rollout horizon is directionally useful
   - target-free scalar gate features produce only a small validation gain, not enough for a clean held-out test
   - next high-leverage local step should move from scalar blending to a transport/advection dynamics correction or a trained sidecar with per-sample supervision
+
+Experiment loop update (2026-05-11, advection roll-shift transport correction):
+- Added:
+  - decoded evaluation supports config-gated periodic roll shifts via `evaluation.decoded_roll_shift_by_task`
+  - additional shift override surfaces: `decoded_roll_shift_by_family`, `decoded_roll_shift_by_task_horizon`, and `decoded_roll_shift_by_family_horizon`
+  - unit coverage for a synthetic advection case where a one-cell periodic shift exactly fixes persistence
+- Validation-only sweep:
+  - output root: `reports/research/sota_loop/transport_shift_sweep`
+  - setup: persistence residual alpha `0.0`, advection-only roll shift, 32 validation samples, 16 rollout steps
+  - coarse/refined selected shift: `+40`
+  - selected validation run: `ups_light_advection_roll_shift_40_val`
+  - selected validation decoded rollout NRMSE: `0.11155091371736849`
+  - validation neighbors: `+38 -> 0.11443604286804047`, `+42 -> 0.11160543416536953`, `+44 -> 0.11459499323130662`
+- Frozen held-out test:
+  - run: `ups_light_advection_roll_shift_40_test`
+  - summary: `reports/light_experiments_remote/ups_light_advection_roll_shift_40_test/summary.json`
+  - decoded rollout NRMSE: `0.30780652221851373`
+  - persistence decoded rollout NRMSE: `0.5701633411507036`
+  - clean transport-alpha gate decoded rollout NRMSE: `0.5283710326453532`
+  - baseline ratio vs persistence: `0.5398567392938639`
+  - baseline improvement fraction: `0.46014326070613615`
+  - scorecard: `reports/demo/light_latest/scorecard.json`, `baseline_improvement_passed=true`
+- Learning:
+  - Advection is dominated by a learnable translation/transport rule; a simple periodic shift beats scalar residual blending by a large margin
+  - this is a strong demo candidate and passes the light-v1 persistence gate, but it is still a hand-selected physics correction rather than a learned general simulator mechanism
+  - next step should turn this into a parameter-conditioned or learned transport head so the result is defensible as a foundation-model improvement rather than a task-specific postprocess
