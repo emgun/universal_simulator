@@ -1100,3 +1100,21 @@ Experiment loop update (2026-05-11, horizon-calibrated residual gate):
   - per-horizon schedule selection overfits the validation split at this scale; the tiny validation gain did not justify the more complex gate
   - the benchmark-clean result remains the simpler validation-calibrated transport alpha `0.20`
   - horizon metrics are still useful diagnostics, but the next real SOTA step should learn the gate or improve transport/advection dynamics rather than hand-tune schedules
+
+Experiment loop update (2026-05-11, learned-gate execution setup):
+- Branch:
+  - `codex/sota-learned-gate`
+- Goal:
+  - execute the universal physics SOTA improvement plan with an `autoresearch` loop and durable progress tracking
+- Added:
+  - decoded evaluation now accepts `evaluation.decoded_persistence_residual_gate`
+  - gate parameters use a bounded logistic sidecar over the already-resolved static alpha
+  - gate features include horizon, normalized horizon, residual magnitude, persistence magnitude, and prediction magnitude
+  - decoded evaluation reports gate alpha mean/std globally, by task, by family, and by horizon
+- Local validation-only probes:
+  - `ups_light_gate_hook_constant_alpha0p2_val`: `decoded_rollout_nrmse = 0.36417941757537725`
+  - `ups_light_gate_hook_transport_base_val`: `decoded_rollout_nrmse = 0.3567910081081011`
+- Learning:
+  - setting `decoded_persistence_residual_gate.base_alpha=0.2` overrides all families and regresses validation because Burgers/Darcy no longer stay at persistence
+  - omitting `base_alpha` lets the gate inherit the resolved family/task alpha, reproducing the clean transport-only gate
+  - this confirms the hook is usable for learned deltas around the clean transport gate without changing the benchmark harness

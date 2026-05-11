@@ -187,6 +187,103 @@ def _resolve_residual_alpha(
     return residual_alpha
 
 
+def _logit(value: float, *, eps: float = 1e-6) -> float:
+    clipped = min(max(float(value), eps), 1.0 - eps)
+    return math.log(clipped / (1.0 - clipped))
+
+
+def _sigmoid(score: float) -> float:
+    if score >= 0.0:
+        z = math.exp(-score)
+        return 1.0 / (1.0 + z)
+    z = math.exp(score)
+    return z / (1.0 + z)
+
+
+def _residual_gate_config(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError("evaluation.decoded_persistence_residual_gate must be a mapping")
+    cfg = dict(raw)
+    min_alpha = float(cfg.get("min_alpha", 0.0))
+    max_alpha = float(cfg.get("max_alpha", 1.0))
+    if min_alpha < 0.0 or max_alpha > 1.0 or min_alpha > max_alpha:
+        raise ValueError("decoded residual gate alpha bounds must satisfy 0 <= min_alpha <= max_alpha <= 1")
+    for key in ("feature_weights", "task_bias", "family_bias", "horizon_bias"):
+        value = cfg.get(key, {})
+        if value is not None and not isinstance(value, Mapping):
+            raise ValueError(f"decoded residual gate '{key}' must be a mapping")
+    return cfg
+
+
+def _tensor_rms(value: torch.Tensor) -> float:
+    return math.sqrt(float(value.pow(2).mean().item()))
+
+
+def _gate_features(
+    *,
+    pred_field: torch.Tensor,
+    persistence_field: torch.Tensor,
+    horizon: int,
+    rollout_steps: int,
+) -> dict[str, float]:
+    residual = pred_field - persistence_field
+    horizon_norm = float(horizon) / max(float(rollout_steps), 1.0)
+    return {
+        "horizon": float(horizon),
+        "horizon_norm": horizon_norm,
+        "horizon_log": math.log1p(float(horizon)),
+        "residual_abs_mean": float(residual.abs().mean().item()),
+        "residual_rms": _tensor_rms(residual),
+        "persistence_abs_mean": float(persistence_field.abs().mean().item()),
+        "persistence_rms": _tensor_rms(persistence_field),
+        "prediction_abs_mean": float(pred_field.abs().mean().item()),
+        "prediction_rms": _tensor_rms(pred_field),
+    }
+
+
+def _resolve_gate_alpha(
+    *,
+    static_alpha: float,
+    gate_cfg: Mapping[str, Any],
+    task_name: str,
+    task_family: str,
+    horizon: int,
+    features: Mapping[str, float],
+) -> float:
+    if not gate_cfg:
+        return static_alpha
+    base_alpha = float(gate_cfg.get("base_alpha", static_alpha))
+    score = _logit(base_alpha)
+    score += float(gate_cfg.get("bias", 0.0))
+    task_bias = gate_cfg.get("task_bias", {}) or {}
+    family_bias = gate_cfg.get("family_bias", {}) or {}
+    horizon_bias = gate_cfg.get("horizon_bias", {}) or {}
+    score += float(task_bias.get(task_name, 0.0))
+    score += float(family_bias.get(task_family, 0.0))
+    score += float(horizon_bias.get(str(horizon), horizon_bias.get(horizon, 0.0)))
+    for name, weight in (gate_cfg.get("feature_weights", {}) or {}).items():
+        score += float(weight) * float(features.get(str(name), 0.0))
+    alpha = _sigmoid(score)
+    min_alpha = float(gate_cfg.get("min_alpha", 0.0))
+    max_alpha = float(gate_cfg.get("max_alpha", 1.0))
+    return min(max(alpha, min_alpha), max_alpha)
+
+
+def _append_stat(stats: dict[str, list[float]], key: str, value: float) -> None:
+    stats.setdefault(key, []).append(float(value))
+
+
+def _add_alpha_stats(metrics: dict[str, float], stats: Mapping[str, list[float]]) -> None:
+    for key, values in stats.items():
+        if not values:
+            continue
+        tensor = torch.tensor(values, dtype=torch.float64)
+        metrics[f"{key}_mean"] = float(tensor.mean().item())
+        metrics[f"{key}_std"] = float(tensor.std(unbiased=False).item()) if len(values) > 1 else 0.0
+
+
 def evaluate_pdebench(task: str, split: str = "test", root: str | None = None) -> MetricReport:
     """Identity baseline over raw PDEBench fields."""
 
@@ -406,10 +503,12 @@ def evaluate_decoded_operator(
         eval_cfg.get("decoded_persistence_residual_alpha_by_family_horizon"),
         setting="evaluation.decoded_persistence_residual_alpha_by_family_horizon",
     )
+    residual_gate_cfg = _residual_gate_config(eval_cfg.get("decoded_persistence_residual_gate"))
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
 
     total_pred = []
     total_target = []
+    alpha_stats: dict[str, list[float]] = {}
     horizon_pred: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
     horizon_target: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
     per_task_pred: Dict[str, List[torch.Tensor]] = {}
@@ -506,8 +605,27 @@ def evaluate_decoded_operator(
                         residual_alpha_by_task_horizon=residual_alpha_by_task_horizon,
                         residual_alpha_by_family_horizon=residual_alpha_by_family_horizon,
                     )
+                    persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
+                    if residual_gate_cfg:
+                        gate_features = _gate_features(
+                            pred_field=pred_field,
+                            persistence_field=persistence_field,
+                            horizon=horizon,
+                            rollout_steps=steps,
+                        )
+                        task_residual_alpha = _resolve_gate_alpha(
+                            static_alpha=task_residual_alpha,
+                            gate_cfg=residual_gate_cfg,
+                            task_name=task_name,
+                            task_family=task_family,
+                            horizon=horizon,
+                            features=gate_features,
+                        )
+                        _append_stat(alpha_stats, "decoded_residual_gate_alpha", task_residual_alpha)
+                        _append_stat(alpha_stats, f"task_{task_name}_decoded_residual_gate_alpha", task_residual_alpha)
+                        _append_stat(alpha_stats, f"family_{task_family}_decoded_residual_gate_alpha", task_residual_alpha)
+                        _append_stat(alpha_stats, f"decoded_residual_gate_h{horizon}_alpha", task_residual_alpha)
                     if task_residual_alpha != 1.0:
-                        persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
                         pred_field = persistence_field + task_residual_alpha * (pred_field - persistence_field)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
@@ -597,6 +715,7 @@ def evaluate_decoded_operator(
                 )
                 metrics[f"family_{family_name}_decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
                 metrics[f"family_{family_name}_decoded_h{horizon}_rrmse"] = horizon_stats["rrmse"]
+    _add_alpha_stats(metrics, alpha_stats)
     task_extra: str | list[str] = task_names[0] if len(task_names) == 1 else task_names
     return MetricReport(
         metrics=metrics,
@@ -609,6 +728,7 @@ def evaluate_decoded_operator(
             "decoded_persistence_residual_alpha_by_horizon": residual_alpha_by_horizon,
             "decoded_persistence_residual_alpha_by_task_horizon": residual_alpha_by_task_horizon,
             "decoded_persistence_residual_alpha_by_family_horizon": residual_alpha_by_family_horizon,
+            "decoded_persistence_residual_gate": residual_gate_cfg,
             "report_all_horizon_metrics": report_all_horizon_metrics,
         },
     )

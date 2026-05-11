@@ -253,6 +253,50 @@ def test_evaluate_decoded_operator_can_apply_task_horizon_residual_alpha(tmp_pat
     assert report.extra["decoded_persistence_residual_alpha_by_task_horizon"] == {"advection1d": {1: 0.5, 2: 1.0 / 3.0}}
 
 
+def test_evaluate_decoded_operator_can_apply_bounded_residual_gate(tmp_path):
+    data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_persistence_residual_gate": {
+                "base_alpha": 0.5,
+                "min_alpha": 0.1,
+                "max_alpha": 0.9,
+                "task_bias": {"advection1d": 1.0},
+                "horizon_bias": {"2": -2.0},
+                "feature_weights": {"residual_rms": 0.0},
+            },
+            "report_all_horizon_metrics": True,
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _AddOperator(delta=2.0),
+        _DummyDecoder(),
+        rollout_steps=2,
+    )
+
+    assert 0.1 <= report.metrics["decoded_residual_gate_alpha_mean"] <= 0.9
+    assert report.metrics["decoded_residual_gate_h1_alpha_mean"] > report.metrics["decoded_residual_gate_h2_alpha_mean"]
+    assert report.metrics["task_advection1d_decoded_residual_gate_alpha_mean"] == report.metrics["decoded_residual_gate_alpha_mean"]
+    assert report.metrics["family_transport_decoded_residual_gate_alpha_mean"] == report.metrics["decoded_residual_gate_alpha_mean"]
+    assert report.extra["decoded_persistence_residual_gate"]["base_alpha"] == 0.5
+
+
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
     for task_name in ("burgers1d", "advection1d"):
         data = torch.ones(1, 3, 4, dtype=torch.float32)

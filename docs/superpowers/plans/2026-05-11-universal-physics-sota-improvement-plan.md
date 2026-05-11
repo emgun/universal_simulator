@@ -695,3 +695,28 @@ A SOTA-style claim is not allowed until all are true:
 - the plan documents exact splits, commands, commits, and checkpoint sources.
 
 The fastest credible path is not to claim SOTA early. It is to produce a clean learned transport-gate/refiner win, scale only that, and then compare against stronger baselines once the UPS candidate is actually competitive.
+
+---
+
+## Execution Progress
+
+### 2026-05-11: Learned Gate Hook
+
+Status: Phase 0 complete; Phase 1 scaffolding started on `codex/sota-learned-gate`.
+
+Implemented:
+
+- `evaluation.decoded_persistence_residual_gate` in decoded evaluation.
+- Bounded logistic gate parameters over the resolved residual alpha.
+- Target-free gate features: horizon, normalized horizon, residual magnitude, persistence magnitude, prediction magnitude.
+- Gate alpha metrics: global, per-task, per-family, and per-horizon mean/std.
+
+Validation-only findings:
+
+- `ups_light_gate_hook_constant_alpha0p2_val`: `decoded_rollout_nrmse = 0.36417941757537725`.
+- `ups_light_gate_hook_transport_base_val`: `decoded_rollout_nrmse = 0.3567910081081011`.
+- Learning: `base_alpha=0.2` applies to every family and regresses validation. Learned gates should usually omit `base_alpha` and operate around the already-resolved task/family alpha unless intentionally overriding all families.
+
+Next step:
+
+- Add a calibration/training path that learns gate parameters on train/validation data and exports a frozen `decoded_persistence_residual_gate` config. Do not run held-out `test` until validation beats the clean constant gate by the plan threshold.
