@@ -172,6 +172,16 @@ VARIANTS: tuple[Variant, ...] = (
         priority=41,
     ),
     Variant(
+        name="task_signature_advection_roll_shift40",
+        description="Eval-only transport correction using validation-selected periodic advection shift +40.",
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "evaluation.decoded_persistence_residual_alpha=0.0",
+            'evaluation.decoded_roll_shift_by_task={"advection1d":40}',
+        ),
+        priority=42,
+    ),
+    Variant(
         name="task_signature_joint48_rollout4",
         description="Task-signature conditioning with longer joint training and rollout loss.",
         overrides=(
@@ -179,7 +189,7 @@ VARIANTS: tuple[Variant, ...] = (
             "stages.joint_codec_operator.epochs=48",
             "stages.joint_codec_operator.rollout_steps=4",
         ),
-        priority=42,
+        priority=43,
     ),
     Variant(
         name="semigroup0",

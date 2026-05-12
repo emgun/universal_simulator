@@ -1185,3 +1185,20 @@ Experiment loop update (2026-05-11, advection roll-shift transport correction):
   - Advection is dominated by a learnable translation/transport rule; a simple periodic shift beats scalar residual blending by a large margin
   - this is a strong demo candidate and passes the light-v1 persistence gate, but it is still a hand-selected physics correction rather than a learned general simulator mechanism
   - next step should turn this into a parameter-conditioned or learned transport head so the result is defensible as a foundation-model improvement rather than a task-specific postprocess
+
+Experiment loop update (2026-05-11, roll-shift calibration harness):
+- Added:
+  - `scripts/calibrate_roll_shift.py`
+  - unit tests for shift override serialization, candidate defaults, and horizon schedule selection
+  - planner variant `task_signature_advection_roll_shift40`
+- Reconstructed calibration:
+  - command used `--reuse-existing` over shifts `36`, `38`, `40`, `42`, `44`
+  - selected validation shift: `+40`
+  - selected validation decoded rollout NRMSE: `0.11155091371736849`
+  - selected validation guard improvement vs clean transport gate: `0.6873494570124249`
+  - exported selected shift: `reports/research/sota_loop/transport_shift_sweep/selected_shift.json`
+  - reused frozen held-out test summary: `reports/light_experiments_remote/ups_light_advection_roll_shift_40_test/summary.json`
+- Learning:
+  - the shift result is now reproducible through a guarded calibration/export script, not a manual shell loop
+  - validation advection is almost exactly corrected by shift `+40`, but held-out test advection remains `0.4065598205949988`; this means the fixed shift is not a universal transport law
+  - local hydrated data lacks `advection1d_train.h5`, so the next learned/parameter-conditioned transport-head step needs remote train data hydration or a small dedicated train split

@@ -808,3 +808,33 @@ Interpretation:
 Next step:
 
 - Convert the hand-selected shift into a learned or parameter-conditioned transport head, then rerun the same validation/test discipline. The target is to preserve the held-out gain while removing the hard-coded advection postprocess.
+
+### 2026-05-11: Roll-Shift Calibration Harness
+
+Status: transport-shift result is reproducible through a script; still not a learned general mechanism.
+
+Implemented:
+
+- `scripts/calibrate_roll_shift.py`.
+- `task_signature_advection_roll_shift40` planner variant.
+- Unit tests for roll-shift override serialization and horizon schedule selection.
+
+Reconstructed calibration:
+
+- Command used `--reuse-existing` over shifts `36`, `38`, `40`, `42`, and `44`.
+- Selected validation shift: `+40`.
+- Selected validation decoded rollout NRMSE: `0.11155091371736849`.
+- Selected validation guard improvement vs clean transport gate: `0.6873494570124249`.
+- Exported selected shift: `reports/research/sota_loop/transport_shift_sweep/selected_shift.json`.
+- Reused frozen held-out test summary: `reports/light_experiments_remote/ups_light_advection_roll_shift_40_test/summary.json`.
+
+Learning:
+
+- The result is now reproducible without a manual shell loop.
+- The validation/test gap is important: validation advection is nearly solved by `+40`, but held-out test advection remains `0.4065598205949988`.
+- The fixed shift is therefore a useful diagnostic and demo candidate, not a universal transport law.
+- Local hydration currently has `advection1d_val.h5` and `advection1d_test.h5`, but not `advection1d_train.h5`; learned transport-head work needs remote train data hydration or a dedicated small train split.
+
+Next step:
+
+- Build a learned or parameter-conditioned shift estimator for Advection. The safest design is to train/select on train-like data, validate on `val`, and run exactly one `test` only if it beats the fixed-shift candidate or preserves most of its gain while removing the hard-coded shift.
