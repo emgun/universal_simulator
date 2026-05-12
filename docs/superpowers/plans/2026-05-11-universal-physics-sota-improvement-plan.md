@@ -20,8 +20,9 @@ Maintain a clean, comparable benchmark story.
 
 - Primary metric: held-out `decoded_rollout_nrmse`.
 - Main baseline: `persistence_light_v1_test`, `decoded_rollout_nrmse = 0.5701633411507036`.
-- Current benchmark-clean best: validation-calibrated transport residual alpha `0.20`, held-out `decoded_rollout_nrmse = 0.5283710326453532`.
-- Current improvement over persistence: about `7.33%`.
+- Current clean general-model best: validation-calibrated transport residual alpha `0.20`, held-out `decoded_rollout_nrmse = 0.5283710326453532`.
+- Current validation-selected demo best: advection roll shift `+40`, held-out `decoded_rollout_nrmse = 0.30780652221851373`.
+- Current demo-best improvement over persistence: `46.014326070613615%`.
 - Demo gate: at least `20%` improvement over persistence unless the gate is explicitly revised with evidence.
 - Never tune on `test`; use `val` for selection and run `test` once per selected candidate.
 - Label test-swept or exploratory results as non-promoted evidence.
@@ -41,6 +42,26 @@ This is the current threshold for a credible light-v1 demo claim:
 ```text
 0.5701633411507036 * (1.0 - 0.20) = 0.4561306729205629
 ```
+
+This gate is passed by the validation-selected roll-shift demo candidate, but not yet by a learned/general mechanism.
+
+### G2.5: Replace The Hard-Coded Transport Shift
+
+North-star near-term target: preserve the roll-shift gain with a learned or parameter-conditioned transport mechanism.
+
+Concrete target:
+
+- Match or beat `ups_light_advection_roll_shift_40_test`, held-out `decoded_rollout_nrmse <= 0.30780652221851373`.
+- If the mechanism is clearly learned/parameter-conditioned and not hard-coded by task/split, accept a near-miss only if it still passes the persistence gate with margin: held-out `decoded_rollout_nrmse <= 0.330`.
+- Improve held-out Advection to `task_advection1d_decoded_rollout_nrmse <= 0.4065598205949988`.
+- Preserve Burgers and Darcy within `2%` of persistence/roll-shift values: `task_burgers1d_decoded_rollout_nrmse <= 0.17795817395661427`, `task_darcy2d_decoded_rollout_nrmse <= 0.21327743107503315`.
+- Preserve spectral behavior at or below the roll-shift candidate: `decoded_rollout_spectral_energy_error <= 0.06721626079052936`.
+
+Stretch target:
+
+- Held-out `decoded_rollout_nrmse <= 0.285`.
+- Held-out `task_advection1d_decoded_rollout_nrmse <= 0.35`.
+- Same or lower cost than the current light-v1 run class.
 
 ### G3: Improve Concrete Secondary Evals
 
@@ -86,12 +107,14 @@ Current evidence:
 - Persistence baseline: `0.5701633411507036`.
 - Trained residual/stability candidate: `0.530536668470072`.
 - Clean validation-calibrated transport residual gate alpha `0.20`: `0.5283710326453532`.
+- Validation-selected advection roll shift `+40`: `0.30780652221851373`, passes the demo gate but remains a task-specific diagnostic until replaced by learned or parameter-conditioned transport logic.
 - Exploratory test-swept transport alpha `0.42`: `0.5126627282110727`, useful as an upper-bound clue but not a clean benchmark result.
 - Horizon schedule overfit validation: validation `0.3562364331301045` vs constant validation `0.35679104424840724`, but exploratory test `0.5352231399077773`; keep as diagnostic, not promoted.
 
 Interpretation:
 
 - Manual scalar/horizon residual blending is near exhaustion.
+- Fixed roll shifting shows transport phase error is the dominant short-term opportunity, but hard-coded task/split postprocessing is not the target system.
 - Burgers and Darcy are less urgent than transport/advection.
 - The high-value next step is a learned transport-aware residual/gating mechanism, not another hand-tuned alpha sweep.
 - The foundation-model direction should be built behind this cheap evidence gate, not ahead of it.
@@ -233,15 +256,29 @@ Crash classification:
 Every experiment follows the same loop:
 
 1. Start from the current best commit on `codex/residual-light-candidate` or a fresh branch from it.
-2. Write one clear hypothesis.
+2. Write one clear hypothesis and name the target gate: clean-best, demo floor, roll-shift parity, or stretch.
 3. Add or modify one bounded model/training feature.
 4. Run unit tests for the touched surface.
 5. Run `val` only for selection.
-6. Record metrics in a local experiment ledger.
-7. If validation wins, run exactly one `test`.
+6. Record the required loop evals in a local experiment ledger.
+7. Compare validation against the target gate and run exactly one `test` only if the validation guard passes.
 8. Rebuild the scorecard.
 9. Keep, discard, or crash.
 10. Commit only kept harness improvements and measured winners.
+
+Required loop eval contract:
+
+- Selection split: `val`, not `test`, with the light-v1 evaluation shape unless this file is explicitly updated.
+- Primary promotion metric: held-out `test` `decoded_rollout_nrmse`.
+- Demo floor: held-out `decoded_rollout_nrmse <= 0.4561306729205629`.
+- Roll-shift parity north star: held-out `decoded_rollout_nrmse <= 0.30780652221851373`.
+- Learned near-miss allowance: held-out `decoded_rollout_nrmse <= 0.330` only when the mechanism is learned or parameter-conditioned and not hard-coded by task/split.
+- Stretch north star: held-out `decoded_rollout_nrmse <= 0.285`.
+- Required secondary evals: `task_advection1d_decoded_rollout_nrmse`, `task_burgers1d_decoded_rollout_nrmse`, `task_darcy2d_decoded_rollout_nrmse`, `decoded_h4_nrmse`, `decoded_h16_nrmse`, and `decoded_rollout_spectral_energy_error`.
+- Safety bounds for roll-shift replacement: Advection `<= 0.4065598205949988`, Burgers `<= 0.17795817395661427`, Darcy `<= 0.21327743107503315`, spectral error `<= 0.06721626079052936`.
+- Hard-coded or task-specific postprocesses can be logged as diagnostics or demos, but they do not satisfy the north-star generality goal until replaced by learned or parameter-conditioned logic.
+
+Until the ledger schema is expanded, record `target_gate=...`, `selection_split=...`, `generality_level=...`, and `promotion_decision=...` in `description` and `reports/research/sota_loop/notes.md`.
 
 Recommended ledger:
 
