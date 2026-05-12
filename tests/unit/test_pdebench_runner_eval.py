@@ -340,6 +340,65 @@ def test_evaluate_decoded_operator_can_apply_task_roll_shift(tmp_path):
     assert shifted_report.extra["decoded_roll_shift_by_task"] == {"advection1d": 1}
 
 
+def test_evaluate_decoded_operator_can_estimate_observed_roll_shift(tmp_path):
+    data = torch.tensor(
+        [
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+            ]
+        ],
+        dtype=torch.float32,
+    )
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    base_cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {"decoded_persistence_residual_alpha": 0.0, "report_all_horizon_metrics": True},
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+    estimator_cfg = {
+        **base_cfg,
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_observed_roll_shift_estimator": {
+                "candidate_shifts": [-1, 0, 1],
+                "tasks": ["advection1d"],
+            },
+            "report_all_horizon_metrics": True,
+        },
+    }
+
+    baseline_report = evaluate_decoded_operator(
+        base_cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+        rollout_steps=2,
+    )
+    estimator_report = evaluate_decoded_operator(
+        estimator_cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+        rollout_steps=2,
+    )
+
+    assert estimator_report.metrics["task_advection1d_decoded_h2_nrmse"] == 0.0
+    assert estimator_report.metrics["decoded_rollout_nrmse"] < baseline_report.metrics["decoded_rollout_nrmse"]
+    assert estimator_report.metrics["decoded_observed_roll_shift_mean"] == 1.0
+    assert estimator_report.extra["decoded_observed_roll_shift_estimator"]["tasks"] == ["advection1d"]
+
+
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
     for task_name in ("burgers1d", "advection1d"):
         data = torch.ones(1, 3, 4, dtype=torch.float32)

@@ -3,7 +3,7 @@ from __future__ import annotations
 """PDEBench evaluation helpers."""
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -255,6 +255,75 @@ def _roll_flattened_grid(field: torch.Tensor, grid_shape: tuple[int, int], *, sh
     grid = field.transpose(1, 2).reshape(batch, channels, H, W)
     rolled = torch.roll(grid, shifts=int(shift_x), dims=-1)
     return rolled.reshape(batch, channels, H * W).transpose(1, 2).contiguous()
+
+
+def _roll_shift_estimator_config(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError("evaluation.decoded_observed_roll_shift_estimator must be a mapping")
+    cfg = dict(raw)
+    candidate_shifts = cfg.get(
+        "candidate_shifts",
+        [-64, -48, -40, -32, -24, -16, -8, -4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64],
+    )
+    if not isinstance(candidate_shifts, Sequence) or isinstance(candidate_shifts, (str, bytes)):
+        raise ValueError("decoded observed roll-shift estimator candidate_shifts must be a sequence of integers")
+    cfg["candidate_shifts"] = [int(shift) for shift in candidate_shifts]
+    cfg["enabled"] = bool(cfg.get("enabled", True))
+    for key in ("tasks", "families"):
+        values = cfg.get(key, ())
+        if values is None:
+            values = ()
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, Sequence):
+            raise ValueError(f"decoded observed roll-shift estimator {key} must be a sequence")
+        cfg[key] = [str(value) for value in values]
+    cfg["min_horizon"] = int(cfg.get("min_horizon", 2))
+    if cfg["min_horizon"] <= 0:
+        raise ValueError("decoded observed roll-shift estimator min_horizon must be positive")
+    return cfg
+
+
+def _roll_shift_estimator_applies(
+    *,
+    cfg: Mapping[str, Any],
+    task_name: str,
+    task_family: str,
+    horizon: int,
+) -> bool:
+    if not cfg or not bool(cfg.get("enabled", True)):
+        return False
+    if horizon < int(cfg.get("min_horizon", 2)):
+        return False
+    tasks = set(str(value) for value in cfg.get("tasks", ()))
+    families = set(str(value) for value in cfg.get("families", ()))
+    if tasks and task_name not in tasks:
+        return False
+    if families and task_family not in families:
+        return False
+    return True
+
+
+def _estimate_observed_roll_shift(
+    *,
+    previous_field: torch.Tensor,
+    current_field: torch.Tensor,
+    grid_shape: tuple[int, int],
+    candidate_shifts: Sequence[int],
+) -> int:
+    if not candidate_shifts:
+        return 0
+    best_shift = int(candidate_shifts[0])
+    best_mse = math.inf
+    for shift in candidate_shifts:
+        shifted = _roll_flattened_grid(previous_field, grid_shape, shift_x=int(shift))
+        mse_value = float((shifted - current_field).pow(2).mean().item())
+        if mse_value < best_mse:
+            best_shift = int(shift)
+            best_mse = mse_value
+    return best_shift
 
 
 def _logit(value: float, *, eps: float = 1e-6) -> float:
@@ -590,11 +659,13 @@ def evaluate_decoded_operator(
         eval_cfg.get("decoded_roll_shift_by_family_horizon"),
         setting="evaluation.decoded_roll_shift_by_family_horizon",
     )
+    observed_roll_shift_cfg = _roll_shift_estimator_config(eval_cfg.get("decoded_observed_roll_shift_estimator"))
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
 
     total_pred = []
     total_target = []
     alpha_stats: dict[str, list[float]] = {}
+    shift_stats: dict[str, list[float]] = {}
     horizon_pred: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
     horizon_target: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
     per_task_pred: Dict[str, List[torch.Tensor]] = {}
@@ -722,6 +793,26 @@ def evaluate_decoded_operator(
                         shift_by_task_horizon=roll_shift_by_task_horizon,
                         shift_by_family_horizon=roll_shift_by_family_horizon,
                     )
+                    if (
+                        roll_shift == 0
+                        and _roll_shift_estimator_applies(
+                            cfg=observed_roll_shift_cfg,
+                            task_name=task_name,
+                            task_family=task_family,
+                            horizon=horizon,
+                        )
+                    ):
+                        previous_field = _flatten_field_step(fields[step - 1], grid_shape).cpu()
+                        roll_shift = _estimate_observed_roll_shift(
+                            previous_field=previous_field,
+                            current_field=persistence_field,
+                            grid_shape=grid_shape,
+                            candidate_shifts=observed_roll_shift_cfg.get("candidate_shifts", ()),
+                        )
+                        _append_stat(shift_stats, "decoded_observed_roll_shift", float(roll_shift))
+                        _append_stat(shift_stats, f"task_{task_name}_decoded_observed_roll_shift", float(roll_shift))
+                        _append_stat(shift_stats, f"family_{task_family}_decoded_observed_roll_shift", float(roll_shift))
+                        _append_stat(shift_stats, f"decoded_observed_roll_shift_h{horizon}", float(roll_shift))
                     pred_field = _roll_flattened_grid(pred_field, grid_shape, shift_x=roll_shift)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
@@ -812,6 +903,7 @@ def evaluate_decoded_operator(
                 metrics[f"family_{family_name}_decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
                 metrics[f"family_{family_name}_decoded_h{horizon}_rrmse"] = horizon_stats["rrmse"]
     _add_alpha_stats(metrics, alpha_stats)
+    _add_alpha_stats(metrics, shift_stats)
     task_extra: str | list[str] = task_names[0] if len(task_names) == 1 else task_names
     return MetricReport(
         metrics=metrics,
@@ -829,6 +921,7 @@ def evaluate_decoded_operator(
             "decoded_roll_shift_by_family": roll_shift_by_family,
             "decoded_roll_shift_by_task_horizon": roll_shift_by_task_horizon,
             "decoded_roll_shift_by_family_horizon": roll_shift_by_family_horizon,
+            "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
             "report_all_horizon_metrics": report_all_horizon_metrics,
         },
     )

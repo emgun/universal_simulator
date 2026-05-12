@@ -22,7 +22,8 @@ Maintain a clean, comparable benchmark story.
 - Main baseline: `persistence_light_v1_test`, `decoded_rollout_nrmse = 0.5701633411507036`.
 - Current clean general-model best: validation-calibrated transport residual alpha `0.20`, held-out `decoded_rollout_nrmse = 0.5283710326453532`.
 - Current validation-selected demo best: advection roll shift `+40`, held-out `decoded_rollout_nrmse = 0.30780652221851373`.
-- Current demo-best improvement over persistence: `46.014326070613615%`.
+- Current state-conditioned transport best: observed roll-shift estimator, held-out `decoded_rollout_nrmse = 0.20177292896682064`.
+- Current state-conditioned improvement over persistence: `64.61138161573093%`.
 - Demo gate: at least `20%` improvement over persistence unless the gate is explicitly revised with evidence.
 - Never tune on `test`; use `val` for selection and run `test` once per selected candidate.
 - Label test-swept or exploratory results as non-promoted evidence.
@@ -43,7 +44,7 @@ This is the current threshold for a credible light-v1 demo claim:
 0.5701633411507036 * (1.0 - 0.20) = 0.4561306729205629
 ```
 
-This gate is passed by the validation-selected roll-shift demo candidate, but not yet by a learned/general mechanism.
+This gate is passed by the validation-selected roll-shift demo candidate and the observed state-conditioned estimator, but not yet by a fully causal learned transport mechanism.
 
 ### G2.5: Replace The Hard-Coded Transport Shift
 
@@ -52,6 +53,7 @@ North-star near-term target: preserve the roll-shift gain with a learned or para
 Concrete target:
 
 - Match or beat `ups_light_advection_roll_shift_40_test`, held-out `decoded_rollout_nrmse <= 0.30780652221851373`.
+- New causal-head target: match or beat `ups_light_observed_shift_estimator_test`, held-out `decoded_rollout_nrmse <= 0.20177292896682064`, without using ground-truth future transitions.
 - If the mechanism is clearly learned/parameter-conditioned and not hard-coded by task/split, accept a near-miss only if it still passes the persistence gate with margin: held-out `decoded_rollout_nrmse <= 0.330`.
 - Improve held-out Advection to `task_advection1d_decoded_rollout_nrmse <= 0.4065598205949988`.
 - Preserve Burgers and Darcy within `2%` of persistence/roll-shift values: `task_burgers1d_decoded_rollout_nrmse <= 0.17795817395661427`, `task_darcy2d_decoded_rollout_nrmse <= 0.21327743107503315`.
@@ -108,6 +110,7 @@ Current evidence:
 - Trained residual/stability candidate: `0.530536668470072`.
 - Clean validation-calibrated transport residual gate alpha `0.20`: `0.5283710326453532`.
 - Validation-selected advection roll shift `+40`: `0.30780652221851373`, passes the demo gate but remains a task-specific diagnostic until replaced by learned or parameter-conditioned transport logic.
+- Observed state-conditioned roll-shift estimator: `0.20177292896682064`, passes roll-shift parity and shows transport state signal is recoverable, but still uses previous observed transitions and is not yet a fully causal learned rollout mechanism.
 - Exploratory test-swept transport alpha `0.42`: `0.5126627282110727`, useful as an upper-bound clue but not a clean benchmark result.
 - Horizon schedule overfit validation: validation `0.3562364331301045` vs constant validation `0.35679104424840724`, but exploratory test `0.5352231399077773`; keep as diagnostic, not promoted.
 
@@ -115,6 +118,7 @@ Interpretation:
 
 - Manual scalar/horizon residual blending is near exhaustion.
 - Fixed roll shifting shows transport phase error is the dominant short-term opportunity, but hard-coded task/split postprocessing is not the target system.
+- Observed transition-conditioned shifting is now the local upper bound to distill into a causal transport head.
 - Burgers and Darcy are less urgent than transport/advection.
 - The high-value next step is a learned transport-aware residual/gating mechanism, not another hand-tuned alpha sweep.
 - The foundation-model direction should be built behind this cheap evidence gate, not ahead of it.

@@ -1202,3 +1202,32 @@ Experiment loop update (2026-05-11, roll-shift calibration harness):
   - the shift result is now reproducible through a guarded calibration/export script, not a manual shell loop
   - validation advection is almost exactly corrected by shift `+40`, but held-out test advection remains `0.4065598205949988`; this means the fixed shift is not a universal transport law
   - local hydrated data lacks `advection1d_train.h5`, so the next learned/parameter-conditioned transport-head step needs remote train data hydration or a small dedicated train split
+
+Experiment loop update (2026-05-11, observed transport shift estimator):
+- Added:
+  - `evaluation.decoded_observed_roll_shift_estimator`, a state-conditioned decoded evaluator hook that estimates periodic transport shift from the previous observed transition rather than using a fixed task/split shift
+  - metrics for estimated shift mean/std at aggregate, task, family, and horizon levels
+  - unit coverage for a synthetic advection sequence where the estimator recovers a one-cell shift and improves decoded rollout NRMSE
+- Validation guard:
+  - run: `ups_light_observed_shift_estimator_val`
+  - summary: `reports/research/sota_loop/observed_shift_estimator/ups_light_observed_shift_estimator_val/summary.json`
+  - decoded rollout NRMSE: `0.1419775490176828`
+  - advection NRMSE: `0.12911778915203231`
+  - Burgers/Darcy NRMSE: `0.14738121412908425` / `0.188979512124482`
+  - spectral error: `0.04679754756316474`
+  - estimated shift mean/std: `40.0` / `0.0`
+- Frozen held-out test:
+  - run: `ups_light_observed_shift_estimator_test`
+  - summary: `reports/research/sota_loop/observed_shift_estimator/ups_light_observed_shift_estimator_test/summary.json`
+  - decoded rollout NRMSE: `0.20177292896682064`
+  - baseline ratio vs persistence: `0.35388618384269066`
+  - baseline improvement fraction: `0.6461138161573093`
+  - advection NRMSE: `0.22508631227914033`
+  - Burgers/Darcy NRMSE: `0.17446879896821743` / `0.20909553062258152`
+  - h4/h8/h16 NRMSE: `0.08770583713720184` / `0.08372942384331622` / `0.08648617959454696`
+  - spectral error: `0.06721626206246058`, effectively tied with the fixed roll-shift result but numerically higher by about `1.3e-9`
+  - estimated shift mean/std: `64.0` / `0.0`
+- Learning:
+  - a state-conditioned transport rule beats the fixed validation-selected shift on held-out aggregate NRMSE (`0.20177` vs `0.30781`) and advection NRMSE (`0.22509` vs `0.40656`)
+  - because the estimator uses observed previous transitions, it is a strong proof of transport-state signal but not yet a fully autonomous learned simulator rollout mechanism
+  - next step should train or fit a causal transport head that predicts the shift from model state/metadata without ground-truth future transitions, then compare against this observed-estimator upper bound
