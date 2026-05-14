@@ -59,6 +59,14 @@ Concrete target:
 - Preserve Burgers and Darcy within `2%` of persistence/roll-shift values: `task_burgers1d_decoded_rollout_nrmse <= 0.17795817395661427`, `task_darcy2d_decoded_rollout_nrmse <= 0.21327743107503315`.
 - Preserve spectral behavior at or below the roll-shift candidate: `decoded_rollout_spectral_energy_error <= 0.06721626079052936`.
 
+Immediate executable path:
+
+- Fit a transport-shift head on `advection1d_train.h5` only with `scripts/fit_transport_shift_head.py`.
+- Validate the train-fitted shift on `advection1d_val.h5`; do not select a new shift from validation.
+- Export the selected override only if train-fitted validation clears the guard.
+- Run held-out `test` once through `scripts/run_light_experiment.py` only after the validation guard passes.
+- Local same-split smoke runs must use `--allow-same-split-smoke` and are never benchmark evidence.
+
 Stretch target:
 
 - Held-out `decoded_rollout_nrmse <= 0.285`.
@@ -384,6 +392,7 @@ Candidate designs:
 2. **Velocity-conditioned transport head**
    - Infer or condition on advection velocity/coefficients if available.
    - Apply differentiable shift in physical space or latent coordinate space.
+   - Use `scripts/fit_transport_shift_head.py` as the first constant-shift baseline before adding a learned per-sample head.
 
 3. **Local stencil head**
    - Predict local finite-difference update/residual.

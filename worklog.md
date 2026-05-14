@@ -1251,3 +1251,23 @@ Experiment loop update (2026-05-14, causal model-prediction shift estimator):
   - the current trained-residual model's decoded prediction is not yet a reliable causal phase/velocity signal
   - the observed-transition estimator remains an upper bound, not a deployable causal mechanism
   - next useful step is not another eval-only causal heuristic; it is a small remote/data-backed train or fit step for a transport head using train/val trajectories, with held-out test still frozen
+
+Experiment loop update (2026-05-14, train/val transport-shift fit harness):
+- Added:
+  - `scripts/fit_transport_shift_head.py`
+  - unit tests for train-fitted shift selection, train/val mismatch reporting, and same-split refusal
+  - SOTA-plan guardrail that local same-split smoke runs are not benchmark evidence
+- Scope contract:
+  - fit uses `advection1d_train.h5` only
+  - validation measures the train-fitted shift on `advection1d_val.h5`
+  - held-out `test` remains frozen and should only run after the validation guard passes
+- Local smoke:
+  - command used `--train-split val --val-split val --allow-same-split-smoke` because local data still lacks `advection1d_train.h5`
+  - output: `reports/research/sota_loop/transport_head_fit/local_smoke_fit_record.json`
+  - selected smoke shift: `+40`
+  - smoke validation NRMSE: `0.012850472703576088`
+  - interpretation: script works end-to-end, but this is same-split smoke only
+- Remote/light-v1 command skeleton:
+  - hydrate B2 `light-v1/advection1d/advection1d_train.h5` and `light-v1/advection1d/advection1d_val.h5`
+  - run `scripts/fit_transport_shift_head.py --data-root <hydrated-light-root> --task advection1d --train-split train --val-split val --max-samples 32 --rollout-steps 16 --output-json reports/research/sota_loop/transport_head_fit/light_v1_fit_record.json --export-selected-config reports/research/sota_loop/transport_head_fit/light_v1_selected_config.json`
+  - only if validation passes, run one frozen `test` through `scripts/run_light_experiment.py` with the exported selected override
