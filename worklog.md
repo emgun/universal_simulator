@@ -1231,3 +1231,23 @@ Experiment loop update (2026-05-11, observed transport shift estimator):
   - a state-conditioned transport rule beats the fixed validation-selected shift on held-out aggregate NRMSE (`0.20177` vs `0.30781`) and advection NRMSE (`0.22509` vs `0.40656`)
   - because the estimator uses observed previous transitions, it is a strong proof of transport-state signal but not yet a fully autonomous learned simulator rollout mechanism
   - next step should train or fit a causal transport head that predicts the shift from model state/metadata without ground-truth future transitions, then compare against this observed-estimator upper bound
+
+Experiment loop update (2026-05-14, causal model-prediction shift estimator):
+- Added:
+  - `evaluation.decoded_prediction_roll_shift_estimator`, a causal decoded evaluator hook that estimates periodic shift by comparing the current field to the model's own next-step decoded prediction
+  - estimator modes `roll_prediction` and `roll_persistence`
+  - unit coverage for a synthetic one-step advection case where the model prediction carries the correct shift signal
+- Validation-only candidates:
+  - output root: `reports/research/sota_loop/prediction_shift_estimator`
+  - setup: trained-residual checkpoint, 32 validation samples, 16 rollout steps, Advection-only prediction-shift estimator
+  - `ups_light_prediction_shift_roll_persistence_val`: decoded rollout NRMSE `0.5584609221453186`, Advection NRMSE `0.8005553475932097`, inferred shift mean/std `-9.42578125` / `76.6591886881615`
+  - `ups_light_prediction_shift_roll_prediction_val`: decoded rollout NRMSE `0.5584609221453186`, Advection NRMSE `0.8005553475932097`, inferred shift mean/std `-9.42578125` / `76.6591886881615`
+  - both failed the validation guard; no held-out test was run
+- Diagnostic:
+  - local `advection1d_val.h5` has optimal observed one-step shift `+40` for horizons 1-16
+  - local `advection1d_test.h5` has optimal observed one-step shift `+72` for horizons 1-16 when the candidate grid includes `72`
+  - initial-frame aggregate stats are identical across local validation/test shards, so the split-specific transport rate is not recoverable from the first frame alone in this light shard
+- Learning:
+  - the current trained-residual model's decoded prediction is not yet a reliable causal phase/velocity signal
+  - the observed-transition estimator remains an upper bound, not a deployable causal mechanism
+  - next useful step is not another eval-only causal heuristic; it is a small remote/data-backed train or fit step for a transport head using train/val trajectories, with held-out test still frozen

@@ -306,6 +306,13 @@ def _roll_shift_estimator_applies(
     return True
 
 
+def _roll_shift_estimator_mode(cfg: Mapping[str, Any]) -> str:
+    mode = str(cfg.get("mode", "roll_prediction"))
+    if mode not in {"roll_prediction", "roll_persistence"}:
+        raise ValueError("decoded roll-shift estimator mode must be 'roll_prediction' or 'roll_persistence'")
+    return mode
+
+
 def _estimate_observed_roll_shift(
     *,
     previous_field: torch.Tensor,
@@ -320,6 +327,26 @@ def _estimate_observed_roll_shift(
     for shift in candidate_shifts:
         shifted = _roll_flattened_grid(previous_field, grid_shape, shift_x=int(shift))
         mse_value = float((shifted - current_field).pow(2).mean().item())
+        if mse_value < best_mse:
+            best_shift = int(shift)
+            best_mse = mse_value
+    return best_shift
+
+
+def _estimate_prediction_roll_shift(
+    *,
+    persistence_field: torch.Tensor,
+    predicted_field: torch.Tensor,
+    grid_shape: tuple[int, int],
+    candidate_shifts: Sequence[int],
+) -> int:
+    if not candidate_shifts:
+        return 0
+    best_shift = int(candidate_shifts[0])
+    best_mse = math.inf
+    for shift in candidate_shifts:
+        shifted = _roll_flattened_grid(persistence_field, grid_shape, shift_x=int(shift))
+        mse_value = float((shifted - predicted_field).pow(2).mean().item())
         if mse_value < best_mse:
             best_shift = int(shift)
             best_mse = mse_value
@@ -660,6 +687,7 @@ def evaluate_decoded_operator(
         setting="evaluation.decoded_roll_shift_by_family_horizon",
     )
     observed_roll_shift_cfg = _roll_shift_estimator_config(eval_cfg.get("decoded_observed_roll_shift_estimator"))
+    prediction_roll_shift_cfg = _roll_shift_estimator_config(eval_cfg.get("decoded_prediction_roll_shift_estimator"))
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
 
     total_pred = []
@@ -751,6 +779,8 @@ def evaluate_decoded_operator(
                         raise KeyError(f"Decoder did not produce requested field '{field_name}'")
                     pred_field = decoded[field_name].detach().cpu()
                     horizon = step + 1
+                    persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
+                    raw_pred_field = pred_field
                     task_residual_alpha = _resolve_residual_alpha(
                         task_name=task_name,
                         task_family=task_family,
@@ -762,7 +792,6 @@ def evaluate_decoded_operator(
                         residual_alpha_by_task_horizon=residual_alpha_by_task_horizon,
                         residual_alpha_by_family_horizon=residual_alpha_by_family_horizon,
                     )
-                    persistence_field = _flatten_field_step(fields[step], grid_shape).cpu()
                     if residual_gate_cfg:
                         gate_features = _gate_features(
                             pred_field=pred_field,
@@ -813,6 +842,27 @@ def evaluate_decoded_operator(
                         _append_stat(shift_stats, f"task_{task_name}_decoded_observed_roll_shift", float(roll_shift))
                         _append_stat(shift_stats, f"family_{task_family}_decoded_observed_roll_shift", float(roll_shift))
                         _append_stat(shift_stats, f"decoded_observed_roll_shift_h{horizon}", float(roll_shift))
+                    if (
+                        roll_shift == 0
+                        and _roll_shift_estimator_applies(
+                            cfg=prediction_roll_shift_cfg,
+                            task_name=task_name,
+                            task_family=task_family,
+                            horizon=horizon,
+                        )
+                    ):
+                        roll_shift = _estimate_prediction_roll_shift(
+                            persistence_field=persistence_field,
+                            predicted_field=raw_pred_field,
+                            grid_shape=grid_shape,
+                            candidate_shifts=prediction_roll_shift_cfg.get("candidate_shifts", ()),
+                        )
+                        _append_stat(shift_stats, "decoded_prediction_roll_shift", float(roll_shift))
+                        _append_stat(shift_stats, f"task_{task_name}_decoded_prediction_roll_shift", float(roll_shift))
+                        _append_stat(shift_stats, f"family_{task_family}_decoded_prediction_roll_shift", float(roll_shift))
+                        _append_stat(shift_stats, f"decoded_prediction_roll_shift_h{horizon}", float(roll_shift))
+                        if _roll_shift_estimator_mode(prediction_roll_shift_cfg) == "roll_persistence":
+                            pred_field = persistence_field
                     pred_field = _roll_flattened_grid(pred_field, grid_shape, shift_x=roll_shift)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
@@ -922,6 +972,7 @@ def evaluate_decoded_operator(
             "decoded_roll_shift_by_task_horizon": roll_shift_by_task_horizon,
             "decoded_roll_shift_by_family_horizon": roll_shift_by_family_horizon,
             "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
+            "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
             "report_all_horizon_metrics": report_all_horizon_metrics,
         },
     )

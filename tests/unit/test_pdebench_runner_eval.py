@@ -62,6 +62,19 @@ class _AddOperator(torch.nn.Module):
         return LatentState(z=state.z + self.delta, t=dt if state.t is None else state.t + dt, cond=state.cond)
 
 
+class _RollOperator(torch.nn.Module):
+    def __init__(self, shift: int) -> None:
+        super().__init__()
+        self.shift = int(shift)
+
+    def forward(self, state: LatentState, dt):
+        return LatentState(
+            z=torch.roll(state.z, shifts=self.shift, dims=1),
+            t=dt if state.t is None else state.t + dt,
+            cond=state.cond,
+        )
+
+
 class _DummyDecoder(torch.nn.Module):
     def forward(self, points, latent_tokens, *, conditioning=None):
         return {"u": latent_tokens}
@@ -397,6 +410,44 @@ def test_evaluate_decoded_operator_can_estimate_observed_roll_shift(tmp_path):
     assert estimator_report.metrics["decoded_rollout_nrmse"] < baseline_report.metrics["decoded_rollout_nrmse"]
     assert estimator_report.metrics["decoded_observed_roll_shift_mean"] == 1.0
     assert estimator_report.extra["decoded_observed_roll_shift_estimator"]["tasks"] == ["advection1d"]
+
+
+def test_evaluate_decoded_operator_can_estimate_prediction_roll_shift(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_prediction_roll_shift_estimator": {
+                "candidate_shifts": [-1, 0, 1],
+                "tasks": ["advection1d"],
+                "min_horizon": 1,
+                "mode": "roll_persistence",
+            },
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _RollOperator(shift=1),
+        _DummyDecoder(),
+    )
+
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] == 0.0
+    assert report.metrics["decoded_prediction_roll_shift_mean"] == 1.0
+    assert report.extra["decoded_prediction_roll_shift_estimator"]["mode"] == "roll_persistence"
 
 
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):

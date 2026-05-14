@@ -111,6 +111,7 @@ Current evidence:
 - Clean validation-calibrated transport residual gate alpha `0.20`: `0.5283710326453532`.
 - Validation-selected advection roll shift `+40`: `0.30780652221851373`, passes the demo gate but remains a task-specific diagnostic until replaced by learned or parameter-conditioned transport logic.
 - Observed state-conditioned roll-shift estimator: `0.20177292896682064`, passes roll-shift parity and shows transport state signal is recoverable, but still uses previous observed transitions and is not yet a fully causal learned rollout mechanism.
+- Causal model-prediction shift estimator: validation `0.5584609221453186`, discarded before test because inferred shifts were unstable and Advection regressed to `0.8005553475932097`.
 - Exploratory test-swept transport alpha `0.42`: `0.5126627282110727`, useful as an upper-bound clue but not a clean benchmark result.
 - Horizon schedule overfit validation: validation `0.3562364331301045` vs constant validation `0.35679104424840724`, but exploratory test `0.5352231399077773`; keep as diagnostic, not promoted.
 
@@ -119,6 +120,7 @@ Interpretation:
 - Manual scalar/horizon residual blending is near exhaustion.
 - Fixed roll shifting shows transport phase error is the dominant short-term opportunity, but hard-coded task/split postprocessing is not the target system.
 - Observed transition-conditioned shifting is now the local upper bound to distill into a causal transport head.
+- The current trained-residual model's own next-step decoded prediction is not a sufficient causal phase estimator; a train/fitted transport head needs actual train/val trajectories.
 - Burgers and Darcy are less urgent than transport/advection.
 - The high-value next step is a learned transport-aware residual/gating mechanism, not another hand-tuned alpha sweep.
 - The foundation-model direction should be built behind this cheap evidence gate, not ahead of it.
