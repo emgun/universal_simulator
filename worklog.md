@@ -1438,3 +1438,23 @@ Experiment loop update (2026-05-15, remote constant-shift candidate pipeline):
 - Next executable command:
   - `DRY_RUN=0 ENV_FILE=.env bash scripts/run_remote_transport_shift_candidate.sh`
   - or via Vast: `DRY_RUN=0 ENV_FILE=/path/to/.env bash scripts/launch_remote_transport_shift_candidate_vast.sh`
+
+Experiment loop update (2026-05-15/16, full-train remote transport scan):
+- Remote run:
+  - Vast instance: `36855174`
+  - branch: `codex/sota-learned-gate`
+  - command path: `scripts/launch_remote_transport_shift_candidate_vast.sh` -> `scripts/run_remote_transport_shift_candidate.sh`
+  - full shards hydrated from B2 prefix `full`: `advection1d_train.h5`, `advection1d_val.h5`, `advection1d_test.h5`
+  - local copied evidence: `reports/research/sota_loop/remote_transport_shift_candidate/train_window_scan.json`
+  - instance was destroyed after copying evidence
+- Full train scan:
+  - source shape: `[60000, 201, 1024, 1]`
+  - window size/stride: `32` / `32`
+  - windows scanned: `1875`
+  - best-shift histogram: `{"0": 625, "8": 937, "16": 1, "24": 312}`
+  - target validation shift `40`: `0` matching train windows
+- Interpretation:
+  - the original constant train-fitted shift objective is blocked by source coverage, not local hydration or optimizer error
+  - full Advection train contains no scanned window whose best shift matches the official validation shift `40`
+  - the pipeline correctly refused to build a candidate/test run because no train-only source window could support the required validation regime
+  - next aligned options are to change the benchmark split/source construction with explicit data-governance approval, or move from a constant shift to a learned/state-conditioned transport mechanism

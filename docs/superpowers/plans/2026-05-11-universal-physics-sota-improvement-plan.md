@@ -1031,3 +1031,29 @@ Learning:
 
 - This keeps the original constant train-fitted shift objective intact while moving the blocked local path to the only viable evidence source: full train coverage on remote storage.
 - The result is not complete until the remote scan finds a compatible train window, the gate passes validation, and exactly one held-out test is measured and recorded.
+
+### 2026-05-16: Full-Train Scan Result
+
+Status: full-source scan falsified the constant train-fitted shift path for official current `light-v1` validation.
+
+Remote evidence:
+
+- Vast instance: `36855174`.
+- Branch: `codex/sota-learned-gate`.
+- B2 prefix: `full`.
+- Full train source shape: `[60000, 201, 1024, 1]`.
+- Window size/stride: `32` / `32`.
+- Windows scanned: `1875`.
+- Best-shift histogram: `{"0": 625, "8": 937, "16": 1, "24": 312}`.
+- Target validation shift `40`: `0` matching train windows.
+- Local evidence copy: `reports/research/sota_loop/remote_transport_shift_candidate/train_window_scan.json`.
+
+Interpretation:
+
+- The original train-only constant-shift objective cannot be completed against the current official validation regime from available full train windows.
+- This is now a source-coverage and benchmark-construction blocker, not a local data, compute, or candidate-grid blocker.
+- The pipeline correctly stopped before candidate build/test because a held-out test would not be benchmark-clean without a train-supported validation pass.
+
+Next step:
+
+- Choose an explicit benchmark-policy change: either rebuild the light benchmark so train/val/test share transport-rate support, or retire the constant-shift objective and pursue a learned/state-conditioned transport mechanism with a different gate.

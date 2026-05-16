@@ -48,15 +48,6 @@ def _secret_for_dry_run(value: str | None) -> str | None:
 def _redact_command(cmd: list[str]) -> list[str]:
     redacted: list[str] = []
     for part in cmd:
-        for key in ("WANDB_API_KEY", "B2_KEY_ID", "B2_APP_KEY"):
-            if f"{key}=" in part:
-                pieces = []
-                for item in part.split(","):
-                    if item.startswith(f"{key}="):
-                        pieces.append(f"{key}={REDACTED}")
-                    else:
-                        pieces.append(item)
-                part = ",".join(pieces)
         part = _redact_text(part)
         redacted.append(part)
     return redacted
@@ -308,24 +299,24 @@ def cmd_launch(args: argparse.Namespace) -> None:
 
     env_parts = []
     if args.wandb_project:
-        env_parts.append(f"WANDB_PROJECT={args.wandb_project}")
+        env_parts.append(f"-e WANDB_PROJECT={args.wandb_project}")
     if args.wandb_entity:
-        env_parts.append(f"WANDB_ENTITY={args.wandb_entity}")
+        env_parts.append(f"-e WANDB_ENTITY={args.wandb_entity}")
     if args.wandb_api_key:
-        env_parts.append(f"WANDB_API_KEY={args.wandb_api_key}")
+        env_parts.append(f"-e WANDB_API_KEY={args.wandb_api_key}")
     if args.b2_key_id:
-        env_parts.append(f"B2_KEY_ID={args.b2_key_id}")
+        env_parts.append(f"-e B2_KEY_ID={args.b2_key_id}")
     if args.b2_app_key:
-        env_parts.append(f"B2_APP_KEY={args.b2_app_key}")
+        env_parts.append(f"-e B2_APP_KEY={args.b2_app_key}")
     if args.b2_bucket:
-        env_parts.append(f"B2_BUCKET={args.b2_bucket}")
+        env_parts.append(f"-e B2_BUCKET={args.b2_bucket}")
     if args.b2_prefix:
-        env_parts.append(f"B2_PREFIX={args.b2_prefix}")
+        env_parts.append(f"-e B2_PREFIX={args.b2_prefix}")
     if args.b2_s3_endpoint:
-        env_parts.append(f"B2_S3_ENDPOINT={args.b2_s3_endpoint}")
+        env_parts.append(f"-e B2_S3_ENDPOINT={args.b2_s3_endpoint}")
     if args.b2_s3_region:
-        env_parts.append(f"B2_S3_REGION={args.b2_s3_region}")
-    env_str = ",".join(env_parts) if env_parts else None
+        env_parts.append(f"-e B2_S3_REGION={args.b2_s3_region}")
+    env_str = " ".join(env_parts) if env_parts else None
 
     if args.offer_id:
         cmd = [
