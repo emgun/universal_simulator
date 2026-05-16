@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+"""Run the benchmark-clean train/val gate for transport-shift candidates."""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.diagnose_transport_shift_splits import diagnose as diagnose_splits
+from scripts.fit_transport_shift_head import fit_and_validate
+
+
+def run_gate(args: argparse.Namespace) -> dict[str, Any]:
+    diagnostic_args = argparse.Namespace(
+        data_root=args.data_root,
+        task=args.task,
+        splits=f"{args.train_split},{args.val_split}",
+        max_samples=args.max_samples,
+        rollout_steps=args.rollout_steps,
+        shift=args.shift,
+        top_k=args.top_k,
+    )
+    diagnostic = diagnose_splits(diagnostic_args)
+
+    fit_args = argparse.Namespace(
+        data_root=args.data_root,
+        task=args.task,
+        train_split=args.train_split,
+        val_split=args.val_split,
+        max_samples=args.max_samples,
+        rollout_steps=args.rollout_steps,
+        shift=args.shift,
+        metric=args.metric,
+        kind=args.kind,
+        key=args.key,
+        reference_metric_value=args.reference_metric_value,
+        val_min_relative_improvement=args.val_min_relative_improvement,
+        allow_same_split_smoke=False,
+    )
+    fit_record = fit_and_validate(fit_args)
+    validation_guard = fit_record["validation_guard"]
+    split_consistent = bool(diagnostic["consistent_best_shift"])
+    guard_passed = bool(validation_guard["passed"])
+    test_eligible = split_consistent and guard_passed
+    blockers: list[str] = []
+    if not split_consistent:
+        blockers.append(
+            "train and validation best transport shifts differ; a constant train-fitted shift is not benchmark-clean"
+        )
+    if not guard_passed:
+        blockers.append("train-fitted validation metric did not pass the configured SOTA guard")
+    return {
+        "task": args.task,
+        "data_root": args.data_root,
+        "train_split": args.train_split,
+        "val_split": args.val_split,
+        "metric": args.metric,
+        "reference_metric_value": args.reference_metric_value,
+        "val_min_relative_improvement": args.val_min_relative_improvement,
+        "diagnostic": diagnostic,
+        "fit": fit_record,
+        "test_eligible": test_eligible,
+        "blockers": blockers,
+        "next_action": (
+            "run exactly one held-out test with fit.selected_override"
+            if test_eligible
+            else "do not run held-out test; fix split construction or train a per-trajectory head first"
+        ),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the train/val transport-shift promotion gate")
+    parser.add_argument("--data-root", default="data/pdebench")
+    parser.add_argument("--task", default="advection1d")
+    parser.add_argument("--train-split", default="train")
+    parser.add_argument("--val-split", default="val")
+    parser.add_argument("--max-samples", type=int, default=32)
+    parser.add_argument("--rollout-steps", type=int, default=16)
+    parser.add_argument("--shift", action="append", type=int, default=None)
+    parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
+    parser.add_argument("--kind", choices=("task", "family"), default="task")
+    parser.add_argument("--key", default="advection1d")
+    parser.add_argument("--reference-metric-value", type=float, required=True)
+    parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
+    parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--output-json", default="reports/research/sota_loop/transport_shift_gate.json")
+    args = parser.parse_args()
+
+    record = run_gate(args)
+    output_path = Path(args.output_json)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+    print(json.dumps(record, indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

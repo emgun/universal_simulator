@@ -67,6 +67,7 @@ Immediate executable path:
 - Run held-out `test` once through `scripts/run_light_experiment.py` only after the validation guard passes.
 - Local same-split smoke runs must use `--allow-same-split-smoke` and are never benchmark evidence.
 - If constant train-fitted shift fails validation, move directly to a per-sample/per-trajectory transport head; do not repeat constant-shift sweeps.
+- Use `scripts/run_transport_shift_gate.py` as the authoritative train/val gate before any transport-shift held-out test run.
 
 Stretch target:
 
@@ -123,6 +124,7 @@ Current evidence:
 - Causal model-prediction shift estimator: validation `0.5584609221453186`, discarded before test because inferred shifts were unstable and Advection regressed to `0.8005553475932097`.
 - Real `light-v1` train-fitted constant transport shift: train selected shift `0`, validation `0.5140249729156494`, discarded before test because validation failed the roll-shift parity guard; validation oracle remains shift `40`.
 - Split-regime diagnostic: real `light-v1` Advection best shifts are train `0`, val `40`, test `72`, so the current split construction has incompatible constant-transport regimes.
+- Transport-shift gate runner: train/val-only gate reports `test_eligible=false` on current `light-v1`; held-out test remains blocked.
 - Exploratory test-swept transport alpha `0.42`: `0.5126627282110727`, useful as an upper-bound clue but not a clean benchmark result.
 - Horizon schedule overfit validation: validation `0.3562364331301045` vs constant validation `0.35679104424840724`, but exploratory test `0.5352231399077773`; keep as diagnostic, not promoted.
 

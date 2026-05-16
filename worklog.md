@@ -1307,3 +1307,24 @@ Experiment loop update (2026-05-15, transport split-regime diagnostic):
   - the failed train-fitted constant shift is explained by split-regime mismatch, not by optimization noise
   - the active benchmark-clean objective cannot be completed by another constant-shift fit on the current `light-v1` shards
   - next aligned work is either a per-trajectory transport head that predicts split variation from available trajectory features, or a corrected/successor shard version with train/val/test drawn from compatible transport-rate distributions
+
+Experiment loop update (2026-05-15, benchmark-clean transport-shift gate runner):
+- Added:
+  - `scripts/run_transport_shift_gate.py`
+  - unit tests for pass, split-mismatch block, and validation-guard block
+- Gate contract:
+  - only train and validation splits are inspected
+  - test is eligible only if train/val best shifts are consistent and the train-fitted shift passes the configured validation guard
+  - held-out test remains blocked otherwise
+- Current `light-v1` gate output:
+  - output: `reports/research/sota_loop/transport_shift_gate.json`
+  - train/val best shifts: train `0`, val `40`
+  - train-fitted selected shift: `0`
+  - validation NRMSE for train-fitted shift: `0.5140249729156494`
+  - guard reference: `0.30780652221851373`
+  - relative improvement: `-0.6699612770087436`
+  - `test_eligible=false`
+  - blockers: split best shifts differ; validation metric did not pass SOTA guard
+- Decision:
+  - do not run held-out test
+  - the active goal remains open because current evidence proves the requested clean result is blocked on current `light-v1`
