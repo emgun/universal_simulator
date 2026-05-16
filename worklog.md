@@ -1328,3 +1328,25 @@ Experiment loop update (2026-05-15, benchmark-clean transport-shift gate runner)
 - Decision:
   - do not run held-out test
   - the active goal remains open because current evidence proves the requested clean result is blocked on current `light-v1`
+
+Experiment loop update (2026-05-15, train-derived compatible split proof):
+- Built a local Advection-only candidate split from the real hydrated train shard:
+  - source: `data/pdebench/advection1d_train.h5`
+  - command used `scripts/make_light_hdf5_shards.py`
+  - train count: `64`
+  - validation count: `32`
+  - test count: `0`
+  - manifest: `reports/research/sota_loop/transport_trainval_candidate_manifest.yaml`
+- Gate output:
+  - output: `reports/research/sota_loop/transport_trainval_candidate_gate.json`
+  - train/val best shifts: train `0`, val `0`
+  - train-fitted selected shift: `0`
+  - validation NRMSE: `0.012206551618874073`
+  - guard reference: `0.30780652221851373`
+  - relative improvement: `0.9603434276476813`
+  - `test_eligible=true` for the train/val gate
+- Interpretation:
+  - this proves the transport-shift gate is achievable when train and validation are distribution-compatible
+  - this is not benchmark evidence because validation is derived from the train source split
+  - no held-out test was run
+  - the required benchmark-clean path is now a corrected successor shard or a richer per-trajectory transport head on data with valid train/val/test transport-rate coverage
