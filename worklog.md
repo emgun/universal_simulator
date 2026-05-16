@@ -1271,3 +1271,22 @@ Experiment loop update (2026-05-14, train/val transport-shift fit harness):
   - hydrate B2 `light-v1/advection1d/advection1d_train.h5` and `light-v1/advection1d/advection1d_val.h5`
   - run `scripts/fit_transport_shift_head.py --data-root <hydrated-light-root> --task advection1d --train-split train --val-split val --max-samples 32 --rollout-steps 16 --output-json reports/research/sota_loop/transport_head_fit/light_v1_fit_record.json --export-selected-config reports/research/sota_loop/transport_head_fit/light_v1_selected_config.json`
   - only if validation passes, run one frozen `test` through `scripts/run_light_experiment.py` with the exported selected override
+
+Experiment loop update (2026-05-15, real light-v1 train/val transport-shift fit):
+- Data:
+  - B2 readiness: `9/9` `light-v1` keys present
+  - hydrated local missing shard: `data/pdebench/advection1d_train.h5` from `light-v1/advection1d/advection1d_train.h5`
+  - existing local validation/test shards were left untouched
+- Validation-first fit:
+  - script: `scripts/fit_transport_shift_head.py`
+  - candidate shifts: `-80` through `80` coarse grid including `0`, `40`, and `72`
+  - 32-sample train fit: selected train shift `0`, train NRMSE `0.01366413850337267`
+  - 32-sample validation measurement of train-fitted shift: validation NRMSE `0.5140249729156494`
+  - validation oracle in same candidate set: shift `40`, validation NRMSE `0.012850472703576088`
+  - validation guard vs fixed roll-shift reference `0.30780652221851373`: failed, relative improvement `-0.6699612770087436`
+  - 128-sample train fit repeated the same conclusion: selected train shift `0`, validation NRMSE `0.5140249729156494`
+  - held-out test was not run
+- Learning:
+  - the real `light-v1` train split has a different apparent transport shift from validation; a constant train-fitted shift does not generalize
+  - validation-selected fixed shift remains a demo diagnostic, not a train-learned mechanism
+  - next result-oriented step must train a per-sample/per-trajectory transport head with real trajectory features or revisit the light shard construction; another constant-shift fit is exhausted
