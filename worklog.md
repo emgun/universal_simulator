@@ -1350,3 +1350,28 @@ Experiment loop update (2026-05-15, train-derived compatible split proof):
   - this is not benchmark evidence because validation is derived from the train source split
   - no held-out test was run
   - the required benchmark-clean path is now a corrected successor shard or a richer per-trajectory transport head on data with valid train/val/test transport-rate coverage
+
+Experiment loop update (2026-05-15, train-derived successor split with held-out test):
+- Built a non-overlapping Advection-only successor split from the real hydrated train shard:
+  - source: `data/pdebench/advection1d_train.h5`
+  - command used `scripts/make_light_hdf5_shards.py`
+  - train count: `64`
+  - validation count: `32`
+  - test count: `32`
+  - manifest: `reports/research/sota_loop/transport_successor_manifest.yaml`
+- Extended `scripts/run_transport_shift_gate.py` so an optional held-out `--test-split` is measured only after the train/validation gate passes.
+- Gate output:
+  - output: `reports/research/sota_loop/transport_successor_gate.json`
+  - train/val best shifts: train `0`, val `0`
+  - train-fitted selected shift: `0`
+  - validation NRMSE: `0.012206551618874073`
+  - validation guard reference: `0.30780652221851373`
+  - validation relative improvement: `0.9603434276476813`
+  - `test_eligible=true`
+  - held-out successor test selected shift: `0`
+  - held-out successor test NRMSE: `0.015408719889819622`
+  - held-out successor test oracle shift: `0`
+- Interpretation:
+  - this proves the full train-fit, validation-guard, and one-test gate works when train/validation/test are distribution-compatible
+  - this is still successor-split evidence, not official current `light-v1` benchmark evidence, because all three successor splits are derived from the current train source shard
+  - the official current `light-v1` train/val/test objective remains blocked by the observed split-regime mismatch unless we rebuild compatible benchmark shards or learn a per-trajectory transport mechanism

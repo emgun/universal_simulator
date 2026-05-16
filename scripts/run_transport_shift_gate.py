@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.diagnose_transport_shift_splits import diagnose as diagnose_splits
-from scripts.fit_transport_shift_head import fit_and_validate
+from scripts.fit_transport_shift_head import _candidate_scores, _load_series, _select_best, fit_and_validate
 
 
 def run_gate(args: argparse.Namespace) -> dict[str, Any]:
@@ -55,6 +55,30 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not guard_passed:
         blockers.append("train-fitted validation metric did not pass the configured SOTA guard")
+    test_record = None
+    if test_eligible and args.test_split:
+        test_fields = _load_series(
+            root=args.data_root,
+            task=args.task,
+            split=args.test_split,
+            max_samples=args.test_max_samples or args.max_samples,
+        )
+        test_rows = _candidate_scores(
+            test_fields,
+            fit_record["candidate_shifts"],
+            rollout_steps=args.rollout_steps,
+        )
+        selected_shift = int(fit_record["selected_train_shift"])
+        selected_test = next(row for row in test_rows if int(row["shift"]) == selected_shift)
+        oracle_test = _select_best(test_rows, args.metric)
+        test_record = {
+            "split": args.test_split,
+            "selected_shift": selected_shift,
+            "selected_test": selected_test,
+            "oracle_test": oracle_test,
+            "candidate_scores": test_rows,
+        }
+
     return {
         "task": args.task,
         "data_root": args.data_root,
@@ -66,10 +90,11 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "diagnostic": diagnostic,
         "fit": fit_record,
         "test_eligible": test_eligible,
+        "test": test_record,
         "blockers": blockers,
         "next_action": (
-            "run exactly one held-out test with fit.selected_override"
-            if test_eligible
+            "held-out test measured" if test_record else "run exactly one held-out test with fit.selected_override"
+            if test_eligible and not test_record
             else "do not run held-out test; fix split construction or train a per-trajectory head first"
         ),
     }
@@ -81,7 +106,9 @@ def main() -> None:
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="val")
+    parser.add_argument("--test-split", default="", help="Optional held-out test split to evaluate only if train/val gate passes")
     parser.add_argument("--max-samples", type=int, default=32)
+    parser.add_argument("--test-max-samples", type=int, help="Optional max samples for held-out test split")
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")

@@ -899,3 +899,44 @@ Learning:
 Next step:
 
 - Build a learned or parameter-conditioned shift estimator for Advection. The safest design is to train/select on train-like data, validate on `val`, and run exactly one `test` only if it beats the fixed-shift candidate or preserves most of its gain while removing the hard-coded shift.
+
+### 2026-05-15: Transport Shift Gate And Successor Split Result
+
+Status: official current `light-v1` gate is blocked; corrected successor split gate passes with one held-out test.
+
+Implemented:
+
+- `scripts/fit_transport_shift_head.py` for train-only constant-shift fitting and validation measurement.
+- `scripts/diagnose_transport_shift_splits.py` for split-regime diagnostics.
+- `scripts/run_transport_shift_gate.py` for the benchmark discipline: fit on train, validate against the guard, and measure held-out test only when train/validation pass.
+- Optional `--test-split` support in the gate runner so the one-test measurement is produced by the same guarded command.
+
+Current `light-v1` evidence:
+
+- Real hydrated train shard: `data/pdebench/advection1d_train.h5`.
+- Best shifts from diagnostic: train `0`, val `40`, test `72`.
+- Train-fitted constant shift: `0`.
+- Validation NRMSE for train-fitted shift: `0.5140249729156494`.
+- Fixed-shift held-out reference from prior selected `+40` run: `0.30780652221851373`.
+- Validation guard result: failed, relative improvement `-0.6699612770087436`.
+- Decision: no held-out test run on the official current `light-v1` path.
+
+Successor split evidence:
+
+- Built non-overlapping train/validation/test Advection shards from the real train source shard: train `64`, val `32`, test `32`.
+- Successor train/val best shifts: train `0`, val `0`.
+- Train-fitted shift: `0`.
+- Successor validation NRMSE: `0.012206551618874073`.
+- Validation relative improvement vs `0.30780652221851373`: `0.9603434276476813`.
+- Held-out successor test NRMSE after gate pass: `0.015408719889819622`.
+- Held-out successor test oracle shift: `0`.
+
+Learning:
+
+- The gate and data discipline are now implemented and verified end to end.
+- The original current `light-v1` split is not a valid target for a constant global transport shift because split regimes differ.
+- The successor result demonstrates the achievable path when train/validation/test are transport-compatible, but it is not official benchmark evidence because it derives all splits from the train source shard.
+
+Next step:
+
+- Choose between two paths before spending more experiment budget: rebuild a compatible benchmark shard from raw/source data with split-balanced transport regimes, or implement a per-trajectory transport head that can infer shift/rate from trajectory features and survive the current `light-v1` train/val/test mismatch.

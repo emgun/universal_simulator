@@ -23,7 +23,9 @@ def _args(tmp_path, *, reference: float = 1.0):
         task="advection1d",
         train_split="train",
         val_split="val",
+        test_split="",
         max_samples=2,
+        test_max_samples=None,
         rollout_steps=3,
         shift=[0, 1, 2],
         metric="nrmse",
@@ -64,3 +66,18 @@ def test_transport_shift_gate_blocks_failed_validation_guard(tmp_path):
 
     assert record["test_eligible"] is False
     assert any("SOTA guard" in blocker for blocker in record["blockers"])
+
+
+def test_transport_shift_gate_measures_test_only_after_gate_passes(tmp_path):
+    _write_shifted_split(tmp_path, split="train", shift=1)
+    _write_shifted_split(tmp_path, split="val", shift=1)
+    _write_shifted_split(tmp_path, split="test", shift=1)
+
+    args = _args(tmp_path, reference=1.0)
+    args.test_split = "test"
+    record = run_gate(args)
+
+    assert record["test_eligible"] is True
+    assert record["test"]["selected_shift"] == 1
+    assert record["test"]["selected_test"]["nrmse"] == 0.0
+    assert record["next_action"] == "held-out test measured"
