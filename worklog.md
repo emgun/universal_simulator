@@ -1401,3 +1401,22 @@ Experiment loop update (2026-05-15, official light-v1 observed-transition transp
   - this is the first official current `light-v1` Advection transport-shift gate in this loop that passes validation and measures a held-out test under the gate
   - it is benchmark-clean for a state-conditioned observed-transition transport estimator because no validation/test shift is selected as a hyperparameter
   - it is not yet a fully autonomous causal rollout head because it uses the previous observed transition at each step; the next SOTA-facing step is to train a causal transport head that predicts the same shift/rate from allowed model state or metadata without ground-truth future transitions
+
+Experiment loop update (2026-05-15, train-window transport scan):
+- Added:
+  - `scripts/scan_transport_train_windows.py`
+  - unit coverage for train-window shift histograms
+- Purpose:
+  - audit train-source shift regimes without using validation/test selection
+  - support remote scans against `full/advection1d/advection1d_train.h5` before building a corrected train-only light shard
+- Local current `light-v1` scan:
+  - output: `reports/research/sota_loop/transport_train_window_scan.json`
+  - source: `data/pdebench/advection1d_train.h5`
+  - source shape: `[128, 201, 1024, 1]`
+  - window size/stride: `32` / `32`
+  - windows scanned: `4`
+  - best-shift histogram: `{"0": 4}`
+- Interpretation:
+  - every current official local train window fits shift `0`
+  - there is no local train-only window that can explain the official validation shift `40`
+  - the original constant train-fitted shift objective now requires a remote/full-source scan and likely a corrected light shard built from compatible train-source windows; local repeated fitting is exhausted

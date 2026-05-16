@@ -974,3 +974,30 @@ Interpretation:
 Next step:
 
 - Train or fit a causal transport head to predict the same per-trajectory shift/rate from allowed model state or metadata, with `observed_transport_shift_gate` as the target upper bound and `0.004225204233080149` as the official light-v1 Advection transport-shift test target to preserve.
+
+### 2026-05-15: Train-Window Scan For Constant Shift Recovery
+
+Status: local current `light-v1` train shard cannot produce a constant train-fitted shift compatible with official validation.
+
+Implemented:
+
+- `scripts/scan_transport_train_windows.py`.
+- Unit coverage for source-window shift histograms.
+
+Local current `light-v1` scan:
+
+- Source: `data/pdebench/advection1d_train.h5`.
+- Source shape: `[128, 201, 1024, 1]`.
+- Window size/stride: `32` / `32`.
+- Windows scanned: `4`.
+- Best-shift histogram: `{"0": 4}`.
+
+Learning:
+
+- The current official light train shard contains only shift-`0` windows.
+- The official validation shard is shift `40` and official test is shift `72`, so the constant train-fitted shift objective cannot be achieved from the already-hydrated local train shard.
+- This is a data-construction/source-coverage blocker, not an optimizer or candidate-grid blocker.
+
+Next step:
+
+- Run `scripts/scan_transport_train_windows.py` remotely against the full Advection train source on B2-backed storage, then build a corrected light shard from train-source windows with the desired transport-regime coverage before rerunning `scripts/run_transport_shift_gate.py`.
