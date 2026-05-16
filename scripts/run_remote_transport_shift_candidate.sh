@@ -109,6 +109,8 @@ WINDOW_SIZE=${WINDOW_SIZE:-32}
 WINDOW_STRIDE=${WINDOW_STRIDE:-32}
 SCAN_MAX_WINDOWS=${SCAN_MAX_WINDOWS:-}
 TARGET_SHIFT=${TARGET_SHIFT:-40}
+SCAN_ALL_SPLITS=${SCAN_ALL_SPLITS:-0}
+REQUIRE_TEST_COMPATIBLE=${REQUIRE_TEST_COMPATIBLE:-0}
 ROLLOUT_STEPS=${ROLLOUT_STEPS:-16}
 REFERENCE_METRIC_VALUE=${REFERENCE_METRIC_VALUE:-0.30780652221851373}
 VAL_MIN_RELATIVE_IMPROVEMENT=${VAL_MIN_RELATIVE_IMPROVEMENT:-0.0}
@@ -125,8 +127,12 @@ done
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: hydrate full ${TASK} train/val/test from B2 prefix ${REMOTE_B2_PREFIX} into ${DATA_ROOT}"
-  echo "DRY_RUN: scan ${TASK}_train.h5 with window_size=${WINDOW_SIZE}, stride=${WINDOW_STRIDE}, target_shift=${TARGET_SHIFT}"
-  echo "DRY_RUN: build ${CANDIDATE_ROOT} with selected train start, val start ${VAL_START_INDEX}, test start ${TEST_START_INDEX}"
+  if [ "$SCAN_ALL_SPLITS" -eq 1 ]; then
+    echo "DRY_RUN: scan ${TASK}_{train,val,test}.h5 and select compatible native windows"
+  else
+    echo "DRY_RUN: scan ${TASK}_train.h5 with window_size=${WINDOW_SIZE}, stride=${WINDOW_STRIDE}, target_shift=${TARGET_SHIFT}"
+  fi
+  echo "DRY_RUN: build ${CANDIDATE_ROOT} with selected train start and held-out val/test starts"
   echo "DRY_RUN: run train/val gate and one held-out test only if validation passes"
   exit 0
 fi
@@ -153,25 +159,65 @@ B2_ENV_FILE="$ENV_FILE" \
     "${TASK}/${TASK}_val.h5" \
     "${TASK}/${TASK}_test.h5"
 
-scan_json="${OUTPUT_ROOT}/train_window_scan.json"
-scan_args=(
-  python scripts/scan_transport_train_windows.py
-  --data-root "$DATA_ROOT"
-  --task "$TASK"
-  --split train
-  --window-size "$WINDOW_SIZE"
-  --stride "$WINDOW_STRIDE"
-  --rollout-steps "$ROLLOUT_STEPS"
-  --output-json "$scan_json"
-)
-if [ -n "$SCAN_MAX_WINDOWS" ]; then
-  scan_args+=(--max-windows "$SCAN_MAX_WINDOWS")
-fi
-scan_args+=("${shift_args[@]}")
-"${scan_args[@]}"
+run_scan() {
+  local split="$1"
+  local output_json="$2"
+  local scan_args=(
+    python scripts/scan_transport_train_windows.py
+    --data-root "$DATA_ROOT"
+    --task "$TASK"
+    --split "$split"
+    --window-size "$WINDOW_SIZE"
+    --stride "$WINDOW_STRIDE"
+    --rollout-steps "$ROLLOUT_STEPS"
+    --output-json "$output_json"
+  )
+  if [ -n "$SCAN_MAX_WINDOWS" ]; then
+    scan_args+=(--max-windows "$SCAN_MAX_WINDOWS")
+  fi
+  scan_args+=("${shift_args[@]}")
+  "${scan_args[@]}"
+}
 
-selected_train_start=$(
-  python - "$scan_json" "$TARGET_SHIFT" <<'PY'
+train_scan_json="${OUTPUT_ROOT}/train_window_scan.json"
+run_scan train "$train_scan_json"
+
+if [ "$SCAN_ALL_SPLITS" -eq 1 ]; then
+  val_scan_json="${OUTPUT_ROOT}/val_window_scan.json"
+  test_scan_json="${OUTPUT_ROOT}/test_window_scan.json"
+  selection_json="${OUTPUT_ROOT}/compatible_window_selection.json"
+  run_scan val "$val_scan_json"
+  run_scan test "$test_scan_json"
+  select_args=(
+    python scripts/select_transport_compatible_windows.py
+    --train-scan "$train_scan_json"
+    --val-scan "$val_scan_json"
+    --test-scan "$test_scan_json"
+    --output-json "$selection_json"
+  )
+  if [ "$REQUIRE_TEST_COMPATIBLE" -eq 1 ]; then
+    select_args+=(--require-test)
+  fi
+  "${select_args[@]}"
+  read -r selected_train_start selected_val_start selected_test_start < <(
+    python - "$selection_json" "$VAL_START_INDEX" "$TEST_START_INDEX" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if not payload.get("compatible"):
+    raise SystemExit("No compatible train/val transport window selection found")
+selected = payload["selected"]["windows"]
+train_start = int(selected["train"]["start_index"])
+val_start = int(selected["val"]["start_index"])
+test_start = int(selected.get("test", {}).get("start_index", int(sys.argv[3])))
+print(train_start, val_start, test_start)
+PY
+  )
+else
+  selected_train_start=$(
+    python - "$train_scan_json" "$TARGET_SHIFT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -184,7 +230,10 @@ for row in payload.get("windows", []):
         raise SystemExit(0)
 raise SystemExit(f"No train window with best shift {target} found")
 PY
-)
+  )
+  selected_val_start="$VAL_START_INDEX"
+  selected_test_start="$TEST_START_INDEX"
+fi
 
 manifest="${OUTPUT_ROOT}/candidate_manifest.yaml"
 rm -rf "$CANDIDATE_ROOT"
@@ -194,8 +243,8 @@ python scripts/make_light_hdf5_shards.py \
   --tasks "$TASK" \
   --source-split train \
   --split-start-index "train=${selected_train_start}" \
-  --split-start-index "val=${VAL_START_INDEX}" \
-  --split-start-index "test=${TEST_START_INDEX}" \
+  --split-start-index "val=${selected_val_start}" \
+  --split-start-index "test=${selected_test_start}" \
   --train-count "$TRAIN_COUNT" \
   --val-count "$VAL_COUNT" \
   --test-count "$TEST_COUNT" \
@@ -235,5 +284,7 @@ fi
 
 echo "Remote transport-shift candidate complete."
 echo "Selected train start: ${selected_train_start}"
-echo "Scan: ${scan_json}"
+echo "Selected val start: ${selected_val_start}"
+echo "Selected test start: ${selected_test_start}"
+echo "Train scan: ${train_scan_json}"
 echo "Gate: ${gate_json}"
