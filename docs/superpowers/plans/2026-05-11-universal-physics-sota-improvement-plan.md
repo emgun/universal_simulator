@@ -940,3 +940,37 @@ Learning:
 Next step:
 
 - Choose between two paths before spending more experiment budget: rebuild a compatible benchmark shard from raw/source data with split-balanced transport regimes, or implement a per-trajectory transport head that can infer shift/rate from trajectory features and survive the current `light-v1` train/val/test mismatch.
+
+### 2026-05-15: Official Light-v1 Observed-Transition Transport Gate
+
+Status: official current `light-v1` state-conditioned transport gate passes validation and measured one held-out test.
+
+Implemented:
+
+- `scripts/run_observed_transport_shift_gate.py`.
+- Unit tests for guarded test measurement and validation-guard blocking.
+- A strict train/val/test gate for the lagged observed-transition transport estimator.
+
+Result:
+
+- Data root: `data/pdebench`.
+- Task: `advection1d`.
+- Train max samples: `128`.
+- Validation/test max samples: `32`.
+- Rollout steps: `16`.
+- Candidate shifts: `-96` through `96` in steps of `8`.
+- Reference metric: fixed validation-selected `+40` held-out NRMSE `0.30780652221851373`.
+- Train NRMSE: `0.014504759572446346`; inferred shift mean/std `0.0` / `0.0`.
+- Validation NRMSE: `0.012846261262893677`; inferred shift mean/std `40.0` / `0.0`.
+- Validation relative improvement: `0.9582651427581705`.
+- Held-out test NRMSE after gate pass: `0.004225204233080149`; inferred shift mean/std `72.0` / `0.0`.
+
+Interpretation:
+
+- This satisfies the official current `light-v1` train/val/test gate for a state-conditioned transport-shift estimator.
+- It does not rescue the global constant train-fitted shift; that path remains invalid because train/val/test shifts are `0`/`40`/`72`.
+- It is not a fully autonomous causal rollout head because it uses the previous observed transition at each step. Treat it as a clean upper-bound target and a concrete mechanism spec for the next learned head.
+
+Next step:
+
+- Train or fit a causal transport head to predict the same per-trajectory shift/rate from allowed model state or metadata, with `observed_transport_shift_gate` as the target upper bound and `0.004225204233080149` as the official light-v1 Advection transport-shift test target to preserve.

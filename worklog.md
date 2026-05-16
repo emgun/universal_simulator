@@ -1375,3 +1375,29 @@ Experiment loop update (2026-05-15, train-derived successor split with held-out 
   - this proves the full train-fit, validation-guard, and one-test gate works when train/validation/test are distribution-compatible
   - this is still successor-split evidence, not official current `light-v1` benchmark evidence, because all three successor splits are derived from the current train source shard
   - the official current `light-v1` train/val/test objective remains blocked by the observed split-regime mismatch unless we rebuild compatible benchmark shards or learn a per-trajectory transport mechanism
+
+Experiment loop update (2026-05-15, official light-v1 observed-transition transport gate):
+- Added:
+  - `scripts/run_observed_transport_shift_gate.py`
+  - unit tests covering guarded held-out test measurement and validation-guard blocking
+- Gate contract:
+  - train locks the lagged observed-transition estimator contract and candidate shift support
+  - validation applies the same estimator without selecting a validation shift
+  - held-out test is measured only if validation passes the configured guard
+- Official light-v1 result:
+  - output: `reports/research/sota_loop/observed_transport_shift_gate.json`
+  - data root: `data/pdebench`
+  - task: `advection1d`
+  - train max samples: `128`
+  - validation/test max samples: `32`
+  - rollout steps: `16`
+  - reference metric: `0.30780652221851373`
+  - train NRMSE: `0.014504759572446346`, inferred shift mean/std `0.0` / `0.0`
+  - validation NRMSE: `0.012846261262893677`, inferred shift mean/std `40.0` / `0.0`
+  - validation relative improvement: `0.9582651427581705`
+  - `test_eligible=true`
+  - held-out test NRMSE: `0.004225204233080149`, inferred shift mean/std `72.0` / `0.0`
+- Interpretation:
+  - this is the first official current `light-v1` Advection transport-shift gate in this loop that passes validation and measures a held-out test under the gate
+  - it is benchmark-clean for a state-conditioned observed-transition transport estimator because no validation/test shift is selected as a hyperparameter
+  - it is not yet a fully autonomous causal rollout head because it uses the previous observed transition at each step; the next SOTA-facing step is to train a causal transport head that predicts the same shift/rate from allowed model state or metadata without ground-truth future transitions
