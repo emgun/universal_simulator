@@ -1057,3 +1057,33 @@ Interpretation:
 Next step:
 
 - Choose an explicit benchmark-policy change: either rebuild the light benchmark so train/val/test share transport-rate support, or retire the constant-shift objective and pursue a learned/state-conditioned transport mechanism with a different gate.
+
+### 2026-05-16: Full Train/Val/Test Compatibility Scan
+
+Status: full-source compatibility scan proves no native train/val/test constant-shift candidate exists under the current split construction.
+
+Implemented:
+
+- `scripts/select_transport_compatible_windows.py`.
+- `SCAN_ALL_SPLITS=1 REQUIRE_TEST_COMPATIBLE=1` mode in `scripts/run_remote_transport_shift_candidate.sh`.
+
+Remote evidence:
+
+- Vast instance: `36856643`.
+- Branch: `codex/sota-learned-gate`.
+- Local evidence directory: `reports/research/sota_loop/remote_transport_shift_candidate_all_splits/`.
+- Train source shape: `[60000, 201, 1024, 1]`; windows scanned `1875`; histogram `{"0": 625, "8": 937, "16": 1, "24": 312}`.
+- Validation source shape: `[10000, 201, 1024, 1]`; windows scanned `313`; histogram `{"40": 313}`.
+- Test source shape: `[10000, 201, 1024, 1]`; windows scanned `313`; histogram `{"72": 313}`.
+- Compatible train/val/test shifts: `[]`.
+
+Interpretation:
+
+- No native full-source train/val/test window triplet supports a constant train-fitted shift.
+- The original constant-shift objective is incompatible with the current Advection split construction.
+- No held-out test was run, because the validation-gate precondition cannot be satisfied benchmark-cleanly.
+
+Decision needed:
+
+- Rebuild a new benchmark split with shared transport-rate support if the goal remains constant-shift transport correction.
+- Otherwise retire the constant-shift objective and use the observed-transition result as the upper bound for a learned/state-conditioned transport head.

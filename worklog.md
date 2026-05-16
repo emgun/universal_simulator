@@ -1458,3 +1458,24 @@ Experiment loop update (2026-05-15/16, full-train remote transport scan):
   - full Advection train contains no scanned window whose best shift matches the official validation shift `40`
   - the pipeline correctly refused to build a candidate/test run because no train-only source window could support the required validation regime
   - next aligned options are to change the benchmark split/source construction with explicit data-governance approval, or move from a constant shift to a learned/state-conditioned transport mechanism
+
+Experiment loop update (2026-05-16, full train/val/test compatibility scan):
+- Added:
+  - `scripts/select_transport_compatible_windows.py`
+  - all-split compatibility mode in `scripts/run_remote_transport_shift_candidate.sh`
+- Remote run:
+  - Vast instance: `36856643`
+  - branch: `codex/sota-learned-gate`
+  - command path: `scripts/launch_remote_transport_shift_candidate_vast.sh` with `SCAN_ALL_SPLITS=1 REQUIRE_TEST_COMPATIBLE=1`
+  - local copied evidence directory: `reports/research/sota_loop/remote_transport_shift_candidate_all_splits/`
+  - instance was destroyed after copying evidence
+- Full split scans:
+  - train source shape: `[60000, 201, 1024, 1]`, windows scanned `1875`, histogram `{"0": 625, "8": 937, "16": 1, "24": 312}`
+  - validation source shape: `[10000, 201, 1024, 1]`, windows scanned `313`, histogram `{"40": 313}`
+  - test source shape: `[10000, 201, 1024, 1]`, windows scanned `313`, histogram `{"72": 313}`
+  - compatible train/val/test shifts: `[]`
+- Interpretation:
+  - no native full-source train/val/test window triplet shares a constant transport shift under the scanned 32-sample window protocol
+  - the original benchmark-clean constant train-fitted shift objective is fully blocked for the current full source splits
+  - no held-out test was run because the train/val compatibility precondition failed
+  - the only defensible continuation is a benchmark-policy decision: reconstruct a compatible benchmark, or replace the constant-shift objective with a learned/state-conditioned transport objective
