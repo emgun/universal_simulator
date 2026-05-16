@@ -93,6 +93,37 @@ def test_build_task_shard_records_prefers_native_splits_and_falls_back_to_train(
         assert handle["data"][0, 0] == 6.0
 
 
+def test_build_task_shard_records_accepts_split_start_indices(tmp_path):
+    root = tmp_path / "source"
+    out_root = tmp_path / "light"
+    root.mkdir()
+    for split, offset in (("train", 0), ("val", 100), ("test", 200)):
+        with h5py.File(root / f"advection1d_{split}.h5", "w") as handle:
+            data = np.arange(10 * 2, dtype=np.float32).reshape(10, 2) + offset
+            handle.create_dataset("data", data=data)
+
+    records = build_task_shard_records(
+        root=root,
+        out_root=out_root,
+        task="advection1d",
+        source_split="train",
+        train_count=2,
+        val_count=2,
+        test_count=2,
+        start_index=0,
+        overwrite=True,
+        split_start_indices={"train": 4, "val": 1, "test": 2},
+    )
+
+    assert [record["start_index"] for record in records] == [4, 1, 2]
+    with h5py.File(out_root / "advection1d_train.h5", "r") as handle:
+        assert handle["data"][0, 0] == 8.0
+    with h5py.File(out_root / "advection1d_val.h5", "r") as handle:
+        assert handle["data"][0, 0] == 102.0
+    with h5py.File(out_root / "advection1d_test.h5", "r") as handle:
+        assert handle["data"][0, 0] == 204.0
+
+
 def test_make_light_hdf5_manifest_cli(tmp_path, monkeypatch):
     from scripts import make_light_hdf5_shards
 

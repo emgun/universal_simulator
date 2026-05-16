@@ -1420,3 +1420,21 @@ Experiment loop update (2026-05-15, train-window transport scan):
   - every current official local train window fits shift `0`
   - there is no local train-only window that can explain the official validation shift `40`
   - the original constant train-fitted shift objective now requires a remote/full-source scan and likely a corrected light shard built from compatible train-source windows; local repeated fitting is exhausted
+
+Experiment loop update (2026-05-15, remote constant-shift candidate pipeline):
+- Added:
+  - split-specific shard start offsets in `scripts/make_light_hdf5_shards.py`
+  - `scripts/run_remote_transport_shift_candidate.sh`
+  - `scripts/launch_remote_transport_shift_candidate_vast.sh`
+  - dry-run/unit coverage for the new remote candidate path
+- Remote pipeline contract:
+  - hydrate full `advection1d` train/val/test shards from B2 prefix `full`
+  - scan only full train windows for `TARGET_SHIFT`, default `40`
+  - build a small candidate shard using the selected train-source start and native val/test starts
+  - run `scripts/run_transport_shift_gate.py` with `--test-split test`, so held-out test is measured only if validation passes
+- Local verification:
+  - `DRY_RUN=1 bash scripts/run_remote_transport_shift_candidate.sh` is local-safe and prints the intended plan without touching `/workspace`
+  - launcher dry-run emits a redacted Vast command for branch `codex/sota-learned-gate`
+- Next executable command:
+  - `DRY_RUN=0 ENV_FILE=.env bash scripts/run_remote_transport_shift_candidate.sh`
+  - or via Vast: `DRY_RUN=0 ENV_FILE=/path/to/.env bash scripts/launch_remote_transport_shift_candidate_vast.sh`

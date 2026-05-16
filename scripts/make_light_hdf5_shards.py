@@ -127,6 +127,20 @@ def _parse_split_sources(values: list[str] | None) -> dict[str, str]:
     return mapping
 
 
+def _parse_split_ints(values: list[str] | None, *, setting: str) -> dict[str, int]:
+    mapping: dict[str, int] = {}
+    for item in values or []:
+        if "=" not in item:
+            raise ValueError(f"Invalid {setting} '{item}'. Expected SPLIT=INTEGER")
+        split, raw_value = item.split("=", 1)
+        split = split.strip()
+        raw_value = raw_value.strip()
+        if not split or not raw_value:
+            raise ValueError(f"Invalid {setting} '{item}'. Expected SPLIT=INTEGER")
+        mapping[split] = int(raw_value)
+    return mapping
+
+
 def build_task_shard_records(
     *,
     root: Path,
@@ -139,10 +153,12 @@ def build_task_shard_records(
     start_index: int,
     overwrite: bool,
     split_sources: dict[str, str] | None = None,
+    split_start_indices: dict[str, int] | None = None,
     fallback_source_split: str = "train",
     remote_prefix: str | None = None,
 ) -> list[dict[str, Any]]:
     split_sources = dict(split_sources or {})
+    split_start_indices = dict(split_start_indices or {})
     records: list[dict[str, Any]] = []
     offsets: dict[str, int] = {}
 
@@ -155,7 +171,9 @@ def build_task_shard_records(
         if not paths:
             raise FileNotFoundError(root / f"{task}_{resolved_source}.h5")
 
-        cursor = offsets.setdefault(resolved_source, int(start_index))
+        cursor = split_start_indices.get(split)
+        if cursor is None:
+            cursor = offsets.setdefault(resolved_source, int(start_index))
         arrays = _read_window(paths, cursor, count)
         out_path = out_root / f"{task}_{split}.h5"
         _write_h5(out_path, arrays, overwrite=overwrite)
@@ -178,7 +196,8 @@ def build_task_shard_records(
                 "datasets": summary["datasets"],
             }
         )
-        offsets[resolved_source] = cursor + count
+        if split not in split_start_indices:
+            offsets[resolved_source] = cursor + count
     return records
 
 
@@ -194,6 +213,7 @@ def build_task_shards(
     start_index: int,
     overwrite: bool,
     split_sources: dict[str, str] | None = None,
+    split_start_indices: dict[str, int] | None = None,
     fallback_source_split: str = "train",
 ) -> list[Path]:
     records = build_task_shard_records(
@@ -207,6 +227,7 @@ def build_task_shards(
         start_index=start_index,
         overwrite=overwrite,
         split_sources=split_sources,
+        split_start_indices=split_start_indices,
         fallback_source_split=fallback_source_split,
     )
     return [Path(str(record["output_path"])) for record in records]
@@ -224,6 +245,12 @@ def main() -> None:
         default=[],
         help="Optional split source mapping like val=train. Defaults to native split when present.",
     )
+    parser.add_argument(
+        "--split-start-index",
+        action="append",
+        default=[],
+        help="Optional split-specific start index like train=1024. Overrides --start-index for that split.",
+    )
     parser.add_argument("--fallback-source-split", default="train", help="Fallback source split when native split is missing")
     parser.add_argument("--train-count", type=int, default=16)
     parser.add_argument("--val-count", type=int, default=8)
@@ -238,6 +265,7 @@ def main() -> None:
     root = Path(args.root)
     out_root = Path(args.out_root)
     split_sources = _parse_split_sources(args.split_source)
+    split_start_indices = _parse_split_ints(args.split_start_index, setting="--split-start-index")
     written: list[Path] = []
     records: list[dict[str, Any]] = []
     for task in args.tasks:
@@ -252,6 +280,7 @@ def main() -> None:
                 start_index=args.start_index,
                 overwrite=args.overwrite,
                 split_sources=split_sources,
+                split_start_indices=split_start_indices,
                 fallback_source_split=args.fallback_source_split,
                 remote_prefix=args.remote_prefix,
         )
@@ -281,6 +310,7 @@ def main() -> None:
                     "fallback_source_split": args.fallback_source_split,
                 },
             },
+            "split_start_indices": split_start_indices,
             "records": records,
         }
         manifest_path = Path(args.manifest)

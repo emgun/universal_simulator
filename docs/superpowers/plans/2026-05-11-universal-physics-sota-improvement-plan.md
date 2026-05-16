@@ -1001,3 +1001,33 @@ Learning:
 Next step:
 
 - Run `scripts/scan_transport_train_windows.py` remotely against the full Advection train source on B2-backed storage, then build a corrected light shard from train-source windows with the desired transport-regime coverage before rerunning `scripts/run_transport_shift_gate.py`.
+
+### 2026-05-15: Remote Constant-Shift Candidate Pipeline
+
+Status: remote/full-source execution path is implemented; actual full-source run remains the next external step.
+
+Implemented:
+
+- `scripts/make_light_hdf5_shards.py --split-start-index SPLIT=N`.
+- `scripts/run_remote_transport_shift_candidate.sh`.
+- `scripts/launch_remote_transport_shift_candidate_vast.sh`.
+- Dry-run/unit coverage for local-safe planning.
+
+Pipeline:
+
+- Hydrate full Advection train/val/test shards from B2 prefix `full`.
+- Scan full train windows for `TARGET_SHIFT`, default `40`, without using validation/test selection.
+- Build a small candidate shard with the selected train-source start and native val/test starts.
+- Run `scripts/run_transport_shift_gate.py` with `--test-split test`, so held-out test is measured only if validation passes.
+
+Execution:
+
+```bash
+DRY_RUN=1 ENV_FILE=/path/to/.env bash scripts/launch_remote_transport_shift_candidate_vast.sh
+DRY_RUN=0 ENV_FILE=/path/to/.env bash scripts/launch_remote_transport_shift_candidate_vast.sh
+```
+
+Learning:
+
+- This keeps the original constant train-fitted shift objective intact while moving the blocked local path to the only viable evidence source: full train coverage on remote storage.
+- The result is not complete until the remote scan finds a compatible train window, the gate passes validation, and exactly one held-out test is measured and recorded.
