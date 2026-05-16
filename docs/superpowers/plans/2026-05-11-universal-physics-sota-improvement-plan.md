@@ -122,6 +122,7 @@ Current evidence:
 - Observed state-conditioned roll-shift estimator: `0.20177292896682064`, passes roll-shift parity and shows transport state signal is recoverable, but still uses previous observed transitions and is not yet a fully causal learned rollout mechanism.
 - Causal model-prediction shift estimator: validation `0.5584609221453186`, discarded before test because inferred shifts were unstable and Advection regressed to `0.8005553475932097`.
 - Real `light-v1` train-fitted constant transport shift: train selected shift `0`, validation `0.5140249729156494`, discarded before test because validation failed the roll-shift parity guard; validation oracle remains shift `40`.
+- Split-regime diagnostic: real `light-v1` Advection best shifts are train `0`, val `40`, test `72`, so the current split construction has incompatible constant-transport regimes.
 - Exploratory test-swept transport alpha `0.42`: `0.5126627282110727`, useful as an upper-bound clue but not a clean benchmark result.
 - Horizon schedule overfit validation: validation `0.3562364331301045` vs constant validation `0.35679104424840724`, but exploratory test `0.5352231399077773`; keep as diagnostic, not promoted.
 
@@ -132,6 +133,7 @@ Interpretation:
 - Observed transition-conditioned shifting is now the local upper bound to distill into a causal transport head.
 - The current trained-residual model's own next-step decoded prediction is not a sufficient causal phase estimator; a train/fitted transport head needs actual train/val trajectories.
 - A constant train-fitted transport shift is exhausted: real `light-v1` train prefers shift `0` while validation prefers shift `40`, so the next mechanism must be per-sample/per-trajectory or the shard construction must be revisited.
+- Before claiming a benchmark-clean transport-shift result, either rebuild the Advection split so train/val share the same transport-rate distribution or fit a per-trajectory head whose validation performance proves it learned the split variation from available trajectory features.
 - Burgers and Darcy are less urgent than transport/advection.
 - The high-value next step is a learned transport-aware residual/gating mechanism, not another hand-tuned alpha sweep.
 - The foundation-model direction should be built behind this cheap evidence gate, not ahead of it.

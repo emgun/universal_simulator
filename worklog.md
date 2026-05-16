@@ -1290,3 +1290,20 @@ Experiment loop update (2026-05-15, real light-v1 train/val transport-shift fit)
   - the real `light-v1` train split has a different apparent transport shift from validation; a constant train-fitted shift does not generalize
   - validation-selected fixed shift remains a demo diagnostic, not a train-learned mechanism
   - next result-oriented step must train a per-sample/per-trajectory transport head with real trajectory features or revisit the light shard construction; another constant-shift fit is exhausted
+
+Experiment loop update (2026-05-15, transport split-regime diagnostic):
+- Added:
+  - `scripts/diagnose_transport_shift_splits.py`
+  - unit tests for consistent and mismatched split regimes
+- Real `light-v1` diagnostic:
+  - output: `reports/research/sota_loop/transport_shift_split_diagnostic.json`
+  - data root: `data/pdebench`
+  - task: `advection1d`
+  - splits: `train,val,test`
+  - candidate shifts: `-96` through `96` in steps of `8`
+  - best shifts: train `0`, val `40`, test `72`
+  - `consistent_best_shift=false`
+- Learning:
+  - the failed train-fitted constant shift is explained by split-regime mismatch, not by optimization noise
+  - the active benchmark-clean objective cannot be completed by another constant-shift fit on the current `light-v1` shards
+  - next aligned work is either a per-trajectory transport head that predicts split variation from available trajectory features, or a corrected/successor shard version with train/val/test drawn from compatible transport-rate distributions
