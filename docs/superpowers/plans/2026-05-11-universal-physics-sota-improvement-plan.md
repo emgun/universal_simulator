@@ -1318,3 +1318,32 @@ Objective audit impact:
 
 - `scripts/run_official_transport_objective_status.sh` now reads `reports/research/sota_loop/transport_data_hydration_options.json`.
 - Default literal mode still exits `2` with `status=literal_blocked`, now explicitly including `remote_official_hydration_required`.
+
+### 2026-05-19: Official Advection Hydration Plan
+
+Status: the literal train-only path now has an executable official-data hydration plan, but the downloads have not been run.
+
+Evidence:
+
+- Script: `scripts/plan_transport_official_hydration.py`.
+- Output: `reports/research/sota_loop/official_advection_hydration_plan.json` (ignored local report).
+- Plan status: `ready_for_explicit_hydration`.
+- Selected official Advection train files: `8`.
+- Estimated download size: `61.34038382768631` GiB.
+- Planned raw root: `data/pdebench/raw`.
+- Planned hydrated source root: `data/pdebench_official_advection_hydrated`.
+- Planned light train/val root: `data/pdebench_official_advection_light`.
+- Planned train/val counts: train `256`, val `64`.
+- Planned test count: `0`.
+
+Policy:
+
+- Downloads require explicit approval because they use network and large disk.
+- The plan downloads official train files only.
+- The plan does not download or shard held-out test data.
+- The held-out test remains allowed only through the validation-gated transport command after validation passes.
+
+Objective audit impact:
+
+- `scripts/run_official_transport_objective_status.sh` now reads `reports/research/sota_loop/official_advection_hydration_plan.json`.
+- Default literal mode still exits `2` with `status=literal_blocked`, now explicitly showing `ready_for_explicit_hydration` as the next literal-path action.

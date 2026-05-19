@@ -37,6 +37,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     feature_diag, feature_path = _load_json(args.train_feature_diagnostic_json)
     identifiability_audit, identifiability_path = _load_json(args.train_identifiability_audit_json)
     hydration_audit, hydration_path = _load_json(args.hydration_options_json)
+    hydration_plan, hydration_plan_path = _load_json(args.hydration_plan_json)
 
     constant_status = _status(constant_audit)
     observed_status = _status(observed_audit)
@@ -44,6 +45,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     feature_conclusion = str(feature_diag.get("conclusion")) if feature_diag else None
     identifiability_status = _status(identifiability_audit)
     hydration_status = _status(hydration_audit)
+    hydration_plan_status = _status(hydration_plan)
     observed_accepted = bool(getattr(args, "accept_observed_context", False))
     context_accepted = bool(getattr(args, "accept_context_transport", False))
 
@@ -72,6 +74,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append(f"train-only identifiability audit status is {identifiability_status}")
         if hydration_status:
             blockers.append(f"transport data hydration status is {hydration_status}")
+        if hydration_plan_status:
+            blockers.append(f"official hydration plan status is {hydration_plan_status}")
         if context_status == "achieved":
             blockers.append("two-frame context transport result is achieved but not accepted for literal objective")
         if observed_status == "achieved":
@@ -81,7 +85,15 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         {
             "name": "real_light_v1_train_val_accessed",
             "status": "satisfied"
-            if (constant_audit or observed_audit or context_audit or feature_diag or identifiability_audit or hydration_audit)
+            if (
+                constant_audit
+                or observed_audit
+                or context_audit
+                or feature_diag
+                or identifiability_audit
+                or hydration_audit
+                or hydration_plan
+            )
             else "missing",
             "evidence": ", ".join(
                 path
@@ -92,6 +104,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                     feature_path,
                     identifiability_path,
                     hydration_path,
+                    hydration_plan_path,
                 )
                 if path
             )
@@ -105,7 +118,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "evidence": (
                 f"constant_audit_status={constant_status}; "
                 f"feature_conclusion={feature_conclusion}; identifiability_status={identifiability_status}; "
-                f"hydration_status={hydration_status}"
+                f"hydration_status={hydration_status}; hydration_plan_status={hydration_plan_status}"
             ),
         },
         {
@@ -173,6 +186,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "train_identifiability_status": identifiability_status,
             "hydration_options_json": hydration_path,
             "hydration_status": hydration_status,
+            "hydration_plan_json": hydration_plan_path,
+            "hydration_plan_status": hydration_plan_status,
         },
         "recommendation": (
             "If two-frame context is benchmark-accepted, prefer the context transport result; "
@@ -214,6 +229,10 @@ def main() -> None:
     parser.add_argument(
         "--hydration-options-json",
         default="reports/research/sota_loop/transport_data_hydration_options.json",
+    )
+    parser.add_argument(
+        "--hydration-plan-json",
+        default="reports/research/sota_loop/official_advection_hydration_plan.json",
     )
     parser.add_argument("--accept-observed-context", action="store_true")
     parser.add_argument("--accept-context-transport", action="store_true")

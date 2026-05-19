@@ -1934,3 +1934,20 @@ Follow-up audit update (2026-05-19, benchmark-clean hydration options):
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `remote_official_hydration_required`
+
+Follow-up planning update (2026-05-19, official Advection hydration plan):
+- Added `scripts/plan_transport_official_hydration.py`.
+- Generated `reports/research/sota_loop/official_advection_hydration_plan.json` (ignored local report).
+- Plan status: `ready_for_explicit_hydration`.
+- Selected official Advection train files: `8`.
+- Estimated download size: `61.34038382768631` GiB.
+- Planned hydrated source root: `data/pdebench_official_advection_hydrated`.
+- Planned train/val light root: `data/pdebench_official_advection_light`.
+- Planned shard counts: train `256`, val `64`, test `0`.
+- Held-out test policy:
+  - no official test file is downloaded by the plan
+  - no test shard is built by the plan
+  - held-out test remains gated behind validation
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `ready_for_explicit_hydration`, meaning the next literal step is external download/storage execution rather than another local model probe
