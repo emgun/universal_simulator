@@ -124,10 +124,38 @@ def _test_result_count(gate: Mapping[str, Any] | None) -> int:
     return 1
 
 
+def _parse_expected_hashes(values: list[str] | None) -> dict[str, str]:
+    expected: dict[str, str] = {}
+    for item in values or []:
+        if "=" not in item:
+            raise ValueError(f"Invalid --expected-data-sha256 '{item}'. Expected SPLIT=SHA256")
+        split, sha256 = item.split("=", 1)
+        split = split.strip()
+        sha256 = sha256.strip().lower()
+        if not split or len(sha256) != 64:
+            raise ValueError(f"Invalid --expected-data-sha256 '{item}'. Expected SPLIT=64_HEX_CHARS")
+        expected[split] = sha256
+    return expected
+
+
+def _data_identity_mismatches(data_schema: Mapping[str, Any], expected_hashes: Mapping[str, str]) -> list[str]:
+    mismatches: list[str] = []
+    split_records = data_schema.get("splits", {})
+    for split, expected in expected_hashes.items():
+        record = split_records.get(split, {})
+        actual = str(record.get("sha256", "")).lower()
+        if actual != expected:
+            path = record.get("path", f"<missing {split}>")
+            mismatches.append(f"{split} sha256 mismatch for {path}: expected {expected}, actual {actual or 'missing'}")
+    return mismatches
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
     data_schema = _inspect_data_schema(args.data_root, args.task, args.schema_splits)
+    expected_hashes = _parse_expected_hashes(getattr(args, "expected_data_sha256", None))
+    data_identity_mismatches = _data_identity_mismatches(data_schema, expected_hashes)
 
     missing_inputs = [
         message
@@ -155,6 +183,10 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         status = "missing_evidence"
         test_allowed = False
         blockers = missing_inputs
+    elif data_identity_mismatches:
+        status = "invalid_data_identity"
+        test_allowed = False
+        blockers = data_identity_mismatches
     elif leaked_test_result:
         status = "invalid_test_leakage"
         test_allowed = False
@@ -247,6 +279,11 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
             "exactly_one_test_after_validation": bool(test_eligible and test_result_count == 1),
         },
         "data_schema": data_schema,
+        "data_identity_policy": {
+            "expected_sha256": expected_hashes,
+            "mismatches": data_identity_mismatches,
+            "passed": not data_identity_mismatches,
+        },
         "recommendation": (
             "Rebuild a benchmark split with shared transport-rate support, or retire the constant-shift "
             "target and pursue a learned/state-conditioned transport mechanism."
@@ -276,6 +313,12 @@ def main() -> None:
     parser.add_argument("--data-root", default="data/pdebench", help="Directory containing light-v1 HDF5 files")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--schema-splits", nargs="+", default=["train", "val", "test"])
+    parser.add_argument(
+        "--expected-data-sha256",
+        action="append",
+        default=None,
+        help="Optional SPLIT=SHA256 identity check for inspected HDF5 splits; may be repeated.",
+    )
     parser.add_argument(
         "--require-status",
         choices=tuple(PASS_STATUSES_BY_MODE),

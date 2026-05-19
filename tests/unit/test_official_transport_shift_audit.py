@@ -18,6 +18,7 @@ def test_official_transport_shift_audit_dry_run_is_local_safe():
     assert "run official advection1d train=train val=val gate" in proc.stdout
     assert "gate measures held-out test only if validation passes" in proc.stdout
     assert "require_status=achieved" in proc.stdout
+    assert "require data SHA-256" in proc.stdout
 
 
 def test_official_transport_shift_audit_dry_run_can_refresh_report_only():

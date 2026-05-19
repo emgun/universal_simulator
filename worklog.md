@@ -1577,3 +1577,14 @@ Follow-up audit update (2026-05-19, held-out test policy invariant):
 - Interpretation:
   - the audit now distinguishes a correctly blocked benchmark from an invalid artifact that leaked or repeated held-out test evaluation
   - the current result remains correctly blocked, not complete
+
+Follow-up audit update (2026-05-19, enforce light-v1 identity):
+- Added optional `--expected-data-sha256 SPLIT=SHA256` checks to `scripts/audit_transport_shift_goal.py`.
+- Updated `scripts/run_official_transport_shift_audit.sh` to enforce the current local `light-v1` Advection train/val/test SHA-256 values by default.
+- Current official report-only refresh:
+  - `data_identity_policy.passed`: `true`
+  - `data_identity_policy.mismatches`: `[]`
+  - audit status remains `blocked_incompatible_splits`
+- Interpretation:
+  - future local official refreshes now fail closed if the real Advection files drift or are replaced
+  - the active blocker remains validation/split incompatibility, not data identity

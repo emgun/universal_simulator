@@ -46,6 +46,7 @@ def _args(tmp_path, gate, selection):
         data_root=str(tmp_path),
         task="advection1d",
         schema_splits=["train", "val", "test"],
+        expected_data_sha256=None,
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -155,6 +156,7 @@ def test_audit_reports_available_parameter_metadata(tmp_path):
         data_root=str(tmp_path),
         task="advection1d",
         schema_splits=["train", "val", "test"],
+        expected_data_sha256=None,
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -162,6 +164,21 @@ def test_audit_reports_available_parameter_metadata(tmp_path):
 
     assert record["data_schema"]["parameter_metadata_available"] is True
     assert record["data_schema"]["splits"]["train"]["sample_aligned_auxiliary_datasets"] == ["beta"]
+
+
+def test_audit_enforces_expected_data_identity(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    args = _args(tmp_path, gate, selection)
+    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+    args.expected_data_sha256 = ["train=" + ("0" * 64)]
+
+    record = audit_goal(args)
+
+    assert record["status"] == "invalid_data_identity"
+    assert record["data_identity_policy"]["passed"] is False
+    assert "train sha256 mismatch" in record["blockers"][0]
 
 
 def test_audit_exit_policy_fails_closed_for_blocked_status():

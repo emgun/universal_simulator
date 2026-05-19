@@ -29,6 +29,9 @@ AUDIT_JSON=${AUDIT_JSON:-${OUTPUT_ROOT}/transport_shift_goal_audit.json}
 COMPATIBILITY_JSON=${COMPATIBILITY_JSON:-${OUTPUT_ROOT}/remote_transport_shift_candidate_all_splits/compatible_window_selection.json}
 AUDIT_REQUIRE_STATUS=${AUDIT_REQUIRE_STATUS:-achieved}
 SHIFTS=${SHIFTS:--96,-88,-80,-72,-64,-56,-48,-40,-32,-24,-16,-8,0,8,16,24,32,40,48,56,64,72,80,88,96}
+EXPECTED_TRAIN_SHA256=${EXPECTED_TRAIN_SHA256:-67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1}
+EXPECTED_VAL_SHA256=${EXPECTED_VAL_SHA256:-9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329}
+EXPECTED_TEST_SHA256=${EXPECTED_TEST_SHA256:-4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93}
 
 shift_args=()
 IFS=',' read -r -a shift_values <<< "$SHIFTS"
@@ -41,6 +44,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: pass test_split=${TEST_SPLIT}; gate measures held-out test only if validation passes"
   echo "DRY_RUN: write gate evidence to ${GATE_JSON}"
   echo "DRY_RUN: audit ${GATE_JSON} with compatibility ${COMPATIBILITY_JSON}, require_status=${AUDIT_REQUIRE_STATUS}"
+  echo "DRY_RUN: require data SHA-256 train=${EXPECTED_TRAIN_SHA256}, val=${EXPECTED_VAL_SHA256}, test=${EXPECTED_TEST_SHA256}"
   exit 0
 fi
 
@@ -63,5 +67,8 @@ python scripts/audit_transport_shift_goal.py \
   --compatible-window-selection-json "$COMPATIBILITY_JSON" \
   --data-root "$DATA_ROOT" \
   --task "$TASK" \
+  --expected-data-sha256 "train=${EXPECTED_TRAIN_SHA256}" \
+  --expected-data-sha256 "val=${EXPECTED_VAL_SHA256}" \
+  --expected-data-sha256 "test=${EXPECTED_TEST_SHA256}" \
   --output-json "$AUDIT_JSON" \
   --require-status "$AUDIT_REQUIRE_STATUS"
