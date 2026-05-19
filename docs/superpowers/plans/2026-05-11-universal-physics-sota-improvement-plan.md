@@ -1143,7 +1143,9 @@ Status: real local `light-v1` Advection validation passed and the guarded held-o
 Implemented:
 
 - `scripts/run_observed_transport_shift_gate.py` now records `data_sources` fingerprints for train/val/test.
+- `scripts/run_observed_transport_shift_gate.py` supports `--test-ledger-json` to prevent accidental repeated held-out test measurement for the same observed-gate configuration.
 - `tests/unit/test_run_observed_transport_shift_gate.py` covers the source-fingerprint output.
+- `tests/unit/test_run_observed_transport_shift_gate.py` covers first-write ledger behavior, repeat-test refusal, and explicit debugging repeat behavior.
 
 Evidence:
 
@@ -1159,3 +1161,9 @@ Interpretation:
 - This is a benchmark-clean result only under a two-frame observed-context policy where `t-1 -> t` is allowed context for predicting `t -> t+1`.
 - It should not be conflated with the blocked constant train-fitted-shift objective, which remains `blocked_incompatible_splits`.
 - If the final benchmark must be fully autonomous from the initial frame only, treat this as an upper-bound/state-signal result and train a causal transport head next.
+
+Held-out test policy:
+
+- Future official observed-gate runs should pass `--test-ledger-json reports/research/sota_loop/observed_transport_shift_test_ledger.json`.
+- The ledger key is derived from the estimator, candidate shifts, train/val/test fingerprints, split names, sample caps, rollout steps, metric, reference metric, and validation threshold.
+- Reusing the same key fails before measuring held-out test again unless `--allow-repeat-test` is explicitly set for debugging; debugging repeats do not append another official ledger entry.

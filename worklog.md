@@ -1663,6 +1663,7 @@ Follow-up audit update (2026-05-19, metric-backed result-record enforcement):
 Experiment loop update (2026-05-19, lagged observed-transition transport gate):
 - Ran `scripts/run_observed_transport_shift_gate.py` on real local `light-v1` Advection train/val/test.
 - Updated the observed gate to fingerprint the exact train/val/test HDF5 files it used.
+- Added optional `--test-ledger-json` enforcement so the same guarded held-out test measurement cannot be repeated accidentally.
 - Command output artifact: `reports/research/sota_loop/observed_transport_shift_gate_real_light_v1.json` (ignored local report).
 - Data identities:
   - train: `data/pdebench/advection1d_train.h5`, `93508109` bytes, SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`
@@ -1685,3 +1686,16 @@ Experiment loop update (2026-05-19, lagged observed-transition transport gate):
   - it is not the exhausted constant train-fitted-shift result; it depends on a two-frame observed-context assumption (`t-1 -> t` predicts `t -> t+1`)
   - if that two-frame context is acceptable benchmark policy, this is the strongest current path toward the requested benchmark-clean result
   - if the benchmark requires fully autonomous rollout from only the initial frame, this should remain an upper-bound/state-signal result and the next step is a train-only learned causal head
+
+Follow-up gate update (2026-05-19, observed held-out test ledger):
+- `scripts/run_observed_transport_shift_gate.py` now supports `--test-ledger-json`.
+- When validation passes and `--test-split` is provided, the runner computes a deterministic held-out measurement key from:
+  - estimator name
+  - candidate shifts
+  - train/val/test data fingerprints
+  - split names, sample caps, rollout steps, metric, reference metric, and validation threshold
+- If the same key is already present in the ledger, the runner raises an error before measuring held-out test again.
+- `--allow-repeat-test` exists only for explicit debugging and does not append another official ledger entry.
+- Interpretation:
+  - the observed-context path now has a concrete mechanism for the objective's "exactly one held-out test" requirement
+  - the previously recorded test result remains the current evidence; future official reruns should use the ledger flag to avoid accidental repeated test evaluation

@@ -14,6 +14,7 @@ the validation guard passes.
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -27,6 +28,50 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.calibrate_residual_gate import _test_guard_result
 from scripts.fit_transport_shift_head import _candidate_shifts, _load_series
 from scripts.run_transport_shift_gate import _split_source_record
+
+
+def _load_test_ledger(path: str | None) -> dict[str, Any]:
+    if not path:
+        return {"measurements": []}
+    ledger_path = Path(path)
+    if not ledger_path.exists():
+        return {"measurements": []}
+    return json.loads(ledger_path.read_text(encoding="utf-8"))
+
+
+def _write_test_ledger(path: str | None, ledger: dict[str, Any]) -> None:
+    if not path:
+        return
+    ledger_path = Path(path)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(json.dumps(ledger, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _test_measurement_key(
+    *,
+    args: argparse.Namespace,
+    shifts: Sequence[int],
+    data_sources: dict[str, dict[str, Any]],
+) -> str:
+    payload = {
+        "candidate_shifts": [int(shift) for shift in shifts],
+        "data_sources": data_sources,
+        "estimator": "lagged_observed_transition_shift",
+        "max_samples": args.max_samples,
+        "metric": args.metric,
+        "reference_metric_value": args.reference_metric_value,
+        "rollout_steps": args.rollout_steps,
+        "task": args.task,
+        "test_max_samples": args.test_max_samples,
+        "test_split": args.test_split,
+        "train_max_samples": args.train_max_samples,
+        "train_split": args.train_split,
+        "val_max_samples": args.val_max_samples,
+        "val_min_relative_improvement": args.val_min_relative_improvement,
+        "val_split": args.val_split,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _estimate_shift_indices(
@@ -144,6 +189,32 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         mode="min",
     )
     test_eligible = bool(validation_guard["passed"])
+    source_splits = [args.train_split, args.val_split]
+    if args.test_split:
+        source_splits.append(args.test_split)
+    data_sources = {
+        split: _split_source_record(args.data_root, args.task, split)
+        for split in dict.fromkeys(source_splits)
+    }
+
+    ledger_path = getattr(args, "test_ledger_json", None)
+    allow_repeat_test = bool(getattr(args, "allow_repeat_test", False))
+    test_measurement_key = None
+    test_ledger_recorded = False
+    if test_eligible and args.test_split:
+        test_measurement_key = _test_measurement_key(args=args, shifts=shifts, data_sources=data_sources)
+        ledger = _load_test_ledger(ledger_path)
+        existing_keys = {
+            str(entry.get("measurement_key"))
+            for entry in ledger.get("measurements", [])
+            if isinstance(entry, dict)
+        }
+        if test_measurement_key in existing_keys and not allow_repeat_test:
+            raise RuntimeError(
+                "held-out test measurement already recorded for this observed transport gate; "
+                "set --allow-repeat-test only for explicit debugging"
+            )
+
     test_record = None
     if test_eligible and args.test_split:
         test_record = _split_record(
@@ -155,14 +226,19 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             rollout_steps=args.rollout_steps,
             metric=args.metric,
         )
-
-    source_splits = [args.train_split, args.val_split]
-    if args.test_split:
-        source_splits.append(args.test_split)
-    data_sources = {
-        split: _split_source_record(args.data_root, args.task, split)
-        for split in dict.fromkeys(source_splits)
-    }
+        if ledger_path and test_measurement_key and not allow_repeat_test:
+            ledger = _load_test_ledger(ledger_path)
+            ledger.setdefault("measurements", []).append(
+                {
+                    "measurement_key": test_measurement_key,
+                    "metric": args.metric,
+                    "test_metric_value": test_record["metric_value"],
+                    "test_split": args.test_split,
+                    "validation_metric_value": validation_record["metric_value"],
+                }
+            )
+            _write_test_ledger(ledger_path, ledger)
+            test_ledger_recorded = True
 
     return {
         "task": args.task,
@@ -183,6 +259,12 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "validation": validation_record,
         "validation_guard": validation_guard,
         "test_eligible": test_eligible,
+        "held_out_test_policy": {
+            "allow_repeat_test": allow_repeat_test,
+            "ledger_path": ledger_path,
+            "measurement_key": test_measurement_key,
+            "recorded": test_ledger_recorded,
+        },
         "test": test_record,
         "next_action": (
             "held-out test measured"
@@ -210,6 +292,11 @@ def main() -> None:
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
     parser.add_argument("--reference-metric-value", type=float)
     parser.add_argument("--val-min-relative-improvement", type=float)
+    parser.add_argument(
+        "--test-ledger-json",
+        help="Optional ledger that prevents measuring the same guarded held-out test more than once",
+    )
+    parser.add_argument("--allow-repeat-test", action="store_true", help="Bypass the held-out test ledger guard")
     parser.add_argument("--output-json", default="reports/research/sota_loop/observed_transport_shift_gate.json")
     args = parser.parse_args()
 
