@@ -1621,3 +1621,17 @@ Follow-up audit update (2026-05-19, gate/source provenance cross-check):
 - Interpretation:
   - stale or hand-edited gate artifacts cannot silently pass provenance validation
   - the active blocker remains the actual train/val transport regime mismatch
+
+Follow-up runner update (2026-05-19, default promotion path fails closed):
+- Ran the default promotion command:
+  - command: `bash scripts/run_official_transport_shift_audit.sh`
+  - exit code: `2`
+- Refreshed evidence:
+  - `data_identity_policy.passed`: `true`
+  - `data_identity_policy.gate_source_mismatches`: `[]`
+  - `test_eligible`: `false`
+  - `test_result_count`: `0`
+  - `status`: `blocked_incompatible_splits`
+- Interpretation:
+  - the one-command official promotion path correctly refuses to pass on current evidence
+  - the nonzero exit is the desired benchmark-clean stop condition, not an execution failure
