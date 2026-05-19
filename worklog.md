@@ -2104,3 +2104,21 @@ Follow-up remote launch update (2026-05-19, fresh-checkout plan generation):
 - Verified:
   - `python -m pytest tests/unit/test_run_remote_official_hydration.py tests/unit/test_plan_remote_official_hydration.py tests/unit/test_plan_transport_official_hydration.py tests/unit/test_validate_transport_hydration_plan.py tests/unit/test_run_transport_official_hydration_plan.py`
   - `14 passed`
+
+Follow-up download telemetry update (2026-05-19, official host throughput bottleneck):
+- Relaunched Vast contract `37096575` after the fresh-checkout fix; the remote regenerated the official hydration plan successfully.
+- The job then entered the first official file download but made only small disk progress and produced no stage output after plan emission.
+- Local probe of the official file endpoint showed range requests work, but the observed transfer rate was about `0.45 MB/s` for a 1 MiB range sample from this environment.
+- Destroyed contract `37096575` to avoid paying for a likely tens-of-hours serial download path.
+- Updated `scripts/download_pdebench_file.py` with resumable ranged downloads:
+  - default `PDEBENCH_DOWNLOAD_WORKERS=8`
+  - default `PDEBENCH_DOWNLOAD_PART_SIZE_MIB=256`
+  - per-request retries and explicit part-completion progress
+  - checksum verification after assembly
+  - skip logic for already-present files with matching size/checksum
+- Added `tests/unit/test_download_pdebench_file.py`.
+- Verified:
+  - `python -m pytest tests/unit/test_download_pdebench_file.py tests/unit/test_plan_transport_official_hydration.py tests/unit/test_run_transport_official_hydration_plan.py`
+  - `10 passed`
+  - `python -m py_compile scripts/download_pdebench_file.py`
+  - `git diff --check`

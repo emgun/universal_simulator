@@ -1426,3 +1426,11 @@ Remote full-objective chain:
 - `scripts/plan_remote_official_hydration.py` now includes `RUN_POST_VALIDATION_TEST=1`, `EXECUTE_TEST=1`, and `POST_VALIDATION_TEST_JSON=reports/research/sota_loop/official_hydrated_post_validation_test_run.json` in the generated Vast launcher command.
 - This makes the remote job capable of completing the full objective in one execution if, and only if, the train/val gate first reaches `literal_test_ready`.
 - Fresh remote checkouts regenerate `reports/research/sota_loop/official_advection_hydration_plan.json` inside `scripts/run_remote_official_hydration.sh` when the ignored local plan artifact is missing.
+
+Remote download throughput pivot:
+
+- Vast contract `37096575` confirmed the fresh-checkout plan regeneration fix, but then stalled in the first official-file download path with no runner-stage output after plan emission.
+- A local probe of the official Dataverse/S3 redirect path showed ranged GET works, but observed throughput for a 1 MiB range sample was only about `0.45 MB/s`.
+- Serial `requests.get(..., stream=True)` download is therefore too fragile and too slow for the `61.34` GiB official hydration path.
+- `scripts/download_pdebench_file.py` now defaults to resumable ranged download parts with configurable `PDEBENCH_DOWNLOAD_WORKERS`, `PDEBENCH_DOWNLOAD_PART_SIZE_MIB`, and `PDEBENCH_DOWNLOAD_RETRIES`.
+- This keeps the benchmark-clean data source unchanged while improving execution reliability and telemetry. The tradeoff is more HTTP requests against the official host; the range size default is intentionally coarse (`256` MiB) to avoid tiny-part request storms.
