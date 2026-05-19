@@ -1229,3 +1229,29 @@ Temporal-window diagnostic:
 - It scans train/val temporal start windows only and does not read held-out test.
 - Full local train/val result over 16-step windows starting at `0,16,32,...,176`: train labels `{"0": 12}`, validation labels `{"40": 12}`, common temporal best shifts `[]`, conclusion `blocked_no_temporal_common_shift`.
 - This rules out the plausible temporal-offset rescue path for the literal train-only objective under the current local `light-v1` shards.
+
+### 2026-05-19: Two-Frame Context Transport Gate
+
+Status: real local `light-v1` Advection validation passed and the guarded held-out test was measured for a two-frame context transport estimator.
+
+Implemented:
+
+- `scripts/run_context_transport_shift_gate.py` gates a context estimator that reads `t0 -> t1` once, estimates the sample shift, and then rolls out autoregressively without reading future observed transitions.
+- `tests/unit/test_run_context_transport_shift_gate.py` covers validation-pass test measurement, validation-fail blocking, one-shot held-out test ledger behavior, and explicit debugging repeat behavior.
+
+Evidence:
+
+- Command output artifact: `reports/research/sota_loop/context_transport_shift_gate.json` (ignored local report).
+- Ledger artifact: `reports/research/sota_loop/context_transport_shift_test_ledger.json` (ignored local ledger).
+- Data identities: train SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`, val SHA-256 `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`, test SHA-256 `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`.
+- Estimator: `two_frame_context_shift`; train locks candidate shift support and the estimator contract, validation does not select a split-level model.
+- Train NRMSE `0.13868984580039978`, shift mean/std `0.0` / `0.0`.
+- Validation NRMSE `0.12336619943380356`, shift mean/std `40.0` / `0.0`, relative improvement `0.5992086244805913` versus reference `0.30780652221851373`; `validation_guard.passed=true`.
+- Held-out test ran only after validation passed; test NRMSE `0.040703773498535156`, shift mean/std `72.0` / `0.0`.
+- Ledger measurement key: `aad43ee28e0606013d01f8fcbfb525ea406a41925d16fbcf12084aecfeca2d06`.
+
+Interpretation:
+
+- This is a stricter state-conditioned result than the lagged observed-transition gate because it does not read future observed transitions after the two-frame context seed.
+- It is not the literal one-frame train-only constant-shift objective; the literal objective remains blocked by train/val/test regime incompatibility.
+- If the benchmark policy allows two initial context frames, this is the highest-signal current result: validation-clean, provenance-fingerprinted, ledger-guarded, and tested once.

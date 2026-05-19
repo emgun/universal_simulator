@@ -1844,3 +1844,27 @@ Experiment loop update (2026-05-19, train/val temporal-window support diagnostic
 - Interpretation:
   - the literal train-only path is not rescued by choosing a later temporal rollout window
   - across all scanned 16-step temporal windows, train remains shift `0` and validation remains shift `40`
+
+Experiment loop update (2026-05-19, two-frame context transport gate):
+- Added `scripts/run_context_transport_shift_gate.py`.
+- The gate estimates one transport shift from the first observed transition (`t0 -> t1`) and then rolls out autoregressively from `t1` without reading future observed transitions.
+- Added `tests/unit/test_run_context_transport_shift_gate.py` for validation pass/test measurement, validation-fail blocking, ledger repeat refusal, and explicit debugging repeat behavior.
+- Real local `light-v1` command:
+  - output: `reports/research/sota_loop/context_transport_shift_gate.json` (ignored local report)
+  - ledger: `reports/research/sota_loop/context_transport_shift_test_ledger.json` (ignored local ledger)
+  - train/val max samples: `128`
+  - test max samples: `32`
+  - rollout steps: `16`
+  - candidate shifts: `-96,-88,...,96`
+- Result:
+  - validation NRMSE: `0.12336619943380356`
+  - validation relative improvement versus reference `0.30780652221851373`: `0.5992086244805913`
+  - validation guard: `passed=true`
+  - held-out test measured exactly once after validation passed
+  - test NRMSE: `0.040703773498535156`
+  - train/validation/test shift means: `0.0` / `40.0` / `72.0`
+  - ledger measurement key: `aad43ee28e0606013d01f8fcbfb525ea406a41925d16fbcf12084aecfeca2d06`
+- Interpretation:
+  - this is cleaner than the lagged observed-transition gate because it does not use per-step future observed transitions during rollout
+  - it is still not the literal one-frame train-only constant-shift objective; it requires a benchmark policy that allows two initial context frames for state-conditioned prediction
+  - under that two-frame-context policy, the current local `light-v1` Advection result is validation-clean and has a guarded held-out test measurement
