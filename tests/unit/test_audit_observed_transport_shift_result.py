@@ -3,6 +3,7 @@ from __future__ import annotations
 from argparse import Namespace
 import hashlib
 import json
+import subprocess
 
 import h5py
 import torch
@@ -131,3 +132,28 @@ def test_observed_audit_exit_policy_matches_transport_audit_modes():
     assert exit_code_for_status("achieved", "achieved") == 0
     assert exit_code_for_status("test_ready", "achieved") == 2
     assert exit_code_for_status("validation_failed", "report") == 0
+
+
+def test_observed_audit_cli_runs_from_repo_root(tmp_path):
+    output = tmp_path / "audit.json"
+
+    proc = subprocess.run(
+        [
+            "/opt/anaconda3/bin/python",
+            "scripts/audit_observed_transport_shift_result.py",
+            "--observed-gate-json",
+            str(tmp_path / "missing.json"),
+            "--data-root",
+            str(tmp_path),
+            "--output-json",
+            str(output),
+            "--require-status",
+            "report",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert '"status": "missing_evidence"' in proc.stdout
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == "missing_evidence"

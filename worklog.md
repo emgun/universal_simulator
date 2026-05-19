@@ -1727,3 +1727,19 @@ Follow-up audit update (2026-05-19, observed transport result audit):
 - Interpretation:
   - the observed-context result is now machine-auditable rather than only note-backed
   - this still does not change the policy caveat: promotion depends on accepting the two-frame observed-context estimator as benchmark-clean
+
+Observed audit refresh (2026-05-19, existing gate artifact, no test rerun):
+- Ran `scripts/audit_observed_transport_shift_result.py` directly against `reports/research/sota_loop/observed_transport_shift_gate_real_light_v1.json`.
+- The audit did not run the observed gate and did not re-measure held-out test.
+- Audit result:
+  - `status`: `achieved`
+  - `data_identity_policy.passed`: `true`
+  - `data_identity_policy.gate_source_mismatches`: `[]`
+  - `validation_guard.passed`: `true`
+  - `held_out_test_policy.test_result_count`: `1`
+  - `held_out_test_policy.exactly_one_test_after_validation`: `true`
+  - `result_record_policy.required_tokens`: `["achieved", "0.012846261262893677", "0.004225204233080149"]`
+  - `result_record_policy.passed`: `true`
+- Caveat:
+  - the existing ignored gate artifact predates the exactly-once ledger, so `held_out_test_policy.ledger` is `null`
+  - this audit proves the artifact contains exactly one authorized test result; future official reruns should use the ledger path

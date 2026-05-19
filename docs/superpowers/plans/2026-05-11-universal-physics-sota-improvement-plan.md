@@ -1174,3 +1174,5 @@ Held-out test policy:
 - The ledger key is derived from the estimator, candidate shifts, train/val/test fingerprints, split names, sample caps, rollout steps, metric, reference metric, and validation threshold.
 - Reusing the same key fails before measuring held-out test again unless `--allow-repeat-test` is explicitly set for debugging; debugging repeats do not append another official ledger entry.
 - The official observed command now audits the generated result with default `AUDIT_REQUIRE_STATUS=achieved`; report-only audit mode is available through `AUDIT_REQUIRE_STATUS=report`.
+- A direct audit of the existing ignored observed gate artifact returned `status=achieved` without re-running held-out test. It verified data identity, no gate/source mismatches, validation pass, exactly one authorized test result, and result-record tokens `achieved`, `0.012846261262893677`, and `0.004225204233080149`.
+- The existing ignored observed gate artifact predates the exactly-once ledger, so its audit has `held_out_test_policy.ledger=null`; future official reruns should use the ledger path.
