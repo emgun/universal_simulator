@@ -35,11 +35,13 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     observed_audit, observed_path = _load_json(args.observed_audit_json)
     context_audit, context_path = _load_json(args.context_audit_json)
     feature_diag, feature_path = _load_json(args.train_feature_diagnostic_json)
+    identifiability_audit, identifiability_path = _load_json(args.train_identifiability_audit_json)
 
     constant_status = _status(constant_audit)
     observed_status = _status(observed_audit)
     context_status = _status(context_audit)
     feature_conclusion = str(feature_diag.get("conclusion")) if feature_diag else None
+    identifiability_status = _status(identifiability_audit)
     observed_accepted = bool(getattr(args, "accept_observed_context", False))
     context_accepted = bool(getattr(args, "accept_context_transport", False))
 
@@ -64,6 +66,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append("constant train-only audit evidence is missing")
         if feature_conclusion:
             blockers.append(f"train-only feature diagnostic conclusion is {feature_conclusion}")
+        if identifiability_status:
+            blockers.append(f"train-only identifiability audit status is {identifiability_status}")
         if context_status == "achieved":
             blockers.append("two-frame context transport result is achieved but not accepted for literal objective")
         if observed_status == "achieved":
@@ -73,9 +77,13 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         {
             "name": "real_light_v1_train_val_accessed",
             "status": "satisfied"
-            if (constant_audit or observed_audit or context_audit or feature_diag)
+            if (constant_audit or observed_audit or context_audit or feature_diag or identifiability_audit)
             else "missing",
-            "evidence": ", ".join(path for path in (constant_path, observed_path, context_path, feature_path) if path)
+            "evidence": ", ".join(
+                path
+                for path in (constant_path, observed_path, context_path, feature_path, identifiability_path)
+                if path
+            )
             or "no evidence artifacts found",
         },
         {
@@ -83,7 +91,10 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "status": "satisfied"
             if constant_status == "achieved"
             else "blocked",
-            "evidence": f"constant_audit_status={constant_status}; feature_conclusion={feature_conclusion}",
+            "evidence": (
+                f"constant_audit_status={constant_status}; "
+                f"feature_conclusion={feature_conclusion}; identifiability_status={identifiability_status}"
+            ),
         },
         {
             "name": "validate_on_val_against_sota_guard",
@@ -146,6 +157,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "observed_status": observed_status,
             "train_feature_diagnostic_json": feature_path,
             "train_feature_conclusion": feature_conclusion,
+            "train_identifiability_audit_json": identifiability_path,
+            "train_identifiability_status": identifiability_status,
         },
         "recommendation": (
             "If two-frame context is benchmark-accepted, prefer the context transport result; "
@@ -179,6 +192,10 @@ def main() -> None:
     parser.add_argument(
         "--train-feature-diagnostic-json",
         default="reports/research/sota_loop/train_only_transport_feature_diagnostic_full.json",
+    )
+    parser.add_argument(
+        "--train-identifiability-audit-json",
+        default="reports/research/sota_loop/train_only_transport_identifiability_audit.json",
     )
     parser.add_argument("--accept-observed-context", action="store_true")
     parser.add_argument("--accept-context-transport", action="store_true")

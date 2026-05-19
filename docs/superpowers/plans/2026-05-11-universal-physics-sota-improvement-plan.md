@@ -1264,3 +1264,29 @@ Audit enforcement:
 - `scripts/run_official_transport_objective_status.sh` now supports `ACCEPT_CONTEXT_TRANSPORT=1 REQUIRE_STATUS=context-accepted` for explicit two-frame context policy acceptance.
 - The context-accepted objective command returned `status=context_transport_achieved`.
 - The default literal objective command still exits `2` with `status=literal_blocked`; the context result is achieved but not accepted for the literal objective unless the policy flag is set.
+
+### 2026-05-19: Train-Only Identifiability Audit
+
+Status: the literal train-only shift objective is underidentified on the current real local `light-v1` train/val shards.
+
+Evidence:
+
+- Script: `scripts/audit_train_only_transport_identifiability.py`.
+- Output: `reports/research/sota_loop/train_only_transport_identifiability_audit.json` (ignored local report).
+- The audit uses train and validation only; it does not read held-out test.
+- Full-shard train shift support is `[0]`.
+- Full-shard validation shift support is `[40]`.
+- Unsupported validation shifts are `[40]`.
+- Status: `blocked_underidentified_train_only_shift`.
+
+Interpretation:
+
+- A supervised train-only shift-label learner has no evidence for selecting validation shift `40`, because train contains only shift `0`.
+- This is stronger than a failed feature probe: it says the label support needed for literal train-only shift extrapolation is absent from the current shard.
+- Recent operator-learning directions such as equivariant Fourier operators and adaptive coordinate transforms are relevant for architecture design, but they do not remove the need for either train regime support, allowed context, parameter metadata, or split-compatible data.
+
+Objective audit impact:
+
+- `scripts/run_official_transport_objective_status.sh` now reads `reports/research/sota_loop/train_only_transport_identifiability_audit.json`.
+- Default literal mode still exits `2` with `status=literal_blocked`, now explicitly including `blocked_underidentified_train_only_shift`.
+- Context-accepted mode still exits `0` with `status=context_transport_achieved`.

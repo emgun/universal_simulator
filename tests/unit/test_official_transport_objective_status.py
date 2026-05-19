@@ -25,6 +25,7 @@ def test_official_transport_objective_status_dry_run_defaults_to_literal_release
     assert "context_transport_shift_goal_audit.json" in proc.stdout
     assert "observed_transport_shift_goal_audit.json" in proc.stdout
     assert "train_only_transport_feature_diagnostic_full.json" in proc.stdout
+    assert "train_only_transport_identifiability_audit.json" in proc.stdout
     assert "require_status=literal-achieved" in proc.stdout
     assert "accept_context_transport=0" in proc.stdout
     assert "accept_observed_context=0" in proc.stdout
@@ -69,16 +70,19 @@ def test_official_transport_objective_status_executes_default_literal_check(tmp_
     context = tmp_path / "context.json"
     observed = tmp_path / "observed.json"
     features = tmp_path / "features.json"
+    identifiability = tmp_path / "identifiability.json"
     output = tmp_path / "objective.json"
     _write_json(constant, '{"status":"blocked_incompatible_splits"}')
     _write_json(context, '{"status":"achieved","result_record_policy":{"passed":true}}')
     _write_json(observed, '{"status":"achieved","result_record_policy":{"passed":true}}')
     _write_json(features, '{"conclusion":"blocked_no_train_support_for_validation_shift"}')
+    _write_json(identifiability, '{"status":"blocked_underidentified_train_only_shift"}')
     env = os.environ.copy()
     env["CONSTANT_AUDIT_JSON"] = str(constant)
     env["CONTEXT_AUDIT_JSON"] = str(context)
     env["OBSERVED_AUDIT_JSON"] = str(observed)
     env["TRAIN_FEATURE_DIAGNOSTIC_JSON"] = str(features)
+    env["TRAIN_IDENTIFIABILITY_AUDIT_JSON"] = str(identifiability)
     env["OBJECTIVE_STATUS_JSON"] = str(output)
     env["REQUIRE_STATUS"] = "report"
 

@@ -1890,3 +1890,26 @@ Follow-up audit update (2026-05-19, context transport result):
   - the context transport result is now first-class audited evidence
   - default release behavior still fails closed for the original literal train-only objective
   - promotion requires an explicit policy decision to accept two initial context frames
+
+Follow-up audit update (2026-05-19, train-only identifiability):
+- Added `scripts/audit_train_only_transport_identifiability.py`.
+- The audit checks train/val shift-label support without reading held-out test.
+- Real local `light-v1` train/val command:
+  - output: `reports/research/sota_loop/train_only_transport_identifiability_audit.json` (ignored local report)
+  - full train/val shards
+  - rollout steps: `16`
+  - candidate shifts: `-96,-88,...,96`
+- Result:
+  - status: `blocked_underidentified_train_only_shift`
+  - train shift support: `[0]`
+  - validation shift support: `[40]`
+  - unsupported validation shifts: `[40]`
+  - split-level train best: shift `0`, NRMSE `0.01450516376644373`
+  - split-level validation best: shift `40`, NRMSE `0.012850472703576088`
+- Interpretation:
+  - no supervised train-only shift-label learner can identify the validation shift from the current train shard because the required validation label is absent from train
+  - this is why richer equivariant/canonical-frame operators are unlikely to solve the literal objective without either train support, parameter metadata, rebuilt splits, or allowed two-frame context
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `blocked_underidentified_train_only_shift`
+  - context-accepted command still exits `0` with `status=context_transport_achieved`
