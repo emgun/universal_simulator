@@ -198,6 +198,15 @@ def _result_record_mismatches(paths: list[str] | None, required_tokens: list[str
     return mismatches
 
 
+def _result_record_tokens(status: str, gate: Mapping[str, Any] | None) -> list[str]:
+    tokens = [status]
+    selected_validation = ((gate or {}).get("fit") or {}).get("selected_validation") or {}
+    validation_nrmse = selected_validation.get("nrmse")
+    if validation_nrmse is not None:
+        tokens.append(str(validation_nrmse))
+    return tokens
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
@@ -272,7 +281,7 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
 
     result_records = list(getattr(args, "result_record", None) or [])
     require_result_records = bool(getattr(args, "require_result_records", False))
-    required_record_tokens = [status]
+    required_record_tokens = _result_record_tokens(status, gate)
     result_record_mismatches = (
         _result_record_mismatches(result_records, required_record_tokens) if require_result_records else []
     )

@@ -1649,3 +1649,13 @@ Follow-up audit update (2026-05-19, result-record enforcement):
 - Interpretation:
   - the audit now checks that the current benchmark-clean stop condition is recorded in both required repo handoff documents
   - the remaining blocker is still train/val split incompatibility
+
+Follow-up audit update (2026-05-19, metric-backed result-record enforcement):
+- Extended result-record enforcement so required repo records must include both the current audit status and the measured selected-validation NRMSE.
+- Current official report-only refresh:
+  - `result_record_policy.required_tokens`: `["blocked_incompatible_splits", "0.5140249729156494"]`
+  - `result_record_policy.mismatches`: `[]`
+  - `result_record_policy.passed`: `true`
+- Interpretation:
+  - a status-only handoff is no longer enough to pass the official audit
+  - both required repo records now have to preserve the key measured failure value behind the blocked promotion decision

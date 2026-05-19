@@ -1134,3 +1134,4 @@ Audit enforcement:
 - The audit cross-checks those gate `data_sources` against independently inspected HDF5 files. Current `data_identity_policy.gate_source_mismatches=[]`, so provenance is consistent while validation remains blocked.
 - The default official promotion command `bash scripts/run_official_transport_shift_audit.sh` exits `2` on current evidence. This is the intended fail-closed behavior: provenance passes, but `status=blocked_incompatible_splits`, `test_eligible=false`, and no held-out test result is recorded.
 - The official audit now enforces result recording in both `worklog.md` and this plan. Current `result_record_policy.passed=true` with required token `blocked_incompatible_splits`.
+- The result-record audit now also requires the measured selected-validation NRMSE. Current `result_record_policy.passed=true` with required tokens `blocked_incompatible_splits` and `0.5140249729156494`, so status-only handoffs fail the official audit.

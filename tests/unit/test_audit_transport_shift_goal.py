@@ -224,7 +224,7 @@ def test_audit_can_require_result_records(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
     record_path = tmp_path / "worklog.md"
-    record_path.write_text("status: blocked_incompatible_splits\n", encoding="utf-8")
+    record_path.write_text("status: blocked_incompatible_splits\nvalidation_nrmse: 0.5\n", encoding="utf-8")
     _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
     args = _args(tmp_path, gate, selection)
@@ -235,6 +235,7 @@ def test_audit_can_require_result_records(tmp_path):
 
     assert record["status"] == "blocked_incompatible_splits"
     assert record["result_record_policy"]["passed"] is True
+    assert record["result_record_policy"]["required_tokens"] == ["blocked_incompatible_splits", "0.5"]
 
 
 def test_audit_flags_missing_result_record_status(tmp_path):
@@ -253,6 +254,24 @@ def test_audit_flags_missing_result_record_status(tmp_path):
     assert record["status"] == "invalid_result_record"
     assert record["result_record_policy"]["passed"] is False
     assert "blocked_incompatible_splits" in record["blockers"][0]
+
+
+def test_audit_flags_missing_result_record_metric(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    record_path = tmp_path / "worklog.md"
+    record_path.write_text("status: blocked_incompatible_splits\n", encoding="utf-8")
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+    args = _args(tmp_path, gate, selection)
+    args.result_record = [str(record_path)]
+    args.require_result_records = True
+
+    record = audit_goal(args)
+
+    assert record["status"] == "invalid_result_record"
+    assert record["result_record_policy"]["passed"] is False
+    assert "0.5" in record["blockers"][0]
 
 
 def test_audit_flags_gate_source_mismatch(tmp_path):
