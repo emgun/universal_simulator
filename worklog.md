@@ -1951,3 +1951,19 @@ Follow-up planning update (2026-05-19, official Advection hydration plan):
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `ready_for_explicit_hydration`, meaning the next literal step is external download/storage execution rather than another local model probe
+
+Follow-up validation update (2026-05-19, official hydration plan validation):
+- Added `scripts/validate_transport_hydration_plan.py`.
+- Generated `reports/research/sota_loop/official_advection_hydration_plan_validation.json` (ignored local report).
+- Validation status: `valid`.
+- The validator checks:
+  - selected paths match download commands
+  - every selected path is official `1D/Advection/Train`
+  - estimated download size is above the expected floor
+  - no held-out test split is downloaded or sharded
+  - train/val shard command uses `--test-count 0`
+  - validation command does not pass `--test-split`
+  - synthetic report artifacts are not referenced
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `official hydration plan validation status is valid`

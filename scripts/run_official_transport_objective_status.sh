@@ -24,6 +24,7 @@ TRAIN_FEATURE_DIAGNOSTIC_JSON=${TRAIN_FEATURE_DIAGNOSTIC_JSON:-${OUTPUT_ROOT}/tr
 TRAIN_IDENTIFIABILITY_AUDIT_JSON=${TRAIN_IDENTIFIABILITY_AUDIT_JSON:-${OUTPUT_ROOT}/train_only_transport_identifiability_audit.json}
 HYDRATION_OPTIONS_JSON=${HYDRATION_OPTIONS_JSON:-${OUTPUT_ROOT}/transport_data_hydration_options.json}
 HYDRATION_PLAN_JSON=${HYDRATION_PLAN_JSON:-${OUTPUT_ROOT}/official_advection_hydration_plan.json}
+HYDRATION_PLAN_VALIDATION_JSON=${HYDRATION_PLAN_VALIDATION_JSON:-${OUTPUT_ROOT}/official_advection_hydration_plan_validation.json}
 OBJECTIVE_STATUS_JSON=${OBJECTIVE_STATUS_JSON:-${OUTPUT_ROOT}/transport_objective_status.json}
 REQUIRE_STATUS=${REQUIRE_STATUS:-literal-achieved}
 ACCEPT_OBSERVED_CONTEXT=${ACCEPT_OBSERVED_CONTEXT:-0}
@@ -48,6 +49,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: train_identifiability_audit=${TRAIN_IDENTIFIABILITY_AUDIT_JSON}"
   echo "DRY_RUN: hydration_options=${HYDRATION_OPTIONS_JSON}"
   echo "DRY_RUN: hydration_plan=${HYDRATION_PLAN_JSON}"
+  echo "DRY_RUN: hydration_plan_validation=${HYDRATION_PLAN_VALIDATION_JSON}"
   echo "DRY_RUN: output=${OBJECTIVE_STATUS_JSON}"
   echo "DRY_RUN: require_status=${REQUIRE_STATUS}"
   echo "DRY_RUN: accept_context_transport=${ACCEPT_CONTEXT_TRANSPORT}"
@@ -63,6 +65,7 @@ python scripts/audit_transport_objective_status.py \
   --train-identifiability-audit-json "$TRAIN_IDENTIFIABILITY_AUDIT_JSON" \
   --hydration-options-json "$HYDRATION_OPTIONS_JSON" \
   --hydration-plan-json "$HYDRATION_PLAN_JSON" \
+  --hydration-plan-validation-json "$HYDRATION_PLAN_VALIDATION_JSON" \
   --output-json "$OBJECTIVE_STATUS_JSON" \
   --require-status "$REQUIRE_STATUS" \
   "${context_args[@]+"${context_args[@]}"}" \

@@ -1347,3 +1347,11 @@ Objective audit impact:
 
 - `scripts/run_official_transport_objective_status.sh` now reads `reports/research/sota_loop/official_advection_hydration_plan.json`.
 - Default literal mode still exits `2` with `status=literal_blocked`, now explicitly showing `ready_for_explicit_hydration` as the next literal-path action.
+
+Plan validation:
+
+- Script: `scripts/validate_transport_hydration_plan.py`.
+- Output: `reports/research/sota_loop/official_advection_hydration_plan_validation.json` (ignored local report).
+- Validation status: `valid`.
+- It verifies selected paths match download commands, all selected paths are official `1D/Advection/Train` files, no held-out test split is downloaded or sharded, the train/val shard command uses `--test-count 0`, the validation command does not pass `--test-split`, and synthetic report artifacts are not referenced.
+- `scripts/run_official_transport_objective_status.sh` now reads the validation artifact; default literal mode still exits `2` with `status=literal_blocked` until the approved download and validation run actually happen.
