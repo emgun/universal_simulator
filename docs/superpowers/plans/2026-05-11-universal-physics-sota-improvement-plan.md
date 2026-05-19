@@ -1355,3 +1355,12 @@ Plan validation:
 - Validation status: `valid`.
 - It verifies selected paths match download commands, all selected paths are official `1D/Advection/Train` files, no held-out test split is downloaded or sharded, the train/val shard command uses `--test-count 0`, the validation command does not pass `--test-split`, and synthetic report artifacts are not referenced.
 - `scripts/run_official_transport_objective_status.sh` now reads the validation artifact; default literal mode still exits `2` with `status=literal_blocked` until the approved download and validation run actually happen.
+
+Dry-run execution:
+
+- Script: `scripts/run_transport_official_hydration_plan.py`.
+- Output: `reports/research/sota_loop/official_advection_hydration_plan_run.json` (ignored local report).
+- Run status: `dry_run`.
+- The runner validates the plan, lists download/convert/shard/validate/audit stages, and executes nothing unless `--execute` is provided.
+- The download stage additionally requires `--execute-downloads`; the dry run records blocker `download stage requires --execute-downloads`.
+- `scripts/run_official_transport_objective_status.sh` now reads the run artifact; default literal mode still exits `2` with `status=literal_blocked` until the staged hydration actually runs and validation passes.

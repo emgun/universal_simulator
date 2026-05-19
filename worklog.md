@@ -1967,3 +1967,19 @@ Follow-up validation update (2026-05-19, official hydration plan validation):
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `official hydration plan validation status is valid`
+
+Follow-up execution update (2026-05-19, official hydration dry run):
+- Added `scripts/run_transport_official_hydration_plan.py`.
+- Generated `reports/research/sota_loop/official_advection_hydration_plan_run.json` (ignored local report).
+- Run status: `dry_run`.
+- The runner validates the plan first, then lists stages in order:
+  - download official train files
+  - convert raw official train files into a hydrated source
+  - build train/val-only light shards with `--test-count 0`
+  - validate without `--test-split`
+  - refresh objective audit
+- No command was executed in the dry run.
+- The dry run reports blocker `download stage requires --execute-downloads`, preserving the explicit approval boundary for the 61.34 GiB network/disk step.
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `official hydration plan run status is dry_run`

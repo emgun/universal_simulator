@@ -20,6 +20,7 @@ def _args(tmp_path, *, accept_observed_context: bool = False, accept_context_tra
         hydration_options_json=str(tmp_path / "hydration.json"),
         hydration_plan_json=str(tmp_path / "hydration_plan.json"),
         hydration_plan_validation_json=str(tmp_path / "hydration_plan_validation.json"),
+        hydration_plan_run_json=str(tmp_path / "hydration_plan_run.json"),
         accept_observed_context=accept_observed_context,
         accept_context_transport=accept_context_transport,
         require_status="report",
@@ -36,6 +37,7 @@ def test_objective_audit_marks_literal_achieved_when_constant_audit_achieved(tmp
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
+    _write_json(tmp_path / "hydration_plan_run.json", {"status": "dry_run"})
 
     record = audit_objective(_args(tmp_path))
 
@@ -55,6 +57,7 @@ def test_objective_audit_keeps_observed_context_policy_explicit(tmp_path):
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
+    _write_json(tmp_path / "hydration_plan_run.json", {"status": "dry_run"})
 
     blocked = audit_objective(_args(tmp_path))
     accepted = audit_objective(_args(tmp_path, accept_observed_context=True))
@@ -77,6 +80,7 @@ def test_objective_audit_keeps_context_transport_policy_explicit(tmp_path):
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
+    _write_json(tmp_path / "hydration_plan_run.json", {"status": "dry_run"})
 
     blocked = audit_objective(_args(tmp_path))
     accepted = audit_objective(_args(tmp_path, accept_context_transport=True))
@@ -96,6 +100,7 @@ def test_objective_audit_reports_train_feature_blocker(tmp_path):
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
+    _write_json(tmp_path / "hydration_plan_run.json", {"status": "dry_run"})
 
     record = audit_objective(_args(tmp_path))
 
@@ -105,6 +110,7 @@ def test_objective_audit_reports_train_feature_blocker(tmp_path):
     assert any("remote_official_hydration_required" in blocker for blocker in record["blockers"])
     assert any("ready_for_explicit_hydration" in blocker for blocker in record["blockers"])
     assert any("valid" in blocker for blocker in record["blockers"])
+    assert any("dry_run" in blocker for blocker in record["blockers"])
 
 
 def test_objective_exit_policy():

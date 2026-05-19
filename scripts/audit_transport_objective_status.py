@@ -39,6 +39,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_audit, hydration_path = _load_json(args.hydration_options_json)
     hydration_plan, hydration_plan_path = _load_json(args.hydration_plan_json)
     hydration_plan_validation, hydration_plan_validation_path = _load_json(args.hydration_plan_validation_json)
+    hydration_plan_run, hydration_plan_run_path = _load_json(args.hydration_plan_run_json)
 
     constant_status = _status(constant_audit)
     observed_status = _status(observed_audit)
@@ -48,6 +49,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_status = _status(hydration_audit)
     hydration_plan_status = _status(hydration_plan)
     hydration_plan_validation_status = _status(hydration_plan_validation)
+    hydration_plan_run_status = _status(hydration_plan_run)
     observed_accepted = bool(getattr(args, "accept_observed_context", False))
     context_accepted = bool(getattr(args, "accept_context_transport", False))
 
@@ -80,6 +82,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append(f"official hydration plan status is {hydration_plan_status}")
         if hydration_plan_validation_status:
             blockers.append(f"official hydration plan validation status is {hydration_plan_validation_status}")
+        if hydration_plan_run_status:
+            blockers.append(f"official hydration plan run status is {hydration_plan_run_status}")
         if context_status == "achieved":
             blockers.append("two-frame context transport result is achieved but not accepted for literal objective")
         if observed_status == "achieved":
@@ -98,6 +102,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 or hydration_audit
                 or hydration_plan
                 or hydration_plan_validation
+                or hydration_plan_run
             )
             else "missing",
             "evidence": ", ".join(
@@ -111,6 +116,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                     hydration_path,
                     hydration_plan_path,
                     hydration_plan_validation_path,
+                    hydration_plan_run_path,
                 )
                 if path
             )
@@ -125,7 +131,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 f"constant_audit_status={constant_status}; "
                 f"feature_conclusion={feature_conclusion}; identifiability_status={identifiability_status}; "
                 f"hydration_status={hydration_status}; hydration_plan_status={hydration_plan_status}; "
-                f"hydration_plan_validation_status={hydration_plan_validation_status}"
+                f"hydration_plan_validation_status={hydration_plan_validation_status}; "
+                f"hydration_plan_run_status={hydration_plan_run_status}"
             ),
         },
         {
@@ -197,6 +204,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "hydration_plan_status": hydration_plan_status,
             "hydration_plan_validation_json": hydration_plan_validation_path,
             "hydration_plan_validation_status": hydration_plan_validation_status,
+            "hydration_plan_run_json": hydration_plan_run_path,
+            "hydration_plan_run_status": hydration_plan_run_status,
         },
         "recommendation": (
             "If two-frame context is benchmark-accepted, prefer the context transport result; "
@@ -246,6 +255,10 @@ def main() -> None:
     parser.add_argument(
         "--hydration-plan-validation-json",
         default="reports/research/sota_loop/official_advection_hydration_plan_validation.json",
+    )
+    parser.add_argument(
+        "--hydration-plan-run-json",
+        default="reports/research/sota_loop/official_advection_hydration_plan_run.json",
     )
     parser.add_argument("--accept-observed-context", action="store_true")
     parser.add_argument("--accept-context-transport", action="store_true")
