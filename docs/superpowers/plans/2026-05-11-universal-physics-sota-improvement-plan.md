@@ -1290,3 +1290,31 @@ Objective audit impact:
 - `scripts/run_official_transport_objective_status.sh` now reads `reports/research/sota_loop/train_only_transport_identifiability_audit.json`.
 - Default literal mode still exits `2` with `status=literal_blocked`, now explicitly including `blocked_underidentified_train_only_shift`.
 - Context-accepted mode still exits `0` with `status=context_transport_achieved`.
+
+### 2026-05-19: Benchmark-Clean Hydration Options Audit
+
+Status: the current workspace does not have an additional benchmark-clean local Advection train source that covers validation shift `40`; official remote raw Advection train files exist but are not hydrated.
+
+Evidence:
+
+- Script: `scripts/audit_transport_data_hydration_options.py`.
+- Output: `reports/research/sota_loop/transport_data_hydration_options.json` (ignored local report).
+- The audit reads train/val only for local support and does not read held-out test.
+- Canonical local root: `data/pdebench`.
+- Canonical local train support: `[0]`.
+- Canonical local validation support: `[40]`.
+- Status: `remote_official_hydration_required`.
+- Official remote Advection train files in `docs/pdebench_manifest.yaml`: `8`.
+- Total official remote Advection train size: `61.34038382768631` GiB.
+- Synthetic `reports/light_experiments/**/synthetic_pdebench` shards are cataloged as `synthetic_report_artifact_not_benchmark_clean`.
+
+Interpretation:
+
+- The literal objective cannot be rescued from already-local benchmark-clean shards in this workspace.
+- The only benchmark-clean data path found is to hydrate official raw Advection train data from the manifest or build an explicitly approved split-compatible benchmark.
+- Synthetic report shards are useful for debugging but should not be used as release evidence.
+
+Objective audit impact:
+
+- `scripts/run_official_transport_objective_status.sh` now reads `reports/research/sota_loop/transport_data_hydration_options.json`.
+- Default literal mode still exits `2` with `status=literal_blocked`, now explicitly including `remote_official_hydration_required`.

@@ -1913,3 +1913,24 @@ Follow-up audit update (2026-05-19, train-only identifiability):
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `blocked_underidentified_train_only_shift`
   - context-accepted command still exits `0` with `status=context_transport_achieved`
+
+Follow-up audit update (2026-05-19, benchmark-clean hydration options):
+- Added `scripts/audit_transport_data_hydration_options.py`.
+- The audit separates canonical local real shards, synthetic report-generated shards, and remote official raw PDEBench Advection files from `docs/pdebench_manifest.yaml`.
+- Real local command:
+  - output: `reports/research/sota_loop/transport_data_hydration_options.json` (ignored local report)
+  - train/val only; does not read held-out test
+- Result:
+  - status: `remote_official_hydration_required`
+  - canonical local train support remains `[0]`
+  - canonical local validation support remains `[40]`
+  - official remote Advection train files in manifest: `8`
+  - total official remote Advection train size: `61.34038382768631` GiB
+  - synthetic report shard entries are cataloged as `synthetic_report_artifact_not_benchmark_clean`
+- Interpretation:
+  - the current workspace has no additional benchmark-clean local train source that covers validation shift `40`
+  - there is a benchmark-clean hydration route through official raw Advection train files, but it requires an explicit large download/storage step
+  - synthetic `reports/light_experiments/**/synthetic_pdebench` shards should not be used as release evidence for the literal objective
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `remote_official_hydration_required`
