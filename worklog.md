@@ -1588,3 +1588,15 @@ Follow-up audit update (2026-05-19, enforce light-v1 identity):
 - Interpretation:
   - future local official refreshes now fail closed if the real Advection files drift or are replaced
   - the active blocker remains validation/split incompatibility, not data identity
+
+Follow-up audit update (2026-05-19, require complete identity coverage):
+- Added `--require-data-identity` to `scripts/audit_transport_shift_goal.py`.
+- Updated `scripts/run_official_transport_shift_audit.sh` to require expected SHA-256 values for every inspected existing split.
+- Current official report-only refresh:
+  - `data_identity_policy.require_all_inspected_splits`: `true`
+  - `data_identity_policy.missing`: `[]`
+  - `data_identity_policy.mismatches`: `[]`
+  - `data_identity_policy.passed`: `true`
+- Interpretation:
+  - direct audit calls can still inspect partial identities when requested
+  - the official local benchmark path now requires complete train/val/test identity coverage before considering validation or held-out test status

@@ -70,5 +70,6 @@ python scripts/audit_transport_shift_goal.py \
   --expected-data-sha256 "train=${EXPECTED_TRAIN_SHA256}" \
   --expected-data-sha256 "val=${EXPECTED_VAL_SHA256}" \
   --expected-data-sha256 "test=${EXPECTED_TEST_SHA256}" \
+  --require-data-identity \
   --output-json "$AUDIT_JSON" \
   --require-status "$AUDIT_REQUIRE_STATUS"

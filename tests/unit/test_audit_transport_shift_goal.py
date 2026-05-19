@@ -47,6 +47,7 @@ def _args(tmp_path, gate, selection):
         task="advection1d",
         schema_splits=["train", "val", "test"],
         expected_data_sha256=None,
+        require_data_identity=False,
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -157,6 +158,7 @@ def test_audit_reports_available_parameter_metadata(tmp_path):
         task="advection1d",
         schema_splits=["train", "val", "test"],
         expected_data_sha256=None,
+        require_data_identity=False,
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -179,6 +181,23 @@ def test_audit_enforces_expected_data_identity(tmp_path):
     assert record["status"] == "invalid_data_identity"
     assert record["data_identity_policy"]["passed"] is False
     assert "train sha256 mismatch" in record["blockers"][0]
+
+
+def test_audit_can_require_identity_for_all_existing_splits(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    args = _args(tmp_path, gate, selection)
+    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+    train_sha = audit_goal(args)["data_schema"]["splits"]["train"]["sha256"]
+    args.expected_data_sha256 = [f"train={train_sha}"]
+    args.require_data_identity = True
+
+    record = audit_goal(args)
+
+    assert record["status"] == "invalid_data_identity"
+    assert record["data_identity_policy"]["missing"]
+    assert any("val missing required expected sha256" in blocker for blocker in record["blockers"])
 
 
 def test_audit_exit_policy_fails_closed_for_blocked_status():

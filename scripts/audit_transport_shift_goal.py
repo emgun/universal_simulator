@@ -150,12 +150,26 @@ def _data_identity_mismatches(data_schema: Mapping[str, Any], expected_hashes: M
     return mismatches
 
 
+def _missing_required_identities(data_schema: Mapping[str, Any], expected_hashes: Mapping[str, str]) -> list[str]:
+    split_records = data_schema.get("splits", {})
+    missing: list[str] = []
+    for split, record in split_records.items():
+        if record.get("exists") and split not in expected_hashes:
+            missing.append(f"{split} missing required expected sha256 for {record.get('path')}")
+    return missing
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
     data_schema = _inspect_data_schema(args.data_root, args.task, args.schema_splits)
     expected_hashes = _parse_expected_hashes(getattr(args, "expected_data_sha256", None))
+    require_all_identities = bool(getattr(args, "require_data_identity", False))
     data_identity_mismatches = _data_identity_mismatches(data_schema, expected_hashes)
+    missing_data_identities = (
+        _missing_required_identities(data_schema, expected_hashes) if require_all_identities else []
+    )
+    data_identity_blockers = [*missing_data_identities, *data_identity_mismatches]
 
     missing_inputs = [
         message
@@ -183,10 +197,10 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         status = "missing_evidence"
         test_allowed = False
         blockers = missing_inputs
-    elif data_identity_mismatches:
+    elif data_identity_blockers:
         status = "invalid_data_identity"
         test_allowed = False
-        blockers = data_identity_mismatches
+        blockers = data_identity_blockers
     elif leaked_test_result:
         status = "invalid_test_leakage"
         test_allowed = False
@@ -281,8 +295,10 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         "data_schema": data_schema,
         "data_identity_policy": {
             "expected_sha256": expected_hashes,
+            "require_all_inspected_splits": require_all_identities,
+            "missing": missing_data_identities,
             "mismatches": data_identity_mismatches,
-            "passed": not data_identity_mismatches,
+            "passed": not data_identity_blockers,
         },
         "recommendation": (
             "Rebuild a benchmark split with shared transport-rate support, or retire the constant-shift "
@@ -318,6 +334,11 @@ def main() -> None:
         action="append",
         default=None,
         help="Optional SPLIT=SHA256 identity check for inspected HDF5 splits; may be repeated.",
+    )
+    parser.add_argument(
+        "--require-data-identity",
+        action="store_true",
+        help="Fail unless every existing inspected split has an expected SHA-256 value.",
     )
     parser.add_argument(
         "--require-status",
