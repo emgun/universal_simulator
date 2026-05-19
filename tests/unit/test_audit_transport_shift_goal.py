@@ -6,7 +6,7 @@ import json
 import h5py
 import torch
 
-from scripts.audit_transport_shift_goal import audit_goal
+from scripts.audit_transport_shift_goal import audit_goal, exit_code_for_status
 
 
 def _write_json(path, payload) -> None:
@@ -127,3 +127,16 @@ def test_audit_reports_available_parameter_metadata(tmp_path):
 
     assert record["data_schema"]["parameter_metadata_available"] is True
     assert record["data_schema"]["splits"]["train"]["sample_aligned_auxiliary_datasets"] == ["beta"]
+
+
+def test_audit_exit_policy_fails_closed_for_blocked_status():
+    assert exit_code_for_status("blocked_incompatible_splits", "report") == 0
+    assert exit_code_for_status("blocked_incompatible_splits", "test-ready") == 2
+    assert exit_code_for_status("blocked_incompatible_splits", "achieved") == 2
+
+
+def test_audit_exit_policy_distinguishes_test_ready_from_achieved():
+    assert exit_code_for_status("test_ready", "test-ready") == 0
+    assert exit_code_for_status("test_ready", "achieved") == 2
+    assert exit_code_for_status("achieved", "test-ready") == 0
+    assert exit_code_for_status("achieved", "achieved") == 0

@@ -19,6 +19,12 @@ REQUIREMENTS = (
     "results_recorded",
 )
 
+PASS_STATUSES_BY_MODE = {
+    "report": None,
+    "test-ready": {"test_ready", "achieved"},
+    "achieved": {"achieved"},
+}
+
 
 def _load_optional_json(path: str | None) -> tuple[dict[str, Any] | None, str | None]:
     if not path:
@@ -199,6 +205,13 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def exit_code_for_status(status: str, mode: str) -> int:
+    allowed = PASS_STATUSES_BY_MODE[mode]
+    if allowed is None:
+        return 0
+    return 0 if status in allowed else 2
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Audit benchmark-clean transport shift goal evidence")
     parser.add_argument(
@@ -214,6 +227,15 @@ def main() -> None:
     parser.add_argument("--data-root", default="data/pdebench", help="Directory containing light-v1 HDF5 files")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--schema-splits", nargs="+", default=["train", "val", "test"])
+    parser.add_argument(
+        "--require-status",
+        choices=tuple(PASS_STATUSES_BY_MODE),
+        default="report",
+        help=(
+            "Exit policy: report always returns 0; test-ready returns 0 only when a held-out test is allowed "
+            "or already recorded; achieved returns 0 only after a passed gate and recorded test."
+        ),
+    )
     parser.add_argument("--output-json", required=True)
     args = parser.parse_args()
 
@@ -222,6 +244,7 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(record, indent=2, sort_keys=True))
+    raise SystemExit(exit_code_for_status(str(record["status"]), args.require_status))
 
 
 if __name__ == "__main__":

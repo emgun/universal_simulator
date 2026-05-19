@@ -1506,3 +1506,14 @@ Follow-up audit update (2026-05-19, Advection schema evidence):
 - Interpretation:
   - there is no allowed coefficient/velocity/metadata field in the current `light-v1` artifacts that could support a train-fitted metadata-to-shift extrapolator
   - the remaining valid routes are unchanged: benchmark split reconstruction with compatible transport-rate support, or a learned/state-conditioned mechanism that proves validation lift without selecting validation/test shifts
+
+Follow-up audit update (2026-05-19, fail-closed CLI mode):
+- Added `--require-status {report,test-ready,achieved}` to `scripts/audit_transport_shift_goal.py`.
+- Current enforcement check:
+  - command: `/opt/anaconda3/bin/python scripts/audit_transport_shift_goal.py --output-json /private/tmp/transport_shift_goal_audit_test_ready.json --require-status test-ready`
+  - result: exits `2`
+  - reason: current status is `blocked_incompatible_splits`, so the held-out test path is not ready
+- Purpose:
+  - `report` keeps the audit usable for diagnostics
+  - `test-ready` lets remote/CI scripts fail closed unless validation and compatibility allow the one permitted held-out test
+  - `achieved` lets release checks fail unless the complete benchmark-clean result, including the authorized test, is present

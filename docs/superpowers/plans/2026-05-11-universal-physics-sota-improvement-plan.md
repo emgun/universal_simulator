@@ -1118,3 +1118,9 @@ Recommendation:
 
 - Stop spending cycles on constant train-fitted shift under the current official split.
 - Either rebuild a compatible train/val/test benchmark with explicit approval, or define a new benchmark-clean learned/state-conditioned transport head gate.
+
+Audit enforcement:
+
+- `scripts/audit_transport_shift_goal.py --require-status test-ready` now exits nonzero unless the evidence permits the one held-out test.
+- Against current artifacts it exits `2`, preserving the stop condition while status remains `blocked_incompatible_splits`.
+- `--require-status achieved` is available for any future release gate that should pass only after the validation guard and the authorized held-out test are both recorded.
