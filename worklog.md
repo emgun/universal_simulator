@@ -1714,3 +1714,16 @@ Follow-up runner update (2026-05-19, official observed transport command):
 - Interpretation:
   - the observed-context candidate now has a reproducible official local entrypoint instead of an ad hoc command line
   - this improves the benchmark-clean path if the two-frame observed-context policy is accepted
+
+Follow-up audit update (2026-05-19, observed transport result audit):
+- Added `scripts/audit_observed_transport_shift_result.py`.
+- Updated `scripts/run_official_observed_transport_shift_gate.sh` to run that audit after the observed gate.
+- The observed audit checks:
+  - real train/val/test data identity and gate/source fingerprint agreement
+  - validation guard status
+  - exactly one held-out test only after validation eligibility
+  - required result-record tokens in `worklog.md` and the SOTA plan
+- Default official observed runner behavior now requires audit status `achieved`.
+- Interpretation:
+  - the observed-context result is now machine-auditable rather than only note-backed
+  - this still does not change the policy caveat: promotion depends on accepting the two-frame observed-context estimator as benchmark-clean

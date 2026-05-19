@@ -1,0 +1,133 @@
+from __future__ import annotations
+
+from argparse import Namespace
+import hashlib
+import json
+
+import h5py
+import torch
+
+from scripts.audit_observed_transport_shift_result import audit_observed_result, exit_code_for_status
+
+
+def _write_json(path, payload) -> None:
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_data_split(root, split: str) -> None:
+    with h5py.File(root / f"advection1d_{split}.h5", "w") as handle:
+        handle.create_dataset("data", data=torch.zeros(2, 4, 8, 1).numpy())
+
+
+def _add_sources(payload, tmp_path):
+    for split in ("train", "val", "test"):
+        path = tmp_path / f"advection1d_{split}.h5"
+        if not path.exists():
+            _write_data_split(tmp_path, split)
+        payload.setdefault("data_sources", {})[split] = {
+            "split": split,
+            "path": str(path),
+            "exists": True,
+            "bytes": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    return payload
+
+
+def _base_gate(*, guard_passed: bool = True, test_eligible: bool = True, with_test: bool = True):
+    payload = {
+        "estimator": {"name": "lagged_observed_transition_shift"},
+        "train": {"split": "train", "nrmse": 0.01},
+        "validation": {"split": "val", "nrmse": 0.02},
+        "validation_guard": {"passed": guard_passed, "relative_improvement": 0.9},
+        "test_eligible": test_eligible,
+        "held_out_test_policy": {"measurement_key": "abc", "recorded": True},
+    }
+    if with_test:
+        payload["test"] = {"split": "test", "nrmse": 0.03}
+    return payload
+
+
+def _args(tmp_path, gate):
+    for split in ("train", "val", "test"):
+        if not (tmp_path / f"advection1d_{split}.h5").exists():
+            _write_data_split(tmp_path, split)
+    return Namespace(
+        observed_gate_json=str(gate),
+        data_root=str(tmp_path),
+        task="advection1d",
+        schema_splits=["train", "val", "test"],
+        expected_data_sha256=None,
+        require_data_identity=False,
+        result_record=None,
+        require_result_records=False,
+        output_json=str(tmp_path / "audit.json"),
+    )
+
+
+def test_observed_audit_marks_achieved_for_passed_gate_and_one_test(tmp_path):
+    gate = tmp_path / "observed.json"
+    _write_json(gate, _add_sources(_base_gate(), tmp_path))
+
+    record = audit_observed_result(_args(tmp_path, gate))
+
+    assert record["status"] == "achieved"
+    assert record["held_out_test_policy"]["exactly_one_test_after_validation"] is True
+    assert record["observed_transport"]["validation"]["nrmse"] == 0.02
+
+
+def test_observed_audit_marks_test_ready_when_validation_passes_without_test(tmp_path):
+    gate = tmp_path / "observed.json"
+    _write_json(gate, _add_sources(_base_gate(with_test=False), tmp_path))
+
+    record = audit_observed_result(_args(tmp_path, gate))
+
+    assert record["status"] == "test_ready"
+    assert record["held_out_test_policy"]["test_result_count"] == 0
+
+
+def test_observed_audit_flags_test_leakage(tmp_path):
+    gate = tmp_path / "observed.json"
+    _write_json(gate, _add_sources(_base_gate(guard_passed=False, test_eligible=False, with_test=True), tmp_path))
+
+    record = audit_observed_result(_args(tmp_path, gate))
+
+    assert record["status"] == "invalid_test_leakage"
+    assert record["held_out_test_policy"]["leaked_test_result"] is True
+
+
+def test_observed_audit_enforces_result_record_tokens(tmp_path):
+    gate = tmp_path / "observed.json"
+    record_path = tmp_path / "worklog.md"
+    record_path.write_text("status: achieved\nvalidation: 0.02\ntest: 0.03\n", encoding="utf-8")
+    _write_json(gate, _add_sources(_base_gate(), tmp_path))
+    args = _args(tmp_path, gate)
+    args.result_record = [str(record_path)]
+    args.require_result_records = True
+
+    record = audit_observed_result(args)
+
+    assert record["status"] == "achieved"
+    assert record["result_record_policy"]["required_tokens"] == ["achieved", "0.02", "0.03"]
+    assert record["result_record_policy"]["passed"] is True
+
+
+def test_observed_audit_flags_missing_result_record_metric(tmp_path):
+    gate = tmp_path / "observed.json"
+    record_path = tmp_path / "worklog.md"
+    record_path.write_text("status: achieved\nvalidation: 0.02\n", encoding="utf-8")
+    _write_json(gate, _add_sources(_base_gate(), tmp_path))
+    args = _args(tmp_path, gate)
+    args.result_record = [str(record_path)]
+    args.require_result_records = True
+
+    record = audit_observed_result(args)
+
+    assert record["status"] == "invalid_result_record"
+    assert "0.03" in record["blockers"][0]
+
+
+def test_observed_audit_exit_policy_matches_transport_audit_modes():
+    assert exit_code_for_status("achieved", "achieved") == 0
+    assert exit_code_for_status("test_ready", "achieved") == 2
+    assert exit_code_for_status("validation_failed", "report") == 0

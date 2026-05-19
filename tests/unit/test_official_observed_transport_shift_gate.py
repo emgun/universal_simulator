@@ -19,6 +19,8 @@ def test_official_observed_transport_shift_gate_dry_run_is_local_safe():
     assert "gate measures held-out test only if validation passes" in proc.stdout
     assert "observed_transport_shift_gate_real_light_v1.json" in proc.stdout
     assert "enforce exactly-once held-out test ledger" in proc.stdout
+    assert "observed_transport_shift_goal_audit.json" in proc.stdout
+    assert "require_status=achieved" in proc.stdout
     assert "allow_repeat_test=0" in proc.stdout
 
 
