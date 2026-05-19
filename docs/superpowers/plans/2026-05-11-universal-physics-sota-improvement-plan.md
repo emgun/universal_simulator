@@ -1207,3 +1207,11 @@ Full local train/val rerun:
 - Train best-margin mean/min/max: `0.13357117772102356` / `0.037119414657354355` / `0.29049214720726013`.
 - Validation best-margin mean/min/max: `0.11928332597017288` / `0.04894868656992912` / `0.22282543778419495`.
 - This rules out the earlier 128-sample cap as the reason the train-only first-frame feature probe failed.
+
+Objective-level audit:
+
+- Script: `scripts/audit_transport_objective_status.py`.
+- Literal mode output: `reports/research/sota_loop/transport_objective_status.json` (ignored local report), `status=literal_blocked`.
+- Observed-accepted mode output: `reports/research/sota_loop/transport_objective_status_observed_accepted.json` (ignored local report), `status=observed_context_achieved`.
+- Current literal blockers: constant train-only audit is `blocked_incompatible_splits`; train-only feature diagnostic is `blocked_no_train_support_for_validation_shift`; observed-context result is achieved but not accepted for the literal objective.
+- Current observed-accepted caveat: literal train-only shift objective remains unproven and status depends on accepting two-frame observed context.

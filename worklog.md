@@ -1779,3 +1779,24 @@ Follow-up diagnostic update (2026-05-19, full local train/val feature probe):
 - Interpretation:
   - the train-only first-frame feature failure is not a sample-cap artifact; it holds over the full local train/val shards
   - the positive margins indicate the shift labels are not ambiguous ties under the tested candidate grid
+
+Follow-up audit update (2026-05-19, objective-level transport status):
+- Added `scripts/audit_transport_objective_status.py`.
+- The aggregate audit reads:
+  - constant train-only audit
+  - observed-context audit
+  - train-only feature diagnostic
+- It does not rerun gates and does not touch held-out test.
+- Current literal-objective audit:
+  - output: `reports/research/sota_loop/transport_objective_status.json` (ignored local report)
+  - `status`: `literal_blocked`
+  - blockers:
+    - constant train-only audit status is `blocked_incompatible_splits`
+    - train-only feature diagnostic conclusion is `blocked_no_train_support_for_validation_shift`
+    - observed-context result is `achieved` but not accepted for the literal objective
+- Current observed-accepted audit:
+  - output: `reports/research/sota_loop/transport_objective_status_observed_accepted.json` (ignored local report)
+  - `status`: `observed_context_achieved`
+  - caveat: literal train-only shift objective remains unproven and status depends on accepting two-frame observed context
+- Interpretation:
+  - this is the clearest current state split: literal train-only objective is blocked; observed-context result is promotable only under an explicit benchmark-policy acceptance
