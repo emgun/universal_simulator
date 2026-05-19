@@ -1130,3 +1130,4 @@ Audit enforcement:
 - The audit now has explicit held-out test policy checks. Current official evidence has `test_result_count=0`, `leaked_test_result=false`, and `test_allowed_next=false`; future artifacts with test leakage or multiple held-out tests are classified as invalid instead of merely blocked.
 - The local official runner now enforces those `light-v1` SHA-256 identities by default; current `data_identity_policy.passed=true`, so the remaining blocker is still validation/split incompatibility.
 - The official local runner also requires complete identity coverage for every inspected existing split. Current `data_identity_policy.require_all_inspected_splits=true`, with no missing expected hashes and no mismatches.
+- `scripts/run_transport_shift_gate.py` now writes `data_sources` into the gate artifact, so the train-only fit result itself records the exact train/val/test HDF5 paths, byte counts, and SHA-256 values it used.

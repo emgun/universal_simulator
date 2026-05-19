@@ -46,6 +46,9 @@ def test_transport_shift_gate_allows_test_when_train_val_match_and_guard_passes(
     assert record["test_eligible"] is True
     assert record["blockers"] == []
     assert record["fit"]["selected_train_shift"] == 1
+    assert record["data_sources"]["train"]["exists"] is True
+    assert len(record["data_sources"]["train"]["sha256"]) == 64
+    assert record["data_sources"]["val"]["bytes"] > 0
 
 
 def test_transport_shift_gate_blocks_split_mismatch(tmp_path):
@@ -80,4 +83,5 @@ def test_transport_shift_gate_measures_test_only_after_gate_passes(tmp_path):
     assert record["test_eligible"] is True
     assert record["test"]["selected_shift"] == 1
     assert record["test"]["selected_test"]["nrmse"] == 0.0
+    assert record["data_sources"]["test"]["exists"] is True
     assert record["next_action"] == "held-out test measured"

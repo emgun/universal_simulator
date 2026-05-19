@@ -4,6 +4,7 @@ from __future__ import annotations
 """Run the benchmark-clean train/val gate for transport-shift candidates."""
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -14,6 +15,27 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.diagnose_transport_shift_splits import diagnose as diagnose_splits
 from scripts.fit_transport_shift_head import _candidate_scores, _load_series, _select_best, fit_and_validate
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _split_source_record(data_root: str, task: str, split: str) -> dict[str, Any]:
+    path = Path(data_root) / f"{task}_{split}.h5"
+    if not path.exists():
+        return {"split": split, "path": str(path), "exists": False}
+    return {
+        "split": split,
+        "path": str(path),
+        "exists": True,
+        "bytes": path.stat().st_size,
+        "sha256": _sha256_file(path),
+    }
 
 
 def run_gate(args: argparse.Namespace) -> dict[str, Any]:
@@ -79,9 +101,18 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             "candidate_scores": test_rows,
         }
 
+    source_splits = [args.train_split, args.val_split]
+    if args.test_split:
+        source_splits.append(args.test_split)
+    data_sources = {
+        split: _split_source_record(args.data_root, args.task, split)
+        for split in dict.fromkeys(source_splits)
+    }
+
     return {
         "task": args.task,
         "data_root": args.data_root,
+        "data_sources": data_sources,
         "train_split": args.train_split,
         "val_split": args.val_split,
         "metric": args.metric,

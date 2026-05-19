@@ -1600,3 +1600,13 @@ Follow-up audit update (2026-05-19, require complete identity coverage):
 - Interpretation:
   - direct audit calls can still inspect partial identities when requested
   - the official local benchmark path now requires complete train/val/test identity coverage before considering validation or held-out test status
+
+Follow-up gate update (2026-05-19, source fingerprints in gate artifact):
+- Updated `scripts/run_transport_shift_gate.py` to write `data_sources` into the gate JSON.
+- Current official gate source fingerprints:
+  - train: `data/pdebench/advection1d_train.h5`, `93508109` bytes, SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`
+  - val: `data/pdebench/advection1d_val.h5`, `24158705` bytes, SHA-256 `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`
+  - test: `data/pdebench/advection1d_test.h5`, `24220172` bytes, SHA-256 `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`
+- Interpretation:
+  - the train-only fit artifact now independently records the exact files it used
+  - the audit still remains the promotion authority and continues to block held-out test completion
