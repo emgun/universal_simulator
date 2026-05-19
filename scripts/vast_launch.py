@@ -62,6 +62,7 @@ def _redact_text(text: str) -> str:
     text = re.sub(r"(B2_KEY_ID=)[^,\s'\"]+", rf"\1{REDACTED}", text)
     text = re.sub(r"(B2_APP_KEY=)[^,\s'\"]+", rf"\1{REDACTED}", text)
     text = re.sub(r"(WANDB_API_KEY=)[^,\s'\"]+", rf"\1{REDACTED}", text)
+    text = re.sub(r"([?&]api_key=)[^&\s'\"]+", rf"\1{REDACTED}", text)
     text = re.sub(r'(export B2_KEY_ID=")[^"]+(")', rf"\1{REDACTED}\2", text)
     text = re.sub(r'(export B2_APP_KEY=")[^"]+(")', rf"\1{REDACTED}\2", text)
     text = re.sub(r'(export WANDB_API_KEY=")[^"]+(")', rf"\1{REDACTED}\2", text)

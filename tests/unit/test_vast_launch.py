@@ -140,3 +140,25 @@ def test_run_can_display_redacted_command_without_changing_executed_command(monk
     assert "B2_APP_KEY=<redacted>" in captured.out
     assert "instance_api_key': '<redacted>'" in captured.out
     assert "secret" not in captured.out
+
+
+def test_run_redacts_api_key_in_error_url(monkeypatch, capsys):
+    vast_launch = load_vast_launch_module()
+
+    def fake_run(cmd, **kwargs):
+        class Result:
+            returncode = 1
+            stdout = ""
+            stderr = "Bad Request for url: https://console.vast.ai/api/v0/launch_instance/?api_key=secret-api-key\n"
+
+        return Result()
+
+    monkeypatch.setattr(vast_launch.subprocess, "run", fake_run)
+    try:
+        vast_launch.run(["vastai", "launch", "instance"])
+    except SystemExit:
+        pass
+
+    captured = capsys.readouterr()
+    assert "api_key=<redacted>" in captured.err
+    assert "secret-api-key" not in captured.err
