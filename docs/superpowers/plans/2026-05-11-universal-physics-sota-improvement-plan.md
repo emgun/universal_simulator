@@ -1411,3 +1411,11 @@ Post-validation audit boundary:
 - `scripts/plan_transport_official_hydration.py` now sets `objective_audit_after_validation` to `REQUIRE_STATUS=literal-test-ready bash scripts/run_official_transport_objective_status.sh`.
 - `scripts/validate_transport_hydration_plan.py` rejects train/val-only hydration plans that require final `literal-achieved` status immediately after validation.
 - This keeps the remote hydration job from being marked failed solely because it correctly stopped before the held-out test. The next phase is only authorized if the objective status reaches `literal_test_ready`.
+
+Guarded post-validation test phase:
+
+- Script: `scripts/run_official_hydrated_post_validation_test.py`.
+- Output: `reports/research/sota_loop/official_hydrated_post_validation_test_run.json` (ignored local report).
+- Current preview status: `dry_run` with blockers because the objective is still `literal_blocked`, not `literal_test_ready`.
+- The runner refuses to build/read held-out test unless the objective status artifact is already `literal_test_ready` and the command is explicitly run with `--execute --execute-test`.
+- When authorized, it builds only the official hydrated test shard from `data/pdebench_official_advection_hydrated/advection1d_train.h5` using `--split-start-index test=320`, then reruns the transport gate with `--test-split test`.

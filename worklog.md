@@ -2059,3 +2059,22 @@ Follow-up hydration pipeline update (2026-05-19, post-validation audit boundary)
 - Verified:
   - `python -m pytest tests/unit/test_plan_transport_official_hydration.py tests/unit/test_validate_transport_hydration_plan.py tests/unit/test_run_transport_official_hydration_plan.py`
   - `9 passed`
+
+Follow-up post-validation test update (2026-05-19, guarded official hydrated test phase):
+- Added `scripts/run_official_hydrated_post_validation_test.py`.
+- Added `tests/unit/test_run_official_hydrated_post_validation_test.py`.
+- Generated `reports/research/sota_loop/official_hydrated_post_validation_test_run.json` (ignored local report).
+- Current preview status: `dry_run`.
+- Current blockers:
+  - `objective status is literal_blocked, expected literal_test_ready`
+  - `held-out test execution requires --execute-test`
+- The runner will only create/read the held-out test shard when:
+  - `reports/research/sota_loop/transport_objective_status.json` has `status=literal_test_ready`
+  - execution is explicitly requested with `--execute --execute-test`
+- Planned held-out test command:
+  - build only `advection1d_test.h5` from the official hydrated train source
+  - use `--split-start-index test=320` after the train/val windows (`256 + 64`)
+  - rerun `scripts/run_transport_shift_gate.py` with `--test-split test`, preserving the gate's validation-first behavior
+- Verified:
+  - `python -m pytest tests/unit/test_run_official_hydrated_post_validation_test.py`
+  - `3 passed`
