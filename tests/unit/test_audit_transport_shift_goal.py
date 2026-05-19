@@ -67,6 +67,8 @@ def test_audit_reports_incompatible_full_source_splits_as_blocker(tmp_path):
 
     assert record["status"] == "blocked_incompatible_splits"
     assert record["test_allowed"] is False
+    assert record["held_out_test_policy"]["test_result_count"] == 0
+    assert record["held_out_test_policy"]["leaked_test_result"] is False
     assert record["constant_shift"]["best_shifts"] == {"train": 0, "val": 40}
     assert record["constant_shift"]["common_full_source_shifts"] == []
     assert record["data_schema"]["parameter_metadata_available"] is False
@@ -98,6 +100,37 @@ def test_audit_marks_achieved_only_when_gate_passed_and_test_exists(tmp_path):
 
     assert record["status"] == "achieved"
     assert record["test_allowed"] is False
+    assert record["held_out_test_policy"]["exactly_one_test_after_validation"] is True
+
+
+def test_audit_flags_test_result_when_gate_not_eligible(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    _write_json(gate, _base_gate(guard_passed=False, test_eligible=False, with_test=True))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+
+    record = audit_goal(_args(tmp_path, gate, selection))
+
+    assert record["status"] == "invalid_test_leakage"
+    assert record["held_out_test_policy"]["leaked_test_result"] is True
+    assert any(
+        req["name"] == "exactly_one_held_out_test_after_validation" and req["status"] == "violated"
+        for req in record["requirements"]
+    )
+
+
+def test_audit_flags_multiple_test_results(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    payload = _base_gate(guard_passed=True, test_eligible=True)
+    payload["test"] = [{"selected_test": {"nrmse": 0.1}}, {"selected_test": {"nrmse": 0.2}}]
+    _write_json(gate, payload)
+    _write_json(selection, {"compatible": True, "common_shifts": [0], "histograms": {}})
+
+    record = audit_goal(_args(tmp_path, gate, selection))
+
+    assert record["status"] == "invalid_multiple_tests"
+    assert record["held_out_test_policy"]["test_result_count"] == 2
 
 
 def test_audit_reports_missing_evidence(tmp_path):

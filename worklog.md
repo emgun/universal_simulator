@@ -1559,3 +1559,21 @@ Follow-up audit update (2026-05-19, light-v1 file identity):
 - Interpretation:
   - the audit now proves which real files were accessed for the official train/val gate and the gated test path
   - this strengthens reproducibility; it does not change the blocked validation outcome
+
+Follow-up audit update (2026-05-19, held-out test policy invariant):
+- Extended `scripts/audit_transport_shift_goal.py` with explicit held-out test policy fields:
+  - `test_result_count`
+  - `leaked_test_result`
+  - `test_allowed_next`
+  - `exactly_one_test_after_validation`
+- Added violation statuses:
+  - `invalid_test_leakage` if a held-out test result is present before gate eligibility
+  - `invalid_multiple_tests` if more than one held-out test result is present
+- Current official refreshed audit:
+  - `test_eligible`: `false`
+  - `test_result_count`: `0`
+  - `leaked_test_result`: `false`
+  - `test_allowed_next`: `false`
+- Interpretation:
+  - the audit now distinguishes a correctly blocked benchmark from an invalid artifact that leaked or repeated held-out test evaluation
+  - the current result remains correctly blocked, not complete

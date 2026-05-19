@@ -113,6 +113,17 @@ def _inspect_data_schema(data_root: str, task: str, splits: list[str]) -> dict[s
     }
 
 
+def _test_result_count(gate: Mapping[str, Any] | None) -> int:
+    if not gate:
+        return 0
+    test_payload = gate.get("test")
+    if not test_payload:
+        return 0
+    if isinstance(test_payload, list):
+        return len(test_payload)
+    return 1
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
@@ -132,7 +143,10 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     validation_guard = ((gate or {}).get("fit") or {}).get("validation_guard") or {}
     guard_passed = bool(validation_guard.get("passed"))
     test_eligible = bool((gate or {}).get("test_eligible"))
-    has_test_result = bool((gate or {}).get("test"))
+    test_result_count = _test_result_count(gate)
+    has_test_result = test_result_count > 0
+    leaked_test_result = has_test_result and not test_eligible
+    multiple_test_results = test_result_count > 1
     compatible = bool((compatibility or {}).get("compatible"))
     common_shifts = list((compatibility or {}).get("common_shifts") or [])
     best_shifts = _extract_best_shifts(gate)
@@ -141,6 +155,14 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         status = "missing_evidence"
         test_allowed = False
         blockers = missing_inputs
+    elif leaked_test_result:
+        status = "invalid_test_leakage"
+        test_allowed = False
+        blockers = ["held-out test result is present even though validation did not authorize test evaluation"]
+    elif multiple_test_results:
+        status = "invalid_multiple_tests"
+        test_allowed = False
+        blockers = ["more than one held-out test result is present"]
     elif not compatible:
         status = "blocked_incompatible_splits"
         test_allowed = False
@@ -180,8 +202,16 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _requirement(
             "exactly_one_held_out_test_after_validation",
-            "satisfied" if has_test_result and test_eligible else "blocked",
-            "test result present only after gate eligibility" if has_test_result else "held-out test not run because gate did not pass",
+            "satisfied" if has_test_result and test_eligible and test_result_count == 1 else "violated"
+            if leaked_test_result or multiple_test_results
+            else "blocked",
+            "one test result present after gate eligibility"
+            if has_test_result and test_eligible and test_result_count == 1
+            else "test result present before gate eligibility"
+            if leaked_test_result
+            else f"{test_result_count} held-out test results present"
+            if multiple_test_results
+            else "held-out test not run because gate did not pass",
         ),
         _requirement(
             "results_recorded",
@@ -204,9 +234,17 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
             "validation_guard": validation_guard,
             "test_eligible": test_eligible,
             "has_test_result": has_test_result,
+            "test_result_count": test_result_count,
             "compatible_full_source_windows": compatible,
             "common_full_source_shifts": common_shifts,
             "histograms": (compatibility or {}).get("histograms"),
+        },
+        "held_out_test_policy": {
+            "test_eligible": test_eligible,
+            "test_result_count": test_result_count,
+            "test_allowed_next": bool(test_eligible and not has_test_result),
+            "leaked_test_result": leaked_test_result,
+            "exactly_one_test_after_validation": bool(test_eligible and test_result_count == 1),
         },
         "data_schema": data_schema,
         "recommendation": (
