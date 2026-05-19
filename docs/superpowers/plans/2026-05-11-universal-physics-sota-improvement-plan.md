@@ -1087,3 +1087,32 @@ Decision needed:
 
 - Rebuild a new benchmark split with shared transport-rate support if the goal remains constant-shift transport correction.
 - Otherwise retire the constant-shift objective and use the observed-transition result as the upper bound for a learned/state-conditioned transport head.
+
+### 2026-05-19: Transport-Shift Goal Audit
+
+Status: added a machine-readable audit for the original benchmark-clean constant-shift objective.
+
+Implemented:
+
+- `scripts/audit_transport_shift_goal.py`.
+- `tests/unit/test_audit_transport_shift_goal.py`.
+
+Current audit result:
+
+- Command: `/opt/anaconda3/bin/python scripts/audit_transport_shift_goal.py --output-json reports/research/sota_loop/transport_shift_goal_audit.json`.
+- Status: `blocked_incompatible_splits`.
+- `test_allowed`: `false`.
+- Satisfied: real `light-v1` train/val evidence exists; train-only shift fit exists; current results are recorded.
+- Failed: the train-fitted shift did not pass the validation SOTA guard.
+- Blocked: no held-out test is permitted because the validation and split-compatibility preconditions are not met.
+
+Why this matters:
+
+- The original objective now has a reproducible requirement audit rather than an ambiguous narrative checkpoint.
+- The audit prevents accidental benchmark leakage by explicitly disallowing a held-out test while train/val/test constant-shift support is incompatible.
+- This is not a positive SOTA result; it formalizes the blocker so the next step must be a benchmark-policy choice or a new learned/state-conditioned objective.
+
+Recommendation:
+
+- Stop spending cycles on constant train-fitted shift under the current official split.
+- Either rebuild a compatible train/val/test benchmark with explicit approval, or define a new benchmark-clean learned/state-conditioned transport head gate.

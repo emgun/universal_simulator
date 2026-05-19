@@ -1479,3 +1479,19 @@ Experiment loop update (2026-05-16, full train/val/test compatibility scan):
   - the original benchmark-clean constant train-fitted shift objective is fully blocked for the current full source splits
   - no held-out test was run because the train/val compatibility precondition failed
   - the only defensible continuation is a benchmark-policy decision: reconstruct a compatible benchmark, or replace the constant-shift objective with a learned/state-conditioned transport objective
+
+Experiment loop update (2026-05-19, transport-shift goal audit):
+- Added:
+  - `scripts/audit_transport_shift_goal.py`
+  - unit coverage for requirement-by-requirement goal classification
+- Audit result against current artifacts:
+  - command: `/opt/anaconda3/bin/python scripts/audit_transport_shift_goal.py --output-json reports/research/sota_loop/transport_shift_goal_audit.json`
+  - status: `blocked_incompatible_splits`
+  - `test_allowed`: `false`
+  - satisfied requirements: real `light-v1` train/val data accessed, train-only constant shift fit recorded, results recorded
+  - failed requirement: validation SOTA guard did not pass for the train-fitted shift
+  - blocked requirement: held-out test correctly not run because the validation and split-compatibility preconditions failed
+- Interpretation:
+  - the audit makes the active objective mechanically checkable instead of relying on prose scattered across the worklog
+  - this does not complete the original benchmark-clean constant-shift objective
+  - it preserves the benchmark discipline: no validation-selected shift and no held-out test without a train-supported validation pass
