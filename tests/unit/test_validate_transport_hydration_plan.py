@@ -58,3 +58,14 @@ def test_validate_hydration_plan_rejects_download_path_mismatch(tmp_path):
 
     assert record["status"] == "invalid"
     assert any("download command paths" in blocker for blocker in record["blockers"])
+
+
+def test_validate_hydration_plan_rejects_final_achievement_audit_after_train_val_only(tmp_path):
+    plan = create_plan(plan_args(tmp_path))
+    plan["commands"]["objective_audit_after_validation"] = "bash scripts/run_official_transport_objective_status.sh"
+    path = _write_plan(tmp_path, plan)
+
+    record = validate_plan(_args(path))
+
+    assert record["status"] == "invalid"
+    assert any("literal-test-ready" in blocker for blocker in record["blockers"])

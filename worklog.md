@@ -2044,3 +2044,18 @@ Follow-up evidence wiring update (2026-05-19, official hydrated train/val gate):
 - Verified:
   - `python -m pytest tests/unit/test_audit_transport_objective_status.py tests/unit/test_official_transport_objective_status.py`
   - `10 passed`
+
+Follow-up hydration pipeline update (2026-05-19, post-validation audit boundary):
+- Updated `scripts/plan_transport_official_hydration.py` so the train/val-only hydration pipeline runs `REQUIRE_STATUS=literal-test-ready bash scripts/run_official_transport_objective_status.sh` after validation.
+- Extended `scripts/validate_transport_hydration_plan.py` to reject hydration plans whose post-validation audit still requires final `literal-achieved` status before the held-out test is authorized.
+- Regenerated the ignored local artifacts:
+  - `reports/research/sota_loop/official_advection_hydration_plan.json`
+  - `reports/research/sota_loop/official_advection_hydration_plan_validation.json`
+  - `reports/research/sota_loop/official_advection_hydration_plan_run.json`
+- Why this matters:
+  - the hydration phase intentionally downloads/builds train/val only and does not shard or read held-out test
+  - if the official hydrated train/val gate passes, the correct next state is `literal_test_ready`
+  - final `literal_achieved` remains blocked until exactly one held-out test is run through the gated path and the result is recorded/promoted
+- Verified:
+  - `python -m pytest tests/unit/test_plan_transport_official_hydration.py tests/unit/test_validate_transport_hydration_plan.py tests/unit/test_run_transport_official_hydration_plan.py`
+  - `9 passed`

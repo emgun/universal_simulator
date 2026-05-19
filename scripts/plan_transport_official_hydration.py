@@ -99,7 +99,10 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
                 f"--manifest {args.output_root}/official_hydrated_trainval_manifest.yaml --overwrite"
             ),
             "validate_without_test": _gate_command(args),
-            "objective_audit_after_validation": "bash scripts/run_official_transport_objective_status.sh",
+            "objective_audit_after_validation": (
+                "REQUIRE_STATUS=literal-test-ready "
+                "bash scripts/run_official_transport_objective_status.sh"
+            ),
         },
         "decision_points": [
             "Run downloads only with explicit approval for network and disk use.",

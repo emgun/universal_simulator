@@ -67,6 +67,7 @@ def test_hydration_plan_uses_only_official_advection_train_entries(tmp_path):
     assert len(plan["commands"]["download_official_train_files"]) == 2
     assert "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5" in plan["commands"]["download_official_train_files"][0]
     assert "test-count 0" in plan["commands"]["build_light_train_val_shards"]
+    assert "REQUIRE_STATUS=literal-test-ready" in plan["commands"]["objective_audit_after_validation"]
     assert plan["held_out_test_policy"]["test_split_downloaded"] is False
 
 

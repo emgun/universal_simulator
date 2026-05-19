@@ -1405,3 +1405,9 @@ Objective evidence wiring:
 - The official objective audit now recognizes `literal_test_ready` when the official hydrated train/val gate passes and no held-out test result has been recorded.
 - `literal_test_ready` is an intermediate state, not completion. It means validation has authorized the next action: run exactly one held-out test through the gated transport path, then promote through the constant goal audit.
 - Default literal release mode remains `REQUIRE_STATUS=literal-achieved`, so the command still fails closed until the final held-out test and result-record audit pass.
+
+Post-validation audit boundary:
+
+- `scripts/plan_transport_official_hydration.py` now sets `objective_audit_after_validation` to `REQUIRE_STATUS=literal-test-ready bash scripts/run_official_transport_objective_status.sh`.
+- `scripts/validate_transport_hydration_plan.py` rejects train/val-only hydration plans that require final `literal-achieved` status immediately after validation.
+- This keeps the remote hydration job from being marked failed solely because it correctly stopped before the held-out test. The next phase is only authorized if the objective status reaches `literal_test_ready`.

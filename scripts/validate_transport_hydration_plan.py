@@ -73,6 +73,8 @@ def validate_plan(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append("build_light_train_val_shards command must set --test-count 0")
     if "--test-split" in str(commands.get("validate_without_test")):
         blockers.append("validate_without_test command must not pass --test-split")
+    if "REQUIRE_STATUS=literal-test-ready" not in str(commands.get("objective_audit_after_validation")):
+        blockers.append("objective_audit_after_validation must require literal-test-ready, not final achievement")
     if "reports/light_experiments" in json.dumps(plan):
         blockers.append("plan must not use synthetic report artifacts")
     if "The current workspace has not performed these downloads." not in plan.get("notes", []):
