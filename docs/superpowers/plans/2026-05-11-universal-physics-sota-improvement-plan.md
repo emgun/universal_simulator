@@ -1125,3 +1125,4 @@ Audit enforcement:
 - Against current artifacts it exits `2`, preserving the stop condition while status remains `blocked_incompatible_splits`.
 - `--require-status achieved` is available for any future release gate that should pass only after the validation guard and the authorized held-out test are both recorded.
 - `scripts/run_remote_transport_shift_candidate.sh` now runs that audit after all-split candidate gates, defaulting to `AUDIT_REQUIRE_STATUS=achieved`; this makes the remote/full-source path fail closed unless the complete benchmark-clean result is actually present.
+- `scripts/run_official_transport_shift_audit.sh` is the local official refresh command. It reruns the train-only gate on real `light-v1` Advection train/val, passes test through the gated path only, and audits the resulting evidence. A report-only refresh still returns `blocked_incompatible_splits`, `test_eligible=false`, and no held-out test result.

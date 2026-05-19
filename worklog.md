@@ -1530,3 +1530,22 @@ Experiment loop update (2026-05-19, remote pipeline audit enforcement):
 - Interpretation:
   - this does not change the benchmark criteria or turn the current blocked evidence into success
   - it makes the original held-out-test invariant executable in the remote/full-source pipeline that would produce a valid result if compatible evidence ever exists
+
+Experiment loop update (2026-05-19, official local audit runner):
+- Added `scripts/run_official_transport_shift_audit.sh`.
+- Purpose:
+  - rerun the official real `light-v1` Advection train-only constant-shift gate
+  - pass `--test-split test` to the gate, relying on `scripts/run_transport_shift_gate.py` to measure held-out test only if validation passes
+  - immediately audit the refreshed evidence with `scripts/audit_transport_shift_goal.py`
+- Current report-only refresh:
+  - command: `AUDIT_REQUIRE_STATUS=report bash scripts/run_official_transport_shift_audit.sh`
+  - train best shift: `0`
+  - validation best shift: `40`
+  - train-fitted validation NRMSE: `0.5140249729156494`
+  - validation relative improvement vs guard: `-0.6699612770087436`
+  - `test_eligible`: `false`
+  - `test`: `null`
+  - audit status: `blocked_incompatible_splits`
+- Interpretation:
+  - the local official path is now one command, reproducible, and fail-closed by default with `AUDIT_REQUIRE_STATUS=achieved`
+  - the current evidence still blocks the original goal; no held-out test was run
