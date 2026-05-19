@@ -2032,3 +2032,15 @@ Follow-up remote execution update (2026-05-19, official hydration remote plan):
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `remote official hydration plan status is ready_for_remote_hydration`
+
+Follow-up evidence wiring update (2026-05-19, official hydrated train/val gate):
+- Extended `scripts/audit_transport_objective_status.py` and `scripts/run_official_transport_objective_status.sh` to read `reports/research/sota_loop/official_hydrated_transport_shift_gate.json`.
+- The objective status now has an explicit intermediate state, `literal_test_ready`, for the case where the remote official hydrated train/val gate passes and the held-out test has not yet been recorded.
+- This matters because the remote hydration runner writes the train/val validation gate artifact after building official shards; the release check must consume that artifact before deciding whether one held-out test is authorized.
+- Policy preserved:
+  - `literal_achieved` still requires the promoted constant goal audit.
+  - `literal_test_ready` is not success; it only means the next benchmark-clean action is exactly one held-out test through the gated path.
+  - default `REQUIRE_STATUS=literal-achieved` still fails closed until the held-out test and promotion audit are recorded.
+- Verified:
+  - `python -m pytest tests/unit/test_audit_transport_objective_status.py tests/unit/test_official_transport_objective_status.py`
+  - `10 passed`

@@ -1397,3 +1397,11 @@ Remote execution plan:
 - It is dry-run first and does not start paid compute unless `DRY_RUN=0` is set.
 - The bash wrapper calls the staged hydration runner, requires `EXECUTE_DOWNLOADS=1`, downloads official train files only, builds train/val shards with `test_count=0`, and keeps held-out test gated behind validation.
 - `scripts/run_official_transport_objective_status.sh` now reads the remote plan artifact; default literal mode still exits `2` with `status=literal_blocked` until the remote hydration and validation actually run.
+
+Objective evidence wiring:
+
+- Script updates: `scripts/audit_transport_objective_status.py`, `scripts/run_official_transport_objective_status.sh`.
+- New evidence input: `reports/research/sota_loop/official_hydrated_transport_shift_gate.json`.
+- The official objective audit now recognizes `literal_test_ready` when the official hydrated train/val gate passes and no held-out test result has been recorded.
+- `literal_test_ready` is an intermediate state, not completion. It means validation has authorized the next action: run exactly one held-out test through the gated transport path, then promote through the constant goal audit.
+- Default literal release mode remains `REQUIRE_STATUS=literal-achieved`, so the command still fails closed until the final held-out test and result-record audit pass.

@@ -12,6 +12,7 @@ from typing import Any
 PASS_STATUSES_BY_MODE = {
     "report": None,
     "literal-achieved": {"literal_achieved"},
+    "literal-test-ready": {"literal_achieved", "literal_test_ready"},
     "observed-accepted": {"literal_achieved", "observed_context_achieved", "context_transport_achieved"},
     "context-accepted": {"literal_achieved", "context_transport_achieved"},
 }
@@ -30,6 +31,24 @@ def _status(record: dict[str, Any] | None) -> str | None:
     return str(record.get("status")) if record and record.get("status") is not None else None
 
 
+def _gate_validation_passed(record: dict[str, Any] | None) -> bool:
+    guard = ((record or {}).get("fit") or {}).get("validation_guard") or {}
+    return bool(guard.get("passed"))
+
+
+def _gate_test_eligible(record: dict[str, Any] | None) -> bool:
+    return bool((record or {}).get("test_eligible"))
+
+
+def _gate_test_result_count(record: dict[str, Any] | None) -> int:
+    test_payload = (record or {}).get("test")
+    if not test_payload:
+        return 0
+    if isinstance(test_payload, list):
+        return len(test_payload)
+    return 1
+
+
 def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     constant_audit, constant_path = _load_json(args.constant_audit_json)
     observed_audit, observed_path = _load_json(args.observed_audit_json)
@@ -43,6 +62,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_preflight, hydration_preflight_path = _load_json(args.hydration_preflight_json)
     hydration_storage, hydration_storage_path = _load_json(args.hydration_storage_json)
     remote_hydration_plan, remote_hydration_plan_path = _load_json(args.remote_hydration_plan_json)
+    official_hydrated_gate, official_hydrated_gate_path = _load_json(args.official_hydrated_gate_json)
 
     constant_status = _status(constant_audit)
     observed_status = _status(observed_audit)
@@ -56,12 +76,25 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_preflight_status = _status(hydration_preflight)
     hydration_storage_status = _status(hydration_storage)
     remote_hydration_plan_status = _status(remote_hydration_plan)
+    official_hydrated_validation_passed = _gate_validation_passed(official_hydrated_gate)
+    official_hydrated_test_eligible = _gate_test_eligible(official_hydrated_gate)
+    official_hydrated_test_result_count = _gate_test_result_count(official_hydrated_gate)
     observed_accepted = bool(getattr(args, "accept_observed_context", False))
     context_accepted = bool(getattr(args, "accept_context_transport", False))
 
     blockers: list[str] = []
     if constant_status == "achieved":
         status = "literal_achieved"
+    elif official_hydrated_test_eligible and official_hydrated_test_result_count == 0:
+        status = "literal_test_ready"
+        blockers.append(
+            "official hydrated train/val gate passed; exactly one held-out test is now authorized but not recorded"
+        )
+    elif official_hydrated_test_eligible and official_hydrated_test_result_count == 1:
+        status = "literal_blocked"
+        blockers.append(
+            "official hydrated gate includes one held-out test result, but the constant goal audit has not promoted it"
+        )
     elif context_accepted and context_status == "achieved":
         status = "context_transport_achieved"
         blockers.append(
@@ -96,6 +129,13 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append(f"official hydration storage status is {hydration_storage_status}")
         if remote_hydration_plan_status:
             blockers.append(f"remote official hydration plan status is {remote_hydration_plan_status}")
+        if official_hydrated_gate_path:
+            blockers.append(
+                "official hydrated train/val gate "
+                f"validation_passed={official_hydrated_validation_passed}, "
+                f"test_eligible={official_hydrated_test_eligible}, "
+                f"test_result_count={official_hydrated_test_result_count}"
+            )
         if context_status == "achieved":
             blockers.append("two-frame context transport result is achieved but not accepted for literal objective")
         if observed_status == "achieved":
@@ -118,6 +158,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 or hydration_preflight
                 or hydration_storage
                 or remote_hydration_plan
+                or official_hydrated_gate
             )
             else "missing",
             "evidence": ", ".join(
@@ -135,6 +176,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                     hydration_preflight_path,
                     hydration_storage_path,
                     remote_hydration_plan_path,
+                    official_hydrated_gate_path,
                 )
                 if path
             )
@@ -143,7 +185,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         {
             "name": "fit_transport_shift_only_on_train",
             "status": "satisfied"
-            if constant_status == "achieved"
+            if constant_status == "achieved" or official_hydrated_validation_passed
             else "blocked",
             "evidence": (
                 f"constant_audit_status={constant_status}; "
@@ -153,7 +195,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 f"hydration_plan_run_status={hydration_plan_run_status}; "
                 f"hydration_preflight_status={hydration_preflight_status}; "
                 f"hydration_storage_status={hydration_storage_status}; "
-                f"remote_hydration_plan_status={remote_hydration_plan_status}"
+                f"remote_hydration_plan_status={remote_hydration_plan_status}; "
+                f"official_hydrated_validation_passed={official_hydrated_validation_passed}"
             ),
         },
         {
@@ -161,12 +204,14 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "status": "satisfied"
             if (
                 constant_status == "achieved"
+                or official_hydrated_validation_passed
                 or (context_accepted and context_status == "achieved")
                 or (observed_accepted and observed_status == "achieved")
             )
             else "blocked",
             "evidence": (
                 f"constant_audit_status={constant_status}; "
+                f"official_hydrated_validation_passed={official_hydrated_validation_passed}; "
                 f"context_audit_status={context_status}; observed_audit_status={observed_status}"
             ),
         },
@@ -175,12 +220,20 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "status": "satisfied"
             if (
                 constant_status == "achieved"
+                or (
+                    official_hydrated_test_eligible
+                    and official_hydrated_test_result_count == 1
+                    and official_hydrated_validation_passed
+                )
                 or (context_accepted and context_status == "achieved")
                 or (observed_accepted and observed_status == "achieved")
             )
             else "blocked",
             "evidence": (
                 f"constant_policy={(constant_audit or {}).get('held_out_test_policy')}; "
+                f"official_hydrated_validation_passed={official_hydrated_validation_passed}; "
+                f"official_hydrated_test_eligible={official_hydrated_test_eligible}; "
+                f"official_hydrated_test_result_count={official_hydrated_test_result_count}; "
                 f"context_policy={(context_audit or {}).get('held_out_test_policy')}; "
                 f"observed_policy={(observed_audit or {}).get('held_out_test_policy')}"
             ),
@@ -233,6 +286,10 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "hydration_storage_status": hydration_storage_status,
             "remote_hydration_plan_json": remote_hydration_plan_path,
             "remote_hydration_plan_status": remote_hydration_plan_status,
+            "official_hydrated_gate_json": official_hydrated_gate_path,
+            "official_hydrated_validation_passed": official_hydrated_validation_passed,
+            "official_hydrated_test_eligible": official_hydrated_test_eligible,
+            "official_hydrated_test_result_count": official_hydrated_test_result_count,
         },
         "recommendation": (
             "If two-frame context is benchmark-accepted, prefer the context transport result; "
@@ -298,6 +355,10 @@ def main() -> None:
     parser.add_argument(
         "--remote-hydration-plan-json",
         default="reports/research/sota_loop/remote_official_advection_hydration_plan.json",
+    )
+    parser.add_argument(
+        "--official-hydrated-gate-json",
+        default="reports/research/sota_loop/official_hydrated_transport_shift_gate.json",
     )
     parser.add_argument("--accept-observed-context", action="store_true")
     parser.add_argument("--accept-context-transport", action="store_true")

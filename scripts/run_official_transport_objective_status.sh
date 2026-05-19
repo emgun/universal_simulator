@@ -29,6 +29,7 @@ HYDRATION_PLAN_RUN_JSON=${HYDRATION_PLAN_RUN_JSON:-${OUTPUT_ROOT}/official_advec
 HYDRATION_PREFLIGHT_JSON=${HYDRATION_PREFLIGHT_JSON:-${OUTPUT_ROOT}/official_advection_hydration_preflight.json}
 HYDRATION_STORAGE_JSON=${HYDRATION_STORAGE_JSON:-${OUTPUT_ROOT}/official_advection_hydration_storage_recommendation.json}
 REMOTE_HYDRATION_PLAN_JSON=${REMOTE_HYDRATION_PLAN_JSON:-${OUTPUT_ROOT}/remote_official_advection_hydration_plan.json}
+OFFICIAL_HYDRATED_GATE_JSON=${OFFICIAL_HYDRATED_GATE_JSON:-${OUTPUT_ROOT}/official_hydrated_transport_shift_gate.json}
 OBJECTIVE_STATUS_JSON=${OBJECTIVE_STATUS_JSON:-${OUTPUT_ROOT}/transport_objective_status.json}
 REQUIRE_STATUS=${REQUIRE_STATUS:-literal-achieved}
 ACCEPT_OBSERVED_CONTEXT=${ACCEPT_OBSERVED_CONTEXT:-0}
@@ -58,6 +59,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "DRY_RUN: hydration_preflight=${HYDRATION_PREFLIGHT_JSON}"
   echo "DRY_RUN: hydration_storage=${HYDRATION_STORAGE_JSON}"
   echo "DRY_RUN: remote_hydration_plan=${REMOTE_HYDRATION_PLAN_JSON}"
+  echo "DRY_RUN: official_hydrated_gate=${OFFICIAL_HYDRATED_GATE_JSON}"
   echo "DRY_RUN: output=${OBJECTIVE_STATUS_JSON}"
   echo "DRY_RUN: require_status=${REQUIRE_STATUS}"
   echo "DRY_RUN: accept_context_transport=${ACCEPT_CONTEXT_TRANSPORT}"
@@ -78,6 +80,7 @@ python scripts/audit_transport_objective_status.py \
   --hydration-preflight-json "$HYDRATION_PREFLIGHT_JSON" \
   --hydration-storage-json "$HYDRATION_STORAGE_JSON" \
   --remote-hydration-plan-json "$REMOTE_HYDRATION_PLAN_JSON" \
+  --official-hydrated-gate-json "$OFFICIAL_HYDRATED_GATE_JSON" \
   --output-json "$OBJECTIVE_STATUS_JSON" \
   --require-status "$REQUIRE_STATUS" \
   "${context_args[@]+"${context_args[@]}"}" \

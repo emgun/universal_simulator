@@ -24,6 +24,7 @@ def _args(tmp_path, *, accept_observed_context: bool = False, accept_context_tra
         hydration_preflight_json=str(tmp_path / "hydration_preflight.json"),
         hydration_storage_json=str(tmp_path / "hydration_storage.json"),
         remote_hydration_plan_json=str(tmp_path / "remote_hydration.json"),
+        official_hydrated_gate_json=str(tmp_path / "official_hydrated_gate.json"),
         accept_observed_context=accept_observed_context,
         accept_context_transport=accept_context_transport,
         require_status="report",
@@ -44,6 +45,7 @@ def test_objective_audit_marks_literal_achieved_when_constant_audit_achieved(tmp
     _write_json(tmp_path / "hydration_preflight.json", {"status": "blocked_insufficient_disk"})
     _write_json(tmp_path / "hydration_storage.json", {"status": "external_or_freed_space_required"})
     _write_json(tmp_path / "remote_hydration.json", {"status": "ready_for_remote_hydration"})
+    _write_json(tmp_path / "official_hydrated_gate.json", {})
 
     record = audit_objective(_args(tmp_path))
 
@@ -67,6 +69,7 @@ def test_objective_audit_keeps_observed_context_policy_explicit(tmp_path):
     _write_json(tmp_path / "hydration_preflight.json", {"status": "blocked_insufficient_disk"})
     _write_json(tmp_path / "hydration_storage.json", {"status": "external_or_freed_space_required"})
     _write_json(tmp_path / "remote_hydration.json", {"status": "ready_for_remote_hydration"})
+    _write_json(tmp_path / "official_hydrated_gate.json", {})
 
     blocked = audit_objective(_args(tmp_path))
     accepted = audit_objective(_args(tmp_path, accept_observed_context=True))
@@ -93,6 +96,7 @@ def test_objective_audit_keeps_context_transport_policy_explicit(tmp_path):
     _write_json(tmp_path / "hydration_preflight.json", {"status": "blocked_insufficient_disk"})
     _write_json(tmp_path / "hydration_storage.json", {"status": "external_or_freed_space_required"})
     _write_json(tmp_path / "remote_hydration.json", {"status": "ready_for_remote_hydration"})
+    _write_json(tmp_path / "official_hydrated_gate.json", {})
 
     blocked = audit_objective(_args(tmp_path))
     accepted = audit_objective(_args(tmp_path, accept_context_transport=True))
@@ -116,6 +120,7 @@ def test_objective_audit_reports_train_feature_blocker(tmp_path):
     _write_json(tmp_path / "hydration_preflight.json", {"status": "blocked_insufficient_disk"})
     _write_json(tmp_path / "hydration_storage.json", {"status": "external_or_freed_space_required"})
     _write_json(tmp_path / "remote_hydration.json", {"status": "ready_for_remote_hydration"})
+    _write_json(tmp_path / "official_hydrated_gate.json", {})
 
     record = audit_objective(_args(tmp_path))
 
@@ -131,8 +136,41 @@ def test_objective_audit_reports_train_feature_blocker(tmp_path):
     assert any("ready_for_remote_hydration" in blocker for blocker in record["blockers"])
 
 
+def test_objective_audit_reports_literal_test_ready_after_official_hydrated_validation(tmp_path):
+    _write_json(tmp_path / "constant.json", {"status": "blocked_incompatible_splits"})
+    _write_json(tmp_path / "observed.json", {"status": "missing_evidence"})
+    _write_json(tmp_path / "context.json", {"status": "missing_evidence"})
+    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
+    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
+    _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
+    _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
+    _write_json(tmp_path / "hydration_plan_run.json", {"status": "executed"})
+    _write_json(tmp_path / "hydration_preflight.json", {"status": "ready_for_download"})
+    _write_json(tmp_path / "hydration_storage.json", {"status": "ready"})
+    _write_json(tmp_path / "remote_hydration.json", {"status": "ready_for_remote_hydration"})
+    _write_json(
+        tmp_path / "official_hydrated_gate.json",
+        {
+            "test_eligible": True,
+            "test": None,
+            "fit": {"validation_guard": {"passed": True}},
+        },
+    )
+
+    record = audit_objective(_args(tmp_path))
+
+    assert record["status"] == "literal_test_ready"
+    assert record["evidence"]["official_hydrated_validation_passed"] is True
+    assert record["evidence"]["official_hydrated_test_result_count"] == 0
+    assert any(requirement["name"] == "validate_on_val_against_sota_guard" and requirement["status"] == "satisfied" for requirement in record["requirements"])
+    assert any(requirement["name"] == "exactly_one_held_out_test_only_after_validation" and requirement["status"] == "blocked" for requirement in record["requirements"])
+
+
 def test_objective_exit_policy():
     assert exit_code_for_status("literal_achieved", "literal-achieved") == 0
+    assert exit_code_for_status("literal_test_ready", "literal-test-ready") == 0
+    assert exit_code_for_status("literal_test_ready", "literal-achieved") == 2
     assert exit_code_for_status("observed_context_achieved", "literal-achieved") == 2
     assert exit_code_for_status("observed_context_achieved", "observed-accepted") == 0
     assert exit_code_for_status("context_transport_achieved", "context-accepted") == 0
