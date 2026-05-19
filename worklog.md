@@ -2122,3 +2122,15 @@ Follow-up download telemetry update (2026-05-19, official host throughput bottle
   - `10 passed`
   - `python -m py_compile scripts/download_pdebench_file.py`
   - `git diff --check`
+
+Follow-up ranged download retry update (2026-05-19, hung part timeout):
+- Relaunched Vast contract `37097600` in the Netherlands with ranged downloads.
+- The run confirmed the pivot worked: two full official Advection files were saved and the third reached `98.4%`.
+- It then stalled on one remaining ranged part with flat CPU/disk counters, so contract `37097600` was destroyed.
+- Tightened `scripts/download_pdebench_file.py` with `PDEBENCH_DOWNLOAD_PART_TIMEOUT` / `--part-timeout`; each part attempt now has a wall-clock deadline and retries from a clean temp file.
+- Added unit coverage for retrying after a part timeout.
+- Verified:
+  - `python -m pytest tests/unit/test_download_pdebench_file.py`
+  - `6 passed`
+  - `python -m py_compile scripts/download_pdebench_file.py`
+  - `git diff --check`

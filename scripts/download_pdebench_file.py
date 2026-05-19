@@ -6,6 +6,7 @@ import concurrent.futures
 import hashlib
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Iterable
 
@@ -16,6 +17,7 @@ MANIFEST_PATH = Path(__file__).resolve().parents[1] / "docs" / "pdebench_manifes
 DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 DEFAULT_PART_SIZE = 256 * 1024 * 1024
+DEFAULT_PART_TIMEOUT = 15 * 60
 DEFAULT_TIMEOUT = (30, 60)
 
 
@@ -99,6 +101,7 @@ def _download_part(
     *,
     chunk_size: int,
     retries: int,
+    part_timeout: int,
 ) -> int:
     expected_size = end - start + 1
     if part_path.exists() and part_path.stat().st_size == expected_size:
@@ -109,26 +112,49 @@ def _download_part(
         temp_path.unlink()
 
     headers = {"Range": f"bytes={start}-{end}"}
-    response = _request_with_retries(url, headers=headers, stream=True, retries=retries)
-    status_code = int(response.status_code)
-    if status_code != 206:
-        raise SystemExit(f"Range request {start}-{end} returned HTTP {status_code}; expected 206.")
-
-    total = 0
-    with open(temp_path, "wb") as fh:
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            if not chunk:
-                continue
-            fh.write(chunk)
-            total += len(chunk)
-
-    if total != expected_size:
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
         temp_path.unlink(missing_ok=True)
-        raise SystemExit(
-            f"Range request {start}-{end} wrote {total} bytes; expected {expected_size}."
-        )
-    temp_path.replace(part_path)
-    return total
+        try:
+            response = _request_with_retries(url, headers=headers, stream=True, retries=1)
+            status_code = int(response.status_code)
+            if status_code != 206:
+                raise SystemExit(
+                    f"Range request {start}-{end} returned HTTP {status_code}; expected 206."
+                )
+
+            total = 0
+            started_at = time.monotonic()
+            with open(temp_path, "wb") as fh:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if time.monotonic() - started_at > part_timeout:
+                        raise TimeoutError(
+                            f"Range request {start}-{end} exceeded {part_timeout}s part timeout"
+                        )
+                    if not chunk:
+                        continue
+                    fh.write(chunk)
+                    total += len(chunk)
+
+            if total != expected_size:
+                raise OSError(
+                    f"Range request {start}-{end} wrote {total} bytes; expected {expected_size}."
+                )
+            temp_path.replace(part_path)
+            return total
+        except SystemExit:
+            raise
+        except Exception as exc:
+            last_error = exc
+            print(
+                f"part {start}-{end} failed on attempt {attempt}/{retries}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    temp_path.unlink(missing_ok=True)
+    assert last_error is not None
+    raise last_error
 
 
 def _assemble_parts(dest: Path, part_paths: Iterable[Path]) -> int:
@@ -155,6 +181,7 @@ def _download_ranges(
     part_size: int,
     chunk_size: int,
     retries: int,
+    part_timeout: int,
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
     parts_dir = dest.with_suffix(dest.suffix + ".parts")
@@ -176,6 +203,7 @@ def _download_ranges(
                 end,
                 chunk_size=chunk_size,
                 retries=retries,
+                part_timeout=part_timeout,
             ): (index, start, end)
             for index, start, end in ranges
         }
@@ -205,6 +233,7 @@ def download(
     part_size: int = DEFAULT_PART_SIZE,
     workers: int = 1,
     retries: int = 3,
+    part_timeout: int = DEFAULT_PART_TIMEOUT,
 ) -> None:
     file_id = entry["file_id"]
     url = DATAFILE_URL.format(file_id=file_id)
@@ -225,6 +254,7 @@ def download(
             part_size=part_size,
             chunk_size=chunk_size,
             retries=retries,
+            part_timeout=part_timeout,
         )
     else:
         total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
@@ -264,6 +294,12 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get("PDEBENCH_DOWNLOAD_RETRIES", "3")),
         help="HTTP retry attempts per request",
     )
+    parser.add_argument(
+        "--part-timeout",
+        type=int,
+        default=int(os.environ.get("PDEBENCH_DOWNLOAD_PART_TIMEOUT", str(DEFAULT_PART_TIMEOUT))),
+        help="Maximum wall-clock seconds for one ranged part attempt",
+    )
     return parser.parse_args()
 
 
@@ -279,6 +315,7 @@ def main() -> None:
         workers=max(1, args.workers),
         part_size=max(1, args.part_size_mib) * 1024 * 1024,
         retries=max(1, args.retries),
+        part_timeout=max(1, args.part_timeout),
     )
 
 

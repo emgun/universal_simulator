@@ -1434,3 +1434,5 @@ Remote download throughput pivot:
 - Serial `requests.get(..., stream=True)` download is therefore too fragile and too slow for the `61.34` GiB official hydration path.
 - `scripts/download_pdebench_file.py` now defaults to resumable ranged download parts with configurable `PDEBENCH_DOWNLOAD_WORKERS`, `PDEBENCH_DOWNLOAD_PART_SIZE_MIB`, and `PDEBENCH_DOWNLOAD_RETRIES`.
 - This keeps the benchmark-clean data source unchanged while improving execution reliability and telemetry. The tradeoff is more HTTP requests against the official host; the range size default is intentionally coarse (`256` MiB) to avoid tiny-part request storms.
+- Vast contract `37097600` confirmed this path can save complete official files quickly, but one range stalled near the end of the third file.
+- The downloader now also supports `PDEBENCH_DOWNLOAD_PART_TIMEOUT` / `--part-timeout`, so a single slow or hung range is retried instead of holding the whole hydration run open indefinitely.

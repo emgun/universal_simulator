@@ -57,6 +57,7 @@ def test_download_part_rejects_non_range_response(monkeypatch, tmp_path: Path):
             3,
             chunk_size=2,
             retries=1,
+            part_timeout=30,
         )
 
 
@@ -87,8 +88,47 @@ def test_download_part_writes_expected_range(monkeypatch, tmp_path: Path):
         13,
         chunk_size=2,
         retries=1,
+        part_timeout=30,
     )
 
     assert total == 4
     assert part_path.read_bytes() == b"abcd"
     assert seen_headers == [{"Range": "bytes=10-13"}]
+
+
+def test_download_part_retries_after_part_timeout(monkeypatch, tmp_path: Path):
+    attempts = 0
+
+    class Response:
+        status_code = 206
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size):
+            yield b"ab"
+            yield b"cd"
+
+    def fake_get(url, headers=None, stream=True, timeout=None):
+        nonlocal attempts
+        attempts += 1
+        return Response()
+
+    ticks = iter([0, 100, 0, 1, 2])
+    monkeypatch.setattr(downloader.requests, "get", fake_get)
+    monkeypatch.setattr(downloader.time, "monotonic", lambda: next(ticks))
+    part_path = tmp_path / "part"
+
+    total = downloader._download_part(
+        "https://example.test/file",
+        part_path,
+        0,
+        3,
+        chunk_size=2,
+        retries=2,
+        part_timeout=10,
+    )
+
+    assert attempts == 2
+    assert total == 4
+    assert part_path.read_bytes() == b"abcd"
