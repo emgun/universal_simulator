@@ -1386,3 +1386,14 @@ Storage recommendation:
 - Required free bytes remain `75743295958`.
 - Next literal-path action is to free disk or mount a larger volume, then regenerate the hydration plan with `--raw-out`, `--hydrated-source-root`, and `--hydrated-light-root` pointing to that storage root.
 - `scripts/run_official_transport_objective_status.sh` now reads the storage recommendation artifact; default literal mode still exits `2` with `status=literal_blocked`.
+
+Remote execution plan:
+
+- Script: `scripts/plan_remote_official_hydration.py`.
+- Output: `reports/research/sota_loop/remote_official_advection_hydration_plan.json` (ignored local report).
+- Status: `ready_for_remote_hydration`.
+- Required remote disk: `120` GB.
+- The plan uses `scripts/launch_remote_transport_shift_candidate_vast.sh` with `REMOTE_SCRIPT=scripts/run_transport_official_hydration_plan.py`.
+- It is dry-run first and does not start paid compute unless `DRY_RUN=0` is set.
+- The remote job still uses the staged hydration runner, requires `--execute-downloads`, downloads official train files only, builds train/val shards with `test_count=0`, and keeps held-out test gated behind validation.
+- `scripts/run_official_transport_objective_status.sh` now reads the remote plan artifact; default literal mode still exits `2` with `status=literal_blocked` until the remote hydration and validation actually run.

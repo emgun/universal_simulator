@@ -2016,3 +2016,18 @@ Follow-up storage update (2026-05-19, official hydration storage recommendation)
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `official hydration storage status is external_or_freed_space_required`
+
+Follow-up remote execution update (2026-05-19, official hydration remote plan):
+- Added `scripts/plan_remote_official_hydration.py`.
+- Generated `reports/research/sota_loop/remote_official_advection_hydration_plan.json` (ignored local report).
+- Remote plan status: `ready_for_remote_hydration`.
+- Required remote disk: `120` GB.
+- Dry-run launcher:
+  - `DRY_RUN=1 DISK_GB=120 GPU=RTX_4090 REMOTE_SCRIPT=scripts/run_transport_official_hydration_plan.py EXTRA_PIPELINE_ARGS='--execute --execute-downloads --plan-json reports/research/sota_loop/official_advection_hydration_plan.json --validation-json reports/research/sota_loop/official_advection_hydration_plan_validation.json --output-json reports/research/sota_loop/official_advection_hydration_plan_run.json' bash scripts/launch_remote_transport_shift_candidate_vast.sh`
+- Actual launcher switches `DRY_RUN=0`.
+- Interpretation:
+  - the local literal path is blocked by disk, but the next executable route is now a dry-run-first remote job with enough disk
+  - the remote job still uses the staged hydration runner, requires `--execute-downloads`, downloads official train files only, and builds train/val shards with `test_count=0`
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `remote official hydration plan status is ready_for_remote_hydration`
