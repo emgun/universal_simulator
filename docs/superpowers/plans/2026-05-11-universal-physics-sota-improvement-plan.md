@@ -1218,3 +1218,6 @@ Objective-level audit:
 - Observed-accepted mode output: `reports/research/sota_loop/transport_objective_status_observed_accepted.json` (ignored local report), `status=observed_context_achieved`.
 - Current literal blockers: constant train-only audit is `blocked_incompatible_splits`; train-only feature diagnostic is `blocked_no_train_support_for_validation_shift`; observed-context result is achieved but not accepted for the literal objective.
 - Current observed-accepted caveat: literal train-only shift objective remains unproven and status depends on accepting two-frame observed context.
+- Default official command refresh: `bash scripts/run_official_transport_objective_status.sh` exits `2` with `status=literal_blocked`.
+- Observed-context command refresh: `ACCEPT_OBSERVED_CONTEXT=1 REQUIRE_STATUS=observed-accepted OBJECTIVE_STATUS_JSON=reports/research/sota_loop/transport_objective_status_observed_accepted.json bash scripts/run_official_transport_objective_status.sh` exits `0` with `status=observed_context_achieved`.
+- Both command modes read existing evidence only; neither reruns gates or touches held-out test.

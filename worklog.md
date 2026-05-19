@@ -1813,3 +1813,17 @@ Follow-up runner update (2026-05-19, official objective status command):
 - Interpretation:
   - there is now a single official command for the final release question
   - it fails closed for the literal objective by default and only passes observed-context promotion when that policy is explicitly selected
+
+Official objective command refresh (2026-05-19):
+- Ran default literal release command:
+  - command: `bash scripts/run_official_transport_objective_status.sh`
+  - exit code: `2`
+  - status: `literal_blocked`
+- Ran observed-context acceptance command:
+  - command: `ACCEPT_OBSERVED_CONTEXT=1 REQUIRE_STATUS=observed-accepted OBJECTIVE_STATUS_JSON=reports/research/sota_loop/transport_objective_status_observed_accepted.json bash scripts/run_official_transport_objective_status.sh`
+  - exit code: `0`
+  - status: `observed_context_achieved`
+- Neither command reruns gates or touches held-out test; both read existing evidence artifacts.
+- Interpretation:
+  - default release behavior correctly fails closed for the literal objective
+  - observed-context promotion is mechanically available only through an explicit policy flag

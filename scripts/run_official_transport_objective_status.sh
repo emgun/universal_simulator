@@ -43,4 +43,4 @@ python scripts/audit_transport_objective_status.py \
   --train-feature-diagnostic-json "$TRAIN_FEATURE_DIAGNOSTIC_JSON" \
   --output-json "$OBJECTIVE_STATUS_JSON" \
   --require-status "$REQUIRE_STATUS" \
-  "${observed_args[@]}"
+  "${observed_args[@]+"${observed_args[@]}"}"
