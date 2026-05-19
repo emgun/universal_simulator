@@ -1221,3 +1221,11 @@ Objective-level audit:
 - Default official command refresh: `bash scripts/run_official_transport_objective_status.sh` exits `2` with `status=literal_blocked`.
 - Observed-context command refresh: `ACCEPT_OBSERVED_CONTEXT=1 REQUIRE_STATUS=observed-accepted OBJECTIVE_STATUS_JSON=reports/research/sota_loop/transport_objective_status_observed_accepted.json bash scripts/run_official_transport_objective_status.sh` exits `0` with `status=observed_context_achieved`.
 - Both command modes read existing evidence only; neither reruns gates or touches held-out test.
+
+Temporal-window diagnostic:
+
+- Script: `scripts/diagnose_transport_temporal_windows.py`.
+- Output: `reports/research/sota_loop/transport_temporal_window_diagnostic.json` (ignored local report).
+- It scans train/val temporal start windows only and does not read held-out test.
+- Full local train/val result over 16-step windows starting at `0,16,32,...,176`: train labels `{"0": 12}`, validation labels `{"40": 12}`, common temporal best shifts `[]`, conclusion `blocked_no_temporal_common_shift`.
+- This rules out the plausible temporal-offset rescue path for the literal train-only objective under the current local `light-v1` shards.

@@ -1827,3 +1827,20 @@ Official objective command refresh (2026-05-19):
 - Interpretation:
   - default release behavior correctly fails closed for the literal objective
   - observed-context promotion is mechanically available only through an explicit policy flag
+
+Experiment loop update (2026-05-19, train/val temporal-window support diagnostic):
+- Added `scripts/diagnose_transport_temporal_windows.py`.
+- The diagnostic scans temporal start windows inside train and validation trajectories, fits/evaluates best transport shift per split/window, and does not read held-out test.
+- Real local `light-v1` train/val command:
+  - output: `reports/research/sota_loop/transport_temporal_window_diagnostic.json` (ignored local report)
+  - full train/val shards
+  - rollout steps: `16`
+  - temporal starts: `0,16,32,...,176`
+- Result:
+  - train shift histogram: `{"0": 12}`
+  - validation shift histogram: `{"40": 12}`
+  - common temporal best shifts: `[]`
+  - conclusion: `blocked_no_temporal_common_shift`
+- Interpretation:
+  - the literal train-only path is not rescued by choosing a later temporal rollout window
+  - across all scanned 16-step temporal windows, train remains shift `0` and validation remains shift `40`
