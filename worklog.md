@@ -2134,3 +2134,16 @@ Follow-up ranged download retry update (2026-05-19, hung part timeout):
   - `6 passed`
   - `python -m py_compile scripts/download_pdebench_file.py`
   - `git diff --check`
+
+Follow-up ranged download disk update (2026-05-19, direct-to-temp range writes):
+- Relaunched Vast contract `37098407` with the part-timeout patch and 120 GB disk.
+- The timeout patch worked repeatedly:
+  - `beta1.0`, `beta2.0`, and `beta4.0` each recovered from slow range attempts after `600s` timeouts.
+  - `beta7.0` downloaded all 62 ranged parts.
+- The run then failed while assembling `beta7.0`:
+  - `OSError: [Errno 28] No space left on device`
+  - the hydration runner could not write `reports/research/sota_loop/official_advection_hydration_plan_run.json` after disk exhaustion.
+- Destroyed contract `37098407`; no validation or held-out test ran.
+- Root cause: the ranged downloader stored all `.parts` files and then created a second full-size `.tmp` file during assembly, producing excessive peak disk use on the remote.
+- Updated `scripts/download_pdebench_file.py` so ranged downloads preallocate one `.tmp` destination and write each range directly at its byte offset.
+- This preserves the benchmark-clean official source and range retry policy while reducing peak per-file temporary storage from roughly two full copies to one.

@@ -132,3 +132,68 @@ def test_download_part_retries_after_part_timeout(monkeypatch, tmp_path: Path):
     assert attempts == 2
     assert total == 4
     assert part_path.read_bytes() == b"abcd"
+
+
+def test_download_part_to_file_writes_at_range_offset(monkeypatch, tmp_path: Path):
+    class Response:
+        status_code = 206
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size):
+            yield b"cd"
+            yield b"ef"
+
+    monkeypatch.setattr(downloader.requests, "get", lambda *args, **kwargs: Response())
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"abcdefgh")
+
+    total = downloader._download_part_to_file(
+        "https://example.test/file",
+        dest,
+        2,
+        5,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+    )
+
+    assert total == 4
+    assert dest.read_bytes() == b"abcdefgh"
+
+
+def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
+    def fake_download_part_to_file(
+        url,
+        dest,
+        start,
+        end,
+        *,
+        chunk_size,
+        retries,
+        part_timeout,
+    ):
+        with open(dest, "r+b") as fh:
+            fh.seek(start)
+            fh.write(bytes([65 + start]) * (end - start + 1))
+        return end - start + 1
+
+    monkeypatch.setattr(downloader, "_download_part_to_file", fake_download_part_to_file)
+    dest = tmp_path / "data.h5"
+
+    total = downloader._download_ranges(
+        "https://example.test/file",
+        dest,
+        6,
+        workers=2,
+        part_size=2,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+    )
+
+    assert total == 6
+    assert dest.read_bytes() == b"AACCEE"
+    assert not dest.with_suffix(dest.suffix + ".tmp").exists()
+    assert not dest.with_suffix(dest.suffix + ".parts").exists()

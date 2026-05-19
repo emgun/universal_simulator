@@ -157,6 +157,63 @@ def _download_part(
     raise last_error
 
 
+def _download_part_to_file(
+    url: str,
+    dest: Path,
+    start: int,
+    end: int,
+    *,
+    chunk_size: int,
+    retries: int,
+    part_timeout: int,
+) -> int:
+    expected_size = end - start + 1
+    headers = {"Range": f"bytes={start}-{end}"}
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            response = _request_with_retries(url, headers=headers, stream=True, retries=1)
+            status_code = int(response.status_code)
+            if status_code != 206:
+                raise SystemExit(
+                    f"Range request {start}-{end} returned HTTP {status_code}; expected 206."
+                )
+
+            total = 0
+            offset = start
+            started_at = time.monotonic()
+            with open(dest, "r+b") as fh:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if time.monotonic() - started_at > part_timeout:
+                        raise TimeoutError(
+                            f"Range request {start}-{end} exceeded {part_timeout}s part timeout"
+                        )
+                    if not chunk:
+                        continue
+                    fh.seek(offset)
+                    fh.write(chunk)
+                    offset += len(chunk)
+                    total += len(chunk)
+
+            if total != expected_size:
+                raise OSError(
+                    f"Range request {start}-{end} wrote {total} bytes; expected {expected_size}."
+                )
+            return total
+        except SystemExit:
+            raise
+        except Exception as exc:
+            last_error = exc
+            print(
+                f"part {start}-{end} failed on attempt {attempt}/{retries}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    assert last_error is not None
+    raise last_error
+
+
 def _assemble_parts(dest: Path, part_paths: Iterable[Path]) -> int:
     total = 0
     temp_dest = dest.with_suffix(dest.suffix + ".tmp")
@@ -184,21 +241,23 @@ def _download_ranges(
     part_timeout: int,
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
-    parts_dir = dest.with_suffix(dest.suffix + ".parts")
-    parts_dir.mkdir(parents=True, exist_ok=True)
+    temp_dest = dest.with_suffix(dest.suffix + ".tmp")
+    if temp_dest.exists():
+        temp_dest.unlink()
+    with open(temp_dest, "wb") as fh:
+        fh.truncate(expected_size)
     print(
         f"Downloading {expected_size/1024**3:.2f} GiB as {len(ranges)} ranged parts "
         f"with {workers} workers",
         flush=True,
     )
 
-    part_paths = [parts_dir / f"part-{index:05d}" for index, _, _ in ranges]
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
             executor.submit(
-                _download_part,
+                _download_part_to_file,
                 url,
-                part_paths[index],
+                temp_dest,
                 start,
                 end,
                 chunk_size=chunk_size,
@@ -219,10 +278,11 @@ def _download_ranges(
                 flush=True,
             )
 
-    total = _assemble_parts(dest, part_paths)
+    total = temp_dest.stat().st_size
     if total != expected_size:
-        raise SystemExit(f"Assembled {total} bytes for {dest}; expected {expected_size}.")
-    return total
+        raise SystemExit(f"Downloaded {total} bytes for {dest}; expected {expected_size}.")
+    temp_dest.replace(dest)
+    return expected_size
 
 
 def download(

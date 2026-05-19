@@ -1436,3 +1436,7 @@ Remote download throughput pivot:
 - This keeps the benchmark-clean data source unchanged while improving execution reliability and telemetry. The tradeoff is more HTTP requests against the official host; the range size default is intentionally coarse (`256` MiB) to avoid tiny-part request storms.
 - Vast contract `37097600` confirmed this path can save complete official files quickly, but one range stalled near the end of the third file.
 - The downloader now also supports `PDEBENCH_DOWNLOAD_PART_TIMEOUT` / `--part-timeout`, so a single slow or hung range is retried instead of holding the whole hydration run open indefinitely.
+- Vast contract `37098407` confirmed the timeout retry works on repeated slow ranges and progressed through all `beta7.0` range parts, but failed during final assembly with `OSError: [Errno 28] No space left on device`.
+- The failure was storage overhead, not a benchmark or validation result: the prior downloader held all part files and then wrote a second full-size assembled temp file.
+- `scripts/download_pdebench_file.py` now writes each completed range directly into a preallocated `.tmp` destination at the correct byte offset, then atomically replaces the final file after all ranges complete.
+- Tradeoff: direct offset writes are less inspectable than persisted part files, but the post-download checksum remains the integrity gate and peak per-file temporary storage drops enough for a 120 GB remote run.
