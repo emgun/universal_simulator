@@ -1419,3 +1419,9 @@ Guarded post-validation test phase:
 - Current preview status: `dry_run` with blockers because the objective is still `literal_blocked`, not `literal_test_ready`.
 - The runner refuses to build/read held-out test unless the objective status artifact is already `literal_test_ready` and the command is explicitly run with `--execute --execute-test`.
 - When authorized, it builds only the official hydrated test shard from `data/pdebench_official_advection_hydrated/advection1d_train.h5` using `--split-start-index test=320`, then reruns the transport gate with `--test-split test`.
+
+Remote full-objective chain:
+
+- `scripts/run_remote_official_hydration.sh` can now chain the guarded post-validation phase after the train/val hydration runner.
+- `scripts/plan_remote_official_hydration.py` now includes `RUN_POST_VALIDATION_TEST=1`, `EXECUTE_TEST=1`, and `POST_VALIDATION_TEST_JSON=reports/research/sota_loop/official_hydrated_post_validation_test_run.json` in the generated Vast launcher command.
+- This makes the remote job capable of completing the full objective in one execution if, and only if, the train/val gate first reaches `literal_test_ready`.

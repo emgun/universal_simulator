@@ -29,6 +29,7 @@ def _args(tmp_path):
         remote_plan_json="reports/plan.json",
         remote_validation_json="reports/validation.json",
         remote_run_json="reports/run.json",
+        remote_post_validation_test_json="reports/post_validation_test.json",
         min_disk_gb=120,
         disk_multiplier=1.3,
         disk_padding_gb=40,
@@ -45,6 +46,9 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "DRY_RUN=0" in record["commands"]["actual_launcher"]
     assert "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh" in record["commands"]["actual_launcher"]
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
+    assert "RUN_POST_VALIDATION_TEST=1" in record["commands"]["actual_launcher"]
+    assert "EXECUTE_TEST=1" in record["commands"]["actual_launcher"]
+    assert record["remote_post_validation_test_json"] == "reports/post_validation_test.json"
     assert record["held_out_test_policy"]["test_split_downloaded"] is False
 
 

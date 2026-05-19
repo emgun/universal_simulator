@@ -34,7 +34,10 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         f"PLAN_JSON={args.remote_plan_json} "
         f"VALIDATION_JSON={args.remote_validation_json} "
         f"RUN_JSON={args.remote_run_json} "
-        "EXECUTE=1 EXECUTE_DOWNLOADS=1 MIN_DOWNLOAD_BYTES=60000000000' "
+        f"POST_VALIDATION_TEST_JSON={args.remote_post_validation_test_json} "
+        "EXECUTE=1 EXECUTE_DOWNLOADS=1 "
+        "RUN_POST_VALIDATION_TEST=1 EXECUTE_TEST=1 "
+        "MIN_DOWNLOAD_BYTES=60000000000' "
         "bash scripts/launch_remote_transport_shift_candidate_vast.sh"
     )
     return {
@@ -48,6 +51,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "remote_plan_json": args.remote_plan_json,
         "remote_validation_json": args.remote_validation_json,
         "remote_run_json": args.remote_run_json,
+        "remote_post_validation_test_json": args.remote_post_validation_test_json,
         "commands": {
             "dry_run_launcher": launcher,
             "actual_launcher": launcher.replace("DRY_RUN=1", "DRY_RUN=0", 1),
@@ -58,6 +62,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
             "The remote run still uses the staged hydration runner and requires --execute-downloads.",
             "The Vast launcher invokes a bash wrapper; do not use a Python file as REMOTE_SCRIPT.",
             "The hydration plan downloads official train files only and builds train/val shards with test_count=0.",
+            "The post-validation test stage is chained but gated on literal_test_ready before it can build or read the held-out test shard.",
         ],
     }
 
@@ -81,6 +86,10 @@ def main() -> None:
     parser.add_argument(
         "--remote-run-json",
         default="reports/research/sota_loop/official_advection_hydration_plan_run.json",
+    )
+    parser.add_argument(
+        "--remote-post-validation-test-json",
+        default="reports/research/sota_loop/official_hydrated_post_validation_test_run.json",
     )
     parser.add_argument("--min-disk-gb", type=int, default=120)
     parser.add_argument("--disk-multiplier", type=float, default=1.3)

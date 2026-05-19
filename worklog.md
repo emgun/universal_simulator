@@ -2078,3 +2078,19 @@ Follow-up post-validation test update (2026-05-19, guarded official hydrated tes
 - Verified:
   - `python -m pytest tests/unit/test_run_official_hydrated_post_validation_test.py`
   - `3 passed`
+
+Follow-up remote chain update (2026-05-19, full objective remote wrapper):
+- Updated `scripts/run_remote_official_hydration.sh` so the remote wrapper can optionally chain the guarded post-validation test phase after train/val hydration and validation.
+- Updated `scripts/plan_remote_official_hydration.py` so the generated Vast command passes:
+  - `RUN_POST_VALIDATION_TEST=1`
+  - `EXECUTE_TEST=1`
+  - `POST_VALIDATION_TEST_JSON=reports/research/sota_loop/official_hydrated_post_validation_test_run.json`
+- Policy preserved:
+  - the hydration runner still downloads/builds train/val first
+  - the post-validation runner still refuses to build/read held-out test unless objective status is already `literal_test_ready`
+  - `EXECUTE_TEST=1` only authorizes the runner to proceed if that status gate passes
+- Dry-run Vast onstart now ends with:
+  - `bash scripts/run_remote_official_hydration.sh ... RUN_POST_VALIDATION_TEST=1 EXECUTE_TEST=1 ...`
+- Verified:
+  - `python -m pytest tests/unit/test_plan_remote_official_hydration.py tests/unit/test_run_remote_official_hydration.py tests/unit/test_run_official_hydrated_post_validation_test.py`
+  - `8 passed`
