@@ -1425,3 +1425,4 @@ Remote full-objective chain:
 - `scripts/run_remote_official_hydration.sh` can now chain the guarded post-validation phase after the train/val hydration runner.
 - `scripts/plan_remote_official_hydration.py` now includes `RUN_POST_VALIDATION_TEST=1`, `EXECUTE_TEST=1`, and `POST_VALIDATION_TEST_JSON=reports/research/sota_loop/official_hydrated_post_validation_test_run.json` in the generated Vast launcher command.
 - This makes the remote job capable of completing the full objective in one execution if, and only if, the train/val gate first reaches `literal_test_ready`.
+- Fresh remote checkouts regenerate `reports/research/sota_loop/official_advection_hydration_plan.json` inside `scripts/run_remote_official_hydration.sh` when the ignored local plan artifact is missing.

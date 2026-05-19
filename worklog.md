@@ -2094,3 +2094,13 @@ Follow-up remote chain update (2026-05-19, full objective remote wrapper):
 - Verified:
   - `python -m pytest tests/unit/test_plan_remote_official_hydration.py tests/unit/test_run_remote_official_hydration.py tests/unit/test_run_official_hydrated_post_validation_test.py`
   - `8 passed`
+
+Follow-up remote launch update (2026-05-19, fresh-checkout plan generation):
+- Launched Vast contract `37096085` with SSH/onstart mode; it stalled in `loading` without a container and was destroyed.
+- Relaunched Vast contract `37096391` with `ARGS_MODE=1 SSH=0`; it reached execution but failed before hydration because `reports/research/sota_loop/official_advection_hydration_plan.json` is an ignored local artifact and was missing from the fresh remote checkout.
+- Destroyed contract `37096391` after confirming the repeated `FileNotFoundError`.
+- Fixed `scripts/run_remote_official_hydration.sh` so it regenerates the official hydration plan with `scripts/plan_transport_official_hydration.py` when `PLAN_JSON` is missing.
+- Updated `tests/unit/test_run_remote_official_hydration.py` to cover fresh-checkout plan generation.
+- Verified:
+  - `python -m pytest tests/unit/test_run_remote_official_hydration.py tests/unit/test_plan_remote_official_hydration.py tests/unit/test_plan_transport_official_hydration.py tests/unit/test_validate_transport_hydration_plan.py tests/unit/test_run_transport_official_hydration_plan.py`
+  - `14 passed`

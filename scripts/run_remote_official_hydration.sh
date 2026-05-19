@@ -34,6 +34,10 @@ EXECUTE_DOWNLOADS=${EXECUTE_DOWNLOADS:-1}
 RUN_POST_VALIDATION_TEST=${RUN_POST_VALIDATION_TEST:-0}
 EXECUTE_TEST=${EXECUTE_TEST:-0}
 
+if [ ! -f "$PLAN_JSON" ]; then
+  python scripts/plan_transport_official_hydration.py --output-json "$PLAN_JSON"
+fi
+
 args=(
   python scripts/run_transport_official_hydration_plan.py
   --plan-json "$PLAN_JSON"

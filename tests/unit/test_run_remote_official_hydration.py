@@ -16,11 +16,11 @@ def test_remote_official_hydration_wrapper_rejects_positional_args():
     assert "Pass KEY=VALUE assignments" in proc.stderr
 
 
-def test_remote_official_hydration_wrapper_can_dry_run_invalid_missing_plan(tmp_path):
+def test_remote_official_hydration_wrapper_generates_missing_plan(tmp_path):
     env = os.environ.copy()
     env["EXECUTE"] = "0"
     env["EXECUTE_DOWNLOADS"] = "0"
-    env["PLAN_JSON"] = str(tmp_path / "missing.json")
+    env["PLAN_JSON"] = str(tmp_path / "generated_plan.json")
     env["VALIDATION_JSON"] = str(tmp_path / "validation.json")
     env["RUN_JSON"] = str(tmp_path / "run.json")
     proc = subprocess.run(
@@ -30,8 +30,9 @@ def test_remote_official_hydration_wrapper_can_dry_run_invalid_missing_plan(tmp_
         text=True,
     )
 
-    assert proc.returncode != 0
-    assert "missing.json" in proc.stderr or "missing.json" in proc.stdout
+    assert proc.returncode == 0
+    assert (tmp_path / "generated_plan.json").exists()
+    assert '"status": "dry_run"' in proc.stdout
 
 
 def test_remote_official_hydration_wrapper_can_chain_guarded_post_validation_test(tmp_path):
