@@ -184,6 +184,20 @@ def _gate_source_mismatches(gate: Mapping[str, Any] | None, data_schema: Mapping
     return mismatches
 
 
+def _result_record_mismatches(paths: list[str] | None, required_tokens: list[str]) -> list[str]:
+    mismatches: list[str] = []
+    for raw_path in paths or []:
+        path = Path(raw_path)
+        if not path.exists():
+            mismatches.append(f"result record missing: {path}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in required_tokens:
+            if token not in text:
+                mismatches.append(f"result record {path} is missing token {token!r}")
+    return mismatches
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
@@ -256,6 +270,22 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         test_allowed = False
         blockers = ["gate did not authorize held-out test"]
 
+    result_records = list(getattr(args, "result_record", None) or [])
+    require_result_records = bool(getattr(args, "require_result_records", False))
+    required_record_tokens = [status]
+    result_record_mismatches = (
+        _result_record_mismatches(result_records, required_record_tokens) if require_result_records else []
+    )
+    if result_record_mismatches and status not in {
+        "missing_evidence",
+        "invalid_data_identity",
+        "invalid_test_leakage",
+        "invalid_multiple_tests",
+    }:
+        status = "invalid_result_record"
+        test_allowed = False
+        blockers = result_record_mismatches
+
     requirements = [
         _requirement(
             "real_light_v1_train_val_accessed",
@@ -287,8 +317,11 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _requirement(
             "results_recorded",
-            "satisfied" if gate and compatibility else "partial",
-            ", ".join(path for path in (gate_path, compatibility_path) if path) or "missing result artifacts",
+            "satisfied"
+            if gate and compatibility and (not require_result_records or not result_record_mismatches)
+            else "partial",
+            ", ".join(path for path in (gate_path, compatibility_path, *result_records) if path)
+            or "missing result artifacts",
         ),
     ]
 
@@ -326,6 +359,13 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
             "mismatches": data_identity_mismatches,
             "gate_source_mismatches": gate_source_mismatches,
             "passed": not data_identity_blockers,
+        },
+        "result_record_policy": {
+            "required": require_result_records,
+            "records": result_records,
+            "required_tokens": required_record_tokens,
+            "mismatches": result_record_mismatches,
+            "passed": not result_record_mismatches,
         },
         "recommendation": (
             "Rebuild a benchmark split with shared transport-rate support, or retire the constant-shift "
@@ -366,6 +406,17 @@ def main() -> None:
         "--require-data-identity",
         action="store_true",
         help="Fail unless every existing inspected split has an expected SHA-256 value.",
+    )
+    parser.add_argument(
+        "--result-record",
+        action="append",
+        default=None,
+        help="Repo record file that must mention the current audit status when --require-result-records is set.",
+    )
+    parser.add_argument(
+        "--require-result-records",
+        action="store_true",
+        help="Fail unless every --result-record file contains the current audit status token.",
     )
     parser.add_argument(
         "--require-status",

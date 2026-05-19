@@ -71,5 +71,8 @@ python scripts/audit_transport_shift_goal.py \
   --expected-data-sha256 "val=${EXPECTED_VAL_SHA256}" \
   --expected-data-sha256 "test=${EXPECTED_TEST_SHA256}" \
   --require-data-identity \
+  --result-record worklog.md \
+  --result-record docs/superpowers/plans/2026-05-11-universal-physics-sota-improvement-plan.md \
+  --require-result-records \
   --output-json "$AUDIT_JSON" \
   --require-status "$AUDIT_REQUIRE_STATUS"

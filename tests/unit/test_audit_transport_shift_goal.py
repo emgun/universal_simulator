@@ -64,6 +64,8 @@ def _args(tmp_path, gate, selection):
         schema_splits=["train", "val", "test"],
         expected_data_sha256=None,
         require_data_identity=False,
+        result_record=None,
+        require_result_records=False,
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -175,6 +177,8 @@ def test_audit_reports_available_parameter_metadata(tmp_path):
         schema_splits=["train", "val", "test"],
         expected_data_sha256=None,
         require_data_identity=False,
+        result_record=None,
+        require_result_records=False,
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -214,6 +218,41 @@ def test_audit_can_require_identity_for_all_existing_splits(tmp_path):
     assert record["status"] == "invalid_data_identity"
     assert record["data_identity_policy"]["missing"]
     assert any("val missing required expected sha256" in blocker for blocker in record["blockers"])
+
+
+def test_audit_can_require_result_records(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    record_path = tmp_path / "worklog.md"
+    record_path.write_text("status: blocked_incompatible_splits\n", encoding="utf-8")
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+    args = _args(tmp_path, gate, selection)
+    args.result_record = [str(record_path)]
+    args.require_result_records = True
+
+    record = audit_goal(args)
+
+    assert record["status"] == "blocked_incompatible_splits"
+    assert record["result_record_policy"]["passed"] is True
+
+
+def test_audit_flags_missing_result_record_status(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    record_path = tmp_path / "worklog.md"
+    record_path.write_text("status: stale\n", encoding="utf-8")
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+    args = _args(tmp_path, gate, selection)
+    args.result_record = [str(record_path)]
+    args.require_result_records = True
+
+    record = audit_goal(args)
+
+    assert record["status"] == "invalid_result_record"
+    assert record["result_record_policy"]["passed"] is False
+    assert "blocked_incompatible_splits" in record["blockers"][0]
 
 
 def test_audit_flags_gate_source_mismatch(tmp_path):

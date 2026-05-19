@@ -1635,3 +1635,17 @@ Follow-up runner update (2026-05-19, default promotion path fails closed):
 - Interpretation:
   - the one-command official promotion path correctly refuses to pass on current evidence
   - the nonzero exit is the desired benchmark-clean stop condition, not an execution failure
+
+Follow-up audit update (2026-05-19, result-record enforcement):
+- Added `--result-record` and `--require-result-records` to `scripts/audit_transport_shift_goal.py`.
+- Updated `scripts/run_official_transport_shift_audit.sh` to require both repo-local records:
+  - `worklog.md`
+  - `docs/superpowers/plans/2026-05-11-universal-physics-sota-improvement-plan.md`
+- Current official report-only refresh:
+  - `result_record_policy.required`: `true`
+  - `result_record_policy.required_tokens`: `["blocked_incompatible_splits"]`
+  - `result_record_policy.mismatches`: `[]`
+  - `result_record_policy.passed`: `true`
+- Interpretation:
+  - the audit now checks that the current benchmark-clean stop condition is recorded in both required repo handoff documents
+  - the remaining blocker is still train/val split incompatibility
