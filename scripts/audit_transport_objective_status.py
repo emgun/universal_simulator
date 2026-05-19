@@ -41,6 +41,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_plan_validation, hydration_plan_validation_path = _load_json(args.hydration_plan_validation_json)
     hydration_plan_run, hydration_plan_run_path = _load_json(args.hydration_plan_run_json)
     hydration_preflight, hydration_preflight_path = _load_json(args.hydration_preflight_json)
+    hydration_storage, hydration_storage_path = _load_json(args.hydration_storage_json)
 
     constant_status = _status(constant_audit)
     observed_status = _status(observed_audit)
@@ -52,6 +53,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_plan_validation_status = _status(hydration_plan_validation)
     hydration_plan_run_status = _status(hydration_plan_run)
     hydration_preflight_status = _status(hydration_preflight)
+    hydration_storage_status = _status(hydration_storage)
     observed_accepted = bool(getattr(args, "accept_observed_context", False))
     context_accepted = bool(getattr(args, "accept_context_transport", False))
 
@@ -88,6 +90,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append(f"official hydration plan run status is {hydration_plan_run_status}")
         if hydration_preflight_status:
             blockers.append(f"official hydration preflight status is {hydration_preflight_status}")
+        if hydration_storage_status:
+            blockers.append(f"official hydration storage status is {hydration_storage_status}")
         if context_status == "achieved":
             blockers.append("two-frame context transport result is achieved but not accepted for literal objective")
         if observed_status == "achieved":
@@ -108,6 +112,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 or hydration_plan_validation
                 or hydration_plan_run
                 or hydration_preflight
+                or hydration_storage
             )
             else "missing",
             "evidence": ", ".join(
@@ -123,6 +128,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                     hydration_plan_validation_path,
                     hydration_plan_run_path,
                     hydration_preflight_path,
+                    hydration_storage_path,
                 )
                 if path
             )
@@ -139,7 +145,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 f"hydration_status={hydration_status}; hydration_plan_status={hydration_plan_status}; "
                 f"hydration_plan_validation_status={hydration_plan_validation_status}; "
                 f"hydration_plan_run_status={hydration_plan_run_status}; "
-                f"hydration_preflight_status={hydration_preflight_status}"
+                f"hydration_preflight_status={hydration_preflight_status}; "
+                f"hydration_storage_status={hydration_storage_status}"
             ),
         },
         {
@@ -215,6 +222,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "hydration_plan_run_status": hydration_plan_run_status,
             "hydration_preflight_json": hydration_preflight_path,
             "hydration_preflight_status": hydration_preflight_status,
+            "hydration_storage_json": hydration_storage_path,
+            "hydration_storage_status": hydration_storage_status,
         },
         "recommendation": (
             "If two-frame context is benchmark-accepted, prefer the context transport result; "
@@ -272,6 +281,10 @@ def main() -> None:
     parser.add_argument(
         "--hydration-preflight-json",
         default="reports/research/sota_loop/official_advection_hydration_preflight.json",
+    )
+    parser.add_argument(
+        "--hydration-storage-json",
+        default="reports/research/sota_loop/official_advection_hydration_storage_recommendation.json",
     )
     parser.add_argument("--accept-observed-context", action="store_true")
     parser.add_argument("--accept-context-transport", action="store_true")

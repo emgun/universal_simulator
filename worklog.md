@@ -1999,3 +1999,20 @@ Follow-up preflight update (2026-05-19, official hydration disk capacity):
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `official hydration preflight status is blocked_insufficient_disk`
+
+Follow-up storage update (2026-05-19, official hydration storage recommendation):
+- Added `scripts/recommend_transport_hydration_storage.py`.
+- Generated `reports/research/sota_loop/official_advection_hydration_storage_recommendation.json` (ignored local report).
+- Storage recommendation status: `external_or_freed_space_required`.
+- Checked candidate roots:
+  - `data/pdebench/raw`
+  - `/private/tmp`
+  - `/Volumes`
+- All candidates resolve to the same filesystem with `1588920320` free bytes at audit time.
+- Required free bytes remain `75743295958`.
+- Recommendation:
+  - free local disk space or mount a larger volume
+  - regenerate the hydration plan with `--raw-out`, `--hydrated-source-root`, and `--hydrated-light-root` pointing to that larger root
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `official hydration storage status is external_or_freed_space_required`

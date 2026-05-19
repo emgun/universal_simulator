@@ -1375,3 +1375,14 @@ Disk preflight:
 - Required free bytes with safety factor `1.15`: `75743295958`.
 - Current free bytes at `data/pdebench/raw`: `1599369216`.
 - `scripts/run_official_transport_objective_status.sh` now reads the preflight artifact; default literal mode still exits `2` with `status=literal_blocked` until enough disk is available and the official hydration stages run.
+
+Storage recommendation:
+
+- Script: `scripts/recommend_transport_hydration_storage.py`.
+- Output: `reports/research/sota_loop/official_advection_hydration_storage_recommendation.json` (ignored local report).
+- Status: `external_or_freed_space_required`.
+- Candidate roots checked: `data/pdebench/raw`, `/private/tmp`, `/Volumes`.
+- All checked roots resolve to the same filesystem and had `1588920320` free bytes at audit time.
+- Required free bytes remain `75743295958`.
+- Next literal-path action is to free disk or mount a larger volume, then regenerate the hydration plan with `--raw-out`, `--hydrated-source-root`, and `--hydrated-light-root` pointing to that storage root.
+- `scripts/run_official_transport_objective_status.sh` now reads the storage recommendation artifact; default literal mode still exits `2` with `status=literal_blocked`.
