@@ -1124,3 +1124,4 @@ Audit enforcement:
 - `scripts/audit_transport_shift_goal.py --require-status test-ready` now exits nonzero unless the evidence permits the one held-out test.
 - Against current artifacts it exits `2`, preserving the stop condition while status remains `blocked_incompatible_splits`.
 - `--require-status achieved` is available for any future release gate that should pass only after the validation guard and the authorized held-out test are both recorded.
+- `scripts/run_remote_transport_shift_candidate.sh` now runs that audit after all-split candidate gates, defaulting to `AUDIT_REQUIRE_STATUS=achieved`; this makes the remote/full-source path fail closed unless the complete benchmark-clean result is actually present.

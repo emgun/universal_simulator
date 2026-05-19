@@ -116,6 +116,7 @@ REFERENCE_METRIC_VALUE=${REFERENCE_METRIC_VALUE:-0.30780652221851373}
 VAL_MIN_RELATIVE_IMPROVEMENT=${VAL_MIN_RELATIVE_IMPROVEMENT:-0.0}
 REQUIRED_GB=${REQUIRED_GB:-80}
 PUBLISH_CANDIDATE=${PUBLISH_CANDIDATE:-0}
+AUDIT_REQUIRE_STATUS=${AUDIT_REQUIRE_STATUS:-achieved}
 
 SHIFTS=${SHIFTS:--96,-88,-80,-72,-64,-56,-48,-40,-32,-24,-16,-8,0,8,16,24,32,40,48,56,64,72,80,88,96}
 
@@ -134,6 +135,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   fi
   echo "DRY_RUN: build ${CANDIDATE_ROOT} with selected train start and held-out val/test starts"
   echo "DRY_RUN: run train/val gate and one held-out test only if validation passes"
+  if [ "$SCAN_ALL_SPLITS" -eq 1 ]; then
+    echo "DRY_RUN: audit final evidence with require_status=${AUDIT_REQUIRE_STATUS}"
+  fi
   exit 0
 fi
 
@@ -180,6 +184,7 @@ run_scan() {
 }
 
 train_scan_json="${OUTPUT_ROOT}/train_window_scan.json"
+selection_json=""
 run_scan train "$train_scan_json"
 
 if [ "$SCAN_ALL_SPLITS" -eq 1 ]; then
@@ -266,6 +271,17 @@ python scripts/run_transport_shift_gate.py \
   --val-min-relative-improvement "$VAL_MIN_RELATIVE_IMPROVEMENT" \
   --output-json "$gate_json" \
   "${shift_args[@]}"
+
+if [ "$SCAN_ALL_SPLITS" -eq 1 ]; then
+  audit_json="${OUTPUT_ROOT}/transport_shift_goal_audit.json"
+  python scripts/audit_transport_shift_goal.py \
+    --official-gate-json "$gate_json" \
+    --compatible-window-selection-json "$selection_json" \
+    --data-root "$CANDIDATE_ROOT" \
+    --task "$TASK" \
+    --output-json "$audit_json" \
+    --require-status "$AUDIT_REQUIRE_STATUS"
+fi
 
 if [ "$PUBLISH_CANDIDATE" -eq 1 ]; then
   if [ -z "$REMOTE_PREFIX" ]; then

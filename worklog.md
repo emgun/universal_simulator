@@ -1517,3 +1517,16 @@ Follow-up audit update (2026-05-19, fail-closed CLI mode):
   - `report` keeps the audit usable for diagnostics
   - `test-ready` lets remote/CI scripts fail closed unless validation and compatibility allow the one permitted held-out test
   - `achieved` lets release checks fail unless the complete benchmark-clean result, including the authorized test, is present
+
+Experiment loop update (2026-05-19, remote pipeline audit enforcement):
+- Updated `scripts/run_remote_transport_shift_candidate.sh`:
+  - all-split runs now execute `scripts/audit_transport_shift_goal.py` after `scripts/run_transport_shift_gate.py`
+  - default `AUDIT_REQUIRE_STATUS=achieved`, so the remote candidate pipeline exits nonzero unless the validation gate passed and the authorized held-out test result is recorded
+  - dry runs announce the final audit requirement
+- Verification:
+  - `DRY_RUN=1 SCAN_ALL_SPLITS=1 REQUIRE_TEST_COMPATIBLE=1 bash scripts/run_remote_transport_shift_candidate.sh`
+  - `bash -n scripts/run_remote_transport_shift_candidate.sh`
+  - `tests/unit/test_remote_transport_shift_candidate.py`
+- Interpretation:
+  - this does not change the benchmark criteria or turn the current blocked evidence into success
+  - it makes the original held-out-test invariant executable in the remote/full-source pipeline that would produce a valid result if compatible evidence ever exists
