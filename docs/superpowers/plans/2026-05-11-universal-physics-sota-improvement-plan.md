@@ -1144,8 +1144,10 @@ Implemented:
 
 - `scripts/run_observed_transport_shift_gate.py` now records `data_sources` fingerprints for train/val/test.
 - `scripts/run_observed_transport_shift_gate.py` supports `--test-ledger-json` to prevent accidental repeated held-out test measurement for the same observed-gate configuration.
+- `scripts/run_official_observed_transport_shift_gate.sh` is the local official observed-context transport command.
 - `tests/unit/test_run_observed_transport_shift_gate.py` covers the source-fingerprint output.
 - `tests/unit/test_run_observed_transport_shift_gate.py` covers first-write ledger behavior, repeat-test refusal, and explicit debugging repeat behavior.
+- `tests/unit/test_official_observed_transport_shift_gate.py` covers the dry-run contract for the official observed command.
 
 Evidence:
 
@@ -1164,6 +1166,8 @@ Interpretation:
 
 Held-out test policy:
 
+- Official observed-context command: `bash scripts/run_official_observed_transport_shift_gate.sh`.
+- Safe command preview: `DRY_RUN=1 bash scripts/run_official_observed_transport_shift_gate.sh`.
 - Future official observed-gate runs should pass `--test-ledger-json reports/research/sota_loop/observed_transport_shift_test_ledger.json`.
 - The ledger key is derived from the estimator, candidate shifts, train/val/test fingerprints, split names, sample caps, rollout steps, metric, reference metric, and validation threshold.
 - Reusing the same key fails before measuring held-out test again unless `--allow-repeat-test` is explicitly set for debugging; debugging repeats do not append another official ledger entry.

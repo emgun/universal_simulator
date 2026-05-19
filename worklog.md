@@ -1699,3 +1699,18 @@ Follow-up gate update (2026-05-19, observed held-out test ledger):
 - Interpretation:
   - the observed-context path now has a concrete mechanism for the objective's "exactly one held-out test" requirement
   - the previously recorded test result remains the current evidence; future official reruns should use the ledger flag to avoid accidental repeated test evaluation
+
+Follow-up runner update (2026-05-19, official observed transport command):
+- Added `scripts/run_official_observed_transport_shift_gate.sh`.
+- The command wraps the real `light-v1` lagged observed-transition gate with:
+  - train split `train`
+  - validation split `val`
+  - guarded test split `test`
+  - reference metric `0.30780652221851373`
+  - default evidence path `reports/research/sota_loop/observed_transport_shift_gate_real_light_v1.json`
+  - default exactly-once test ledger `reports/research/sota_loop/observed_transport_shift_test_ledger.json`
+- `DRY_RUN=1` prints the exact local-safe command contract.
+- `ALLOW_REPEAT_TEST=1` is exposed only as an explicit debugging override.
+- Interpretation:
+  - the observed-context candidate now has a reproducible official local entrypoint instead of an ad hoc command line
+  - this improves the benchmark-clean path if the two-frame observed-context policy is accepted
