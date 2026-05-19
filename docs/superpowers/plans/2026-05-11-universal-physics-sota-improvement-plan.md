@@ -1211,6 +1211,9 @@ Full local train/val rerun:
 Objective-level audit:
 
 - Script: `scripts/audit_transport_objective_status.py`.
+- Official command: `bash scripts/run_official_transport_objective_status.sh`.
+- Default command behavior requires literal objective status `literal-achieved`; it does not rerun gates and does not touch held-out test.
+- Observed-context acceptance command: `ACCEPT_OBSERVED_CONTEXT=1 REQUIRE_STATUS=observed-accepted bash scripts/run_official_transport_objective_status.sh`.
 - Literal mode output: `reports/research/sota_loop/transport_objective_status.json` (ignored local report), `status=literal_blocked`.
 - Observed-accepted mode output: `reports/research/sota_loop/transport_objective_status_observed_accepted.json` (ignored local report), `status=observed_context_achieved`.
 - Current literal blockers: constant train-only audit is `blocked_incompatible_splits`; train-only feature diagnostic is `blocked_no_train_support_for_validation_shift`; observed-context result is achieved but not accepted for the literal objective.

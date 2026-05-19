@@ -1800,3 +1800,16 @@ Follow-up audit update (2026-05-19, objective-level transport status):
   - caveat: literal train-only shift objective remains unproven and status depends on accepting two-frame observed context
 - Interpretation:
   - this is the clearest current state split: literal train-only objective is blocked; observed-context result is promotable only under an explicit benchmark-policy acceptance
+
+Follow-up runner update (2026-05-19, official objective status command):
+- Added `scripts/run_official_transport_objective_status.sh`.
+- Default behavior:
+  - reads existing constant, observed, and train-only feature evidence
+  - does not rerun gates
+  - does not touch held-out test
+  - requires `literal-achieved`
+- Observed-context policy mode:
+  - `ACCEPT_OBSERVED_CONTEXT=1 REQUIRE_STATUS=observed-accepted bash scripts/run_official_transport_objective_status.sh`
+- Interpretation:
+  - there is now a single official command for the final release question
+  - it fails closed for the literal objective by default and only passes observed-context promotion when that policy is explicitly selected
