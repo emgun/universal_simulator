@@ -1868,3 +1868,25 @@ Experiment loop update (2026-05-19, two-frame context transport gate):
   - this is cleaner than the lagged observed-transition gate because it does not use per-step future observed transitions during rollout
   - it is still not the literal one-frame train-only constant-shift objective; it requires a benchmark policy that allows two initial context frames for state-conditioned prediction
   - under that two-frame-context policy, the current local `light-v1` Advection result is validation-clean and has a guarded held-out test measurement
+
+Follow-up audit update (2026-05-19, context transport result):
+- Added `scripts/audit_context_transport_shift_result.py`.
+- Added `scripts/run_official_context_transport_shift_gate.sh`.
+- Updated `scripts/audit_transport_objective_status.py` and `scripts/run_official_transport_objective_status.sh` to include an explicit `context-accepted` policy mode.
+- Direct audit command:
+  - output: `reports/research/sota_loop/context_transport_shift_goal_audit.json` (ignored local report)
+  - exit code: `0`
+  - status: `achieved`
+  - verified data identities, no gate/source mismatches, validation pass, exactly one authorized test result, and result-record tokens `achieved`, `0.12336619943380356`, and `0.040703773498535156`
+- Context-accepted objective command:
+  - command: `ACCEPT_CONTEXT_TRANSPORT=1 REQUIRE_STATUS=context-accepted OBJECTIVE_STATUS_JSON=reports/research/sota_loop/transport_objective_status_context_accepted.json bash scripts/run_official_transport_objective_status.sh`
+  - exit code: `0`
+  - status: `context_transport_achieved`
+- Default literal objective command:
+  - command: `bash scripts/run_official_transport_objective_status.sh`
+  - exit code: `2`
+  - status: `literal_blocked`
+- Interpretation:
+  - the context transport result is now first-class audited evidence
+  - default release behavior still fails closed for the original literal train-only objective
+  - promotion requires an explicit policy decision to accept two initial context frames

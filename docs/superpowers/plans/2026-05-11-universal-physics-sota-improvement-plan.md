@@ -1255,3 +1255,12 @@ Interpretation:
 - This is a stricter state-conditioned result than the lagged observed-transition gate because it does not read future observed transitions after the two-frame context seed.
 - It is not the literal one-frame train-only constant-shift objective; the literal objective remains blocked by train/val/test regime incompatibility.
 - If the benchmark policy allows two initial context frames, this is the highest-signal current result: validation-clean, provenance-fingerprinted, ledger-guarded, and tested once.
+
+Audit enforcement:
+
+- `scripts/audit_context_transport_shift_result.py` is the machine-readable result audit for the two-frame context gate.
+- `scripts/run_official_context_transport_shift_gate.sh` is the official context-gate command; it measures held-out test only after validation passes and uses `reports/research/sota_loop/context_transport_shift_test_ledger.json` to block accidental repeats.
+- A direct audit of the existing ignored context gate artifact returned `status=achieved` without re-running held-out test. It verified data identity, no gate/source mismatches, validation pass, exactly one authorized held-out test result, and result-record tokens `achieved`, `0.12336619943380356`, and `0.040703773498535156`.
+- `scripts/run_official_transport_objective_status.sh` now supports `ACCEPT_CONTEXT_TRANSPORT=1 REQUIRE_STATUS=context-accepted` for explicit two-frame context policy acceptance.
+- The context-accepted objective command returned `status=context_transport_achieved`.
+- The default literal objective command still exits `2` with `status=literal_blocked`; the context result is achieved but not accepted for the literal objective unless the policy flag is set.
