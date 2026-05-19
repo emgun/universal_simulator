@@ -159,6 +159,31 @@ def _missing_required_identities(data_schema: Mapping[str, Any], expected_hashes
     return missing
 
 
+def _gate_source_mismatches(gate: Mapping[str, Any] | None, data_schema: Mapping[str, Any]) -> list[str]:
+    if not gate:
+        return []
+    data_sources = gate.get("data_sources") or {}
+    if not isinstance(data_sources, Mapping):
+        return ["gate data_sources is not a mapping"]
+    mismatches: list[str] = []
+    split_records = data_schema.get("splits", {})
+    for split, record in split_records.items():
+        if not record.get("exists"):
+            continue
+        source = data_sources.get(split)
+        if not isinstance(source, Mapping):
+            mismatches.append(f"gate data_sources missing split {split}")
+            continue
+        for key in ("path", "bytes", "sha256"):
+            actual = record.get(key)
+            claimed = source.get(key)
+            if claimed != actual:
+                mismatches.append(
+                    f"gate data_sources {split}.{key} mismatch: claimed {claimed}, actual {actual}"
+                )
+    return mismatches
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
@@ -169,7 +194,8 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     missing_data_identities = (
         _missing_required_identities(data_schema, expected_hashes) if require_all_identities else []
     )
-    data_identity_blockers = [*missing_data_identities, *data_identity_mismatches]
+    gate_source_mismatches = _gate_source_mismatches(gate, data_schema)
+    data_identity_blockers = [*missing_data_identities, *data_identity_mismatches, *gate_source_mismatches]
 
     missing_inputs = [
         message
@@ -298,6 +324,7 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
             "require_all_inspected_splits": require_all_identities,
             "missing": missing_data_identities,
             "mismatches": data_identity_mismatches,
+            "gate_source_mismatches": gate_source_mismatches,
             "passed": not data_identity_blockers,
         },
         "recommendation": (

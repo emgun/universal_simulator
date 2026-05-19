@@ -1610,3 +1610,14 @@ Follow-up gate update (2026-05-19, source fingerprints in gate artifact):
 - Interpretation:
   - the train-only fit artifact now independently records the exact files it used
   - the audit still remains the promotion authority and continues to block held-out test completion
+
+Follow-up audit update (2026-05-19, gate/source provenance cross-check):
+- Extended `scripts/audit_transport_shift_goal.py` to compare gate-level `data_sources` against independent HDF5 inspection.
+- The audit now marks provenance invalid if the gate artifact claims a different path, byte count, or SHA-256 from the inspected data files.
+- Current official report-only refresh:
+  - `data_identity_policy.gate_source_mismatches`: `[]`
+  - `data_identity_policy.passed`: `true`
+  - audit status remains `blocked_incompatible_splits`
+- Interpretation:
+  - stale or hand-edited gate artifacts cannot silently pass provenance validation
+  - the active blocker remains the actual train/val transport regime mismatch

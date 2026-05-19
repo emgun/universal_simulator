@@ -1131,3 +1131,4 @@ Audit enforcement:
 - The local official runner now enforces those `light-v1` SHA-256 identities by default; current `data_identity_policy.passed=true`, so the remaining blocker is still validation/split incompatibility.
 - The official local runner also requires complete identity coverage for every inspected existing split. Current `data_identity_policy.require_all_inspected_splits=true`, with no missing expected hashes and no mismatches.
 - `scripts/run_transport_shift_gate.py` now writes `data_sources` into the gate artifact, so the train-only fit result itself records the exact train/val/test HDF5 paths, byte counts, and SHA-256 values it used.
+- The audit cross-checks those gate `data_sources` against independently inspected HDF5 files. Current `data_identity_policy.gate_source_mismatches=[]`, so provenance is consistent while validation remains blocked.

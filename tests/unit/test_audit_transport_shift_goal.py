@@ -37,9 +37,25 @@ def _base_gate(*, guard_passed: bool, test_eligible: bool = False, with_test: bo
     return payload
 
 
+def _add_gate_sources(payload, tmp_path):
+    for split in ("train", "val", "test"):
+        path = tmp_path / f"advection1d_{split}.h5"
+        if not path.exists():
+            _write_data_split(tmp_path, split)
+        payload.setdefault("data_sources", {})[split] = {
+            "split": split,
+            "path": str(path),
+            "exists": True,
+            "bytes": path.stat().st_size,
+            "sha256": __import__("hashlib").sha256(path.read_bytes()).hexdigest(),
+        }
+    return payload
+
+
 def _args(tmp_path, gate, selection):
     for split in ("train", "val", "test"):
-        _write_data_split(tmp_path, split)
+        if not (tmp_path / f"advection1d_{split}.h5").exists():
+            _write_data_split(tmp_path, split)
     return Namespace(
         official_gate_json=str(gate),
         compatible_window_selection_json=str(selection),
@@ -55,7 +71,7 @@ def _args(tmp_path, gate, selection):
 def test_audit_reports_incompatible_full_source_splits_as_blocker(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
     _write_json(
         selection,
         {
@@ -83,7 +99,7 @@ def test_audit_reports_incompatible_full_source_splits_as_blocker(tmp_path):
 def test_audit_allows_exactly_one_test_only_after_validation_pass(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _base_gate(guard_passed=True, test_eligible=True))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=True, test_eligible=True), tmp_path))
     _write_json(selection, {"compatible": True, "common_shifts": [0], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -95,7 +111,7 @@ def test_audit_allows_exactly_one_test_only_after_validation_pass(tmp_path):
 def test_audit_marks_achieved_only_when_gate_passed_and_test_exists(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _base_gate(guard_passed=True, test_eligible=True, with_test=True))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=True, test_eligible=True, with_test=True), tmp_path))
     _write_json(selection, {"compatible": True, "common_shifts": [0], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -108,7 +124,7 @@ def test_audit_marks_achieved_only_when_gate_passed_and_test_exists(tmp_path):
 def test_audit_flags_test_result_when_gate_not_eligible(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _base_gate(guard_passed=False, test_eligible=False, with_test=True))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False, test_eligible=False, with_test=True), tmp_path))
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -126,7 +142,7 @@ def test_audit_flags_multiple_test_results(tmp_path):
     selection = tmp_path / "selection.json"
     payload = _base_gate(guard_passed=True, test_eligible=True)
     payload["test"] = [{"selected_test": {"nrmse": 0.1}}, {"selected_test": {"nrmse": 0.2}}]
-    _write_json(gate, payload)
+    _write_json(gate, _add_gate_sources(payload, tmp_path))
     _write_json(selection, {"compatible": True, "common_shifts": [0], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -146,7 +162,7 @@ def test_audit_reports_missing_evidence(tmp_path):
 def test_audit_reports_available_parameter_metadata(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
     for split in ("train", "val", "test"):
         _write_data_split(tmp_path, split, with_metadata=True)
@@ -172,7 +188,7 @@ def test_audit_enforces_expected_data_identity(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
     args = _args(tmp_path, gate, selection)
-    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
     args.expected_data_sha256 = ["train=" + ("0" * 64)]
 
@@ -187,7 +203,7 @@ def test_audit_can_require_identity_for_all_existing_splits(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
     args = _args(tmp_path, gate, selection)
-    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
     train_sha = audit_goal(args)["data_schema"]["splits"]["train"]["sha256"]
     args.expected_data_sha256 = [f"train={train_sha}"]
@@ -198,6 +214,20 @@ def test_audit_can_require_identity_for_all_existing_splits(tmp_path):
     assert record["status"] == "invalid_data_identity"
     assert record["data_identity_policy"]["missing"]
     assert any("val missing required expected sha256" in blocker for blocker in record["blockers"])
+
+
+def test_audit_flags_gate_source_mismatch(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    payload = _add_gate_sources(_base_gate(guard_passed=False), tmp_path)
+    payload["data_sources"]["train"]["sha256"] = "0" * 64
+    _write_json(gate, payload)
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+
+    record = audit_goal(_args(tmp_path, gate, selection))
+
+    assert record["status"] == "invalid_data_identity"
+    assert any("gate data_sources train.sha256 mismatch" in blocker for blocker in record["blockers"])
 
 
 def test_audit_exit_policy_fails_closed_for_blocked_status():
