@@ -1495,3 +1495,14 @@ Experiment loop update (2026-05-19, transport-shift goal audit):
   - the audit makes the active objective mechanically checkable instead of relying on prose scattered across the worklog
   - this does not complete the original benchmark-clean constant-shift objective
   - it preserves the benchmark discipline: no validation-selected shift and no held-out test without a train-supported validation pass
+
+Follow-up audit update (2026-05-19, Advection schema evidence):
+- Extended `scripts/audit_transport_shift_goal.py` to inspect the real `light-v1` HDF5 schema.
+- Current Advection split schema:
+  - `advection1d_train.h5`: only dataset `data`, shape `[128, 201, 1024, 1]`, no file attrs, no dataset attrs
+  - `advection1d_val.h5`: only dataset `data`, shape `[32, 201, 1024, 1]`, no file attrs, no dataset attrs
+  - `advection1d_test.h5`: only dataset `data`, shape `[32, 201, 1024, 1]`, no file attrs, no dataset attrs
+  - `parameter_metadata_available`: `false`
+- Interpretation:
+  - there is no allowed coefficient/velocity/metadata field in the current `light-v1` artifacts that could support a train-fitted metadata-to-shift extrapolator
+  - the remaining valid routes are unchanged: benchmark split reconstruction with compatible transport-rate support, or a learned/state-conditioned mechanism that proves validation lift without selecting validation/test shifts

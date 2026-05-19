@@ -3,11 +3,23 @@ from __future__ import annotations
 from argparse import Namespace
 import json
 
+import h5py
+import torch
+
 from scripts.audit_transport_shift_goal import audit_goal
 
 
 def _write_json(path, payload) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_data_split(root, split: str, *, with_metadata: bool = False) -> None:
+    with h5py.File(root / f"advection1d_{split}.h5", "w") as handle:
+        data = handle.create_dataset("data", data=torch.zeros(2, 3, 4, 1).numpy())
+        if with_metadata:
+            handle.attrs["source"] = "synthetic"
+            data.attrs["dt"] = 0.1
+            handle.create_dataset("beta", data=torch.ones(2, 1).numpy())
 
 
 def _base_gate(*, guard_passed: bool, test_eligible: bool = False, with_test: bool = False):
@@ -26,9 +38,14 @@ def _base_gate(*, guard_passed: bool, test_eligible: bool = False, with_test: bo
 
 
 def _args(tmp_path, gate, selection):
+    for split in ("train", "val", "test"):
+        _write_data_split(tmp_path, split)
     return Namespace(
         official_gate_json=str(gate),
         compatible_window_selection_json=str(selection),
+        data_root=str(tmp_path),
+        task="advection1d",
+        schema_splits=["train", "val", "test"],
         output_json=str(tmp_path / "audit.json"),
     )
 
@@ -52,6 +69,8 @@ def test_audit_reports_incompatible_full_source_splits_as_blocker(tmp_path):
     assert record["test_allowed"] is False
     assert record["constant_shift"]["best_shifts"] == {"train": 0, "val": 40}
     assert record["constant_shift"]["common_full_source_shifts"] == []
+    assert record["data_schema"]["parameter_metadata_available"] is False
+    assert record["data_schema"]["splits"]["train"]["datasets"]["data"]["shape"] == [2, 3, 4, 1]
     assert any(req["name"] == "validation_sota_guard_passed" and req["status"] == "failed" for req in record["requirements"])
 
 
@@ -85,3 +104,26 @@ def test_audit_reports_missing_evidence(tmp_path):
     assert record["status"] == "missing_evidence"
     assert record["test_allowed"] is False
     assert len(record["blockers"]) == 2
+
+
+def test_audit_reports_available_parameter_metadata(tmp_path):
+    gate = tmp_path / "gate.json"
+    selection = tmp_path / "selection.json"
+    _write_json(gate, _base_gate(guard_passed=False))
+    _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
+    for split in ("train", "val", "test"):
+        _write_data_split(tmp_path, split, with_metadata=True)
+
+    args = Namespace(
+        official_gate_json=str(gate),
+        compatible_window_selection_json=str(selection),
+        data_root=str(tmp_path),
+        task="advection1d",
+        schema_splits=["train", "val", "test"],
+        output_json=str(tmp_path / "audit.json"),
+    )
+
+    record = audit_goal(args)
+
+    assert record["data_schema"]["parameter_metadata_available"] is True
+    assert record["data_schema"]["splits"]["train"]["sample_aligned_auxiliary_datasets"] == ["beta"]

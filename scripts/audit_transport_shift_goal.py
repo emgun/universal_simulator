@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+import h5py
+
 
 REQUIREMENTS = (
     "real_light_v1_train_val_accessed",
@@ -41,9 +43,63 @@ def _extract_best_shifts(gate: Mapping[str, Any] | None) -> dict[str, int]:
     return {str(split): int(shift) for split, shift in best_shifts.items()}
 
 
+def _json_safe_attrs(attrs: Mapping[str, Any]) -> dict[str, Any]:
+    safe: dict[str, Any] = {}
+    for key, value in attrs.items():
+        safe[key] = value.tolist() if hasattr(value, "tolist") else value
+    return safe
+
+
+def _inspect_hdf5_split(path: Path) -> dict[str, Any]:
+    with h5py.File(path, "r") as handle:
+        datasets: dict[str, Any] = {}
+        for key, value in handle.items():
+            if isinstance(value, h5py.Dataset):
+                datasets[key] = {
+                    "shape": [int(dim) for dim in value.shape],
+                    "dtype": str(value.dtype),
+                    "attrs": _json_safe_attrs(value.attrs),
+                }
+        sample_aligned = [
+            key
+            for key, value in datasets.items()
+            if key != "data" and datasets.get("data") and value["shape"][:1] == datasets["data"]["shape"][:1]
+        ]
+        return {
+            "path": str(path),
+            "exists": True,
+            "file_attrs": _json_safe_attrs(handle.attrs),
+            "datasets": datasets,
+            "sample_aligned_auxiliary_datasets": sample_aligned,
+            "has_parameter_metadata": bool(handle.attrs) or any(
+                key != "data" or bool(value["attrs"]) for key, value in datasets.items()
+            ),
+        }
+
+
+def _inspect_data_schema(data_root: str, task: str, splits: list[str]) -> dict[str, Any]:
+    root = Path(data_root)
+    split_records: dict[str, Any] = {}
+    for split in splits:
+        path = root / f"{task}_{split}.h5"
+        if not path.exists():
+            split_records[split] = {"path": str(path), "exists": False}
+            continue
+        split_records[split] = _inspect_hdf5_split(path)
+    return {
+        "data_root": str(root),
+        "task": task,
+        "splits": split_records,
+        "parameter_metadata_available": any(
+            bool(record.get("has_parameter_metadata")) for record in split_records.values() if record.get("exists")
+        ),
+    }
+
+
 def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     gate, gate_path = _load_optional_json(args.official_gate_json)
     compatibility, compatibility_path = _load_optional_json(args.compatible_window_selection_json)
+    data_schema = _inspect_data_schema(args.data_root, args.task, args.schema_splits)
 
     missing_inputs = [
         message
@@ -135,6 +191,7 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
             "common_full_source_shifts": common_shifts,
             "histograms": (compatibility or {}).get("histograms"),
         },
+        "data_schema": data_schema,
         "recommendation": (
             "Rebuild a benchmark split with shared transport-rate support, or retire the constant-shift "
             "target and pursue a learned/state-conditioned transport mechanism."
@@ -154,6 +211,9 @@ def main() -> None:
         default="reports/research/sota_loop/remote_transport_shift_candidate_all_splits/compatible_window_selection.json",
         help="Result from scripts/select_transport_compatible_windows.py",
     )
+    parser.add_argument("--data-root", default="data/pdebench", help="Directory containing light-v1 HDF5 files")
+    parser.add_argument("--task", default="advection1d")
+    parser.add_argument("--schema-splits", nargs="+", default=["train", "val", "test"])
     parser.add_argument("--output-json", required=True)
     args = parser.parse_args()
 

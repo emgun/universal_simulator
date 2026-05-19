@@ -1105,11 +1105,13 @@ Current audit result:
 - Satisfied: real `light-v1` train/val evidence exists; train-only shift fit exists; current results are recorded.
 - Failed: the train-fitted shift did not pass the validation SOTA guard.
 - Blocked: no held-out test is permitted because the validation and split-compatibility preconditions are not met.
+- Data schema: the real `light-v1` Advection train/val/test HDF5 files contain only `data` tensors, with no file attrs, dataset attrs, coefficient datasets, velocity metadata, or sample-aligned auxiliary parameter fields.
 
 Why this matters:
 
 - The original objective now has a reproducible requirement audit rather than an ambiguous narrative checkpoint.
 - The audit prevents accidental benchmark leakage by explicitly disallowing a held-out test while train/val/test constant-shift support is incompatible.
+- The metadata route is also closed for the current artifact: there is no benchmark-provided parameter field from which to learn a train-only shift extrapolator.
 - This is not a positive SOTA result; it formalizes the blocker so the next step must be a benchmark-policy choice or a new learned/state-conditioned objective.
 
 Recommendation:
