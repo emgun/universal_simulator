@@ -29,11 +29,12 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "DRY_RUN=1 "
         f"DISK_GB={required_disk_gb} "
         "GPU=RTX_4090 "
-        "REMOTE_SCRIPT=scripts/run_transport_official_hydration_plan.py "
-        "EXTRA_PIPELINE_ARGS='--execute --execute-downloads "
-        f"--plan-json {args.remote_plan_json} "
-        f"--validation-json {args.remote_validation_json} "
-        f"--output-json {args.remote_run_json}' "
+        "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh "
+        "EXTRA_PIPELINE_ARGS='"
+        f"PLAN_JSON={args.remote_plan_json} "
+        f"VALIDATION_JSON={args.remote_validation_json} "
+        f"RUN_JSON={args.remote_run_json} "
+        "EXECUTE=1 EXECUTE_DOWNLOADS=1 MIN_DOWNLOAD_BYTES=60000000000' "
         "bash scripts/launch_remote_transport_shift_candidate_vast.sh"
     )
     return {
@@ -55,6 +56,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "notes": [
             "This is a launch plan only; it does not start paid compute.",
             "The remote run still uses the staged hydration runner and requires --execute-downloads.",
+            "The Vast launcher invokes a bash wrapper; do not use a Python file as REMOTE_SCRIPT.",
             "The hydration plan downloads official train files only and builds train/val shards with test_count=0.",
         ],
     }

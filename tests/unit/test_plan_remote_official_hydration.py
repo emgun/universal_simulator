@@ -43,7 +43,8 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert record["required_disk_gb"] >= 120
     assert "DRY_RUN=1" in record["commands"]["dry_run_launcher"]
     assert "DRY_RUN=0" in record["commands"]["actual_launcher"]
-    assert "--execute-downloads" in record["commands"]["actual_launcher"]
+    assert "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh" in record["commands"]["actual_launcher"]
+    assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
     assert record["held_out_test_policy"]["test_split_downloaded"] is False
 
 

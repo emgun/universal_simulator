@@ -2023,11 +2023,12 @@ Follow-up remote execution update (2026-05-19, official hydration remote plan):
 - Remote plan status: `ready_for_remote_hydration`.
 - Required remote disk: `120` GB.
 - Dry-run launcher:
-  - `DRY_RUN=1 DISK_GB=120 GPU=RTX_4090 REMOTE_SCRIPT=scripts/run_transport_official_hydration_plan.py EXTRA_PIPELINE_ARGS='--execute --execute-downloads --plan-json reports/research/sota_loop/official_advection_hydration_plan.json --validation-json reports/research/sota_loop/official_advection_hydration_plan_validation.json --output-json reports/research/sota_loop/official_advection_hydration_plan_run.json' bash scripts/launch_remote_transport_shift_candidate_vast.sh`
+  - `DRY_RUN=1 DISK_GB=120 GPU=RTX_4090 REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh EXTRA_PIPELINE_ARGS='PLAN_JSON=reports/research/sota_loop/official_advection_hydration_plan.json VALIDATION_JSON=reports/research/sota_loop/official_advection_hydration_plan_validation.json RUN_JSON=reports/research/sota_loop/official_advection_hydration_plan_run.json EXECUTE=1 EXECUTE_DOWNLOADS=1 MIN_DOWNLOAD_BYTES=60000000000' bash scripts/launch_remote_transport_shift_candidate_vast.sh`
 - Actual launcher switches `DRY_RUN=0`.
 - Interpretation:
   - the local literal path is blocked by disk, but the next executable route is now a dry-run-first remote job with enough disk
-  - the remote job still uses the staged hydration runner, requires `--execute-downloads`, downloads official train files only, and builds train/val shards with `test_count=0`
+  - the remote job uses `scripts/run_remote_official_hydration.sh` because the Vast launcher invokes remote scripts through `bash`
+  - the wrapper calls the staged hydration runner, requires `EXECUTE_DOWNLOADS=1`, downloads official train files only, and builds train/val shards with `test_count=0`
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `remote official hydration plan status is ready_for_remote_hydration`
