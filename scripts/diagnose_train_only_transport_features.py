@@ -17,13 +17,18 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.fit_transport_shift_head import _candidate_scores, _candidate_shifts, _load_series
 
 
-def _per_sample_best_shifts(fields: torch.Tensor, shifts: Sequence[int], *, rollout_steps: int, metric: str) -> torch.Tensor:
+def _per_sample_shift_stats(
+    fields: torch.Tensor, shifts: Sequence[int], *, rollout_steps: int, metric: str
+) -> tuple[torch.Tensor, torch.Tensor]:
     labels: list[int] = []
+    margins: list[float] = []
     for sample in fields:
         rows = _candidate_scores(sample.unsqueeze(0), shifts, rollout_steps=rollout_steps)
-        best = min(rows, key=lambda row: float(row[metric]))
+        ranked = sorted(rows, key=lambda row: float(row[metric]))
+        best = ranked[0]
         labels.append(int(best["shift"]))
-    return torch.tensor(labels, dtype=torch.long)
+        margins.append(float(ranked[1][metric]) - float(best[metric]) if len(ranked) > 1 else 0.0)
+    return torch.tensor(labels, dtype=torch.long), torch.tensor(margins, dtype=torch.float32)
 
 
 def _first_frame_features(fields: torch.Tensor) -> torch.Tensor:
@@ -73,12 +78,27 @@ def _histogram(values: torch.Tensor) -> dict[str, int]:
     return hist
 
 
+def _summary(values: torch.Tensor) -> dict[str, float]:
+    return {
+        "min": float(values.min().item()),
+        "mean": float(values.mean().item()),
+        "max": float(values.max().item()),
+    }
+
+
 def diagnose(args: argparse.Namespace) -> dict[str, Any]:
     shifts = _candidate_shifts(args.shift)
-    train_fields = _load_series(root=args.data_root, task=args.task, split=args.train_split, max_samples=args.max_samples)
-    val_fields = _load_series(root=args.data_root, task=args.task, split=args.val_split, max_samples=args.val_max_samples or args.max_samples)
-    train_labels = _per_sample_best_shifts(train_fields, shifts, rollout_steps=args.rollout_steps, metric=args.metric)
-    val_labels = _per_sample_best_shifts(val_fields, shifts, rollout_steps=args.rollout_steps, metric=args.metric)
+    train_max_samples = None if args.max_samples is not None and args.max_samples < 0 else args.max_samples
+    val_max_samples = args.max_samples if args.val_max_samples is None else args.val_max_samples
+    val_max_samples = None if val_max_samples is not None and val_max_samples < 0 else val_max_samples
+    train_fields = _load_series(root=args.data_root, task=args.task, split=args.train_split, max_samples=train_max_samples)
+    val_fields = _load_series(root=args.data_root, task=args.task, split=args.val_split, max_samples=val_max_samples)
+    train_labels, train_margins = _per_sample_shift_stats(
+        train_fields, shifts, rollout_steps=args.rollout_steps, metric=args.metric
+    )
+    val_labels, val_margins = _per_sample_shift_stats(
+        val_fields, shifts, rollout_steps=args.rollout_steps, metric=args.metric
+    )
     train_features = _first_frame_features(train_fields)
     val_features = _first_frame_features(val_fields)
     train_features_std, val_features_std = _standardize(train_features, val_features)
@@ -92,8 +112,8 @@ def diagnose(args: argparse.Namespace) -> dict[str, Any]:
         "data_root": str(args.data_root),
         "train_split": args.train_split,
         "val_split": args.val_split,
-        "max_samples": args.max_samples,
-        "val_max_samples": args.val_max_samples or args.max_samples,
+        "max_samples": train_max_samples,
+        "val_max_samples": val_max_samples,
         "rollout_steps": args.rollout_steps,
         "metric": args.metric,
         "candidate_shifts": shifts,
@@ -102,6 +122,8 @@ def diagnose(args: argparse.Namespace) -> dict[str, Any]:
         "train_shift_histogram": _histogram(train_labels),
         "val_shift_histogram": _histogram(val_labels),
         "val_prediction_histogram": _histogram(val_predictions),
+        "train_best_margin_summary": _summary(train_margins),
+        "val_best_margin_summary": _summary(val_margins),
         "unsupported_val_shifts": unsupported_val_shifts,
         "val_accuracy": accuracy,
         "centroids": centroids,
@@ -126,8 +148,8 @@ def main() -> None:
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="val")
-    parser.add_argument("--max-samples", type=int, default=128)
-    parser.add_argument("--val-max-samples", type=int)
+    parser.add_argument("--max-samples", type=int, default=128, help="Train sample cap; use -1 for full split")
+    parser.add_argument("--val-max-samples", type=int, help="Validation sample cap; use -1 for full split")
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")

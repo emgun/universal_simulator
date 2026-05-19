@@ -1197,3 +1197,13 @@ Interpretation:
 - The diagnostic uses train split only to fit the feature-to-shift rule, uses validation only for measurement, and does not read held-out test.
 - A simple first-frame feature head cannot recover the validation shift because the train sample used here contains no shift-`40` support.
 - The literal train-only transport-shift path remains blocked under current local `light-v1`; the remaining viable paths are a split-compatible shard rebuild, an accepted two-frame observed-context policy, or a richer causal mechanism with additional allowed signal.
+
+Full local train/val rerun:
+
+- Command used `--max-samples -1 --val-max-samples -1`, without reading held-out test.
+- Output: `reports/research/sota_loop/train_only_transport_feature_diagnostic_full.json` (ignored local report).
+- Train labels remained `{"0": 128}` and validation labels remained `{"40": 32}`.
+- Validation predictions remained `{"0": 32}`, unsupported validation shifts remained `[40]`, and validation accuracy remained `0.0`.
+- Train best-margin mean/min/max: `0.13357117772102356` / `0.037119414657354355` / `0.29049214720726013`.
+- Validation best-margin mean/min/max: `0.11928332597017288` / `0.04894868656992912` / `0.22282543778419495`.
+- This rules out the earlier 128-sample cap as the reason the train-only first-frame feature probe failed.

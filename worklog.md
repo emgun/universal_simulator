@@ -1760,3 +1760,22 @@ Experiment loop update (2026-05-19, train-only first-frame transport feature dia
   - a simple train-fitted first-frame feature head has no train support for the validation transport regime in the current local shard
   - this reinforces that the literal train-only constant/feature shift path is blocked by split construction, not by another missing sweep
   - the remaining credible options are accepting the two-frame observed-context result, rebuilding split-compatible shards, or training a richer causal mechanism with additional allowed signal
+
+Follow-up diagnostic update (2026-05-19, full local train/val feature probe):
+- Extended `scripts/diagnose_train_only_transport_features.py` with:
+  - explicit full-split caps via `--max-samples -1` and `--val-max-samples -1`
+  - per-sample best-shift margin summaries
+- Ran the diagnostic on the full local `light-v1` train/val shards without reading test.
+- Output: `reports/research/sota_loop/train_only_transport_feature_diagnostic_full.json` (ignored local report).
+- Full-shard result:
+  - train shift histogram: `{"0": 128}`
+  - validation shift histogram: `{"40": 32}`
+  - validation prediction histogram: `{"0": 32}`
+  - unsupported validation shifts: `[40]`
+  - validation accuracy: `0.0`
+  - train best-margin mean/min/max: `0.13357117772102356` / `0.037119414657354355` / `0.29049214720726013`
+  - validation best-margin mean/min/max: `0.11928332597017288` / `0.04894868656992912` / `0.22282543778419495`
+  - conclusion: `blocked_no_train_support_for_validation_shift`
+- Interpretation:
+  - the train-only first-frame feature failure is not a sample-cap artifact; it holds over the full local train/val shards
+  - the positive margins indicate the shift labels are not ambiguous ties under the tested candidate grid

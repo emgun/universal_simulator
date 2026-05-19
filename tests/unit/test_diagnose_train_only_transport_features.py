@@ -41,6 +41,7 @@ def test_train_only_feature_diagnostic_flags_unsupported_validation_shift(tmp_pa
 
     assert record["train_shift_histogram"] == {"0": 2, "1": 2}
     assert record["val_shift_histogram"] == {"2": 2}
+    assert record["val_best_margin_summary"]["min"] >= 0.0
     assert record["unsupported_val_shifts"] == [2]
     assert record["conclusion"] == "blocked_no_train_support_for_validation_shift"
 
@@ -53,3 +54,32 @@ def test_train_only_feature_diagnostic_uses_no_test_split(tmp_path):
 
     assert record["notes"][-1] == "Does not read or evaluate the held-out test split."
     assert record["unsupported_val_shifts"] == []
+
+
+def test_train_only_feature_diagnostic_allows_distinct_val_cap(tmp_path):
+    _write_split(tmp_path, split="train", shifts=[0, 0])
+    _write_split(tmp_path, split="val", shifts=[0, 0, 0, 0])
+    args = _args(tmp_path)
+    args.max_samples = 2
+    args.val_max_samples = 3
+
+    record = diagnose(args)
+
+    assert record["max_samples"] == 2
+    assert record["val_max_samples"] == 3
+    assert record["val_shift_histogram"] == {"0": 3}
+
+
+def test_train_only_feature_diagnostic_supports_full_split_caps(tmp_path):
+    _write_split(tmp_path, split="train", shifts=[0, 0, 0])
+    _write_split(tmp_path, split="val", shifts=[0, 0])
+    args = _args(tmp_path)
+    args.max_samples = -1
+    args.val_max_samples = -1
+
+    record = diagnose(args)
+
+    assert record["max_samples"] is None
+    assert record["val_max_samples"] is None
+    assert record["train_shift_histogram"] == {"0": 3}
+    assert record["val_shift_histogram"] == {"0": 2}
