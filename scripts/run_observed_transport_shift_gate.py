@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.calibrate_residual_gate import _test_guard_result
 from scripts.fit_transport_shift_head import _candidate_shifts, _load_series
+from scripts.run_transport_shift_gate import _split_source_record
 
 
 def _estimate_shift_indices(
@@ -155,9 +156,18 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             metric=args.metric,
         )
 
+    source_splits = [args.train_split, args.val_split]
+    if args.test_split:
+        source_splits.append(args.test_split)
+    data_sources = {
+        split: _split_source_record(args.data_root, args.task, split)
+        for split in dict.fromkeys(source_splits)
+    }
+
     return {
         "task": args.task,
         "data_root": str(args.data_root),
+        "data_sources": data_sources,
         "metric": args.metric,
         "candidate_shifts": shifts,
         "rollout_steps": args.rollout_steps,

@@ -1135,3 +1135,27 @@ Audit enforcement:
 - The default official promotion command `bash scripts/run_official_transport_shift_audit.sh` exits `2` on current evidence. This is the intended fail-closed behavior: provenance passes, but `status=blocked_incompatible_splits`, `test_eligible=false`, and no held-out test result is recorded.
 - The official audit now enforces result recording in both `worklog.md` and this plan. Current `result_record_policy.passed=true` with required token `blocked_incompatible_splits`.
 - The result-record audit now also requires the measured selected-validation NRMSE. Current `result_record_policy.passed=true` with required tokens `blocked_incompatible_splits` and `0.5140249729156494`, so status-only handoffs fail the official audit.
+
+### 2026-05-19: Lagged Observed-Transition Transport Gate
+
+Status: real local `light-v1` Advection validation passed and the guarded held-out test was measured for a state-conditioned, two-frame observed-context transport estimator.
+
+Implemented:
+
+- `scripts/run_observed_transport_shift_gate.py` now records `data_sources` fingerprints for train/val/test.
+- `tests/unit/test_run_observed_transport_shift_gate.py` covers the source-fingerprint output.
+
+Evidence:
+
+- Command output artifact: `reports/research/sota_loop/observed_transport_shift_gate_real_light_v1.json` (ignored local report).
+- Data identities: train SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`, val SHA-256 `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`, test SHA-256 `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`.
+- Estimator: `lagged_observed_transition_shift`; train locks candidate shift support, validation does not select a split-level shift.
+- Train NRMSE `0.014504759572446346`, shift mean/std `0.0` / `0.0`.
+- Validation NRMSE `0.012846261262893677`, shift mean/std `40.0` / `0.0`, relative improvement `0.9582651427581705` versus reference `0.30780652221851373`; `validation_guard.passed=true`.
+- Held-out test ran only after validation passed; test NRMSE `0.004225204233080149`, shift mean/std `72.0` / `0.0`.
+
+Interpretation:
+
+- This is a benchmark-clean result only under a two-frame observed-context policy where `t-1 -> t` is allowed context for predicting `t -> t+1`.
+- It should not be conflated with the blocked constant train-fitted-shift objective, which remains `blocked_incompatible_splits`.
+- If the final benchmark must be fully autonomous from the initial frame only, treat this as an upper-bound/state-signal result and train a causal transport head next.

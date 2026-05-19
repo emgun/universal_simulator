@@ -1659,3 +1659,29 @@ Follow-up audit update (2026-05-19, metric-backed result-record enforcement):
 - Interpretation:
   - a status-only handoff is no longer enough to pass the official audit
   - both required repo records now have to preserve the key measured failure value behind the blocked promotion decision
+
+Experiment loop update (2026-05-19, lagged observed-transition transport gate):
+- Ran `scripts/run_observed_transport_shift_gate.py` on real local `light-v1` Advection train/val/test.
+- Updated the observed gate to fingerprint the exact train/val/test HDF5 files it used.
+- Command output artifact: `reports/research/sota_loop/observed_transport_shift_gate_real_light_v1.json` (ignored local report).
+- Data identities:
+  - train: `data/pdebench/advection1d_train.h5`, `93508109` bytes, SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`
+  - val: `data/pdebench/advection1d_val.h5`, `24158705` bytes, SHA-256 `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`
+  - test: `data/pdebench/advection1d_test.h5`, `24220172` bytes, SHA-256 `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`
+- Validation gate:
+  - estimator: `lagged_observed_transition_shift`
+  - policy: train locks candidate shift support; validation does not select a split-level shift
+  - train NRMSE: `0.014504759572446346`, shift mean/std `0.0` / `0.0`
+  - validation NRMSE: `0.012846261262893677`, shift mean/std `40.0` / `0.0`
+  - reference NRMSE: `0.30780652221851373`
+  - validation relative improvement: `0.9582651427581705`
+  - `validation_guard.passed`: `true`
+- Held-out test:
+  - measured only after validation passed through the gate
+  - test NRMSE: `0.004225204233080149`
+  - test shift mean/std: `72.0` / `0.0`
+- Interpretation:
+  - this is the first local real `light-v1` transport-shift gate result in this thread that validates and reaches a guarded held-out test
+  - it is not the exhausted constant train-fitted-shift result; it depends on a two-frame observed-context assumption (`t-1 -> t` predicts `t -> t+1`)
+  - if that two-frame context is acceptable benchmark policy, this is the strongest current path toward the requested benchmark-clean result
+  - if the benchmark requires fully autonomous rollout from only the initial frame, this should remain an upper-bound/state-signal result and the next step is a train-only learned causal head

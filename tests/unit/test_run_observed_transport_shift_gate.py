@@ -54,6 +54,9 @@ def test_observed_transport_gate_measures_test_after_validation_passes(tmp_path)
     assert record["validation"]["shift_mean"] == 2.0
     assert record["test"]["shift_mean"] == -1.0
     assert record["test"]["nrmse"] == 0.0
+    assert record["data_sources"]["train"]["exists"] is True
+    assert record["data_sources"]["val"]["sha256"]
+    assert record["data_sources"]["test"]["bytes"] > 0
     assert record["next_action"] == "held-out test measured"
 
 
