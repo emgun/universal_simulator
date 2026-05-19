@@ -1176,3 +1176,24 @@ Held-out test policy:
 - The official observed command now audits the generated result with default `AUDIT_REQUIRE_STATUS=achieved`; report-only audit mode is available through `AUDIT_REQUIRE_STATUS=report`.
 - A direct audit of the existing ignored observed gate artifact returned `status=achieved` without re-running held-out test. It verified data identity, no gate/source mismatches, validation pass, exactly one authorized test result, and result-record tokens `achieved`, `0.012846261262893677`, and `0.004225204233080149`.
 - The existing ignored observed gate artifact predates the exactly-once ledger, so its audit has `held_out_test_policy.ledger=null`; future official reruns should use the ledger path.
+
+### 2026-05-19: Train-Only Feature Diagnostic
+
+Status: no-test train/val diagnostic found no train support for the validation transport regime using first-frame train-fitted features.
+
+Evidence:
+
+- Script: `scripts/diagnose_train_only_transport_features.py`.
+- Output: `reports/research/sota_loop/train_only_transport_feature_diagnostic.json` (ignored local report).
+- Train labels: `{"0": 128}`.
+- Validation labels: `{"40": 32}`.
+- Validation predictions from train-fitted centroids: `{"0": 32}`.
+- Unsupported validation shifts: `[40]`.
+- Validation accuracy: `0.0`.
+- Conclusion: `blocked_no_train_support_for_validation_shift`.
+
+Interpretation:
+
+- The diagnostic uses train split only to fit the feature-to-shift rule, uses validation only for measurement, and does not read held-out test.
+- A simple first-frame feature head cannot recover the validation shift because the train sample used here contains no shift-`40` support.
+- The literal train-only transport-shift path remains blocked under current local `light-v1`; the remaining viable paths are a split-compatible shard rebuild, an accepted two-frame observed-context policy, or a richer causal mechanism with additional allowed signal.

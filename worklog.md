@@ -1743,3 +1743,20 @@ Observed audit refresh (2026-05-19, existing gate artifact, no test rerun):
 - Caveat:
   - the existing ignored gate artifact predates the exactly-once ledger, so `held_out_test_policy.ledger` is `null`
   - this audit proves the artifact contains exactly one authorized test result; future official reruns should use the ledger path
+
+Experiment loop update (2026-05-19, train-only first-frame transport feature diagnostic):
+- Added `scripts/diagnose_train_only_transport_features.py`.
+- The diagnostic fits nearest shift centroids using train split first-frame summary/spectral features only, then measures on validation.
+- It does not read or evaluate the held-out test split.
+- Real local `light-v1` train/val command output:
+  - output: `reports/research/sota_loop/train_only_transport_feature_diagnostic.json` (ignored local report)
+  - train shift histogram: `{"0": 128}`
+  - validation shift histogram: `{"40": 32}`
+  - validation prediction histogram: `{"0": 32}`
+  - unsupported validation shifts: `[40]`
+  - validation accuracy: `0.0`
+  - conclusion: `blocked_no_train_support_for_validation_shift`
+- Interpretation:
+  - a simple train-fitted first-frame feature head has no train support for the validation transport regime in the current local shard
+  - this reinforces that the literal train-only constant/feature shift path is blocked by split construction, not by another missing sweep
+  - the remaining credible options are accepting the two-frame observed-context result, rebuilding split-compatible shards, or training a richer causal mechanism with additional allowed signal
