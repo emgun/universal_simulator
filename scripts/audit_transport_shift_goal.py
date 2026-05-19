@@ -4,6 +4,7 @@ from __future__ import annotations
 """Audit the benchmark-clean constant transport-shift goal from result artifacts."""
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -56,6 +57,14 @@ def _json_safe_attrs(attrs: Mapping[str, Any]) -> dict[str, Any]:
     return safe
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _inspect_hdf5_split(path: Path) -> dict[str, Any]:
     with h5py.File(path, "r") as handle:
         datasets: dict[str, Any] = {}
@@ -74,6 +83,8 @@ def _inspect_hdf5_split(path: Path) -> dict[str, Any]:
         return {
             "path": str(path),
             "exists": True,
+            "bytes": path.stat().st_size,
+            "sha256": _sha256_file(path),
             "file_attrs": _json_safe_attrs(handle.attrs),
             "datasets": datasets,
             "sample_aligned_auxiliary_datasets": sample_aligned,

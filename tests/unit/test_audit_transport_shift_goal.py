@@ -71,6 +71,8 @@ def test_audit_reports_incompatible_full_source_splits_as_blocker(tmp_path):
     assert record["constant_shift"]["common_full_source_shifts"] == []
     assert record["data_schema"]["parameter_metadata_available"] is False
     assert record["data_schema"]["splits"]["train"]["datasets"]["data"]["shape"] == [2, 3, 4, 1]
+    assert record["data_schema"]["splits"]["train"]["bytes"] > 0
+    assert len(record["data_schema"]["splits"]["train"]["sha256"]) == 64
     assert any(req["name"] == "validation_sota_guard_passed" and req["status"] == "failed" for req in record["requirements"])
 
 

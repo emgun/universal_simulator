@@ -1549,3 +1549,13 @@ Experiment loop update (2026-05-19, official local audit runner):
 - Interpretation:
   - the local official path is now one command, reproducible, and fail-closed by default with `AUDIT_REQUIRE_STATUS=achieved`
   - the current evidence still blocks the original goal; no held-out test was run
+
+Follow-up audit update (2026-05-19, light-v1 file identity):
+- Extended `scripts/audit_transport_shift_goal.py` to record byte size and SHA-256 for each inspected real HDF5 split.
+- Current local `light-v1` Advection identities:
+  - `data/pdebench/advection1d_train.h5`: `93508109` bytes, SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`
+  - `data/pdebench/advection1d_val.h5`: `24158705` bytes, SHA-256 `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`
+  - `data/pdebench/advection1d_test.h5`: `24220172` bytes, SHA-256 `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`
+- Interpretation:
+  - the audit now proves which real files were accessed for the official train/val gate and the gated test path
+  - this strengthens reproducibility; it does not change the blocked validation outcome
