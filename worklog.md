@@ -1983,3 +1983,19 @@ Follow-up execution update (2026-05-19, official hydration dry run):
 - Objective audit refresh:
   - default literal command still exits `2` with `status=literal_blocked`
   - literal blockers now include `official hydration plan run status is dry_run`
+
+Follow-up preflight update (2026-05-19, official hydration disk capacity):
+- Added `scripts/preflight_transport_hydration.py`.
+- Regenerated `reports/research/sota_loop/official_advection_hydration_plan.json` with per-file remote entry sizes.
+- Generated `reports/research/sota_loop/official_advection_hydration_preflight.json` (ignored local report).
+- Preflight status: `blocked_insufficient_disk`.
+- Raw official files present: `0` of `8`.
+- Remaining download bytes: `65863735616`.
+- Required free bytes with safety factor `1.15`: `75743295958`.
+- Current free bytes at `data/pdebench/raw`: `1599369216`.
+- Interpretation:
+  - the official hydration plan is valid and staged, but cannot run on the current filesystem
+  - the next literal-path requirement is freeing/providing at least ~75.74 GB usable space or moving raw/hydrated roots to a larger volume before running downloads
+- Objective audit refresh:
+  - default literal command still exits `2` with `status=literal_blocked`
+  - literal blockers now include `official hydration preflight status is blocked_insufficient_disk`

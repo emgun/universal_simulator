@@ -72,6 +72,7 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
         "status": "ready_for_explicit_hydration" if entries else "missing_manifest_entries",
         "manifest": args.manifest,
         "selected_official_advection_train_files": selected_paths,
+        "remote_entries": entries,
         "selected_file_count": len(entries),
         "estimated_download_bytes": total_size,
         "estimated_download_gib": total_size / float(1024**3),

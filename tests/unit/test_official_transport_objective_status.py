@@ -30,6 +30,7 @@ def test_official_transport_objective_status_dry_run_defaults_to_literal_release
     assert "official_advection_hydration_plan.json" in proc.stdout
     assert "official_advection_hydration_plan_validation.json" in proc.stdout
     assert "official_advection_hydration_plan_run.json" in proc.stdout
+    assert "official_advection_hydration_preflight.json" in proc.stdout
     assert "require_status=literal-achieved" in proc.stdout
     assert "accept_context_transport=0" in proc.stdout
     assert "accept_observed_context=0" in proc.stdout
@@ -79,6 +80,7 @@ def test_official_transport_objective_status_executes_default_literal_check(tmp_
     hydration_plan = tmp_path / "hydration_plan.json"
     hydration_plan_validation = tmp_path / "hydration_plan_validation.json"
     hydration_plan_run = tmp_path / "hydration_plan_run.json"
+    hydration_preflight = tmp_path / "hydration_preflight.json"
     output = tmp_path / "objective.json"
     _write_json(constant, '{"status":"blocked_incompatible_splits"}')
     _write_json(context, '{"status":"achieved","result_record_policy":{"passed":true}}')
@@ -89,6 +91,7 @@ def test_official_transport_objective_status_executes_default_literal_check(tmp_
     _write_json(hydration_plan, '{"status":"ready_for_explicit_hydration"}')
     _write_json(hydration_plan_validation, '{"status":"valid"}')
     _write_json(hydration_plan_run, '{"status":"dry_run"}')
+    _write_json(hydration_preflight, '{"status":"blocked_insufficient_disk"}')
     env = os.environ.copy()
     env["CONSTANT_AUDIT_JSON"] = str(constant)
     env["CONTEXT_AUDIT_JSON"] = str(context)
@@ -99,6 +102,7 @@ def test_official_transport_objective_status_executes_default_literal_check(tmp_
     env["HYDRATION_PLAN_JSON"] = str(hydration_plan)
     env["HYDRATION_PLAN_VALIDATION_JSON"] = str(hydration_plan_validation)
     env["HYDRATION_PLAN_RUN_JSON"] = str(hydration_plan_run)
+    env["HYDRATION_PREFLIGHT_JSON"] = str(hydration_preflight)
     env["OBJECTIVE_STATUS_JSON"] = str(output)
     env["REQUIRE_STATUS"] = "report"
 

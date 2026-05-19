@@ -1364,3 +1364,14 @@ Dry-run execution:
 - The runner validates the plan, lists download/convert/shard/validate/audit stages, and executes nothing unless `--execute` is provided.
 - The download stage additionally requires `--execute-downloads`; the dry run records blocker `download stage requires --execute-downloads`.
 - `scripts/run_official_transport_objective_status.sh` now reads the run artifact; default literal mode still exits `2` with `status=literal_blocked` until the staged hydration actually runs and validation passes.
+
+Disk preflight:
+
+- Script: `scripts/preflight_transport_hydration.py`.
+- Output: `reports/research/sota_loop/official_advection_hydration_preflight.json` (ignored local report).
+- Preflight status: `blocked_insufficient_disk`.
+- Raw official files present: `0` of `8`.
+- Remaining download bytes: `65863735616`.
+- Required free bytes with safety factor `1.15`: `75743295958`.
+- Current free bytes at `data/pdebench/raw`: `1599369216`.
+- `scripts/run_official_transport_objective_status.sh` now reads the preflight artifact; default literal mode still exits `2` with `status=literal_blocked` until enough disk is available and the official hydration stages run.
