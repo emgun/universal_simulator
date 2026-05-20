@@ -1478,3 +1478,11 @@ Remote launch/network checkpoint:
 - The only attempt that reached repo execution and the official downloader was Nevada contract `37168284`; it failed before completing the first file and before conversion, validation, or any held-out test.
 - The downloader now has configurable exponential backoff between ranged-part retries via `PDEBENCH_DOWNLOAD_RETRY_BACKOFF` / `--retry-backoff`.
 - Next path remains the same benchmark-clean objective: relaunch the stratified official hydration on a host with working image/container storage and stable outbound network, then accept only a real train-only validation gate result as evidence.
+
+Current Vast wrap-up checkpoint:
+
+- Vast contract `37169407` reached the official downloader on a Netherlands RTX 4090 instance with the stratified official hydration plan and guarded post-validation chain enabled.
+- The run confirmed the benchmark-clean split contract again: `48` samples per official train beta file, train offset `0`, validation offset `32`, reserved test offset `40`, and no test split during train/val hydration.
+- Last available logs showed 5 of 8 official train files saved and `beta2.0` near completion; the retry-backoff path recovered slow ranged parts rather than failing immediately.
+- The contract was destroyed by operator request before conversion, validation, or held-out test.
+- This is another partial hydration attempt only. No SOTA guard validation ran, no held-out test ran, and no benchmark conclusion should be drawn from it.

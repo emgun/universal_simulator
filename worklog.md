@@ -2215,3 +2215,17 @@ Follow-up remote launch/network hardening (2026-05-20):
   - `19 passed`
   - `python -m py_compile scripts/download_pdebench_file.py`
   - `git diff --check`
+
+Follow-up current Vast wrap-up (2026-05-20, operator-stopped active official hydration):
+- Launched Vast contract `37169407` in the Netherlands with the stratified official hydration plan and the guarded post-validation test chain enabled.
+- The instance reached the official downloader and confirmed the same benchmark-clean train/val contract:
+  - official Advection train files only
+  - `--samples 48`
+  - train block offset `0`
+  - validation block offset `32`
+  - reserved test block offset `40`
+  - no test split built during train/val hydration
+- Last available logs showed 5 of 8 official train files saved (`beta0.1`, `beta0.2`, `beta0.4`, `beta0.7`, `beta1.0`) and `beta2.0` near completion.
+- The retry-backoff path recovered slow range parts on this run, including `600s` part-timeout retries.
+- Per operator request to wrap up the current Vast instance, destroyed contract `37169407` before conversion, validation, or held-out test.
+- No SOTA guard validation ran and no held-out test ran on this instance, so there is no benchmark result to promote from this attempt.
