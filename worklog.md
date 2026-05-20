@@ -2179,3 +2179,17 @@ Follow-up official split update (2026-05-20, stratified beta-balanced train/val/
 - Verified:
   - `python -m pytest tests/unit/test_make_light_hdf5_shards.py tests/unit/test_plan_transport_official_hydration.py tests/unit/test_validate_transport_hydration_plan.py tests/unit/test_run_transport_official_hydration_plan.py tests/unit/test_run_remote_official_hydration.py tests/unit/test_plan_remote_official_hydration.py tests/unit/test_run_official_hydrated_post_validation_test.py tests/unit/test_audit_transport_objective_status.py`
   - `28 passed`
+
+Follow-up remote wrap-up (2026-05-20, stopped partial stratified hydration run):
+- Launched Vast contract `37157238` in Norway with the stratified official hydration plan and the guarded post-validation test chain enabled.
+- The job confirmed the intended benchmark-clean plan on the remote:
+  - official Advection train files only
+  - `--samples 48`
+  - train block offset `0`
+  - validation block offset `32`
+  - reserved test block offset `40`
+  - no test split built during train/val hydration
+- At wrap-up, the remote had saved 5 of 8 official train files (`beta0.1`, `beta0.2`, `beta0.4`, `beta0.7`, `beta1.0`) and was downloading `beta2.0`.
+- The ranged downloader continued to recover from slow range attempts via the `600s` part timeout, so this was stopped by operator choice rather than a code failure.
+- Destroyed contract `37157238`; `vastai show instances --raw` returned `[]`.
+- No validation ran and no held-out test ran on this instance, so there is no benchmark result to promote from this attempt.

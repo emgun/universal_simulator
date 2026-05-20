@@ -1460,3 +1460,11 @@ Official stratified split pivot:
   - `scripts/plan_transport_official_hydration.py` emits the stratified official train/val plan
   - `scripts/run_official_hydrated_post_validation_test.py` uses the reserved stratified test block only after the objective audit reports `literal_test_ready`
 - This keeps the literal objective intact: fit only on train, validate on val, run exactly one held-out test only if validation passes.
+
+Remote wrap-up checkpoint:
+
+- Vast contract `37157238` was launched with the stratified official hydration plan and the guarded post-validation chain enabled.
+- The remote plan confirmed the intended split contract: `48` samples per official train beta file, train offset `0`, validation offset `32`, reserved test offset `40`, and no test split built during train/val hydration.
+- The run was stopped before validation by operator request after saving 5 of 8 official train files and while downloading `beta2.0`.
+- Contract `37157238` was destroyed, and `vastai show instances --raw` returned `[]`.
+- This is a partial hydration attempt only: no SOTA guard validation ran, no held-out test ran, and no benchmark conclusion should be drawn from it.
