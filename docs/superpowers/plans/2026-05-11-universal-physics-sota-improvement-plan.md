@@ -1625,3 +1625,9 @@ Canonical remote launcher artifact publishing:
 - `scripts/plan_remote_official_hydration.py` now emits `PUBLISH_ARTIFACTS=1` in both generated launcher commands.
 - The regenerated remote hydration plan keeps the same pinned offer, hardened downloader runtime, and guarded post-validation test chain, but now also enables report publication before auto-shutdown.
 - This does not complete the literal objective; it removes a launch-command footgun so the next credit-unblocked official hydration run can preserve benchmark evidence automatically.
+
+Remote artifact publishing bootstrap:
+
+- `scripts/run_remote_official_hydration.sh` now installs `rclone` on apt-based hosts when `PUBLISH_ARTIFACTS=1`, `INSTALL_RCLONE=1`, and `rclone` is missing.
+- This matches the practical remote execution path: a minimal Vast image should not complete validation/test and then fail final evidence upload only because `rclone` was absent.
+- Tradeoff: non-apt hosts or `INSTALL_RCLONE=0` still fail closed and require a preinstalled `rclone`, which is safer than silently skipping report publication.

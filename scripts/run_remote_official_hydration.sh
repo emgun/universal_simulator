@@ -38,17 +38,33 @@ EXECUTE_TEST=${EXECUTE_TEST:-0}
 PUBLISH_ARTIFACTS=${PUBLISH_ARTIFACTS:-0}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/official-hydration}
 ARTIFACT_NAME=${ARTIFACT_NAME:-}
+INSTALL_RCLONE=${INSTALL_RCLONE:-1}
 
 export OBJECTIVE_STATUS_JSON
+
+ensure_artifact_rclone() {
+  if command -v rclone >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ "$INSTALL_RCLONE" -ne 1 ]; then
+    echo "rclone is required to publish official hydration artifacts; set INSTALL_RCLONE=1 or preinstall rclone." >&2
+    exit 1
+  fi
+  if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y rclone
+    return 0
+  fi
+  echo "rclone is required to publish official hydration artifacts and automatic install is only implemented for apt-get hosts." >&2
+  exit 1
+}
 
 configure_artifact_rclone() {
   : "${B2_KEY_ID:?Set B2_KEY_ID to publish official hydration artifacts}"
   : "${B2_APP_KEY:?Set B2_APP_KEY to publish official hydration artifacts}"
   : "${B2_BUCKET:?Set B2_BUCKET to publish official hydration artifacts}"
-  if ! command -v rclone >/dev/null 2>&1; then
-    echo "rclone is required to publish official hydration artifacts." >&2
-    exit 1
-  fi
+  ensure_artifact_rclone
   if [ -n "${B2_S3_ENDPOINT:-}" ] || [ -n "${B2_S3_REGION:-}" ]; then
     export RCLONE_CONFIG_UPSB2_TYPE=s3
     export RCLONE_CONFIG_UPSB2_PROVIDER=Other

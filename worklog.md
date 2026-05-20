@@ -2383,3 +2383,8 @@ Follow-up relaunch attempt and canonical artifact publishing (2026-05-20):
 - Updated `scripts/plan_remote_official_hydration.py` so regenerated `actual_launcher` and `dry_run_launcher` commands include `PUBLISH_ARTIFACTS=1` by default.
 - Regenerated `reports/research/sota_loop/remote_official_advection_hydration_plan.json` with the pinned offer, hardened downloader runtime, guarded post-validation test, and report publication enabled.
 - This keeps the next executable official hydration path aligned with the evidence requirements: a successful remote run should preserve the validation/test reports before auto-shutdown without requiring a manual flag edit.
+
+Follow-up remote artifact publishing bootstrap (2026-05-20):
+- Hardened `scripts/run_remote_official_hydration.sh` so `PUBLISH_ARTIFACTS=1` can bootstrap `rclone` on apt-based remote hosts when it is not already installed.
+- The wrapper still fails closed if `INSTALL_RCLONE=0` or the host has no `apt-get`, but a standard Vast image no longer needs a manual rclone preinstall for final report publication.
+- This protects the literal objective evidence path: after a credit-unblocked official hydration run, the wrapper should be able to upload the validation/test report bundle before auto-shutdown.
