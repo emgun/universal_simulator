@@ -70,6 +70,88 @@ def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.
     return merged
 
 
+def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.ndarray]:
+    if not indices:
+        raise ValueError("Requested indexed shard with no indices")
+
+    remaining = sorted((int(index), position) for position, index in enumerate(indices))
+    chunks: dict[str, list[np.ndarray | None]] = {}
+    attrs: dict[str, dict[str, object]] = {}
+    base = 0
+
+    for path in paths:
+        if not remaining:
+            break
+        with h5py.File(path, "r") as handle:
+            if "data" not in handle:
+                raise KeyError(f"{path} does not contain a 'data' dataset")
+            total = int(handle["data"].shape[0])
+            local_rows = [(index - base, position) for index, position in remaining if base <= index < base + total]
+            if local_rows:
+                keys = _dataset_keys(handle, total)
+                local_indices = [row for row, _ in local_rows]
+                order_positions = [position for _, position in local_rows]
+                for key in keys:
+                    dataset = handle[key]
+                    selected = np.asarray(dataset[local_indices])
+                    slots = chunks.setdefault(key, [None] * len(indices))
+                    attrs.setdefault(key, dict(dataset.attrs.items()))
+                    for source_row, target_position in enumerate(order_positions):
+                        slots[target_position] = selected[source_row : source_row + 1]
+            remaining = [(index, position) for index, position in remaining if index >= base + total]
+            base += total
+
+    if remaining:
+        missing = ", ".join(str(index) for index, _ in remaining[:5])
+        raise ValueError(f"Requested sample indices beyond available source rows: {missing}")
+
+    merged: dict[str, np.ndarray] = {}
+    for key, values in chunks.items():
+        if any(value is None for value in values):
+            raise ValueError(f"Internal indexed read error for dataset {key}")
+        merged[key] = np.concatenate([value for value in values if value is not None], axis=0)
+    for key, values in attrs.items():
+        merged[f"__attrs__:{key}"] = values  # type: ignore[assignment]
+    return merged
+
+
+def _source_sample_count(paths: Iterable[Path]) -> int:
+    total = 0
+    for path in paths:
+        with h5py.File(path, "r") as handle:
+            if "data" not in handle:
+                raise KeyError(f"{path} does not contain a 'data' dataset")
+            total += int(handle["data"].shape[0])
+    return total
+
+
+def _stratified_indices(*, block_size: int, block_count: int, offset: int, count: int) -> list[int]:
+    if block_size <= 0:
+        raise ValueError("Stratified block size must be positive")
+    if offset < 0 or offset >= block_size:
+        raise ValueError(f"Stratified offset {offset} must be in [0, {block_size})")
+    if count <= 0:
+        return []
+    if block_count <= 0:
+        raise ValueError("Stratified block count must be positive")
+    per_block, remainder = divmod(count, block_count)
+    if remainder:
+        # This helper is intentionally strict because the official Advection path
+        # uses equal per-beta blocks; partial final blocks would silently skew beta mix.
+        raise ValueError(
+            f"Stratified count {count} is not divisible by block count {block_count}"
+        )
+    if per_block <= 0 or offset + per_block > block_size:
+        raise ValueError(
+            f"Cannot take {count} rows with offset {offset} from block size {block_size}"
+        )
+    return [
+        block_start + row
+        for block_start in range(0, block_count * block_size, block_size)
+        for row in range(offset, offset + per_block)
+    ]
+
+
 def _write_h5(path: Path, arrays: dict[str, np.ndarray], *, overwrite: bool) -> None:
     if path.exists() and not overwrite:
         raise FileExistsError(f"{path} already exists; pass --overwrite to replace it")
@@ -154,11 +236,14 @@ def build_task_shard_records(
     overwrite: bool,
     split_sources: dict[str, str] | None = None,
     split_start_indices: dict[str, int] | None = None,
+    split_block_size: int | None = None,
+    split_block_offsets: dict[str, int] | None = None,
     fallback_source_split: str = "train",
     remote_prefix: str | None = None,
 ) -> list[dict[str, Any]]:
     split_sources = dict(split_sources or {})
     split_start_indices = dict(split_start_indices or {})
+    split_block_offsets = dict(split_block_offsets or {})
     records: list[dict[str, Any]] = []
     offsets: dict[str, int] = {}
 
@@ -171,10 +256,30 @@ def build_task_shard_records(
         if not paths:
             raise FileNotFoundError(root / f"{task}_{resolved_source}.h5")
 
+        stratified_offset = split_block_offsets.get(split)
         cursor = split_start_indices.get(split)
-        if cursor is None:
-            cursor = offsets.setdefault(resolved_source, int(start_index))
-        arrays = _read_window(paths, cursor, count)
+        selected_indices: list[int] | None = None
+        if stratified_offset is not None:
+            if split_block_size is None:
+                raise ValueError(f"--split-block-offset for {split} requires --split-block-size")
+            total_rows = _source_sample_count(paths)
+            block_count, remainder = divmod(total_rows, split_block_size)
+            if remainder:
+                raise ValueError(
+                    f"Source rows {total_rows} are not divisible by stratified block size {split_block_size}"
+                )
+            selected_indices = _stratified_indices(
+                block_size=split_block_size,
+                block_count=block_count,
+                offset=stratified_offset,
+                count=count,
+            )
+            arrays = _read_indices(paths, selected_indices)
+            cursor = stratified_offset
+        else:
+            if cursor is None:
+                cursor = offsets.setdefault(resolved_source, int(start_index))
+            arrays = _read_window(paths, cursor, count)
         out_path = out_root / f"{task}_{split}.h5"
         _write_h5(out_path, arrays, overwrite=overwrite)
         summary = _h5_summary(out_path)
@@ -188,6 +293,9 @@ def build_task_shard_records(
                 "derived_from_source_split": resolved_source != split,
                 "source_paths": [str(path) for path in paths],
                 "start_index": cursor,
+                "stratified_block_size": split_block_size if stratified_offset is not None else None,
+                "stratified_block_offset": stratified_offset,
+                "stratified_indices": selected_indices,
                 "sample_count": summary["sample_count"],
                 "output_path": str(out_path),
                 "remote_key": remote_key,
@@ -196,7 +304,7 @@ def build_task_shard_records(
                 "datasets": summary["datasets"],
             }
         )
-        if split not in split_start_indices:
+        if split not in split_start_indices and stratified_offset is None:
             offsets[resolved_source] = cursor + count
     return records
 
@@ -214,6 +322,8 @@ def build_task_shards(
     overwrite: bool,
     split_sources: dict[str, str] | None = None,
     split_start_indices: dict[str, int] | None = None,
+    split_block_size: int | None = None,
+    split_block_offsets: dict[str, int] | None = None,
     fallback_source_split: str = "train",
 ) -> list[Path]:
     records = build_task_shard_records(
@@ -228,6 +338,8 @@ def build_task_shards(
         overwrite=overwrite,
         split_sources=split_sources,
         split_start_indices=split_start_indices,
+        split_block_size=split_block_size,
+        split_block_offsets=split_block_offsets,
         fallback_source_split=fallback_source_split,
     )
     return [Path(str(record["output_path"])) for record in records]
@@ -251,6 +363,17 @@ def main() -> None:
         default=[],
         help="Optional split-specific start index like train=1024. Overrides --start-index for that split.",
     )
+    parser.add_argument(
+        "--split-block-size",
+        type=int,
+        help="Optional ordered-source block size for stratified split slicing.",
+    )
+    parser.add_argument(
+        "--split-block-offset",
+        action="append",
+        default=[],
+        help="Optional stratified split offset like val=32. Requires --split-block-size.",
+    )
     parser.add_argument("--fallback-source-split", default="train", help="Fallback source split when native split is missing")
     parser.add_argument("--train-count", type=int, default=16)
     parser.add_argument("--val-count", type=int, default=8)
@@ -266,23 +389,26 @@ def main() -> None:
     out_root = Path(args.out_root)
     split_sources = _parse_split_sources(args.split_source)
     split_start_indices = _parse_split_ints(args.split_start_index, setting="--split-start-index")
+    split_block_offsets = _parse_split_ints(args.split_block_offset, setting="--split-block-offset")
     written: list[Path] = []
     records: list[dict[str, Any]] = []
     for task in args.tasks:
         task_records = build_task_shard_records(
-                root=root,
-                out_root=out_root,
-                task=str(task),
-                source_split=args.source_split,
-                train_count=args.train_count,
-                val_count=args.val_count,
-                test_count=args.test_count,
-                start_index=args.start_index,
-                overwrite=args.overwrite,
-                split_sources=split_sources,
-                split_start_indices=split_start_indices,
-                fallback_source_split=args.fallback_source_split,
-                remote_prefix=args.remote_prefix,
+            root=root,
+            out_root=out_root,
+            task=str(task),
+            source_split=args.source_split,
+            train_count=args.train_count,
+            val_count=args.val_count,
+            test_count=args.test_count,
+            start_index=args.start_index,
+            overwrite=args.overwrite,
+            split_sources=split_sources,
+            split_start_indices=split_start_indices,
+            split_block_size=args.split_block_size,
+            split_block_offsets=split_block_offsets,
+            fallback_source_split=args.fallback_source_split,
+            remote_prefix=args.remote_prefix,
         )
         records.extend(task_records)
         written.extend(Path(str(record["output_path"])) for record in task_records)
@@ -311,6 +437,8 @@ def main() -> None:
                 },
             },
             "split_start_indices": split_start_indices,
+            "split_block_size": args.split_block_size,
+            "split_block_offsets": split_block_offsets,
             "records": records,
         }
         manifest_path = Path(args.manifest)

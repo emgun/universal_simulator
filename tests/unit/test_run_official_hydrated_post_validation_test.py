@@ -22,6 +22,8 @@ def _args(tmp_path, *, status: str, execute: bool = False, execute_test: bool = 
         train_count=10,
         val_count=4,
         test_count=3,
+        split_block_size=17,
+        test_block_offset=14,
         rollout_steps=2,
         shift=[0, 1],
         reference_metric_value=0.5,
@@ -46,6 +48,8 @@ def test_post_validation_test_runner_dry_run_requires_explicit_test_execution(tm
     assert record["status"] == "dry_run"
     assert record["blockers"] == ["held-out test execution requires --execute-test"]
     assert record["held_out_test_policy"]["test_start_index"] == 14
+    assert record["held_out_test_policy"]["split_block_size"] == 17
+    assert record["held_out_test_policy"]["test_block_offset"] == 14
     assert all(row["executed"] is False for row in record["executed"])
 
 
@@ -56,7 +60,8 @@ def test_post_validation_test_runner_command_shape_is_gated(tmp_path):
     assert record["status"] == "dry_run"
     assert record["blockers"] == []
     assert "--split-source test=train" in commands["build_test_shard"]
-    assert "--split-start-index test=14" in commands["build_test_shard"]
+    assert "--split-block-size 17" in commands["build_test_shard"]
+    assert "--split-block-offset test=14" in commands["build_test_shard"]
     assert "--train-count 0 --val-count 0" in commands["build_test_shard"]
     assert "--test-count 3" in commands["build_test_shard"]
     assert "--test-split test" in commands["run_gated_test"]

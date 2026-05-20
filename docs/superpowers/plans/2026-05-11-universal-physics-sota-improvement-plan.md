@@ -1440,3 +1440,23 @@ Remote download throughput pivot:
 - The failure was storage overhead, not a benchmark or validation result: the prior downloader held all part files and then wrote a second full-size assembled temp file.
 - `scripts/download_pdebench_file.py` now writes each completed range directly into a preallocated `.tmp` destination at the correct byte offset, then atomically replaces the final file after all ranges complete.
 - Tradeoff: direct offset writes are less inspectable than persisted part files, but the post-download checksum remains the integrity gate and peak per-file temporary storage drops enough for a 120 GB remote run.
+
+Official stratified split pivot:
+
+- Vast contract `37101416` proved the official hydration path can complete the large data step with the direct-to-temp downloader on a 160 GB instance.
+- The run downloaded all 8 official Advection train files, converted the source, built train/val shards, and ran the train-only transport gate.
+- The validation guard failed (`validation_guard.passed=false`, `test_eligible=false`), so no held-out test ran.
+- The failure exposed a split-construction confound:
+  - sorted official beta files were concatenated during conversion
+  - contiguous train/val windows sampled different beta regimes
+  - a constant train-fitted shift selected on train did not match the high-beta validation window
+- The next benchmark-clean path is not to loosen the guard. It is to build beta-balanced light shards from the official train files:
+  - convert `48` samples per beta file
+  - train uses `32` samples per beta file (`256` total)
+  - validation uses the next `8` samples per beta file (`64` total)
+  - held-out test reserves the next `8` samples per beta file (`64` total), but remains unbuilt/unread until `literal_test_ready`
+- Implemented support:
+  - `scripts/make_light_hdf5_shards.py` supports `--split-block-size` and `--split-block-offset SPLIT=OFFSET`
+  - `scripts/plan_transport_official_hydration.py` emits the stratified official train/val plan
+  - `scripts/run_official_hydrated_post_validation_test.py` uses the reserved stratified test block only after the objective audit reports `literal_test_ready`
+- This keeps the literal objective intact: fit only on train, validate on val, run exactly one held-out test only if validation passes.

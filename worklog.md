@@ -2147,3 +2147,35 @@ Follow-up ranged download disk update (2026-05-19, direct-to-temp range writes):
 - Root cause: the ranged downloader stored all `.parts` files and then created a second full-size `.tmp` file during assembly, producing excessive peak disk use on the remote.
 - Updated `scripts/download_pdebench_file.py` so ranged downloads preallocate one `.tmp` destination and write each range directly at its byte offset.
 - This preserves the benchmark-clean official source and range retry policy while reducing peak per-file temporary storage from roughly two full copies to one.
+
+Follow-up official split update (2026-05-20, stratified beta-balanced train/val/test slices):
+- Relaunched Vast contract `37101416` with 160 GB disk and the direct-to-temp downloader.
+- The run hydrated all 8 official Advection train files, converted them, built train/val shards, and ran `scripts/run_transport_shift_gate.py`.
+- Validation did not pass the SOTA guard:
+  - `validation_guard.passed`: `false`
+  - `test_eligible`: `false`
+  - `reference_metric_value`: `0.30780652221851373`
+  - selected train-fitted validation `nrmse`: `0.7047799825668335`
+  - best validation/oracle shift was near `56`, while the train-selected shift was `8`
+- No held-out test ran, which is the correct policy when validation fails.
+- Destroyed contract `37101416`; `vastai show instances --raw` returned `[]`.
+- Root cause:
+  - the official conversion concatenated sorted beta files
+  - previous shard construction used contiguous source rows: train `0..255`, val `256..319`
+  - with 40 samples per beta file, train and val were beta-regime skewed rather than beta-balanced
+  - this made the validation failure a split-construction confound, not a useful final benchmark signal
+- Updated `scripts/make_light_hdf5_shards.py` with optional stratified block slicing:
+  - `--split-block-size`
+  - repeated `--split-block-offset SPLIT=OFFSET`
+  - indexed reads preserve sample-aligned datasets and manifest provenance
+- Updated `scripts/plan_transport_official_hydration.py` so the official hydration plan now converts `48` samples per beta file and builds:
+  - train: `32` samples per beta file, `256` total, block offset `0`
+  - val: `8` samples per beta file, `64` total, block offset `32`
+  - reserved test: `8` samples per beta file, `64` total, block offset `40`
+- Updated `scripts/run_official_hydrated_post_validation_test.py` so the held-out test shard uses the reserved stratified test block (`--split-block-size 48 --split-block-offset test=40`) and still refuses to run before `literal_test_ready`.
+- Tradeoff:
+  - this is not a looser guard and does not read test early
+  - it changes the light shard sampling contract to remove a beta-regime confound while preserving train-only fitting and validation-first held-out-test policy
+- Verified:
+  - `python -m pytest tests/unit/test_make_light_hdf5_shards.py tests/unit/test_plan_transport_official_hydration.py tests/unit/test_validate_transport_hydration_plan.py tests/unit/test_run_transport_official_hydration_plan.py tests/unit/test_run_remote_official_hydration.py tests/unit/test_plan_remote_official_hydration.py tests/unit/test_run_official_hydrated_post_validation_test.py tests/unit/test_audit_transport_objective_status.py`
+  - `28 passed`

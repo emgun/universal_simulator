@@ -124,6 +124,38 @@ def test_build_task_shard_records_accepts_split_start_indices(tmp_path):
         assert handle["data"][0, 0] == 204.0
 
 
+def test_build_task_shard_records_accepts_stratified_block_offsets(tmp_path):
+    root = tmp_path / "source"
+    out_root = tmp_path / "light"
+    root.mkdir()
+    with h5py.File(root / "advection1d_train.h5", "w") as handle:
+        data = np.arange(3 * 6, dtype=np.float32).reshape(18, 1)
+        handle.create_dataset("data", data=data)
+
+    records = build_task_shard_records(
+        root=root,
+        out_root=out_root,
+        task="advection1d",
+        source_split="train",
+        train_count=9,
+        val_count=6,
+        test_count=3,
+        start_index=0,
+        overwrite=True,
+        split_sources={"val": "train", "test": "train"},
+        split_block_size=6,
+        split_block_offsets={"train": 0, "val": 3, "test": 5},
+    )
+
+    assert [record["stratified_block_offset"] for record in records] == [0, 3, 5]
+    with h5py.File(out_root / "advection1d_train.h5", "r") as handle:
+        assert handle["data"][:, 0].tolist() == [0.0, 1.0, 2.0, 6.0, 7.0, 8.0, 12.0, 13.0, 14.0]
+    with h5py.File(out_root / "advection1d_val.h5", "r") as handle:
+        assert handle["data"][:, 0].tolist() == [3.0, 4.0, 9.0, 10.0, 15.0, 16.0]
+    with h5py.File(out_root / "advection1d_test.h5", "r") as handle:
+        assert handle["data"][:, 0].tolist() == [5.0, 11.0, 17.0]
+
+
 def test_make_light_hdf5_manifest_cli(tmp_path, monkeypatch):
     from scripts import make_light_hdf5_shards
 

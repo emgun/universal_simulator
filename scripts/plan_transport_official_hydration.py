@@ -37,8 +37,25 @@ def _download_commands(entries: list[dict[str, Any]], out_root: str) -> list[str
     ]
 
 
+def _samples_per_file(args: argparse.Namespace, selected_entries: list[dict[str, Any]]) -> int:
+    if not selected_entries:
+        return 0
+    reserved_test_count = int(getattr(args, "reserved_test_count", 0))
+    total_reserved = int(args.train_count) + int(args.val_count) + reserved_test_count
+    return max(1, (total_reserved + len(selected_entries) - 1) // len(selected_entries))
+
+
+def _per_file_count(total: int, selected_entries: list[dict[str, Any]], label: str) -> int:
+    if not selected_entries:
+        return 0
+    per_file, remainder = divmod(int(total), len(selected_entries))
+    if remainder:
+        raise ValueError(f"{label}={total} must be divisible by selected file count {len(selected_entries)}")
+    return per_file
+
+
 def _shard_command(args: argparse.Namespace, selected_entries: list[dict[str, Any]]) -> str:
-    samples_per_file = max(1, (args.train_count + args.val_count + len(selected_entries) - 1) // len(selected_entries))
+    samples_per_file = _samples_per_file(args, selected_entries)
     return (
         "python scripts/convert_pdebench.py "
         f"--pattern '{args.raw_out}/1D/Advection/Train/*.hdf5' "
@@ -68,6 +85,13 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
     total_size = sum(int(entry["size_bytes"]) for entry in entries)
     selected_paths = [str(entry["path"]) for entry in entries]
     download_commands = _download_commands(entries, args.raw_out)
+    samples_per_file = _samples_per_file(args, entries)
+    train_per_file = _per_file_count(args.train_count, entries, "train_count")
+    val_per_file = _per_file_count(args.val_count, entries, "val_count")
+    reserved_test_count = int(getattr(args, "reserved_test_count", 0))
+    test_per_file = _per_file_count(reserved_test_count, entries, "reserved_test_count") if reserved_test_count else 0
+    val_block_offset = train_per_file
+    test_block_offset = train_per_file + val_per_file
     return {
         "status": "ready_for_explicit_hydration" if entries else "missing_manifest_entries",
         "manifest": args.manifest,
@@ -81,6 +105,18 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
         "hydrated_light_root": args.hydrated_light_root,
         "train_count": args.train_count,
         "val_count": args.val_count,
+        "reserved_test_count": reserved_test_count,
+        "samples_per_file": samples_per_file,
+        "stratified_split_policy": {
+            "source_order": "sorted official beta files",
+            "block_size": samples_per_file,
+            "train_per_file": train_per_file,
+            "val_per_file": val_per_file,
+            "reserved_test_per_file": test_per_file,
+            "train_block_offset": 0,
+            "val_block_offset": val_block_offset,
+            "test_block_offset": test_block_offset,
+        },
         "test_count": 0,
         "held_out_test_policy": {
             "test_split_downloaded": False,
@@ -94,7 +130,9 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "python scripts/make_light_hdf5_shards.py "
                 f"--root {args.hydrated_source_root} --out-root {args.hydrated_light_root} "
                 "--tasks advection1d --source-split train --split-source val=train "
-                f"--split-start-index train=0 --split-start-index val={args.train_count} "
+                f"--split-block-size {samples_per_file} "
+                "--split-block-offset train=0 "
+                f"--split-block-offset val={val_block_offset} "
                 f"--train-count {args.train_count} --val-count {args.val_count} --test-count 0 "
                 f"--manifest {args.output_root}/official_hydrated_trainval_manifest.yaml --overwrite"
             ),
@@ -107,6 +145,7 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
         "decision_points": [
             "Run downloads only with explicit approval for network and disk use.",
             "Do not download or shard official test data during train/val hydration.",
+            "Stratify train and val across the official beta files so validation tests generalization rather than a beta-regime distribution shift.",
             "Run the held-out test only through the gated transport command after validation passes.",
             "If train support still misses validation after hydration, stop and record the blocker before test.",
         ],
@@ -127,6 +166,7 @@ def main() -> None:
     parser.add_argument("--output-root", default="reports/research/sota_loop")
     parser.add_argument("--train-count", type=int, default=256)
     parser.add_argument("--val-count", type=int, default=64)
+    parser.add_argument("--reserved-test-count", type=int, default=64)
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--max-files", type=int)

@@ -20,13 +20,16 @@ def _shift_args(shifts: list[int]) -> str:
 
 def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
     test_start_index = int(args.train_count) + int(args.val_count)
+    split_block_size = int(getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count))
+    test_block_offset = int(getattr(args, "test_block_offset", test_start_index))
     build_test = (
         "python scripts/make_light_hdf5_shards.py "
         f"--root {args.hydrated_source_root} "
         f"--out-root {args.hydrated_light_root} "
         "--tasks advection1d --source-split train "
         "--split-source test=train "
-        f"--split-start-index test={test_start_index} "
+        f"--split-block-size {split_block_size} "
+        f"--split-block-offset test={test_block_offset} "
         "--train-count 0 --val-count 0 "
         f"--test-count {args.test_count} "
         f"--manifest {args.output_root}/official_hydrated_test_manifest.yaml "
@@ -54,6 +57,9 @@ def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
 def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
     objective_status = _load_json(args.objective_status_json)
     commands = _commands(args)
+    test_start_index = int(args.train_count) + int(args.val_count)
+    split_block_size = int(getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count))
+    test_block_offset = int(getattr(args, "test_block_offset", test_start_index))
     blockers: list[str] = []
     if objective_status.get("status") != "literal_test_ready":
         blockers.append(f"objective status is {objective_status.get('status')}, expected literal_test_ready")
@@ -89,7 +95,9 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
         "held_out_test_policy": {
             "requires_literal_test_ready": True,
             "builds_test_shard": bool(args.execute and args.execute_test and not blockers),
-            "test_start_index": int(args.train_count) + int(args.val_count),
+            "test_start_index": test_start_index,
+            "split_block_size": split_block_size,
+            "test_block_offset": test_block_offset,
             "test_count": int(args.test_count),
             "gate_measures_test_only_if_validation_passes": True,
         },
@@ -109,7 +117,9 @@ def main() -> None:
     )
     parser.add_argument("--train-count", type=int, default=256)
     parser.add_argument("--val-count", type=int, default=64)
-    parser.add_argument("--test-count", type=int, default=32)
+    parser.add_argument("--test-count", type=int, default=64)
+    parser.add_argument("--split-block-size", type=int, default=48)
+    parser.add_argument("--test-block-offset", type=int, default=40)
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
