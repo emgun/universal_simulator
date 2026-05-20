@@ -1600,3 +1600,12 @@ Remote wrapper objective-status consistency:
 - Verification:
   - `python -m pytest tests/unit/test_run_remote_official_hydration.py tests/unit/test_run_transport_official_hydration_plan.py tests/unit/test_run_official_hydrated_post_validation_test.py` -> `13 passed`
   - `bash -n scripts/run_remote_official_hydration.sh`
+
+Preferred Vast offer relaunch update:
+
+- Current direct launch attempt on Mexico RTX 4090 offer `36151271` was rejected with `Your account lacks credit; see the billing page.`
+- `scripts/plan_remote_official_hydration.py` now supports `--offer-id`.
+- `reports/research/sota_loop/remote_official_advection_hydration_plan.json` has been regenerated with `preferred_offer_id=36151271`, so the next executable command is pinned to the best current network/disk candidate instead of relying on a fresh implicit search.
+- Verification:
+  - `python -m pytest tests/unit/test_plan_remote_official_hydration.py` -> `3 passed`
+  - `python -m py_compile scripts/plan_remote_official_hydration.py`

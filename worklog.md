@@ -2364,3 +2364,9 @@ Follow-up remote wrapper consistency fix (2026-05-20, objective status export):
 - This keeps the validation audit stage inside `scripts/run_transport_official_hydration_plan.py` and the guarded post-validation test reader pointed at the same objective-status artifact when a non-default path is supplied.
 - Added a regression test with a custom objective-status path and a minimal valid hydration plan; the audit stage writes the custom path through the exported environment.
 - This matters for remote restarts and custom report locations: a job should not validate into the default `transport_objective_status.json` and then have the post-validation gate read a different file.
+
+Follow-up Vast relaunch check (2026-05-20, preferred offer pinned):
+- Refreshed Vast offers and selected Mexico RTX 4090 offer `36151271` as the preferred relaunch candidate because it has enough disk and better network than the cheapest current offer.
+- Actual launch command was rejected again with `Your account lacks credit; see the billing page.`
+- Updated `scripts/plan_remote_official_hydration.py` with optional `--offer-id`, then regenerated `reports/research/sota_loop/remote_official_advection_hydration_plan.json` with `preferred_offer_id=36151271`.
+- The generated `actual_launcher` now includes `OFFER_ID=36151271` plus the hardened downloader runtime and guarded post-validation chain.

@@ -40,6 +40,7 @@ def _args(tmp_path):
         download_retry_backoff=20.0,
         download_split_after_retries=2,
         download_min_split_size_mib=8,
+        offer_id="",
         output_json=str(tmp_path / "remote.json"),
     )
 
@@ -61,8 +62,20 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "PDEBENCH_DOWNLOAD_RETRY_BACKOFF=20.0" in record["commands"]["actual_launcher"]
     assert "PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES=2" in record["commands"]["actual_launcher"]
     assert record["download_runtime"]["part_size_mib"] == 128
+    assert record["preferred_offer_id"] is None
     assert record["remote_post_validation_test_json"] == "reports/post_validation_test.json"
     assert record["held_out_test_policy"]["test_split_downloaded"] is False
+
+
+def test_remote_plan_can_pin_preferred_offer_id(tmp_path):
+    args = _args(tmp_path)
+    args.offer_id = "36151271"
+
+    record = create_remote_plan(args)
+
+    assert record["preferred_offer_id"] == "36151271"
+    assert "OFFER_ID=36151271" in record["commands"]["actual_launcher"]
+    assert "DRY_RUN=0 OFFER_ID=36151271" in record["commands"]["actual_launcher"]
 
 
 def test_remote_plan_notes_when_remote_not_needed(tmp_path):

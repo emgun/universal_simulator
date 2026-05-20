@@ -25,8 +25,10 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
     if storage.get("status") != "external_or_freed_space_required":
         blockers.append(f"storage recommendation status is {storage.get('status')}; remote plan may not be needed")
 
+    offer_arg = f"OFFER_ID={args.offer_id} " if args.offer_id else ""
     launcher = (
         "DRY_RUN=1 "
+        f"{offer_arg}"
         f"DISK_GB={required_disk_gb} "
         "GPU=RTX_4090 "
         "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh "
@@ -72,6 +74,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
             "dry_run_launcher": launcher,
             "actual_launcher": launcher.replace("DRY_RUN=1", "DRY_RUN=0", 1),
         },
+        "preferred_offer_id": args.offer_id or None,
         "held_out_test_policy": hydration_plan.get("held_out_test_policy"),
         "notes": [
             "This is a launch plan only; it does not start paid compute.",
@@ -118,6 +121,7 @@ def main() -> None:
     parser.add_argument("--download-retry-backoff", type=float, default=20.0)
     parser.add_argument("--download-split-after-retries", type=int, default=2)
     parser.add_argument("--download-min-split-size-mib", type=int, default=8)
+    parser.add_argument("--offer-id", default="", help="Optional explicit Vast offer ID for direct relaunch")
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/remote_official_advection_hydration_plan.json",
