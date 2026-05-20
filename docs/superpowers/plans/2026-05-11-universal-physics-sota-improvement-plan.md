@@ -1559,3 +1559,12 @@ Context-accepted wrap-up wrapper:
 - Next path:
   - if two initial context frames are accepted as benchmark-clean, use the wrapper as the release/checkpoint command
   - if the literal train-only constant-shift objective remains required, wait for compute credit or an alternate real-data path and relaunch official stratified hydration; do not run held-out test unless the objective audit reaches `literal_test_ready`
+
+Literal hydration robustness update:
+
+- `scripts/download_pdebench_file.py` now records completed ranged-download parts in a `.tmp.ranges.json` sidecar and resumes them when the same official file download is restarted with a matching sparse `.tmp` file.
+- This keeps the official-source path intact while reducing the cost of the repeated near-complete Advection file failures seen on Vast.
+- The sidecar is intentionally conservative: mismatched or missing range metadata causes a clean restart rather than trusting unknown partial bytes.
+- Verification:
+  - `python -m pytest tests/unit/test_download_pdebench_file.py` -> `11 passed`
+  - `python -m py_compile scripts/download_pdebench_file.py`

@@ -2322,3 +2322,12 @@ Follow-up wrap-up checkpoint (2026-05-20, context-accepted objective wrapper):
 - This gives the branch a clean wrap-up surface:
   - literal policy: still blocked by incompatible/underidentified train-only constant-shift evidence and by unavailable external compute credit for the official hydration path
   - explicit context policy: reproducibly reports `status=context_transport_achieved` from the existing context transport audit and exactly-one test ledger
+
+Follow-up literal-path hardening (2026-05-20, resumable official range downloads):
+- Hardened `scripts/download_pdebench_file.py` for the remaining literal benchmark-clean path.
+- Ranged downloads now keep a sidecar next to the sparse `.tmp` file recording completed byte ranges.
+- If a large official PDEBench file download process fails or is restarted on the same host, the downloader resumes completed ranges instead of discarding the temp file and starting from zero.
+- This directly targets the observed Vast failure pattern where official Advection files repeatedly reached `96%`-`98%` before stopping or stalling.
+- Tradeoff:
+  - the sidecar only proves ranges completed through this downloader; if the sidecar is missing or mismatched, the downloader conservatively restarts rather than trusting arbitrary sparse bytes
+  - this does not solve external credit or host/network loss, but it reduces wasted retry work on recoverable same-host/process restarts

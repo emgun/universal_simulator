@@ -205,6 +205,60 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
     assert dest.read_bytes() == b"AACCEE"
     assert not dest.with_suffix(dest.suffix + ".tmp").exists()
     assert not dest.with_suffix(dest.suffix + ".parts").exists()
+    assert not dest.with_suffix(dest.suffix + ".tmp.ranges.json").exists()
+
+
+def test_download_ranges_resumes_completed_temp_ranges(monkeypatch, tmp_path: Path):
+    calls = []
+
+    def fake_download_part_to_file(
+        url,
+        dest,
+        start,
+        end,
+        *,
+        chunk_size,
+        retries,
+        part_timeout,
+        retry_backoff,
+        split_after_retries,
+        min_split_size,
+    ):
+        calls.append((start, end))
+        with open(dest, "r+b") as fh:
+            fh.seek(start)
+            fh.write(bytes([65 + start]) * (end - start + 1))
+        return end - start + 1
+
+    monkeypatch.setattr(downloader, "_download_part_to_file", fake_download_part_to_file)
+    dest = tmp_path / "data.h5"
+    temp_dest = dest.with_suffix(dest.suffix + ".tmp")
+    temp_dest.write_bytes(b"AA\0\0\0\0")
+    downloader._write_completed_ranges(
+        downloader._range_sidecar_path(temp_dest),
+        6,
+        {downloader._range_key(0, 1)},
+    )
+
+    total = downloader._download_ranges(
+        "https://example.test/file",
+        dest,
+        6,
+        workers=2,
+        part_size=2,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+        retry_backoff=0,
+        split_after_retries=2,
+        min_split_size=1,
+    )
+
+    assert total == 6
+    assert set(calls) == {(2, 3), (4, 5)}
+    assert dest.read_bytes() == b"AACCEE"
+    assert not temp_dest.exists()
+    assert not downloader._range_sidecar_path(temp_dest).exists()
 
 
 def test_download_part_to_file_backs_off_between_retries(monkeypatch, tmp_path: Path):

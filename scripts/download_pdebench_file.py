@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import hashlib
+import json
 import os
 import sys
 import time
@@ -289,6 +290,41 @@ def _assemble_parts(dest: Path, part_paths: Iterable[Path]) -> int:
     return total
 
 
+def _range_sidecar_path(temp_dest: Path) -> Path:
+    return temp_dest.with_suffix(temp_dest.suffix + ".ranges.json")
+
+
+def _range_key(start: int, end: int) -> str:
+    return f"{start}-{end}"
+
+
+def _load_completed_ranges(sidecar: Path, expected_size: int) -> set[str]:
+    if not sidecar.exists():
+        return set()
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return set()
+    if int(payload.get("expected_size") or -1) != int(expected_size):
+        return set()
+    completed = payload.get("completed_ranges") or []
+    return {str(item) for item in completed}
+
+
+def _write_completed_ranges(sidecar: Path, expected_size: int, completed: set[str]) -> None:
+    sidecar.write_text(
+        json.dumps(
+            {
+                "expected_size": int(expected_size),
+                "completed_ranges": sorted(completed),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _download_ranges(
     url: str,
     dest: Path,
@@ -305,15 +341,38 @@ def _download_ranges(
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
     temp_dest = dest.with_suffix(dest.suffix + ".tmp")
-    if temp_dest.exists():
-        temp_dest.unlink()
-    with open(temp_dest, "wb") as fh:
-        fh.truncate(expected_size)
+    sidecar = _range_sidecar_path(temp_dest)
+    completed_ranges: set[str] = set()
+    if temp_dest.exists() and temp_dest.stat().st_size == expected_size:
+        completed_ranges = _load_completed_ranges(sidecar, expected_size)
+    else:
+        temp_dest.unlink(missing_ok=True)
+        sidecar.unlink(missing_ok=True)
+    if not temp_dest.exists():
+        with open(temp_dest, "wb") as fh:
+            fh.truncate(expected_size)
+        _write_completed_ranges(sidecar, expected_size, completed_ranges)
+    pending_ranges = [
+        (index, start, end)
+        for index, start, end in ranges
+        if _range_key(start, end) not in completed_ranges
+    ]
+    completed_bytes = sum(
+        end - start + 1
+        for _, start, end in ranges
+        if _range_key(start, end) in completed_ranges
+    )
     print(
         f"Downloading {expected_size/1024**3:.2f} GiB as {len(ranges)} ranged parts "
         f"with {workers} workers",
         flush=True,
     )
+    if completed_ranges:
+        print(
+            f"Resuming with {len(completed_ranges)}/{len(ranges)} completed parts "
+            f"({completed_bytes/1024**3:.2f} GiB)",
+            flush=True,
+        )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
@@ -330,13 +389,14 @@ def _download_ranges(
                 split_after_retries=split_after_retries,
                 min_split_size=min_split_size,
             ): (index, start, end)
-            for index, start, end in ranges
+            for index, start, end in pending_ranges
         }
-        completed_bytes = 0
         for future in concurrent.futures.as_completed(futures):
             index, start, end = futures[future]
             part_bytes = future.result()
             completed_bytes += part_bytes
+            completed_ranges.add(_range_key(start, end))
+            _write_completed_ranges(sidecar, expected_size, completed_ranges)
             pct = completed_bytes / expected_size * 100
             print(
                 f"completed part {index + 1}/{len(ranges)} "
@@ -348,6 +408,7 @@ def _download_ranges(
     if total != expected_size:
         raise SystemExit(f"Downloaded {total} bytes for {dest}; expected {expected_size}.")
     temp_dest.replace(dest)
+    sidecar.unlink(missing_ok=True)
     return expected_size
 
 
