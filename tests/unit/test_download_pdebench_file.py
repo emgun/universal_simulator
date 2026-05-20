@@ -127,6 +127,7 @@ def test_download_part_retries_after_part_timeout(monkeypatch, tmp_path: Path):
         chunk_size=2,
         retries=2,
         part_timeout=10,
+        retry_backoff=0,
     )
 
     assert attempts == 2
@@ -157,6 +158,7 @@ def test_download_part_to_file_writes_at_range_offset(monkeypatch, tmp_path: Pat
         chunk_size=2,
         retries=1,
         part_timeout=30,
+        retry_backoff=0,
     )
 
     assert total == 4
@@ -173,6 +175,7 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
         chunk_size,
         retries,
         part_timeout,
+        retry_backoff,
     ):
         with open(dest, "r+b") as fh:
             fh.seek(start)
@@ -191,9 +194,51 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
         chunk_size=2,
         retries=1,
         part_timeout=30,
+        retry_backoff=0,
     )
 
     assert total == 6
     assert dest.read_bytes() == b"AACCEE"
     assert not dest.with_suffix(dest.suffix + ".tmp").exists()
     assert not dest.with_suffix(dest.suffix + ".parts").exists()
+
+
+def test_download_part_to_file_backs_off_between_retries(monkeypatch, tmp_path: Path):
+    attempts = 0
+    sleeps = []
+
+    class Response:
+        status_code = 206
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size):
+            yield b"ab"
+
+    def fake_get(url, headers=None, stream=True, timeout=None):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise downloader.requests.ConnectionError("network down")
+        return Response()
+
+    monkeypatch.setattr(downloader.requests, "get", fake_get)
+    monkeypatch.setattr(downloader.time, "sleep", sleeps.append)
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"ab")
+
+    total = downloader._download_part_to_file(
+        "https://example.test/file",
+        dest,
+        0,
+        1,
+        chunk_size=2,
+        retries=3,
+        part_timeout=30,
+        retry_backoff=5,
+    )
+
+    assert attempts == 3
+    assert sleeps == [5, 10]
+    assert total == 2

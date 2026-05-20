@@ -2193,3 +2193,25 @@ Follow-up remote wrap-up (2026-05-20, stopped partial stratified hydration run):
 - The ranged downloader continued to recover from slow range attempts via the `600s` part timeout, so this was stopped by operator choice rather than a code failure.
 - Destroyed contract `37157238`; `vastai show instances --raw` returned `[]`.
 - No validation ran and no held-out test ran on this instance, so there is no benchmark result to promote from this attempt.
+
+Follow-up remote launch/network hardening (2026-05-20):
+- Retried the stratified official hydration run after the stopped partial run.
+- Several explicit Vast offer launches created stopped/no-container contracts or hit host/image-layer issues before repo code ran:
+  - `37166613`: stopped no-container contract from Florida offer `36696899`; destroyed.
+  - `37166670`: stopped no-container contract from Oregon offer `37158063`; destroyed.
+  - `37166700`: stopped no-container contract from Norway offer `37061645`; destroyed.
+  - `37167637`: Mexico offer `36792121` reached image pull but failed with host-side container storage exhaustion (`no space left on device`); destroyed.
+- Nevada contract `37168284` reached the real official downloader, but the first official file failed because outbound network to `darus.uni-stuttgart.de` became unreachable across repeated range attempts (`Errno 101 Network is unreachable`); destroyed.
+- The benchmark policy remained intact:
+  - validation did not run
+  - held-out test did not run
+  - no result should be promoted from these attempts
+- Updated `scripts/download_pdebench_file.py` with configurable exponential backoff between ranged-part retries:
+  - CLI/env knob: `--retry-backoff` / `PDEBENCH_DOWNLOAD_RETRY_BACKOFF`
+  - default initial backoff: `15s`, doubling per failed part attempt
+  - this gives transient remote network outages time to recover instead of exhausting all retries immediately across parallel workers
+- Verified:
+  - `python -m pytest tests/unit/test_download_pdebench_file.py tests/unit/test_make_light_hdf5_shards.py tests/unit/test_plan_transport_official_hydration.py tests/unit/test_run_transport_official_hydration_plan.py`
+  - `19 passed`
+  - `python -m py_compile scripts/download_pdebench_file.py`
+  - `git diff --check`

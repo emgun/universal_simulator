@@ -18,6 +18,7 @@ DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?for
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 DEFAULT_PART_SIZE = 256 * 1024 * 1024
 DEFAULT_PART_TIMEOUT = 15 * 60
+DEFAULT_RETRY_BACKOFF = 15.0
 DEFAULT_TIMEOUT = (30, 60)
 
 
@@ -102,6 +103,7 @@ def _download_part(
     chunk_size: int,
     retries: int,
     part_timeout: int,
+    retry_backoff: float = DEFAULT_RETRY_BACKOFF,
 ) -> int:
     expected_size = end - start + 1
     if part_path.exists() and part_path.stat().st_size == expected_size:
@@ -151,6 +153,8 @@ def _download_part(
                 file=sys.stderr,
                 flush=True,
             )
+            if attempt < retries and retry_backoff > 0:
+                time.sleep(retry_backoff * (2 ** (attempt - 1)))
 
     temp_path.unlink(missing_ok=True)
     assert last_error is not None
@@ -166,6 +170,7 @@ def _download_part_to_file(
     chunk_size: int,
     retries: int,
     part_timeout: int,
+    retry_backoff: float = DEFAULT_RETRY_BACKOFF,
 ) -> int:
     expected_size = end - start + 1
     headers = {"Range": f"bytes={start}-{end}"}
@@ -209,6 +214,8 @@ def _download_part_to_file(
                 file=sys.stderr,
                 flush=True,
             )
+            if attempt < retries and retry_backoff > 0:
+                time.sleep(retry_backoff * (2 ** (attempt - 1)))
 
     assert last_error is not None
     raise last_error
@@ -239,6 +246,7 @@ def _download_ranges(
     chunk_size: int,
     retries: int,
     part_timeout: int,
+    retry_backoff: float,
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
     temp_dest = dest.with_suffix(dest.suffix + ".tmp")
@@ -263,6 +271,7 @@ def _download_ranges(
                 chunk_size=chunk_size,
                 retries=retries,
                 part_timeout=part_timeout,
+                retry_backoff=retry_backoff,
             ): (index, start, end)
             for index, start, end in ranges
         }
@@ -294,6 +303,7 @@ def download(
     workers: int = 1,
     retries: int = 3,
     part_timeout: int = DEFAULT_PART_TIMEOUT,
+    retry_backoff: float = DEFAULT_RETRY_BACKOFF,
 ) -> None:
     file_id = entry["file_id"]
     url = DATAFILE_URL.format(file_id=file_id)
@@ -315,6 +325,7 @@ def download(
             chunk_size=chunk_size,
             retries=retries,
             part_timeout=part_timeout,
+            retry_backoff=retry_backoff,
         )
     else:
         total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
@@ -360,6 +371,12 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get("PDEBENCH_DOWNLOAD_PART_TIMEOUT", str(DEFAULT_PART_TIMEOUT))),
         help="Maximum wall-clock seconds for one ranged part attempt",
     )
+    parser.add_argument(
+        "--retry-backoff",
+        type=float,
+        default=float(os.environ.get("PDEBENCH_DOWNLOAD_RETRY_BACKOFF", str(DEFAULT_RETRY_BACKOFF))),
+        help="Initial seconds to sleep between ranged part retry attempts; doubles per attempt",
+    )
     return parser.parse_args()
 
 
@@ -376,6 +393,7 @@ def main() -> None:
         part_size=max(1, args.part_size_mib) * 1024 * 1024,
         retries=max(1, args.retries),
         part_timeout=max(1, args.part_timeout),
+        retry_backoff=max(0.0, args.retry_backoff),
     )
 
 

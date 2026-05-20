@@ -1468,3 +1468,13 @@ Remote wrap-up checkpoint:
 - The run was stopped before validation by operator request after saving 5 of 8 official train files and while downloading `beta2.0`.
 - Contract `37157238` was destroyed, and `vastai show instances --raw` returned `[]`.
 - This is a partial hydration attempt only: no SOTA guard validation ran, no held-out test ran, and no benchmark conclusion should be drawn from it.
+
+Remote launch/network checkpoint:
+
+- Subsequent remote attempts showed three distinct Vast/runtime failure modes before any benchmark result:
+  - stopped/no-container contracts from stale or unavailable explicit offers
+  - host-side image pull failure from full container storage
+  - remote outbound network outage to `darus.uni-stuttgart.de` during the first official file download
+- The only attempt that reached repo execution and the official downloader was Nevada contract `37168284`; it failed before completing the first file and before conversion, validation, or any held-out test.
+- The downloader now has configurable exponential backoff between ranged-part retries via `PDEBENCH_DOWNLOAD_RETRY_BACKOFF` / `--retry-backoff`.
+- Next path remains the same benchmark-clean objective: relaunch the stratified official hydration on a host with working image/container storage and stable outbound network, then accept only a real train-only validation gate result as evidence.
