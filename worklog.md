@@ -2351,3 +2351,10 @@ Follow-up Vast relaunch check (2026-05-20, credit still blocked):
   - `PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES=2`
   - `PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB=8`
 - Next executable path remains unchanged: restore compute credit or provide another real-data execution path, then run the generated `actual_launcher` from `reports/research/sota_loop/remote_official_advection_hydration_plan.json`.
+
+Follow-up literal held-out test guard (2026-05-20, official hydrated test ledger):
+- Tightened `scripts/run_official_hydrated_post_validation_test.py`.
+- The official hydrated post-validation runner now computes a stable measurement key and uses `reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json` by default.
+- If the same official hydrated test configuration is already in the ledger, the runner blocks before building or reading the held-out test shard unless `--allow-repeat-test` is explicitly set.
+- After executing the gated test command, the runner now verifies that `official_hydrated_transport_shift_gate.json` contains exactly one held-out test result before reporting `status=executed`.
+- This closes the last local policy gap in the literal full-objective chain: validation must first reach `literal_test_ready`, test execution must be explicit, the test configuration is ledger-guarded, and the resulting gate artifact must prove exactly one test measurement.

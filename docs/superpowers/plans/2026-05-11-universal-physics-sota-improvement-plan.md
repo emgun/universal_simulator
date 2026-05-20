@@ -1582,3 +1582,12 @@ Current relaunch blocker and updated command:
   - split repeatedly failing ranges after 2 attempts down to 8 MiB
 - `reports/research/sota_loop/remote_official_advection_hydration_plan.json` has been regenerated with these settings.
 - Next path remains: once compute credit is available, run the generated `actual_launcher`, accept only the official hydrated train/val guard as validation evidence, and run held-out test only if the objective audit reaches `literal_test_ready`.
+
+Official hydrated held-out test ledger:
+
+- `scripts/run_official_hydrated_post_validation_test.py` now uses `reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json` by default.
+- It derives a measurement key from the official hydrated test configuration and blocks repeat measurements before building or reading the test shard unless `--allow-repeat-test` is explicitly set.
+- After command execution, it reads `official_hydrated_transport_shift_gate.json` and requires exactly one held-out test result before reporting `status=executed`.
+- Verification:
+  - `python -m pytest tests/unit/test_run_official_hydrated_post_validation_test.py tests/unit/test_run_remote_official_hydration.py` -> `9 passed`
+  - `python -m py_compile scripts/run_official_hydrated_post_validation_test.py`

@@ -30,6 +30,8 @@ def _args(tmp_path, *, status: str, execute: bool = False, execute_test: bool = 
         val_min_relative_improvement=0.0,
         execute=execute,
         execute_test=execute_test,
+        test_ledger_json=str(tmp_path / "test-ledger.json"),
+        allow_repeat_test=False,
         output_json=str(tmp_path / "run.json"),
     )
 
@@ -50,6 +52,7 @@ def test_post_validation_test_runner_dry_run_requires_explicit_test_execution(tm
     assert record["held_out_test_policy"]["test_start_index"] == 14
     assert record["held_out_test_policy"]["split_block_size"] == 17
     assert record["held_out_test_policy"]["test_block_offset"] == 14
+    assert record["held_out_test_policy"]["measurement_key"]
     assert all(row["executed"] is False for row in record["executed"])
 
 
@@ -67,3 +70,68 @@ def test_post_validation_test_runner_command_shape_is_gated(tmp_path):
     assert "--test-split test" in commands["run_gated_test"]
     assert "--test-max-samples 3" in commands["run_gated_test"]
     assert "official_hydrated_transport_shift_gate.json" in commands["run_gated_test"]
+
+
+def test_post_validation_test_runner_blocks_repeat_ledger_key(tmp_path):
+    preview_args = _args(tmp_path, status="literal_test_ready", execute=False, execute_test=True)
+    first = run_post_validation_test(preview_args)
+    ledger = {
+        "measurements": [
+            {
+                "measurement_key": first["held_out_test_policy"]["measurement_key"],
+            }
+        ]
+    }
+    (tmp_path / "test-ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
+
+    args = _args(tmp_path, status="literal_test_ready", execute=True, execute_test=True)
+    record = run_post_validation_test(args)
+
+    assert record["status"] == "blocked"
+    assert any("already recorded" in blocker for blocker in record["blockers"])
+    assert all(row["executed"] is False for row in record["executed"])
+
+
+def test_post_validation_test_runner_requires_gate_artifact_test_result(monkeypatch, tmp_path):
+    args = _args(tmp_path, status="literal_test_ready", execute=True, execute_test=True)
+    args.official_hydrated_gate_json = str(tmp_path / "gate.json")
+    (tmp_path / "gate.json").write_text(json.dumps({"test": {"nrmse": 0.1}}), encoding="utf-8")
+    calls = []
+
+    def fake_run(command, shell, check):
+        calls.append(command)
+
+        class Completed:
+            returncode = 0
+
+        return Completed()
+
+    monkeypatch.setattr("scripts.run_official_hydrated_post_validation_test.subprocess.run", fake_run)
+
+    record = run_post_validation_test(args)
+
+    assert record["status"] == "executed"
+    assert len(calls) == 2
+    assert record["held_out_test_policy"]["test_result_count"] == 1
+    assert record["held_out_test_policy"]["ledger_recorded"] is True
+    ledger = json.loads((tmp_path / "test-ledger.json").read_text(encoding="utf-8"))
+    assert len(ledger["measurements"]) == 1
+
+
+def test_post_validation_test_runner_blocks_if_gate_artifact_has_no_test(monkeypatch, tmp_path):
+    args = _args(tmp_path, status="literal_test_ready", execute=True, execute_test=True)
+    args.official_hydrated_gate_json = str(tmp_path / "gate.json")
+    (tmp_path / "gate.json").write_text(json.dumps({"test": None}), encoding="utf-8")
+
+    def fake_run(command, shell, check):
+        class Completed:
+            returncode = 0
+
+        return Completed()
+
+    monkeypatch.setattr("scripts.run_official_hydrated_post_validation_test.subprocess.run", fake_run)
+
+    record = run_post_validation_test(args)
+
+    assert record["status"] == "blocked"
+    assert any("expected exactly 1" in blocker for blocker in record["blockers"])

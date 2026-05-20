@@ -4,6 +4,7 @@ from __future__ import annotations
 """Run or preview the official hydrated held-out test after literal test readiness."""
 
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -14,8 +15,59 @@ def _load_json(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def _load_test_ledger(path: str | None) -> dict[str, Any]:
+    if not path:
+        return {"measurements": []}
+    ledger_path = Path(path)
+    if not ledger_path.exists():
+        return {"measurements": []}
+    return json.loads(ledger_path.read_text(encoding="utf-8"))
+
+
+def _write_test_ledger(path: str | None, ledger: dict[str, Any]) -> None:
+    if not path:
+        return
+    ledger_path = Path(path)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(json.dumps(ledger, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def _shift_args(shifts: list[int]) -> str:
     return " ".join(f"--shift {shift}" for shift in shifts)
+
+
+def _test_measurement_key(args: argparse.Namespace, objective_status: dict[str, Any]) -> str:
+    payload = {
+        "estimator": "official_hydrated_constant_transport_shift",
+        "hydrated_light_root": args.hydrated_light_root,
+        "hydrated_source_root": args.hydrated_source_root,
+        "objective_status": objective_status.get("status"),
+        "official_hydrated_gate_json": args.official_hydrated_gate_json,
+        "reference_metric_value": args.reference_metric_value,
+        "rollout_steps": args.rollout_steps,
+        "shift": [int(shift) for shift in args.shift],
+        "split_block_size": int(getattr(args, "split_block_size", 0)),
+        "test_block_offset": int(getattr(args, "test_block_offset", 0)),
+        "test_count": int(args.test_count),
+        "train_count": int(args.train_count),
+        "val_count": int(args.val_count),
+        "val_min_relative_improvement": args.val_min_relative_improvement,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _gate_test_result_count(path: str | Path) -> int:
+    gate_path = Path(path)
+    if not gate_path.exists():
+        return 0
+    gate = _load_json(gate_path)
+    test_payload = gate.get("test")
+    if not test_payload:
+        return 0
+    if isinstance(test_payload, list):
+        return len(test_payload)
+    return 1
 
 
 def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
@@ -57,6 +109,7 @@ def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
 def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
     objective_status = _load_json(args.objective_status_json)
     commands = _commands(args)
+    measurement_key = _test_measurement_key(args, objective_status)
     test_start_index = int(args.train_count) + int(args.val_count)
     split_block_size = int(getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count))
     test_block_offset = int(getattr(args, "test_block_offset", test_start_index))
@@ -65,6 +118,20 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append(f"objective status is {objective_status.get('status')}, expected literal_test_ready")
     if not bool(args.execute_test):
         blockers.append("held-out test execution requires --execute-test")
+    ledger_path = getattr(args, "test_ledger_json", None)
+    allow_repeat_test = bool(getattr(args, "allow_repeat_test", False))
+    test_ledger_recorded = False
+    if args.execute_test and ledger_path:
+        ledger = _load_test_ledger(ledger_path)
+        existing_keys = {
+            str(entry.get("measurement_key"))
+            for entry in ledger.get("measurements", [])
+            if isinstance(entry, dict)
+        }
+        if measurement_key in existing_keys and not allow_repeat_test:
+            blockers.append(
+                "held-out test measurement already recorded for this official hydrated test configuration"
+            )
 
     should_execute = bool(args.execute and args.execute_test and not blockers)
     executed: list[dict[str, Any]] = []
@@ -84,6 +151,25 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
                 should_execute = False
         executed.append(command_record)
 
+    test_result_count = 0
+    if args.execute and args.execute_test and not blockers:
+        test_result_count = _gate_test_result_count(args.official_hydrated_gate_json)
+        if test_result_count != 1:
+            blockers.append(
+                f"gated test command recorded {test_result_count} held-out test results; expected exactly 1"
+            )
+        elif ledger_path and not allow_repeat_test:
+            ledger = _load_test_ledger(ledger_path)
+            ledger.setdefault("measurements", []).append(
+                {
+                    "measurement_key": measurement_key,
+                    "official_hydrated_gate_json": args.official_hydrated_gate_json,
+                    "test_result_count": test_result_count,
+                }
+            )
+            _write_test_ledger(ledger_path, ledger)
+            test_ledger_recorded = True
+
     status = "executed" if args.execute and not blockers else "dry_run" if not args.execute else "blocked"
     return {
         "status": status,
@@ -95,6 +181,11 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
         "held_out_test_policy": {
             "requires_literal_test_ready": True,
             "builds_test_shard": bool(args.execute and args.execute_test and not blockers),
+            "ledger_path": ledger_path,
+            "measurement_key": measurement_key,
+            "allow_repeat_test": allow_repeat_test,
+            "ledger_recorded": test_ledger_recorded,
+            "test_result_count": test_result_count,
             "test_start_index": test_start_index,
             "split_block_size": split_block_size,
             "test_block_offset": test_block_offset,
@@ -124,6 +215,12 @@ def main() -> None:
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
+    parser.add_argument(
+        "--test-ledger-json",
+        default="reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json",
+        help="Ledger that prevents measuring the same official hydrated held-out test more than once",
+    )
+    parser.add_argument("--allow-repeat-test", action="store_true", help="Bypass the held-out test ledger guard")
     parser.add_argument("--execute", action="store_true", help="Execute the post-validation stages")
     parser.add_argument("--execute-test", action="store_true", help="Allow creating/reading the held-out test shard")
     parser.add_argument(
