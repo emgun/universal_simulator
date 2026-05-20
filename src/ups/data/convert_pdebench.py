@@ -63,6 +63,8 @@ def convert_files(
     total_written = 0
     target_shape: Tuple[int, ...] | None = None
     dset: h5py.Dataset | None = None
+    source_file_index_dset: h5py.Dataset | None = None
+    source_sample_index_dset: h5py.Dataset | None = None
 
     with h5py.File(out_path, "w") as out_h5:
         for index, path in enumerate(files):
@@ -95,6 +97,22 @@ def convert_files(
                             dtype=np.float32,
                             chunks=(chunk.shape[0], *target_shape),
                         )
+                        source_file_index_dset = out_h5.create_dataset(
+                            "source_file_index",
+                            shape=(0,),
+                            maxshape=(None,),
+                            dtype=np.int32,
+                            chunks=(chunk.shape[0],),
+                        )
+                        source_sample_index_dset = out_h5.create_dataset(
+                            "source_sample_index",
+                            shape=(0,),
+                            maxshape=(None,),
+                            dtype=np.int64,
+                            chunks=(chunk.shape[0],),
+                        )
+                        source_paths = [str(path) for path in files[:limit]]
+                        out_h5.attrs["source_paths"] = np.asarray(source_paths, dtype=h5py.string_dtype("utf-8"))
                     elif chunk.shape[1:] != target_shape:
                         raise ValueError(
                             "Inconsistent sample shape: "
@@ -102,9 +120,15 @@ def convert_files(
                         )
 
                     assert dset is not None  # mypy guard
+                    assert source_file_index_dset is not None
+                    assert source_sample_index_dset is not None
                     next_size = total_written + chunk.shape[0]
                     dset.resize(next_size, axis=0)
+                    source_file_index_dset.resize(next_size, axis=0)
+                    source_sample_index_dset.resize(next_size, axis=0)
                     dset[total_written:next_size] = chunk
+                    source_file_index_dset[total_written:next_size] = index
+                    source_sample_index_dset[total_written:next_size] = np.arange(start, end, dtype=np.int64)
                     total_written = next_size
 
     if total_written == 0:

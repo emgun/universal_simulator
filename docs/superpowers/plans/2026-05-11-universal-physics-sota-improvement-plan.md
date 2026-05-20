@@ -1631,3 +1631,10 @@ Remote artifact publishing bootstrap:
 - `scripts/run_remote_official_hydration.sh` now installs `rclone` on apt-based hosts when `PUBLISH_ARTIFACTS=1`, `INSTALL_RCLONE=1`, and `rclone` is missing.
 - This matches the practical remote execution path: a minimal Vast image should not complete validation/test and then fail final evidence upload only because `rclone` was absent.
 - Tradeoff: non-apt hosts or `INSTALL_RCLONE=0` still fail closed and require a preinstalled `rclone`, which is safer than silently skipping report publication.
+
+Train-only conditional transport preparation:
+
+- The literal objective remains blocked until official hydrated train/val validation exists; the current local light-v1 train split is still underidentified for the validation regime.
+- A quick research pass points toward symmetry/canonical/equivariant transport structure rather than further global constant-shift sweeps.
+- `src/ups/data/convert_pdebench.py` now preserves source provenance in converted HDF5 files via `source_file_index`, `source_sample_index`, and `source_paths`.
+- This is intentionally not a result claim. It prepares the official hydrated train/val artifacts for a benchmark-clean conditional transport probe once real data hydration runs, while preserving the no-test-before-validation policy.

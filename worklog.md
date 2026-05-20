@@ -2388,3 +2388,13 @@ Follow-up remote artifact publishing bootstrap (2026-05-20):
 - Hardened `scripts/run_remote_official_hydration.sh` so `PUBLISH_ARTIFACTS=1` can bootstrap `rclone` on apt-based remote hosts when it is not already installed.
 - The wrapper still fails closed if `INSTALL_RCLONE=0` or the host has no `apt-get`, but a standard Vast image no longer needs a manual rclone preinstall for final report publication.
 - This protects the literal objective evidence path: after a credit-unblocked official hydration run, the wrapper should be able to upload the validation/test report bundle before auto-shutdown.
+
+Follow-up train-only conditional transport preparation (2026-05-20):
+- Rechecked the literal objective audit: it remains `status=literal_blocked` with no official hydrated gate, and `vastai show instances --raw` still returns `[]`.
+- Re-evaluated the stuck path against current neural-operator/transport literature: the promising direction is not another blind constant-shift sweep, but a symmetry-aware or canonicalized conditional transport rule that can be fit on train regimes and measured on validation.
+- Updated `src/ups/data/convert_pdebench.py` so converted official PDEBench HDF5 files retain per-sample provenance:
+  - `source_file_index`
+  - `source_sample_index`
+  - root attr `source_paths`
+- This gives the official hydrated train/val shards beta/source-file regime information after conversion and light-shard slicing, without reading or changing held-out test data.
+- Practical implication: once official hydration is unblocked, a train-only conditional transport probe can use source-file regime labels from train and validate the locked rule on val instead of being restricted to one global constant shift.
