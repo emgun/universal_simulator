@@ -1609,3 +1609,12 @@ Preferred Vast offer relaunch update:
 - Verification:
   - `python -m pytest tests/unit/test_plan_remote_official_hydration.py` -> `3 passed`
   - `python -m py_compile scripts/plan_remote_official_hydration.py`
+
+Official hydration artifact preservation:
+
+- `scripts/run_remote_official_hydration.sh` now supports `PUBLISH_ARTIFACTS=1`.
+- When enabled, it publishes a tarball of the official hydration report artifacts to B2 before auto-shutdown, including the train/val run report, objective status, post-validation test report, gate JSON, and test ledger if present.
+- This is intentionally report-only; it avoids uploading the large hydrated data by default.
+- Verification:
+  - `python -m pytest tests/unit/test_run_remote_official_hydration.py tests/unit/test_plan_remote_official_hydration.py` -> `8 passed`
+  - `bash -n scripts/run_remote_official_hydration.sh`

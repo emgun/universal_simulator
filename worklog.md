@@ -2370,3 +2370,10 @@ Follow-up Vast relaunch check (2026-05-20, preferred offer pinned):
 - Actual launch command was rejected again with `Your account lacks credit; see the billing page.`
 - Updated `scripts/plan_remote_official_hydration.py` with optional `--offer-id`, then regenerated `reports/research/sota_loop/remote_official_advection_hydration_plan.json` with `preferred_offer_id=36151271`.
 - The generated `actual_launcher` now includes `OFFER_ID=36151271` plus the hardened downloader runtime and guarded post-validation chain.
+
+Follow-up remote artifact preservation (2026-05-20, official hydration reports):
+- Added optional `PUBLISH_ARTIFACTS=1` support to `scripts/run_remote_official_hydration.sh`.
+- When enabled, the remote wrapper tars the official hydration report artifacts that exist and uploads them to B2 before auto-shutdown:
+  - hydration plan, validation report, run report, objective status, post-validation test report, official hydrated gate, and official hydrated test ledger
+- This prevents a successful remote validation/test run from leaving the only result evidence on a disposable Vast instance.
+- Publication is off by default and requires `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, and `rclone`.
