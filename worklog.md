@@ -2415,3 +2415,8 @@ Follow-up post-validation test consistency (2026-05-20):
 - The test ledger measurement key now identifies the estimator as `official_hydrated_source_conditioned_transport_shift`.
 - Regenerated `reports/research/sota_loop/official_hydrated_post_validation_test_run.json`; it remains a dry run because objective status is still `literal_blocked`.
 - This keeps train/val validation and the later exactly-one held-out test on the same train-fitted source-conditioned rule.
+
+Follow-up light-shard provenance propagation (2026-05-20):
+- Updated `scripts/make_light_hdf5_shards.py` so root HDF5 attrs from converted source files are copied into light train/val/test shards.
+- This preserves `source_paths` alongside the sample-aligned `source_file_index` and `source_sample_index` datasets added during conversion.
+- The source-conditioned official gate can already operate from `source_file_index`; preserving `source_paths` makes the resulting gate artifacts auditable against the original beta/source files after remote hydration.

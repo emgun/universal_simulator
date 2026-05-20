@@ -41,11 +41,14 @@ def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.
     offset = int(start)
     chunks: dict[str, list[np.ndarray]] = {}
     attrs: dict[str, dict[str, object]] = {}
+    file_attrs: dict[str, object] | None = None
 
     for path in paths:
         if remaining <= 0:
             break
         with h5py.File(path, "r") as handle:
+            if file_attrs is None:
+                file_attrs = dict(handle.attrs.items())
             if "data" not in handle:
                 raise KeyError(f"{path} does not contain a 'data' dataset")
             total = int(handle["data"].shape[0])
@@ -67,6 +70,8 @@ def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.
     merged = {key: np.concatenate(values, axis=0) for key, values in chunks.items()}
     for key, values in attrs.items():
         merged[f"__attrs__:{key}"] = values  # type: ignore[assignment]
+    if file_attrs is not None:
+        merged["__file_attrs__"] = file_attrs  # type: ignore[assignment]
     return merged
 
 
@@ -77,12 +82,15 @@ def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.nda
     remaining = sorted((int(index), position) for position, index in enumerate(indices))
     chunks: dict[str, list[np.ndarray | None]] = {}
     attrs: dict[str, dict[str, object]] = {}
+    file_attrs: dict[str, object] | None = None
     base = 0
 
     for path in paths:
         if not remaining:
             break
         with h5py.File(path, "r") as handle:
+            if file_attrs is None:
+                file_attrs = dict(handle.attrs.items())
             if "data" not in handle:
                 raise KeyError(f"{path} does not contain a 'data' dataset")
             total = int(handle["data"].shape[0])
@@ -112,6 +120,8 @@ def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.nda
         merged[key] = np.concatenate([value for value in values if value is not None], axis=0)
     for key, values in attrs.items():
         merged[f"__attrs__:{key}"] = values  # type: ignore[assignment]
+    if file_attrs is not None:
+        merged["__file_attrs__"] = file_attrs  # type: ignore[assignment]
     return merged
 
 
@@ -157,9 +167,12 @@ def _write_h5(path: Path, arrays: dict[str, np.ndarray], *, overwrite: bool) -> 
         raise FileExistsError(f"{path} already exists; pass --overwrite to replace it")
     path.parent.mkdir(parents=True, exist_ok=True)
     attrs = {key.removeprefix("__attrs__:"): value for key, value in arrays.items() if key.startswith("__attrs__:")}
+    file_attrs = arrays.get("__file_attrs__", {})
     with h5py.File(path, "w") as handle:
+        for attr_key, attr_value in file_attrs.items():  # type: ignore[union-attr]
+            handle.attrs[attr_key] = attr_value
         for key, array in arrays.items():
-            if key.startswith("__attrs__:"):
+            if key.startswith("__attrs__:") or key == "__file_attrs__":
                 continue
             dataset = handle.create_dataset(key, data=array, compression="gzip", compression_opts=3)
             for attr_key, attr_value in attrs.get(key, {}).items():

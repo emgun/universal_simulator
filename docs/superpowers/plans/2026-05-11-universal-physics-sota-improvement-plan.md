@@ -1651,3 +1651,8 @@ Post-validation held-out test consistency:
 - `scripts/run_official_hydrated_post_validation_test.py` now invokes the same source-conditioned gate if validation reaches `literal_test_ready`.
 - The ledger key changed from the old constant-shift estimator identity to `official_hydrated_source_conditioned_transport_shift`.
 - This prevents a model switch between validation and the exactly-one held-out test stage.
+
+Light-shard provenance propagation:
+
+- `scripts/make_light_hdf5_shards.py` now carries root HDF5 attrs from converted source files into the light shards.
+- This preserves `source_paths` next to the sample-aligned `source_file_index` and `source_sample_index` datasets, making source-conditioned gate reports auditable back to the official beta files.
