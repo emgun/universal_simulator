@@ -1526,3 +1526,16 @@ Credit-blocked relaunch checkpoint:
 - `vastai show instances --raw` returned `[]` after cleanup.
 - The current blocker is external compute credit or an alternate real-data execution path, not a benchmark result.
 - Next path: once compute is available, relaunch the same adaptive range-split stratified official hydration; do not run held-out test unless the objective audit reaches `literal_test_ready`.
+
+Local light-v1 policy crossroads refresh:
+
+- The local Advection `light-v1` files match the recorded B2/remote manifest identities:
+  - train SHA-256 `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`
+  - validation SHA-256 `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`
+  - test SHA-256 `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`
+- Fresh default objective audit still exits `2` with `status=literal_blocked`.
+- Fresh context-accepted objective audit exits `0` with `status=context_transport_achieved`, but only with `ACCEPT_CONTEXT_TRANSPORT=1`.
+- Fresh context and observed result audits both return `status=achieved` without rerunning held-out test.
+- The key crossroads is policy, not data availability:
+  - accept two initial context frames: promote the context transport result (`val nrmse=0.12336619943380356`, `test nrmse=0.040703773498535156`, exactly-one test ledger recorded)
+  - require literal constant/train-only shift: continue the official stratified hydration path once compute credit is available, or pursue a richer train-only causal mechanism with additional allowed signal

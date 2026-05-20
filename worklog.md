@@ -2281,3 +2281,24 @@ Follow-up current Vast wrap-up (2026-05-20, credit-blocked relaunch):
 - `vastai show instances --raw` returned `[]` after cleanup.
 - No SOTA guard validation ran and no held-out test ran, so there is still no benchmark result to promote.
 - Next path is externally blocked until Vast credit is available or another real-data execution path is provided; once available, relaunch the same adaptive range-split stratified hydration and accept only the train/val guard result as evidence.
+
+Follow-up local audit refresh (2026-05-20, light-v1 policy crossroads):
+- Verified the local `light-v1` Advection shard identities against `reports/research/sota_loop/remote_manifests/light-v1_manifest.yaml`:
+  - train: `67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1`
+  - val: `9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329`
+  - test: `4930a14afefa062d2d3a56ddda98ad76ff1e33eb150ed6f02fc36004fe0cdf93`
+- Fresh default objective audit:
+  - command: `bash scripts/run_official_transport_objective_status.sh`
+  - status: `literal_blocked`
+  - reason: the literal train-only constant-shift path remains blocked by incompatible splits / underidentified train-only shift support, while context and observed transport results are not accepted by default.
+- Fresh context-accepted audit:
+  - command: `ACCEPT_CONTEXT_TRANSPORT=1 REQUIRE_STATUS=context-accepted OBJECTIVE_STATUS_JSON=/private/tmp/transport_objective_status_context_accepted_refresh.json bash scripts/run_official_transport_objective_status.sh`
+  - status: `context_transport_achieved`
+  - caveat: this depends on explicitly accepting the two-frame context transport policy.
+- Fresh result audits:
+  - `python scripts/audit_context_transport_shift_result.py --context-gate-json reports/research/sota_loop/context_transport_shift_gate.json --output-json /private/tmp/context_transport_shift_goal_audit_refresh.json --require-status achieved`
+  - `python scripts/audit_observed_transport_shift_result.py --observed-gate-json reports/research/sota_loop/observed_transport_shift_gate_real_light_v1.json --output-json /private/tmp/observed_transport_shift_goal_audit_refresh.json --require-status achieved`
+  - both returned `status=achieved` without rerunning the held-out test.
+- Current decision point:
+  - if the benchmark policy accepts two initial context frames, the best available result is the context transport result (`val nrmse=0.12336619943380356`, `test nrmse=0.040703773498535156`, exactly-one test ledger recorded)
+  - if the literal constant/train-only-shift policy is required, the path remains blocked and the next best action is a split-compatible official hydration run after Vast credit is restored, or a richer train-only causal mechanism with additional allowed signal
