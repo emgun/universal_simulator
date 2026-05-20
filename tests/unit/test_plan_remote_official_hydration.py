@@ -33,6 +33,13 @@ def _args(tmp_path):
         min_disk_gb=120,
         disk_multiplier=1.3,
         disk_padding_gb=40,
+        download_workers=8,
+        download_part_size_mib=128,
+        download_retries=6,
+        download_part_timeout=180,
+        download_retry_backoff=20.0,
+        download_split_after_retries=2,
+        download_min_split_size_mib=8,
         output_json=str(tmp_path / "remote.json"),
     )
 
@@ -48,6 +55,12 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
     assert "RUN_POST_VALIDATION_TEST=1" in record["commands"]["actual_launcher"]
     assert "EXECUTE_TEST=1" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_PART_SIZE_MIB=128" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_RETRIES=6" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_PART_TIMEOUT=180" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_RETRY_BACKOFF=20.0" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES=2" in record["commands"]["actual_launcher"]
+    assert record["download_runtime"]["part_size_mib"] == 128
     assert record["remote_post_validation_test_json"] == "reports/post_validation_test.json"
     assert record["held_out_test_policy"]["test_split_downloaded"] is False
 

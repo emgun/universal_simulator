@@ -2331,3 +2331,23 @@ Follow-up literal-path hardening (2026-05-20, resumable official range downloads
 - Tradeoff:
   - the sidecar only proves ranges completed through this downloader; if the sidecar is missing or mismatched, the downloader conservatively restarts rather than trusting arbitrary sparse bytes
   - this does not solve external credit or host/network loss, but it reduces wasted retry work on recoverable same-host/process restarts
+
+Follow-up Vast relaunch check (2026-05-20, credit still blocked):
+- Refreshed Vast state: `vastai show instances --raw` returned `[]`.
+- Current literal objective audit still returns `status=literal_blocked`; no official hydrated validation gate or held-out test artifact exists.
+- Searched current RTX 4090 offers and found verified Norway offers with sufficient disk, including offer `36114274`.
+- Dry-run launch for offer `36114274` produced a correct onstart script using:
+  - branch `codex/sota-learned-gate`
+  - image `python:3.11-slim`
+  - remote script `scripts/run_remote_official_hydration.sh`
+  - guarded post-validation test chain enabled
+- Actual launch was rejected by Vast with `Your account lacks credit; see the billing page.`
+- Updated `scripts/plan_remote_official_hydration.py` so the generated relaunch command includes the hardened downloader runtime:
+  - `PDEBENCH_DOWNLOAD_WORKERS=8`
+  - `PDEBENCH_DOWNLOAD_PART_SIZE_MIB=128`
+  - `PDEBENCH_DOWNLOAD_RETRIES=6`
+  - `PDEBENCH_DOWNLOAD_PART_TIMEOUT=180`
+  - `PDEBENCH_DOWNLOAD_RETRY_BACKOFF=20.0`
+  - `PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES=2`
+  - `PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB=8`
+- Next executable path remains unchanged: restore compute credit or provide another real-data execution path, then run the generated `actual_launcher` from `reports/research/sota_loop/remote_official_advection_hydration_plan.json`.

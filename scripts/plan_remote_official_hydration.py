@@ -37,7 +37,14 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         f"POST_VALIDATION_TEST_JSON={args.remote_post_validation_test_json} "
         "EXECUTE=1 EXECUTE_DOWNLOADS=1 "
         "RUN_POST_VALIDATION_TEST=1 EXECUTE_TEST=1 "
-        "MIN_DOWNLOAD_BYTES=60000000000' "
+        "MIN_DOWNLOAD_BYTES=60000000000 "
+        f"PDEBENCH_DOWNLOAD_WORKERS={args.download_workers} "
+        f"PDEBENCH_DOWNLOAD_PART_SIZE_MIB={args.download_part_size_mib} "
+        f"PDEBENCH_DOWNLOAD_RETRIES={args.download_retries} "
+        f"PDEBENCH_DOWNLOAD_PART_TIMEOUT={args.download_part_timeout} "
+        f"PDEBENCH_DOWNLOAD_RETRY_BACKOFF={args.download_retry_backoff} "
+        f"PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES={args.download_split_after_retries} "
+        f"PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB={args.download_min_split_size_mib}' "
         "bash scripts/launch_remote_transport_shift_candidate_vast.sh"
     )
     return {
@@ -52,6 +59,15 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "remote_validation_json": args.remote_validation_json,
         "remote_run_json": args.remote_run_json,
         "remote_post_validation_test_json": args.remote_post_validation_test_json,
+        "download_runtime": {
+            "workers": args.download_workers,
+            "part_size_mib": args.download_part_size_mib,
+            "retries": args.download_retries,
+            "part_timeout": args.download_part_timeout,
+            "retry_backoff": args.download_retry_backoff,
+            "split_after_retries": args.download_split_after_retries,
+            "min_split_size_mib": args.download_min_split_size_mib,
+        },
         "commands": {
             "dry_run_launcher": launcher,
             "actual_launcher": launcher.replace("DRY_RUN=1", "DRY_RUN=0", 1),
@@ -63,6 +79,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
             "The Vast launcher invokes a bash wrapper; do not use a Python file as REMOTE_SCRIPT.",
             "The hydration plan downloads official train files only and builds train/val shards with test_count=0.",
             "The post-validation test stage is chained but gated on literal_test_ready before it can build or read the held-out test shard.",
+            "Downloader runtime knobs are included so remote retries use bounded reads, exponential backoff, adaptive range splitting, and same-host resume sidecars.",
         ],
     }
 
@@ -94,6 +111,13 @@ def main() -> None:
     parser.add_argument("--min-disk-gb", type=int, default=120)
     parser.add_argument("--disk-multiplier", type=float, default=1.3)
     parser.add_argument("--disk-padding-gb", type=int, default=40)
+    parser.add_argument("--download-workers", type=int, default=8)
+    parser.add_argument("--download-part-size-mib", type=int, default=128)
+    parser.add_argument("--download-retries", type=int, default=6)
+    parser.add_argument("--download-part-timeout", type=int, default=180)
+    parser.add_argument("--download-retry-backoff", type=float, default=20.0)
+    parser.add_argument("--download-split-after-retries", type=int, default=2)
+    parser.add_argument("--download-min-split-size-mib", type=int, default=8)
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/remote_official_advection_hydration_plan.json",

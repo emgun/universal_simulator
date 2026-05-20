@@ -1568,3 +1568,17 @@ Literal hydration robustness update:
 - Verification:
   - `python -m pytest tests/unit/test_download_pdebench_file.py` -> `11 passed`
   - `python -m py_compile scripts/download_pdebench_file.py`
+
+Current relaunch blocker and updated command:
+
+- `vastai show instances --raw` returns `[]`.
+- A fresh launch attempt on verified Norway RTX 4090 offer `36114274` was rejected by Vast with `Your account lacks credit; see the billing page.`
+- `scripts/plan_remote_official_hydration.py` now embeds the hardened downloader runtime into the generated launcher command:
+  - 8 workers
+  - 128 MiB ranged parts
+  - 6 retries
+  - 180s per-part timeout
+  - 20s exponential retry backoff
+  - split repeatedly failing ranges after 2 attempts down to 8 MiB
+- `reports/research/sota_loop/remote_official_advection_hydration_plan.json` has been regenerated with these settings.
+- Next path remains: once compute credit is available, run the generated `actual_launcher`, accept only the official hydrated train/val guard as validation evidence, and run held-out test only if the objective audit reaches `literal_test_ready`.
