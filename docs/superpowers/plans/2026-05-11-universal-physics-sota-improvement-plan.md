@@ -1549,3 +1549,13 @@ Context-accepted audit consistency fix:
   - `python -m pytest tests/unit/test_audit_transport_objective_status.py` -> `6 passed`
   - `bash scripts/run_official_transport_objective_status.sh` -> exits `2`, `status=literal_blocked`
   - `ACCEPT_CONTEXT_TRANSPORT=1 REQUIRE_STATUS=context-accepted OBJECTIVE_STATUS_JSON=/private/tmp/transport_objective_status_context_accepted_fixed.json bash scripts/run_official_transport_objective_status.sh` -> exits `0`, `status=context_transport_achieved`, all requirement rows satisfied under the explicit two-frame context policy
+
+Context-accepted wrap-up wrapper:
+
+- `scripts/run_official_context_transport_objective_status.sh` now provides a single explicit context-policy entrypoint for the achieved two-frame context result.
+- It sets `ACCEPT_CONTEXT_TRANSPORT=1`, `REQUIRE_STATUS=context-accepted`, and writes `reports/research/sota_loop/transport_objective_status_context_accepted.json` by default.
+- It does not rerun validation or held-out test; it only re-aggregates the existing audits and exactly-one test ledger under the context-accepted benchmark policy.
+- The default literal command remains the conservative release gate and still exits nonzero with `status=literal_blocked`.
+- Next path:
+  - if two initial context frames are accepted as benchmark-clean, use the wrapper as the release/checkpoint command
+  - if the literal train-only constant-shift objective remains required, wait for compute credit or an alternate real-data path and relaunch official stratified hydration; do not run held-out test unless the objective audit reaches `literal_test_ready`

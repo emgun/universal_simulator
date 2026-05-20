@@ -73,6 +73,23 @@ def test_official_transport_objective_status_dry_run_reports_context_policy_acce
     assert "accept_context_transport=1" in proc.stdout
 
 
+def test_official_context_transport_objective_status_wrapper_dry_run():
+    env = os.environ.copy()
+    env["DRY_RUN"] = "1"
+    proc = subprocess.run(
+        ["bash", "scripts/run_official_context_transport_objective_status.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "aggregate transport objective status" in proc.stdout
+    assert "require_status=context-accepted" in proc.stdout
+    assert "accept_context_transport=1" in proc.stdout
+    assert "transport_objective_status_context_accepted.json" in proc.stdout
+
+
 def test_official_transport_objective_status_executes_default_literal_check(tmp_path):
     constant = tmp_path / "constant.json"
     context = tmp_path / "context.json"
