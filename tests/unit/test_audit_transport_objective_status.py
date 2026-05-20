@@ -105,6 +105,12 @@ def test_objective_audit_keeps_context_transport_policy_explicit(tmp_path):
     assert "two-frame context transport result is achieved but not accepted" in blocked["blockers"][-1]
     assert accepted["status"] == "context_transport_achieved"
     assert accepted["accept_context_transport"] is True
+    assert any(
+        requirement["name"] == "fit_transport_shift_only_on_train"
+        and requirement["status"] == "satisfied"
+        and "context_transport_achieved=True" in requirement["evidence"]
+        for requirement in accepted["requirements"]
+    )
 
 
 def test_objective_audit_reports_train_feature_blocker(tmp_path):

@@ -2302,3 +2302,11 @@ Follow-up local audit refresh (2026-05-20, light-v1 policy crossroads):
 - Current decision point:
   - if the benchmark policy accepts two initial context frames, the best available result is the context transport result (`val nrmse=0.12336619943380356`, `test nrmse=0.040703773498535156`, exactly-one test ledger recorded)
   - if the literal constant/train-only-shift policy is required, the path remains blocked and the next best action is a split-compatible official hydration run after Vast credit is restored, or a richer train-only causal mechanism with additional allowed signal
+
+Follow-up audit fix (2026-05-20, context-accepted requirement consistency):
+- Fixed `scripts/audit_transport_objective_status.py` so context-accepted and observed-accepted achieved modes satisfy the `fit_transport_shift_only_on_train` requirement row.
+- Before this fix, the aggregate status could be `context_transport_achieved` while the train-fit requirement still reported `blocked`, even though the context estimator contract is train-locked and validation/test only score the locked estimator.
+- Fresh verification:
+  - `python -m pytest tests/unit/test_audit_transport_objective_status.py` -> `6 passed`
+  - default command `bash scripts/run_official_transport_objective_status.sh` still exits `2` with `status=literal_blocked`
+  - context-accepted command exits `0` with `status=context_transport_achieved` and all requirement rows satisfied, while preserving the caveat that this depends on accepting the two-frame context policy

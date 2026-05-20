@@ -81,6 +81,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     official_hydrated_test_result_count = _gate_test_result_count(official_hydrated_gate)
     observed_accepted = bool(getattr(args, "accept_observed_context", False))
     context_accepted = bool(getattr(args, "accept_context_transport", False))
+    context_transport_achieved = bool(context_accepted and context_status == "achieved")
+    observed_context_achieved = bool(observed_accepted and observed_status == "achieved")
 
     blockers: list[str] = []
     if constant_status == "achieved":
@@ -95,12 +97,12 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append(
             "official hydrated gate includes one held-out test result, but the constant goal audit has not promoted it"
         )
-    elif context_accepted and context_status == "achieved":
+    elif context_transport_achieved:
         status = "context_transport_achieved"
         blockers.append(
             "literal train-only shift objective remains unproven; status depends on accepting two-frame context transport"
         )
-    elif observed_accepted and observed_status == "achieved":
+    elif observed_context_achieved:
         status = "observed_context_achieved"
         blockers.append(
             "literal train-only shift objective remains unproven; status depends on accepting two-frame observed context"
@@ -185,7 +187,10 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         {
             "name": "fit_transport_shift_only_on_train",
             "status": "satisfied"
-            if constant_status == "achieved" or official_hydrated_validation_passed
+            if constant_status == "achieved"
+            or official_hydrated_validation_passed
+            or context_transport_achieved
+            or observed_context_achieved
             else "blocked",
             "evidence": (
                 f"constant_audit_status={constant_status}; "
@@ -196,7 +201,9 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 f"hydration_preflight_status={hydration_preflight_status}; "
                 f"hydration_storage_status={hydration_storage_status}; "
                 f"remote_hydration_plan_status={remote_hydration_plan_status}; "
-                f"official_hydrated_validation_passed={official_hydrated_validation_passed}"
+                f"official_hydrated_validation_passed={official_hydrated_validation_passed}; "
+                f"context_transport_achieved={context_transport_achieved}; "
+                f"observed_context_achieved={observed_context_achieved}"
             ),
         },
         {
@@ -205,8 +212,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             if (
                 constant_status == "achieved"
                 or official_hydrated_validation_passed
-                or (context_accepted and context_status == "achieved")
-                or (observed_accepted and observed_status == "achieved")
+                or context_transport_achieved
+                or observed_context_achieved
             )
             else "blocked",
             "evidence": (
@@ -225,8 +232,8 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                     and official_hydrated_test_result_count == 1
                     and official_hydrated_validation_passed
                 )
-                or (context_accepted and context_status == "achieved")
-                or (observed_accepted and observed_status == "achieved")
+                or context_transport_achieved
+                or observed_context_achieved
             )
             else "blocked",
             "evidence": (

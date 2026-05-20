@@ -1539,3 +1539,13 @@ Local light-v1 policy crossroads refresh:
 - The key crossroads is policy, not data availability:
   - accept two initial context frames: promote the context transport result (`val nrmse=0.12336619943380356`, `test nrmse=0.040703773498535156`, exactly-one test ledger recorded)
   - require literal constant/train-only shift: continue the official stratified hydration path once compute credit is available, or pursue a richer train-only causal mechanism with additional allowed signal
+
+Context-accepted audit consistency fix:
+
+- `scripts/audit_transport_objective_status.py` now marks `fit_transport_shift_only_on_train` as satisfied when the context or observed accepted-policy result is achieved.
+- This fixes an aggregate-audit inconsistency: `status=context_transport_achieved` no longer coexists with a blocked train-fit requirement row.
+- Default literal policy is unchanged and still fails closed with `status=literal_blocked`.
+- Verification:
+  - `python -m pytest tests/unit/test_audit_transport_objective_status.py` -> `6 passed`
+  - `bash scripts/run_official_transport_objective_status.sh` -> exits `2`, `status=literal_blocked`
+  - `ACCEPT_CONTEXT_TRANSPORT=1 REQUIRE_STATUS=context-accepted OBJECTIVE_STATUS_JSON=/private/tmp/transport_objective_status_context_accepted_fixed.json bash scripts/run_official_transport_objective_status.sh` -> exits `0`, `status=context_transport_achieved`, all requirement rows satisfied under the explicit two-frame context policy
