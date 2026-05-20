@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import h5py
-import torch
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -25,21 +25,21 @@ def _load_series(
     task: str,
     split: str,
     max_samples: int | None,
-) -> torch.Tensor:
+) -> np.ndarray:
     path = Path(root) / f"{task}_{split}.h5"
     if not path.exists():
         raise FileNotFoundError(path)
     sample_slice = slice(0, max_samples) if max_samples is not None else slice(None)
     with h5py.File(path, "r") as handle:
-        data = torch.from_numpy(handle["data"][sample_slice]).float()
-    if data.dim() == 4 and data.shape[-1] == 1:
+        data = np.asarray(handle["data"][sample_slice], dtype=np.float32)
+    if data.ndim == 4 and data.shape[-1] == 1:
         data = data[..., 0]
-    if data.dim() != 3:
+    if data.ndim != 3:
         raise ValueError(f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
     return data
 
 
-def _candidate_scores(fields: torch.Tensor, shifts: Sequence[int], *, rollout_steps: int) -> list[dict[str, float | int]]:
+def _candidate_scores(fields: np.ndarray, shifts: Sequence[int], *, rollout_steps: int) -> list[dict[str, float | int]]:
     if rollout_steps <= 0:
         raise ValueError("rollout_steps must be positive")
     steps = min(int(rollout_steps), fields.shape[1] - 1)
@@ -49,9 +49,10 @@ def _candidate_scores(fields: torch.Tensor, shifts: Sequence[int], *, rollout_st
     current = fields[:, 1 : steps + 1]
     rows: list[dict[str, float | int]] = []
     for shift in shifts:
-        shifted = torch.roll(previous, shifts=int(shift), dims=-1)
-        mse = float((shifted - current).pow(2).mean().item())
-        nrmse = float(torch.sqrt((shifted - current).pow(2).mean()) / current.std().clamp_min(1e-12))
+        shifted = np.roll(previous, shift=int(shift), axis=-1)
+        squared_error = np.square(shifted - current)
+        mse = float(np.mean(squared_error))
+        nrmse = float(np.sqrt(np.mean(squared_error)) / max(float(np.std(current)), 1e-12))
         rows.append({"shift": int(shift), "mse": mse, "nrmse": nrmse})
     return rows
 

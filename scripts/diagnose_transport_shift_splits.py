@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import h5py
-import torch
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -18,27 +18,28 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.calibrate_roll_shift import _candidate_shifts
 
 
-def _load_series(path: Path, *, max_samples: int | None, rollout_steps: int) -> torch.Tensor:
+def _load_series(path: Path, *, max_samples: int | None, rollout_steps: int) -> np.ndarray:
     if not path.exists():
         raise FileNotFoundError(path)
     sample_slice = slice(0, max_samples) if max_samples is not None else slice(None)
     with h5py.File(path, "r") as handle:
-        data = torch.from_numpy(handle["data"][sample_slice, : rollout_steps + 1]).float()
-    if data.dim() == 4 and data.shape[-1] == 1:
+        data = np.asarray(handle["data"][sample_slice, : rollout_steps + 1], dtype=np.float32)
+    if data.ndim == 4 and data.shape[-1] == 1:
         data = data[..., 0]
-    if data.dim() != 3:
+    if data.ndim != 3:
         raise ValueError(f"Expected 1D shard shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
     if data.shape[1] <= 1:
         raise ValueError("Need at least two time steps to diagnose transport shift")
     return data
 
 
-def _score_shift(fields: torch.Tensor, shift: int) -> dict[str, float | int]:
+def _score_shift(fields: np.ndarray, shift: int) -> dict[str, float | int]:
     previous = fields[:, :-1]
     current = fields[:, 1:]
-    shifted = torch.roll(previous, shifts=int(shift), dims=-1)
-    mse = float((shifted - current).pow(2).mean().item())
-    nrmse = float(torch.sqrt((shifted - current).pow(2).mean()) / current.std().clamp_min(1e-12))
+    shifted = np.roll(previous, shift=int(shift), axis=-1)
+    squared_error = np.square(shifted - current)
+    mse = float(np.mean(squared_error))
+    nrmse = float(np.sqrt(np.mean(squared_error)) / max(float(np.std(current)), 1e-12))
     return {"shift": int(shift), "mse": mse, "nrmse": nrmse}
 
 
@@ -60,8 +61,8 @@ def _diagnose_split(
         "split": split,
         "path": str(path),
         "shape": list(fields.shape),
-        "mean": float(fields.mean().item()),
-        "std": float(fields.std().item()),
+        "mean": float(np.mean(fields)),
+        "std": float(np.std(fields)),
         "best": ranked[0],
         "top": ranked[:top_k],
     }
