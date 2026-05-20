@@ -2420,3 +2420,8 @@ Follow-up light-shard provenance propagation (2026-05-20):
 - Updated `scripts/make_light_hdf5_shards.py` so root HDF5 attrs from converted source files are copied into light train/val/test shards.
 - This preserves `source_paths` alongside the sample-aligned `source_file_index` and `source_sample_index` datasets added during conversion.
 - The source-conditioned official gate can already operate from `source_file_index`; preserving `source_paths` makes the resulting gate artifacts auditable against the original beta/source files after remote hydration.
+
+Follow-up official hydrated achievement promotion (2026-05-20):
+- Updated `scripts/audit_transport_objective_status.py` so a passed official hydrated train/val gate plus exactly one official hydrated held-out test result promotes the aggregate status to `literal_achieved`.
+- Before this fix, the official hydrated path could reach validation pass and one test result but still report `literal_blocked` unless the older constant-shift audit separately promoted the result.
+- This keeps the aggregate audit aligned with the current source-conditioned official path while preserving fail-closed `literal_test_ready` before any held-out test is measured.

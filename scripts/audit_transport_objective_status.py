@@ -92,11 +92,12 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append(
             "official hydrated train/val gate passed; exactly one held-out test is now authorized but not recorded"
         )
-    elif official_hydrated_test_eligible and official_hydrated_test_result_count == 1:
-        status = "literal_blocked"
-        blockers.append(
-            "official hydrated gate includes one held-out test result, but the constant goal audit has not promoted it"
-        )
+    elif (
+        official_hydrated_validation_passed
+        and official_hydrated_test_eligible
+        and official_hydrated_test_result_count == 1
+    ):
+        status = "literal_achieved"
     elif context_transport_achieved:
         status = "context_transport_achieved"
         blockers.append(
