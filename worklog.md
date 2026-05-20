@@ -2358,3 +2358,9 @@ Follow-up literal held-out test guard (2026-05-20, official hydrated test ledger
 - If the same official hydrated test configuration is already in the ledger, the runner blocks before building or reading the held-out test shard unless `--allow-repeat-test` is explicitly set.
 - After executing the gated test command, the runner now verifies that `official_hydrated_transport_shift_gate.json` contains exactly one held-out test result before reporting `status=executed`.
 - This closes the last local policy gap in the literal full-objective chain: validation must first reach `literal_test_ready`, test execution must be explicit, the test configuration is ledger-guarded, and the resulting gate artifact must prove exactly one test measurement.
+
+Follow-up remote wrapper consistency fix (2026-05-20, objective status export):
+- Exported `OBJECTIVE_STATUS_JSON` in `scripts/run_remote_official_hydration.sh`.
+- This keeps the validation audit stage inside `scripts/run_transport_official_hydration_plan.py` and the guarded post-validation test reader pointed at the same objective-status artifact when a non-default path is supplied.
+- Added a regression test with a custom objective-status path and a minimal valid hydration plan; the audit stage writes the custom path through the exported environment.
+- This matters for remote restarts and custom report locations: a job should not validate into the default `transport_objective_status.json` and then have the post-validation gate read a different file.

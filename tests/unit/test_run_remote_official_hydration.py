@@ -60,3 +60,58 @@ def test_remote_official_hydration_wrapper_can_chain_guarded_post_validation_tes
     post_validation = json.loads((tmp_path / "post_validation_test.json").read_text(encoding="utf-8"))
     assert post_validation["objective_status"] == "literal_blocked"
     assert post_validation["held_out_test_policy"]["requires_literal_test_ready"] is True
+
+
+def test_remote_official_hydration_exports_custom_objective_status_to_audit(tmp_path):
+    plan = {
+        "status": "ready_for_explicit_hydration",
+        "selected_official_advection_train_files": [
+            "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5"
+        ],
+        "estimated_download_bytes": 1,
+        "held_out_test_policy": {
+            "test_split_downloaded": False,
+            "test_split_sharded": False,
+            "test_may_run_only_after_validation_guard": True,
+        },
+        "commands": {
+            "download_official_train_files": [
+                "python scripts/download_pdebench_file.py '1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5' --help"
+            ],
+            "build_train_val_source": "true",
+            "build_light_train_val_shards": "true --test-count 0",
+            "validate_without_test": "true",
+            "objective_audit_after_validation": (
+                "REQUIRE_STATUS=literal-test-ready python -c "
+                "'import json, os, pathlib; "
+                "pathlib.Path(os.environ[\"OBJECTIVE_STATUS_JSON\"]).write_text("
+                "json.dumps({\"status\":\"literal_blocked\"}), encoding=\"utf-8\")'"
+            ),
+        },
+        "notes": ["The current workspace has not performed these downloads."],
+    }
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    objective_path = tmp_path / "custom_objective.json"
+    env = os.environ.copy()
+    env["EXECUTE"] = "1"
+    env["EXECUTE_DOWNLOADS"] = "1"
+    env["RUN_POST_VALIDATION_TEST"] = "0"
+    env["EXECUTE_TEST"] = "0"
+    env["MIN_DOWNLOAD_BYTES"] = "1"
+    env["PLAN_JSON"] = str(plan_path)
+    env["VALIDATION_JSON"] = str(tmp_path / "validation.json")
+    env["RUN_JSON"] = str(tmp_path / "run.json")
+    env["OBJECTIVE_STATUS_JSON"] = str(objective_path)
+    env["POST_VALIDATION_TEST_JSON"] = str(tmp_path / "post_validation_test.json")
+
+    proc = subprocess.run(
+        ["bash", "scripts/run_remote_official_hydration.sh"],
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert proc.returncode == 0
+    assert json.loads(objective_path.read_text(encoding="utf-8"))["status"] == "literal_blocked"
+    assert not (tmp_path / "post_validation_test.json").exists()

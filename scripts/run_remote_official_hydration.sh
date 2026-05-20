@@ -34,6 +34,8 @@ EXECUTE_DOWNLOADS=${EXECUTE_DOWNLOADS:-1}
 RUN_POST_VALIDATION_TEST=${RUN_POST_VALIDATION_TEST:-0}
 EXECUTE_TEST=${EXECUTE_TEST:-0}
 
+export OBJECTIVE_STATUS_JSON
+
 if [ ! -f "$PLAN_JSON" ]; then
   python scripts/plan_transport_official_hydration.py --output-json "$PLAN_JSON"
 fi

@@ -1591,3 +1591,12 @@ Official hydrated held-out test ledger:
 - Verification:
   - `python -m pytest tests/unit/test_run_official_hydrated_post_validation_test.py tests/unit/test_run_remote_official_hydration.py` -> `9 passed`
   - `python -m py_compile scripts/run_official_hydrated_post_validation_test.py`
+
+Remote wrapper objective-status consistency:
+
+- `scripts/run_remote_official_hydration.sh` now exports `OBJECTIVE_STATUS_JSON`.
+- The validation audit command executed inside `scripts/run_transport_official_hydration_plan.py` therefore writes the same objective-status artifact that `scripts/run_official_hydrated_post_validation_test.py` later reads.
+- This removes a custom-path mismatch risk in the full remote chain.
+- Verification:
+  - `python -m pytest tests/unit/test_run_remote_official_hydration.py tests/unit/test_run_transport_official_hydration_plan.py tests/unit/test_run_official_hydrated_post_validation_test.py` -> `13 passed`
+  - `bash -n scripts/run_remote_official_hydration.sh`
