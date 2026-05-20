@@ -118,7 +118,13 @@ def _download_part(
     for attempt in range(1, retries + 1):
         temp_path.unlink(missing_ok=True)
         try:
-            response = _request_with_retries(url, headers=headers, stream=True, retries=1)
+            response = _request_with_retries(
+                url,
+                headers=headers,
+                stream=True,
+                retries=1,
+                timeout=(30, max(1, int(part_timeout))),
+            )
             status_code = int(response.status_code)
             if status_code != 206:
                 raise SystemExit(
@@ -177,7 +183,13 @@ def _download_part_to_file(
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
-            response = _request_with_retries(url, headers=headers, stream=True, retries=1)
+            response = _request_with_retries(
+                url,
+                headers=headers,
+                stream=True,
+                retries=1,
+                timeout=(30, max(1, int(part_timeout))),
+            )
             status_code = int(response.status_code)
             if status_code != 206:
                 raise SystemExit(
