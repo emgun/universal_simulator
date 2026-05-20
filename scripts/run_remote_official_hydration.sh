@@ -30,9 +30,12 @@ OBJECTIVE_STATUS_JSON=${OBJECTIVE_STATUS_JSON:-reports/research/sota_loop/transp
 POST_VALIDATION_TEST_JSON=${POST_VALIDATION_TEST_JSON:-reports/research/sota_loop/official_hydrated_post_validation_test_run.json}
 OFFICIAL_HYDRATED_GATE_JSON=${OFFICIAL_HYDRATED_GATE_JSON:-reports/research/sota_loop/official_hydrated_transport_shift_gate.json}
 OFFICIAL_HYDRATED_TEST_LEDGER_JSON=${OFFICIAL_HYDRATED_TEST_LEDGER_JSON:-reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json}
+SEQUENTIAL_HYDRATION_JSON=${SEQUENTIAL_HYDRATION_JSON:-reports/research/sota_loop/official_advection_sequential_hydration_run.json}
 MIN_DOWNLOAD_BYTES=${MIN_DOWNLOAD_BYTES:-60000000000}
 EXECUTE=${EXECUTE:-1}
 EXECUTE_DOWNLOADS=${EXECUTE_DOWNLOADS:-1}
+SEQUENTIAL_HYDRATION=${SEQUENTIAL_HYDRATION:-0}
+SEQUENTIAL_CLEANUP_RAW=${SEQUENTIAL_CLEANUP_RAW:-1}
 RUN_POST_VALIDATION_TEST=${RUN_POST_VALIDATION_TEST:-0}
 EXECUTE_TEST=${EXECUTE_TEST:-0}
 PUBLISH_ARTIFACTS=${PUBLISH_ARTIFACTS:-0}
@@ -91,6 +94,7 @@ publish_official_hydration_artifacts() {
     "$PLAN_JSON" \
     "$VALIDATION_JSON" \
     "$RUN_JSON" \
+    "$SEQUENTIAL_HYDRATION_JSON" \
     "$OBJECTIVE_STATUS_JSON" \
     "$POST_VALIDATION_TEST_JSON" \
     "$OFFICIAL_HYDRATED_GATE_JSON" \
@@ -129,7 +133,41 @@ if [ "$EXECUTE_DOWNLOADS" -eq 1 ]; then
   args+=(--execute-downloads)
 fi
 
-"${args[@]}"
+if [ "$SEQUENTIAL_HYDRATION" -eq 1 ]; then
+  sequential_args=(
+    python scripts/hydrate_official_advection_source_sequential.py
+    --plan-json "$PLAN_JSON"
+    --output-json "$SEQUENTIAL_HYDRATION_JSON"
+    --overwrite
+  )
+  if [ "$EXECUTE" -eq 1 ]; then
+    sequential_args+=(--execute)
+  fi
+  if [ "$EXECUTE_DOWNLOADS" -eq 1 ]; then
+    sequential_args+=(--execute-downloads)
+  fi
+  if [ "$SEQUENTIAL_CLEANUP_RAW" -eq 1 ]; then
+    sequential_args+=(--cleanup-raw)
+  fi
+  "${sequential_args[@]}"
+
+  shard_validate_args=(
+    python scripts/run_transport_official_hydration_plan.py
+    --plan-json "$PLAN_JSON"
+    --validation-json "$VALIDATION_JSON"
+    --min-download-bytes "$MIN_DOWNLOAD_BYTES"
+    --output-json "$RUN_JSON"
+    --stage shard
+    --stage validate
+    --stage audit
+  )
+  if [ "$EXECUTE" -eq 1 ]; then
+    shard_validate_args+=(--execute)
+  fi
+  "${shard_validate_args[@]}"
+else
+  "${args[@]}"
+fi
 
 if [ "$RUN_POST_VALIDATION_TEST" -eq 1 ]; then
   test_args=(

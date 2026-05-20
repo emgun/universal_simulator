@@ -24,6 +24,8 @@ def test_remote_official_hydration_wrapper_generates_missing_plan(tmp_path):
     env["PLAN_JSON"] = str(tmp_path / "generated_plan.json")
     env["VALIDATION_JSON"] = str(tmp_path / "validation.json")
     env["RUN_JSON"] = str(tmp_path / "run.json")
+    env["SEQUENTIAL_HYDRATION"] = "1"
+    env["SEQUENTIAL_HYDRATION_JSON"] = str(tmp_path / "sequential.json")
     proc = subprocess.run(
         ["bash", "scripts/run_remote_official_hydration.sh"],
         capture_output=True,
@@ -33,6 +35,7 @@ def test_remote_official_hydration_wrapper_generates_missing_plan(tmp_path):
 
     assert proc.returncode == 0
     assert (tmp_path / "generated_plan.json").exists()
+    assert (tmp_path / "sequential.json").exists()
     assert '"status": "dry_run"' in proc.stdout
 
 

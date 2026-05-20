@@ -17,6 +17,10 @@ def _args(tmp_path):
         tmp_path / "hydration.json",
         {
             "estimated_download_gib": 61.34,
+            "remote_entries": [
+                {"path": "1D/Advection/Train/a.hdf5", "size_bytes": 8 * 1024**3},
+                {"path": "1D/Advection/Train/b.hdf5", "size_bytes": 7 * 1024**3},
+            ],
             "held_out_test_policy": {"test_split_downloaded": False, "test_split_sharded": False},
         },
     )
@@ -33,6 +37,8 @@ def _args(tmp_path):
         min_disk_gb=120,
         disk_multiplier=1.3,
         disk_padding_gb=40,
+        sequential_min_disk_gb=32,
+        sequential_disk_padding_gb=16,
         download_workers=8,
         download_part_size_mib=128,
         download_retries=6,
@@ -40,6 +46,7 @@ def _args(tmp_path):
         download_retry_backoff=20.0,
         download_split_after_retries=2,
         download_min_split_size_mib=8,
+        sequential_hydration=True,
         offer_id="",
         output_json=str(tmp_path / "remote.json"),
     )
@@ -49,11 +56,14 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     record = create_remote_plan(_args(tmp_path))
 
     assert record["status"] == "ready_for_remote_hydration"
-    assert record["required_disk_gb"] >= 120
+    assert record["sequential_hydration"] is True
+    assert record["required_disk_gb"] == 32
     assert "DRY_RUN=1" in record["commands"]["dry_run_launcher"]
     assert "DRY_RUN=0" in record["commands"]["actual_launcher"]
     assert "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh" in record["commands"]["actual_launcher"]
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
+    assert "SEQUENTIAL_HYDRATION=1" in record["commands"]["actual_launcher"]
+    assert "SEQUENTIAL_CLEANUP_RAW=1" in record["commands"]["actual_launcher"]
     assert "RUN_POST_VALIDATION_TEST=1" in record["commands"]["actual_launcher"]
     assert "EXECUTE_TEST=1" in record["commands"]["actual_launcher"]
     assert "PUBLISH_ARTIFACTS=1" in record["commands"]["actual_launcher"]

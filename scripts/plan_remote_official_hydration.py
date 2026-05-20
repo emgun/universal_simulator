@@ -18,7 +18,19 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
     preflight = _load_json(args.preflight_json)
     storage = _load_json(args.storage_json)
     estimated_gib = float(hydration_plan.get("estimated_download_gib") or 0.0)
-    required_disk_gb = max(int(args.min_disk_gb), int(estimated_gib * float(args.disk_multiplier)) + int(args.disk_padding_gb))
+    sequential_hydration = bool(getattr(args, "sequential_hydration", True))
+    remote_entries = list(hydration_plan.get("remote_entries") or [])
+    max_file_gib = max((float(entry.get("size_bytes") or 0) / float(1024**3) for entry in remote_entries), default=estimated_gib)
+    if sequential_hydration:
+        required_disk_gb = max(
+            int(getattr(args, "sequential_min_disk_gb", 32)),
+            int(max_file_gib * float(args.disk_multiplier)) + int(getattr(args, "sequential_disk_padding_gb", 16)),
+        )
+    else:
+        required_disk_gb = max(
+            int(args.min_disk_gb),
+            int(estimated_gib * float(args.disk_multiplier)) + int(args.disk_padding_gb),
+        )
     blockers = []
     if preflight.get("status") != "blocked_insufficient_disk":
         blockers.append(f"local preflight status is {preflight.get('status')}; remote plan may not be needed")
@@ -38,6 +50,8 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         f"RUN_JSON={args.remote_run_json} "
         f"POST_VALIDATION_TEST_JSON={args.remote_post_validation_test_json} "
         "EXECUTE=1 EXECUTE_DOWNLOADS=1 "
+        f"SEQUENTIAL_HYDRATION={1 if sequential_hydration else 0} "
+        "SEQUENTIAL_CLEANUP_RAW=1 "
         "RUN_POST_VALIDATION_TEST=1 EXECUTE_TEST=1 "
         "PUBLISH_ARTIFACTS=1 "
         "MIN_DOWNLOAD_BYTES=60000000000 "
@@ -57,7 +71,9 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "local_preflight_status": preflight.get("status"),
         "storage_recommendation_status": storage.get("status"),
         "estimated_download_gib": estimated_gib,
+        "max_official_file_gib": max_file_gib,
         "required_disk_gb": required_disk_gb,
+        "sequential_hydration": sequential_hydration,
         "remote_plan_json": args.remote_plan_json,
         "remote_validation_json": args.remote_validation_json,
         "remote_run_json": args.remote_run_json,
@@ -79,9 +95,10 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "held_out_test_policy": hydration_plan.get("held_out_test_policy"),
         "notes": [
             "This is a launch plan only; it does not start paid compute.",
-            "The remote run still uses the staged hydration runner and requires --execute-downloads.",
+            "The remote run uses sequential hydrate-convert-delete by default and requires --execute-downloads.",
             "The Vast launcher invokes a bash wrapper; do not use a Python file as REMOTE_SCRIPT.",
             "The hydration plan downloads official train files only and builds train/val shards with test_count=0.",
+            "Sequential hydration lowers scratch disk by keeping at most one raw official train file before appending sampled rows.",
             "The post-validation test stage is chained but gated on literal_test_ready before it can build or read the held-out test shard.",
             "Downloader runtime knobs are included so remote retries use bounded reads, exponential backoff, adaptive range splitting, and same-host resume sidecars.",
         ],
@@ -115,6 +132,8 @@ def main() -> None:
     parser.add_argument("--min-disk-gb", type=int, default=120)
     parser.add_argument("--disk-multiplier", type=float, default=1.3)
     parser.add_argument("--disk-padding-gb", type=int, default=40)
+    parser.add_argument("--sequential-min-disk-gb", type=int, default=32)
+    parser.add_argument("--sequential-disk-padding-gb", type=int, default=16)
     parser.add_argument("--download-workers", type=int, default=8)
     parser.add_argument("--download-part-size-mib", type=int, default=128)
     parser.add_argument("--download-retries", type=int, default=6)
@@ -122,6 +141,7 @@ def main() -> None:
     parser.add_argument("--download-retry-backoff", type=float, default=20.0)
     parser.add_argument("--download-split-after-retries", type=int, default=2)
     parser.add_argument("--download-min-split-size-mib", type=int, default=8)
+    parser.add_argument("--sequential-hydration", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--offer-id", default="", help="Optional explicit Vast offer ID for direct relaunch")
     parser.add_argument(
         "--output-json",

@@ -1662,3 +1662,10 @@ Official hydrated achievement promotion:
 - `scripts/audit_transport_objective_status.py` now treats a passed official hydrated train/val gate plus exactly one official hydrated held-out test result as `literal_achieved`.
 - This removes the stale dependency on the older constant-shift goal audit for the source-conditioned official path.
 - The audit still reports `literal_test_ready` before the held-out test and still blocks when the official hydrated gate is missing.
+
+Sequential official hydration path:
+
+- `scripts/hydrate_official_advection_source_sequential.py` now supports the lower-disk remote route: download one official Advection train file, append sampled rows to the hydrated source HDF5 with provenance, optionally delete the raw file, then continue.
+- `scripts/run_remote_official_hydration.sh` can run this path with `SEQUENTIAL_HYDRATION=1` before the existing shard/validate/audit stages and guarded post-validation test.
+- `scripts/plan_remote_official_hydration.py` now emits sequential launcher args by default; the regenerated plan requires `DISK_GB=32` instead of 120 GiB because it no longer needs all raw train files resident at once.
+- The tradeoff is that execution remains network-bound and still needs a credit-unblocked remote or other large-data environment, but the literal benchmark policy is unchanged: train/val first, `literal_test_ready` before any held-out test, exactly one test result afterward.

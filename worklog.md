@@ -2425,3 +2425,10 @@ Follow-up official hydrated achievement promotion (2026-05-20):
 - Updated `scripts/audit_transport_objective_status.py` so a passed official hydrated train/val gate plus exactly one official hydrated held-out test result promotes the aggregate status to `literal_achieved`.
 - Before this fix, the official hydrated path could reach validation pass and one test result but still report `literal_blocked` unless the older constant-shift audit separately promoted the result.
 - This keeps the aggregate audit aligned with the current source-conditioned official path while preserving fail-closed `literal_test_ready` before any held-out test is measured.
+
+Follow-up sequential official hydration path (2026-05-20):
+- Added `scripts/hydrate_official_advection_source_sequential.py` for the remote official path.
+- The sequential path downloads one official Advection train file, appends the sampled rows into the hydrated source HDF5 with `source_file_index` and `source_sample_index`, and can remove the raw file before downloading the next one.
+- Updated `scripts/run_remote_official_hydration.sh` so `SEQUENTIAL_HYDRATION=1` runs sequential hydrate-convert-delete, then executes the existing shard/validate/audit stages and optional guarded post-validation test.
+- Updated `scripts/plan_remote_official_hydration.py`; the regenerated remote plan now uses `DISK_GB=32` instead of the earlier 120 GiB all-raw-files-at-once requirement, with `SEQUENTIAL_HYDRATION=1` and `SEQUENTIAL_CLEANUP_RAW=1`.
+- This does not complete the objective while Vast credit is blocked, but it materially improves the next execution route by lowering scratch-disk cost and preserving the same fail-closed no-test-before-validation policy.
