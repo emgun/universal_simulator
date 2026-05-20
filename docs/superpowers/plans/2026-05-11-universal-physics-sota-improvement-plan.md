@@ -1512,3 +1512,17 @@ Adaptive range-split checkpoint:
   - `python -m pytest tests/unit/test_download_pdebench_file.py` -> `10 passed`
   - `python -m py_compile scripts/download_pdebench_file.py`
 - Next path remains: relaunch the official stratified hydration with the adaptive split downloader, then accept only the resulting validation gate as benchmark evidence; run exactly one held-out test only if the audit reaches `literal_test_ready`.
+
+Credit-blocked relaunch checkpoint:
+
+- Vast contract `37178922` launched on California offer `35149296` with the adaptive range-split downloader and the same guarded post-validation chain.
+- The bootstrap and official plan regeneration succeeded, and the first official train file reached `60/62` parts (`7.42 GiB`, `96.7%`).
+- The instance then stopped unexpectedly before completing the first file. The public log ended without a Python traceback.
+- Stopped-instance inspection showed only:
+  - `data/pdebench/raw/1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5.tmp`
+  - `reports/research/sota_loop/official_advection_hydration_plan.json`
+- There was no completed official file, validation artifact, or held-out test artifact. Contract `37178922` was destroyed.
+- A relaunch attempt on Texas offer `35956477` was rejected by Vast with `Your account lacks credit; see the billing page.`
+- `vastai show instances --raw` returned `[]` after cleanup.
+- The current blocker is external compute credit or an alternate real-data execution path, not a benchmark result.
+- Next path: once compute is available, relaunch the same adaptive range-split stratified official hydration; do not run held-out test unless the objective audit reaches `literal_test_ready`.

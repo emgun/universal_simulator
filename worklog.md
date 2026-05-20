@@ -2264,3 +2264,20 @@ Follow-up current Vast wrap-up (2026-05-20, adaptive range-split hardening):
   - `python -m pytest tests/unit/test_download_pdebench_file.py`
   - `10 passed`
   - `python -m py_compile scripts/download_pdebench_file.py`
+
+Follow-up current Vast wrap-up (2026-05-20, credit-blocked relaunch):
+- Relaunched the adaptive range-split downloader on Vast contract `37178922` using California RTX 4090 offer `35149296`.
+- The remote bootstrap succeeded on `python:3.11-slim`, regenerated the official stratified hydration plan, and entered the official downloader with the same benchmark-clean contract:
+  - official Advection train files only
+  - `48` samples per beta file
+  - train block offset `0`
+  - validation block offset `32`
+  - reserved test block offset `40`
+  - no test split built during train/val hydration
+- The first official file reached `60/62` ranged parts (`7.42 GiB`, `96.7%`) before the instance unexpectedly stopped without a Python traceback in the public log.
+- Inspected the stopped instance with `vastai execute`; it contained only the preallocated first-file temp path (`1D_Advection_Sols_beta0.1.hdf5.tmp`) and `official_advection_hydration_plan.json`. No completed official file, validation JSON, or held-out test artifact existed.
+- Destroyed contract `37178922`.
+- Attempted to relaunch on Texas RTX 4090 offer `35956477`, but Vast rejected instance creation with `Your account lacks credit; see the billing page.`
+- `vastai show instances --raw` returned `[]` after cleanup.
+- No SOTA guard validation ran and no held-out test ran, so there is still no benchmark result to promote.
+- Next path is externally blocked until Vast credit is available or another real-data execution path is provided; once available, relaunch the same adaptive range-split stratified hydration and accept only the train/val guard result as evidence.
