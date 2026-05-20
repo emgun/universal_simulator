@@ -2377,3 +2377,9 @@ Follow-up remote artifact preservation (2026-05-20, official hydration reports):
   - hydration plan, validation report, run report, objective status, post-validation test report, official hydrated gate, and official hydrated test ledger
 - This prevents a successful remote validation/test run from leaving the only result evidence on a disposable Vast instance.
 - Publication is off by default and requires `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, and `rclone`.
+
+Follow-up relaunch attempt and canonical artifact publishing (2026-05-20):
+- Retried the pinned Vast launch for offer `36151271` with `PUBLISH_ARTIFACTS=1`; Vast rejected the create request with `Your account lacks credit; see the billing page.`
+- Updated `scripts/plan_remote_official_hydration.py` so regenerated `actual_launcher` and `dry_run_launcher` commands include `PUBLISH_ARTIFACTS=1` by default.
+- Regenerated `reports/research/sota_loop/remote_official_advection_hydration_plan.json` with the pinned offer, hardened downloader runtime, guarded post-validation test, and report publication enabled.
+- This keeps the next executable official hydration path aligned with the evidence requirements: a successful remote run should preserve the validation/test reports before auto-shutdown without requiring a manual flag edit.

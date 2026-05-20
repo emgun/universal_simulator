@@ -1618,3 +1618,10 @@ Official hydration artifact preservation:
 - Verification:
   - `python -m pytest tests/unit/test_run_remote_official_hydration.py tests/unit/test_plan_remote_official_hydration.py` -> `8 passed`
   - `bash -n scripts/run_remote_official_hydration.sh`
+
+Canonical remote launcher artifact publishing:
+
+- A fresh pinned Vast launch attempt for offer `36151271` was still rejected with `Your account lacks credit; see the billing page.`
+- `scripts/plan_remote_official_hydration.py` now emits `PUBLISH_ARTIFACTS=1` in both generated launcher commands.
+- The regenerated remote hydration plan keeps the same pinned offer, hardened downloader runtime, and guarded post-validation test chain, but now also enables report publication before auto-shutdown.
+- This does not complete the literal objective; it removes a launch-command footgun so the next credit-unblocked official hydration run can preserve benchmark evidence automatically.

@@ -39,6 +39,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         f"POST_VALIDATION_TEST_JSON={args.remote_post_validation_test_json} "
         "EXECUTE=1 EXECUTE_DOWNLOADS=1 "
         "RUN_POST_VALIDATION_TEST=1 EXECUTE_TEST=1 "
+        "PUBLISH_ARTIFACTS=1 "
         "MIN_DOWNLOAD_BYTES=60000000000 "
         f"PDEBENCH_DOWNLOAD_WORKERS={args.download_workers} "
         f"PDEBENCH_DOWNLOAD_PART_SIZE_MIB={args.download_part_size_mib} "

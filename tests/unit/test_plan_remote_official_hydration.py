@@ -56,6 +56,7 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
     assert "RUN_POST_VALIDATION_TEST=1" in record["commands"]["actual_launcher"]
     assert "EXECUTE_TEST=1" in record["commands"]["actual_launcher"]
+    assert "PUBLISH_ARTIFACTS=1" in record["commands"]["actual_launcher"]
     assert "PDEBENCH_DOWNLOAD_PART_SIZE_MIB=128" in record["commands"]["actual_launcher"]
     assert "PDEBENCH_DOWNLOAD_RETRIES=6" in record["commands"]["actual_launcher"]
     assert "PDEBENCH_DOWNLOAD_PART_TIMEOUT=180" in record["commands"]["actual_launcher"]
