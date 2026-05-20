@@ -69,6 +69,7 @@ def test_post_validation_test_runner_command_shape_is_gated(tmp_path):
     assert "--test-count 3" in commands["build_test_shard"]
     assert "--test-split test" in commands["run_gated_test"]
     assert "--test-max-samples 3" in commands["run_gated_test"]
+    assert "run_source_conditioned_transport_shift_gate.py" in commands["run_gated_test"]
     assert "official_hydrated_transport_shift_gate.json" in commands["run_gated_test"]
 
 

@@ -38,7 +38,7 @@ def _shift_args(shifts: list[int]) -> str:
 
 def _test_measurement_key(args: argparse.Namespace, objective_status: dict[str, Any]) -> str:
     payload = {
-        "estimator": "official_hydrated_constant_transport_shift",
+        "estimator": "official_hydrated_source_conditioned_transport_shift",
         "hydrated_light_root": args.hydrated_light_root,
         "hydrated_source_root": args.hydrated_source_root,
         "objective_status": objective_status.get("status"),
@@ -88,7 +88,7 @@ def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
         "--overwrite"
     )
     run_gate = (
-        "python scripts/run_transport_shift_gate.py "
+        "python scripts/run_source_conditioned_transport_shift_gate.py "
         f"--data-root {args.hydrated_light_root} "
         "--task advection1d --train-split train --val-split val --test-split test "
         f"--max-samples {args.train_count} "

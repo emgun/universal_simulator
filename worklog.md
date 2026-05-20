@@ -2409,3 +2409,9 @@ Follow-up source-conditioned official validation gate (2026-05-20):
   - `reports/research/sota_loop/official_advection_hydration_plan_validation.json`
   - `reports/research/sota_loop/official_advection_hydration_plan_run.json`
 - This is still not objective completion: the official train files are not hydrated locally, no validation gate result exists yet, and no held-out test is authorized.
+
+Follow-up post-validation test consistency (2026-05-20):
+- Updated `scripts/run_official_hydrated_post_validation_test.py` so the authorized held-out test stage also uses `scripts/run_source_conditioned_transport_shift_gate.py`.
+- The test ledger measurement key now identifies the estimator as `official_hydrated_source_conditioned_transport_shift`.
+- Regenerated `reports/research/sota_loop/official_hydrated_post_validation_test_run.json`; it remains a dry run because objective status is still `literal_blocked`.
+- This keeps train/val validation and the later exactly-one held-out test on the same train-fitted source-conditioned rule.

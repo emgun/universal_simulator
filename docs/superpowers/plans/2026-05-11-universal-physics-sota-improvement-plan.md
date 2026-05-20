@@ -1645,3 +1645,9 @@ Source-conditioned official validation gate:
 - It fits shifts only on train rows grouped by `source_file_index`, validates that locked map on val rows, and blocks if val contains an unseen source regime.
 - The official hydration plan now uses this gate for `validate_without_test`, still writes `official_hydrated_transport_shift_gate.json`, and still keeps `test_count=0` during train/val hydration.
 - This makes the next official run more likely to answer the real question: whether train-only source-regime conditioning can pass the SOTA guard without touching held-out test data.
+
+Post-validation held-out test consistency:
+
+- `scripts/run_official_hydrated_post_validation_test.py` now invokes the same source-conditioned gate if validation reaches `literal_test_ready`.
+- The ledger key changed from the old constant-shift estimator identity to `official_hydrated_source_conditioned_transport_shift`.
+- This prevents a model switch between validation and the exactly-one held-out test stage.
