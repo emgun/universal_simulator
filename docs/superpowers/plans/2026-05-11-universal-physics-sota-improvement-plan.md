@@ -1486,3 +1486,13 @@ Current Vast wrap-up checkpoint:
 - Last available logs showed 5 of 8 official train files saved and `beta2.0` near completion; the retry-backoff path recovered slow ranged parts rather than failing immediately.
 - The contract was destroyed by operator request before conversion, validation, or held-out test.
 - This is another partial hydration attempt only. No SOTA guard validation ran, no held-out test ran, and no benchmark conclusion should be drawn from it.
+
+Patched downloader wrap-up checkpoint:
+
+- Vast contract `37176828` reached the first official train-file download but stalled at `61/62` ranged parts (`7.54 GiB`, `98.4%`) and was destroyed.
+- `scripts/download_pdebench_file.py` now applies the configured per-part timeout to the underlying ranged HTTP request read timeout, not only to elapsed time after chunks start yielding.
+- Vast contract `37177098` relaunched the same benchmark-clean stratified hydration on a Spain RTX 4090 host with `python:3.11-slim`, `8` workers, `128 MiB` parts, `6` retries, `20s` retry backoff, and `180s` per-part timeout.
+- The run proved the lighter image path can bootstrap the repo and official downloader without PyTorch, and the patched downloader completed all `62/62` ranges for `beta0.1`, including the likely prior stuck range.
+- The run advanced into the second official train file and reached at least `54/62` ranged parts (`6.75 GiB`, `88.0%`) before operator-requested wrap-up.
+- Contract `37177098` was destroyed before conversion, validation, or held-out test.
+- This remains a partial hydration attempt only: no SOTA guard validation ran, no held-out test ran, and no benchmark conclusion should be drawn from it.

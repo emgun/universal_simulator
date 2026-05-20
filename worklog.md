@@ -2229,3 +2229,16 @@ Follow-up current Vast wrap-up (2026-05-20, operator-stopped active official hyd
 - The retry-backoff path recovered slow range parts on this run, including `600s` part-timeout retries.
 - Per operator request to wrap up the current Vast instance, destroyed contract `37169407` before conversion, validation, or held-out test.
 - No SOTA guard validation ran and no held-out test ran on this instance, so there is no benchmark result to promote from this attempt.
+
+Follow-up current Vast wrap-up (2026-05-20, patched downloader checkpoint):
+- Destroyed stale Vast contract `37176828` after it reached the first official Advection train file but stalled at `61/62` ranged parts (`7.54 GiB`, `98.4%`).
+- Hardened `scripts/download_pdebench_file.py` so each ranged request uses the configured per-part read timeout, preventing a socket read from hanging indefinitely before yielding chunks.
+- Relaunched Vast contract `37177098` in Spain with `python:3.11-slim`, the stratified official hydration plan, guarded post-validation chain, `8` workers, `128 MiB` parts, `6` retries, `20s` retry backoff, and `180s` per-part timeout.
+- The lighter image successfully bootstrapped the repo archive, installed the minimal experiment dependencies, regenerated the hydration plan, and entered the official downloader.
+- The patched downloader completed the previously stuck first official file:
+  - saved `data/pdebench/raw/1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5`
+  - completed all `62/62` ranged parts
+  - completed range part `4/62`, the range that was the likely prior hang point
+- The run then advanced into the second official train file and reached at least `54/62` ranged parts (`6.75 GiB`, `88.0%`) before wrap-up.
+- Per operator request to wrap up the current Vast instance, destroyed contract `37177098` before conversion, validation, or held-out test.
+- No SOTA guard validation ran and no held-out test ran on this instance, so there is no benchmark result to promote from this attempt.
