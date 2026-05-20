@@ -176,6 +176,8 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
         retries,
         part_timeout,
         retry_backoff,
+        split_after_retries,
+        min_split_size,
     ):
         with open(dest, "r+b") as fh:
             fh.seek(start)
@@ -195,6 +197,8 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
         retries=1,
         part_timeout=30,
         retry_backoff=0,
+        split_after_retries=2,
+        min_split_size=1,
     )
 
     assert total == 6
@@ -242,3 +246,49 @@ def test_download_part_to_file_backs_off_between_retries(monkeypatch, tmp_path: 
     assert attempts == 3
     assert sleeps == [5, 10]
     assert total == 2
+
+
+def test_download_part_to_file_splits_repeated_timeout(monkeypatch, tmp_path: Path):
+    seen_ranges = []
+
+    class Response:
+        status_code = 206
+
+        def __init__(self, payload: bytes):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size):
+            yield self.payload
+
+    def fake_get(url, headers=None, stream=True, timeout=None):
+        range_header = headers["Range"]
+        seen_ranges.append(range_header)
+        if range_header == "bytes=0-7":
+            raise downloader.requests.Timeout("stuck range")
+        start, end = [int(value) for value in range_header.removeprefix("bytes=").split("-")]
+        return Response(bytes([65 + start]) * (end - start + 1))
+
+    monkeypatch.setattr(downloader.requests, "get", fake_get)
+    monkeypatch.setattr(downloader.time, "sleep", lambda seconds: None)
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"\0" * 8)
+
+    total = downloader._download_part_to_file(
+        "https://example.test/file",
+        dest,
+        0,
+        7,
+        chunk_size=8,
+        retries=3,
+        part_timeout=30,
+        retry_backoff=0,
+        split_after_retries=2,
+        min_split_size=2,
+    )
+
+    assert total == 8
+    assert seen_ranges == ["bytes=0-7", "bytes=0-7", "bytes=0-3", "bytes=4-7"]
+    assert dest.read_bytes() == b"AAAAEEEE"

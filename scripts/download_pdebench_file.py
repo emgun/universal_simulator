@@ -20,6 +20,8 @@ DEFAULT_PART_SIZE = 256 * 1024 * 1024
 DEFAULT_PART_TIMEOUT = 15 * 60
 DEFAULT_RETRY_BACKOFF = 15.0
 DEFAULT_TIMEOUT = (30, 60)
+DEFAULT_SPLIT_AFTER_RETRIES = 2
+DEFAULT_MIN_SPLIT_SIZE = 8 * 1024 * 1024
 
 
 def load_manifest(path: Path) -> list[dict]:
@@ -177,6 +179,8 @@ def _download_part_to_file(
     retries: int,
     part_timeout: int,
     retry_backoff: float = DEFAULT_RETRY_BACKOFF,
+    split_after_retries: int = DEFAULT_SPLIT_AFTER_RETRIES,
+    min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
 ) -> int:
     expected_size = end - start + 1
     headers = {"Range": f"bytes={start}-{end}"}
@@ -226,6 +230,43 @@ def _download_part_to_file(
                 file=sys.stderr,
                 flush=True,
             )
+            if (
+                attempt >= split_after_retries
+                and expected_size > max(1, min_split_size)
+                and start < end
+            ):
+                midpoint = start + expected_size // 2 - 1
+                print(
+                    f"splitting timed-out range {start}-{end} into "
+                    f"{start}-{midpoint} and {midpoint + 1}-{end}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                first = _download_part_to_file(
+                    url,
+                    dest,
+                    start,
+                    midpoint,
+                    chunk_size=chunk_size,
+                    retries=retries,
+                    part_timeout=part_timeout,
+                    retry_backoff=retry_backoff,
+                    split_after_retries=split_after_retries,
+                    min_split_size=min_split_size,
+                )
+                second = _download_part_to_file(
+                    url,
+                    dest,
+                    midpoint + 1,
+                    end,
+                    chunk_size=chunk_size,
+                    retries=retries,
+                    part_timeout=part_timeout,
+                    retry_backoff=retry_backoff,
+                    split_after_retries=split_after_retries,
+                    min_split_size=min_split_size,
+                )
+                return first + second
             if attempt < retries and retry_backoff > 0:
                 time.sleep(retry_backoff * (2 ** (attempt - 1)))
 
@@ -259,6 +300,8 @@ def _download_ranges(
     retries: int,
     part_timeout: int,
     retry_backoff: float,
+    split_after_retries: int,
+    min_split_size: int,
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
     temp_dest = dest.with_suffix(dest.suffix + ".tmp")
@@ -284,6 +327,8 @@ def _download_ranges(
                 retries=retries,
                 part_timeout=part_timeout,
                 retry_backoff=retry_backoff,
+                split_after_retries=split_after_retries,
+                min_split_size=min_split_size,
             ): (index, start, end)
             for index, start, end in ranges
         }
@@ -316,6 +361,8 @@ def download(
     retries: int = 3,
     part_timeout: int = DEFAULT_PART_TIMEOUT,
     retry_backoff: float = DEFAULT_RETRY_BACKOFF,
+    split_after_retries: int = DEFAULT_SPLIT_AFTER_RETRIES,
+    min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
 ) -> None:
     file_id = entry["file_id"]
     url = DATAFILE_URL.format(file_id=file_id)
@@ -338,6 +385,8 @@ def download(
             retries=retries,
             part_timeout=part_timeout,
             retry_backoff=retry_backoff,
+            split_after_retries=split_after_retries,
+            min_split_size=min_split_size,
         )
     else:
         total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
@@ -389,6 +438,20 @@ def parse_args() -> argparse.Namespace:
         default=float(os.environ.get("PDEBENCH_DOWNLOAD_RETRY_BACKOFF", str(DEFAULT_RETRY_BACKOFF))),
         help="Initial seconds to sleep between ranged part retry attempts; doubles per attempt",
     )
+    parser.add_argument(
+        "--split-after-retries",
+        type=int,
+        default=int(
+            os.environ.get("PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES", str(DEFAULT_SPLIT_AFTER_RETRIES))
+        ),
+        help="Split a timed-out ranged part into smaller ranges after this many failed attempts",
+    )
+    parser.add_argument(
+        "--min-split-size-mib",
+        type=int,
+        default=int(os.environ.get("PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB", "8")),
+        help="Smallest ranged part size, in MiB, eligible for timeout splitting",
+    )
     return parser.parse_args()
 
 
@@ -406,6 +469,8 @@ def main() -> None:
         retries=max(1, args.retries),
         part_timeout=max(1, args.part_timeout),
         retry_backoff=max(0.0, args.retry_backoff),
+        split_after_retries=max(1, args.split_after_retries),
+        min_split_size=max(1, args.min_split_size_mib) * 1024 * 1024,
     )
 
 

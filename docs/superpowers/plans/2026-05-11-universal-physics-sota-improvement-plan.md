@@ -1496,3 +1496,19 @@ Patched downloader wrap-up checkpoint:
 - The run advanced into the second official train file and reached at least `54/62` ranged parts (`6.75 GiB`, `88.0%`) before operator-requested wrap-up.
 - Contract `37177098` was destroyed before conversion, validation, or held-out test.
 - This remains a partial hydration attempt only: no SOTA guard validation ran, no held-out test ran, and no benchmark conclusion should be drawn from it.
+
+Adaptive range-split checkpoint:
+
+- Vast contract `37177336` relaunched the official stratified hydration on a Virginia RTX 4090 host with the guarded post-validation chain still enabled.
+- The run saved five complete official train files (`beta0.1`, `beta0.2`, `beta0.4`, `beta0.7`, `beta1.0`) and reached `98.4%` of `beta2.0`.
+- Multiple slow ranges recovered through the patched `180s` per-part read timeout and retry path, but one `128 MiB` range (`5368709120-5502926847`) failed three consecutive attempts.
+- Contract `37177336` was destroyed after the repeated same-range stall, before conversion, validation, or held-out test.
+- `scripts/download_pdebench_file.py` now adaptively splits repeatedly timed-out ranges into smaller subranges:
+  - `PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES` / `--split-after-retries`
+  - `PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB` / `--min-split-size-mib`
+  - defaults split after `2` failures down to `8 MiB` minimum ranges
+- The purpose is to keep the benchmark-clean official source while avoiding pathological single-range stalls. This does not alter the train-only fit, validation-first guard, or held-out-test policy.
+- Verification:
+  - `python -m pytest tests/unit/test_download_pdebench_file.py` -> `10 passed`
+  - `python -m py_compile scripts/download_pdebench_file.py`
+- Next path remains: relaunch the official stratified hydration with the adaptive split downloader, then accept only the resulting validation gate as benchmark evidence; run exactly one held-out test only if the audit reaches `literal_test_ready`.

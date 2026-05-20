@@ -2242,3 +2242,25 @@ Follow-up current Vast wrap-up (2026-05-20, patched downloader checkpoint):
 - The run then advanced into the second official train file and reached at least `54/62` ranged parts (`6.75 GiB`, `88.0%`) before wrap-up.
 - Per operator request to wrap up the current Vast instance, destroyed contract `37177098` before conversion, validation, or held-out test.
 - No SOTA guard validation ran and no held-out test ran on this instance, so there is no benchmark result to promote from this attempt.
+
+Follow-up current Vast wrap-up (2026-05-20, adaptive range-split hardening):
+- Launched Vast contract `37177336` in Virginia with the same benchmark-clean stratified hydration plan and guarded post-validation chain.
+- The run confirmed the official train-only source and progressed farther than the previous slim-image attempt:
+  - saved `beta0.1`, `beta0.2`, `beta0.4`, `beta0.7`, and `beta1.0`
+  - entered the sixth official train file (`beta2.0`) and reached `98.4%`
+  - disk usage rose to `47` GB
+- The patched per-part timeout/retry path recovered multiple slow ranges, proving the HTTP read-timeout fix works in the live downloader.
+- The run then hit a new failure mode: one `128 MiB` range (`5368709120-5502926847`) failed three consecutive `180s` attempts on `beta2.0`.
+- Destroyed contract `37177336` after the repeated same-range stall; conversion, validation, and held-out test did not run.
+- Hardened `scripts/download_pdebench_file.py` again so a repeatedly timed-out ranged request splits into smaller byte ranges after configurable failures:
+  - `PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES` / `--split-after-retries`
+  - `PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB` / `--min-split-size-mib`
+  - default split trigger: `2` failed attempts
+  - default minimum split size: `8 MiB`
+- Tradeoff:
+  - this preserves the official data source and benchmark policy while increasing request count only for pathological stuck ranges
+  - it avoids spending every retry on the same bad CDN range before making smaller-range progress
+- Verified:
+  - `python -m pytest tests/unit/test_download_pdebench_file.py`
+  - `10 passed`
+  - `python -m py_compile scripts/download_pdebench_file.py`
