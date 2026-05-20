@@ -2398,3 +2398,14 @@ Follow-up train-only conditional transport preparation (2026-05-20):
   - root attr `source_paths`
 - This gives the official hydrated train/val shards beta/source-file regime information after conversion and light-shard slicing, without reading or changing held-out test data.
 - Practical implication: once official hydration is unblocked, a train-only conditional transport probe can use source-file regime labels from train and validate the locked rule on val instead of being restricted to one global constant shift.
+
+Follow-up source-conditioned official validation gate (2026-05-20):
+- Added `scripts/run_source_conditioned_transport_shift_gate.py`.
+- The gate fits one periodic shift per `source_file_index` group using train rows only, then validates the locked source-to-shift mapping on val rows.
+- It fails closed if validation contains a `source_file_index` absent from train, and it only evaluates an optional held-out test split after validation passes.
+- Updated `scripts/plan_transport_official_hydration.py` so the official hydration plan now writes `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` via the source-conditioned gate.
+- Regenerated:
+  - `reports/research/sota_loop/official_advection_hydration_plan.json`
+  - `reports/research/sota_loop/official_advection_hydration_plan_validation.json`
+  - `reports/research/sota_loop/official_advection_hydration_plan_run.json`
+- This is still not objective completion: the official train files are not hydrated locally, no validation gate result exists yet, and no held-out test is authorized.

@@ -1638,3 +1638,10 @@ Train-only conditional transport preparation:
 - A quick research pass points toward symmetry/canonical/equivariant transport structure rather than further global constant-shift sweeps.
 - `src/ups/data/convert_pdebench.py` now preserves source provenance in converted HDF5 files via `source_file_index`, `source_sample_index`, and `source_paths`.
 - This is intentionally not a result claim. It prepares the official hydrated train/val artifacts for a benchmark-clean conditional transport probe once real data hydration runs, while preserving the no-test-before-validation policy.
+
+Source-conditioned official validation gate:
+
+- `scripts/run_source_conditioned_transport_shift_gate.py` now implements the provenance-conditioned probe.
+- It fits shifts only on train rows grouped by `source_file_index`, validates that locked map on val rows, and blocks if val contains an unseen source regime.
+- The official hydration plan now uses this gate for `validate_without_test`, still writes `official_hydrated_transport_shift_gate.json`, and still keeps `test_count=0` during train/val hydration.
+- This makes the next official run more likely to answer the real question: whether train-only source-regime conditioning can pass the SOTA guard without touching held-out test data.

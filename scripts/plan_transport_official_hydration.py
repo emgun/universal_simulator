@@ -67,7 +67,7 @@ def _shard_command(args: argparse.Namespace, selected_entries: list[dict[str, An
 def _gate_command(args: argparse.Namespace) -> str:
     shift_args = " ".join(f"--shift {shift}" for shift in args.shift)
     return (
-        "python scripts/run_transport_shift_gate.py "
+        "python scripts/run_source_conditioned_transport_shift_gate.py "
         f"--data-root {args.hydrated_light_root} "
         "--task advection1d --train-split train --val-split val "
         f"--max-samples {args.train_count} --rollout-steps {args.rollout_steps} "
