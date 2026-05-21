@@ -39,11 +39,13 @@ def _shift_args(shifts: list[int]) -> str:
 def _test_measurement_key(args: argparse.Namespace, objective_status: dict[str, Any]) -> str:
     payload = {
         "estimator": "official_hydrated_source_conditioned_transport_shift",
+        "fit_strategy": args.fit_strategy,
         "hydrated_light_root": args.hydrated_light_root,
         "hydrated_source_root": args.hydrated_source_root,
         "objective_status": objective_status.get("status"),
         "official_hydrated_gate_json": args.official_hydrated_gate_json,
         "reference_metric_value": args.reference_metric_value,
+        "refine_radius": int(args.refine_radius),
         "rollout_steps": args.rollout_steps,
         "shift": [int(shift) for shift in args.shift],
         "split_block_size": int(getattr(args, "split_block_size", 0)),
@@ -96,6 +98,8 @@ def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
         f"--rollout-steps {args.rollout_steps} "
         f"{_shift_args(args.shift)} "
         "--metric nrmse "
+        f"--fit-strategy {args.fit_strategy} "
+        f"--refine-radius {args.refine_radius} "
         f"--reference-metric-value {args.reference_metric_value} "
         f"--val-min-relative-improvement {args.val_min_relative_improvement} "
         f"--output-json {args.official_hydrated_gate_json}"
@@ -215,6 +219,8 @@ def main() -> None:
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
+    parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode")
+    parser.add_argument("--refine-radius", type=int, default=4)
     parser.add_argument(
         "--test-ledger-json",
         default="reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json",

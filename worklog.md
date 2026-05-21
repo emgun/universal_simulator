@@ -2454,3 +2454,9 @@ Follow-up train-only local shift refinement (2026-05-21):
 - Updated `scripts/plan_transport_official_hydration.py` so the official hydrated validation command now includes `--refine-radius 4` with `--fit-strategy sample_mode`.
 - Regenerated the ignored official hydration plan, validation record, dry-run execution record, and remote sequential plan; test data remains absent from the train/val hydration stage.
 - This improves the next official validation attempt by avoiding an 8-cell quantization artifact while preserving the benchmark policy: refinement uses train rows only, validation is measurement-only, and held-out test remains blocked until `literal_test_ready`.
+
+Follow-up post-validation estimator parity (2026-05-21):
+- Updated `scripts/run_official_hydrated_post_validation_test.py` so the guarded held-out test command also passes `--fit-strategy sample_mode --refine-radius 4`.
+- Added the fit strategy and refine radius to the held-out test ledger measurement key, preventing a repeat-test collision between different estimator configurations.
+- Regenerated `reports/research/sota_loop/official_hydrated_post_validation_test_run.json`; it remains a dry run because objective status is still `literal_blocked`.
+- This keeps the post-validation held-out test on the same locked estimator family as train/val validation, rather than silently falling back to the older aggregate/no-refinement configuration.

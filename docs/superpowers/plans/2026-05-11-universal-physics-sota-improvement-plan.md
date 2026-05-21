@@ -1692,3 +1692,9 @@ Train-only local shift refinement:
 - The official hydration plan uses `--fit-strategy sample_mode --refine-radius 4`, so the train fit starts from the coarse configured grid and then checks a local integer neighborhood around train-selected shifts.
 - This reduces coarse-grid quantization risk for the official Advection gate without fitting on validation or reading held-out test data.
 - The regenerated train/val plan still writes only `official_hydrated_transport_shift_gate.json`; the held-out test remains a separate post-validation step gated by `literal_test_ready`.
+
+Post-validation estimator parity:
+
+- `scripts/run_official_hydrated_post_validation_test.py` now passes the same estimator knobs to the guarded held-out test command: `--fit-strategy sample_mode --refine-radius 4`.
+- The held-out test ledger key now includes `fit_strategy` and `refine_radius`, so exactly-one-test enforcement is scoped to the actual estimator configuration.
+- The regenerated post-validation dry run remains blocked until `literal_test_ready`, but its command no longer differs from the official train/val validation estimator.
