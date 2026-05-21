@@ -1738,3 +1738,9 @@ Vast DNS preflight hardening:
 - Local sequential hydration is not currently feasible because the shared filesystem had only about 471 MiB free, far below the one-raw-file sequential hydration requirement.
 - `scripts/vast_launch.py` now runs a DNS preflight for `console.vast.ai` before paid Vast launch/create requests; if the host cannot resolve, it exits before attempting instance creation.
 - The preflight is deliberately bypassable with `--skip-launch-preflight`, but the default path avoids repeated create attempts when the local network state already proves the remote run cannot start.
+
+Official execution readiness artifact:
+
+- `scripts/check_official_execution_readiness.py` now records route-specific readiness for the two legitimate paths: pinned remote Vast execution and local sequential hydration.
+- The live readiness artifact currently reports both routes blocked: `console.vast.ai` does not resolve for remote launch, `darus.uni-stuttgart.de` does not resolve for local download, and local free disk is about `553787392` bytes against a `9467911994` byte sequential requirement.
+- Use `reports/research/sota_loop/official_execution_readiness.json` before another launch attempt so DNS/disk blockers are visible before any paid create request or large download is attempted.

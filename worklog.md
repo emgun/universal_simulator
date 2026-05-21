@@ -2501,3 +2501,9 @@ Follow-up Vast DNS preflight hardening (2026-05-21):
 - Local sequential hydration is not viable in the current workspace because `df -h` showed only about 471 MiB free on the shared filesystem, far below the single official train file requirement.
 - Updated `scripts/vast_launch.py` with a default DNS preflight before paid launch/create requests, plus `--skip-launch-preflight` for deliberate bypass.
 - Verified the preflight path against offer `35680432`: it failed DNS twice and stopped with `not attempting paid instance creation`, avoiding repeated paid-create attempts when local DNS is already known broken.
+
+Follow-up official execution readiness artifact (2026-05-21):
+- Added `scripts/check_official_execution_readiness.py` to produce one route-aware readiness artifact for the official train/val hydration objective.
+- The checker reports whether the remote Vast route can start, whether local sequential hydration can start, DNS status for `console.vast.ai` and `darus.uni-stuttgart.de`, local disk free bytes, the largest official Advection file requirement, and the unchanged held-out-test policy.
+- Live output at `reports/research/sota_loop/official_execution_readiness.json` currently reports `status=blocked`: remote launch is blocked by `console.vast.ai` DNS, and local sequential hydration is blocked by Darus DNS plus about `553787392` free bytes versus `9467911994` required bytes.
+- This does not redefine the benchmark objective; it makes the current external execution blocker auditable before the official hydrated gate can be produced.
