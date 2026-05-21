@@ -1745,3 +1745,10 @@ Official execution readiness artifact:
 - The live readiness artifact currently reports both routes blocked: `console.vast.ai` does not resolve for remote launch, `darus.uni-stuttgart.de` does not resolve for local download, and local free disk is about `553787392` bytes against a `9467911994` byte sequential requirement.
 - Use `reports/research/sota_loop/official_execution_readiness.json` before another launch attempt so DNS/disk blockers are visible before any paid create request or large download is attempted.
 - `scripts/run_official_transport_objective_status.sh` now includes this readiness artifact, so the canonical objective status surfaces those route-specific blockers while still requiring the official hydrated train/val gate before held-out test authorization.
+
+Official Vast launcher readiness gate:
+
+- `scripts/launch_remote_transport_shift_candidate_vast.sh` now runs `scripts/check_official_execution_readiness.py` before actual `scripts/run_remote_official_hydration.sh` launches.
+- If `remote_launch_ready=false`, the wrapper exits before invoking `scripts/vast_launch.py launch`; dry runs and non-official remote scripts are unaffected.
+- The live checkpoint still blocks both execution routes: `console.vast.ai` does not resolve, `darus.uni-stuttgart.de` does not resolve, and local free disk is about `257413120` bytes versus the `9467911994` byte sequential requirement.
+- This is a fail-closed operational guard, not a benchmark substitute. The literal objective still requires `reports/research/sota_loop/official_hydrated_transport_shift_gate.json`, validation pass on official train/val, and exactly one held-out test only after `literal_test_ready`.

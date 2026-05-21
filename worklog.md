@@ -2512,3 +2512,10 @@ Follow-up readiness-aware objective audit (2026-05-21):
 - Updated `scripts/audit_transport_objective_status.py` and `scripts/run_official_transport_objective_status.sh` to include `reports/research/sota_loop/official_execution_readiness.json`.
 - The canonical `transport_objective_status.json` now lists the route-specific execution blockers directly: `remote_launch` cannot resolve `console.vast.ai`, and `local_sequential_hydration` cannot resolve Darus and lacks local disk.
 - The objective status remains `literal_blocked` because `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing; no held-out test is authorized.
+
+Follow-up official Vast launcher readiness gate (2026-05-21):
+- Updated `scripts/launch_remote_transport_shift_candidate_vast.sh` so actual official remote hydration launches run `scripts/check_official_execution_readiness.py` first and fail before invoking `scripts/vast_launch.py launch` when `remote_launch_ready=false`.
+- Dry runs and non-official remote scripts are unchanged; this only protects the paid official hydration route from known-local DNS blockers.
+- Added a launcher unit test that simulates blocked readiness and verifies the wrapper exits before the Vast launch path.
+- Live readiness remains blocked: `console.vast.ai` and `darus.uni-stuttgart.de` do not resolve from this environment, and local free disk is about `257413120` bytes versus the `9467911994` byte sequential one-file requirement.
+- The canonical objective status remains `literal_blocked`; `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing and no held-out test is authorized.

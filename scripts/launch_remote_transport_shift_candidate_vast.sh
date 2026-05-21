@@ -22,6 +22,8 @@ ARGS_MODE=${ARGS_MODE:-0}
 INSTALL_MODE=${INSTALL_MODE:-experiment}
 LAUNCH_RETRIES=${LAUNCH_RETRIES:-3}
 LAUNCH_RETRY_BACKOFF=${LAUNCH_RETRY_BACKOFF:-10}
+OFFICIAL_READINESS_CHECK=${OFFICIAL_READINESS_CHECK:-1}
+READINESS_JSON=${READINESS_JSON:-reports/research/sota_loop/official_execution_readiness.json}
 EXTRA_PIPELINE_ARGS=${EXTRA_PIPELINE_ARGS:-}
 
 read_env_key() {
@@ -100,5 +102,21 @@ fi
 [ -n "${B2_BUCKET:-}" ] && args+=(--b2-bucket "$B2_BUCKET")
 [ -n "${B2_S3_ENDPOINT:-}" ] && args+=(--b2-s3-endpoint "$B2_S3_ENDPOINT")
 [ -n "${B2_S3_REGION:-}" ] && args+=(--b2-s3-region "$B2_S3_REGION")
+
+if [ "$DRY_RUN" -eq 0 ] && [ "$OFFICIAL_READINESS_CHECK" -eq 1 ] && [ "$REMOTE_SCRIPT" = "scripts/run_remote_official_hydration.sh" ]; then
+  python scripts/check_official_execution_readiness.py --output-json "$READINESS_JSON" || true
+  python - "$READINESS_JSON" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+record = json.loads(path.read_text(encoding="utf-8"))
+if not record.get("remote_launch_ready"):
+    blockers = (record.get("route_blockers") or {}).get("remote_launch") or record.get("blockers") or []
+    print("Remote official hydration is not launch-ready:", "; ".join(str(item) for item in blockers), file=sys.stderr)
+    raise SystemExit(2)
+PY
+fi
 
 "${args[@]}"
