@@ -45,6 +45,7 @@ def _test_measurement_key(args: argparse.Namespace, objective_status: dict[str, 
         "objective_status": objective_status.get("status"),
         "official_hydrated_gate_json": args.official_hydrated_gate_json,
         "reference_metric_value": args.reference_metric_value,
+        "fractional_refine_step": float(args.fractional_refine_step),
         "refine_radius": int(args.refine_radius),
         "rollout_steps": args.rollout_steps,
         "shift": [int(shift) for shift in args.shift],
@@ -100,6 +101,7 @@ def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
         "--metric nrmse "
         f"--fit-strategy {args.fit_strategy} "
         f"--refine-radius {args.refine_radius} "
+        f"--fractional-refine-step {args.fractional_refine_step} "
         f"--reference-metric-value {args.reference_metric_value} "
         f"--val-min-relative-improvement {args.val_min_relative_improvement} "
         f"--output-json {args.official_hydrated_gate_json}"
@@ -221,6 +223,7 @@ def main() -> None:
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
     parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode")
     parser.add_argument("--refine-radius", type=int, default=4)
+    parser.add_argument("--fractional-refine-step", type=float, default=0.5)
     parser.add_argument(
         "--test-ledger-json",
         default="reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json",

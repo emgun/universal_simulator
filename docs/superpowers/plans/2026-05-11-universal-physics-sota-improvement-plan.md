@@ -1723,3 +1723,11 @@ Vast create DNS retry hardening:
 - `scripts/vast_launch.py` now supports bounded retries for transient Vast CLI DNS/connectivity failures, and `scripts/launch_remote_transport_shift_candidate_vast.sh` enables `LAUNCH_RETRIES=3` with `LAUNCH_RETRY_BACKOFF=10` by default.
 - The generated remote hydration plan now includes those launch retry knobs explicitly. The next path is still the same pinned `actual_launcher`; the retry change only makes transient pre-instance Vast failures less likely to waste the run attempt.
 - A fixed-path retry check did perform all four create attempts, but each failed on the same DNS resolution error before Vast created an instance; a follow-up instance check returned `[]`.
+
+Fractional Fourier transport refinement:
+
+- A follow-up live relaunch against current offer `9021757` again failed before instance creation: all four Vast create attempts hit `Failed to resolve 'console.vast.ai'`, and no benchmark artifact was produced.
+- The local modeling path now moves from integer-only source shifts to train-only fractional Fourier shift refinement.
+- `scripts/run_source_conditioned_transport_shift_gate.py` still starts from the train-only coarse/source-conditioned map, but when `--fractional-refine-step` is positive it evaluates fractional periodic shifts around the train-selected shift using a Fourier phase ramp.
+- `scripts/plan_transport_official_hydration.py` now emits `--fractional-refine-step 0.5` for official train/val validation, and `scripts/run_official_hydrated_post_validation_test.py` passes the same estimator knob to the gated held-out test command and ledger key.
+- This preserves the benchmark boundary: no validation fitting, no test shard in the train/val hydration plan, and no held-out test execution unless the objective audit reaches `literal_test_ready`.

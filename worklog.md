@@ -2486,3 +2486,11 @@ Follow-up Vast create DNS retry hardening (2026-05-21):
 - Updated `scripts/plan_remote_official_hydration.py` so regenerated launcher commands include `LAUNCH_RETRIES=3` and `LAUNCH_RETRY_BACKOFF=10.0`.
 - Re-ran the official launcher through the fixed retry path with short local backoff; all four create attempts failed with the same DNS resolution error before instance creation, and a follow-up instance check again returned `[]`.
 - This does not weaken the benchmark policy: the official hydrated train/val gate is still required before any held-out test, and the current objective status remains blocked until `official_hydrated_transport_shift_gate.json` exists and passes.
+
+Follow-up fractional Fourier transport refinement (2026-05-21):
+- Re-checked live execution state: the branch was clean, the objective audit still reported `literal_blocked`, `vastai show instances --raw` returned `[]`, and an initial cheap RTX 4090 search returned no offers under `$0.60/hr`.
+- Broadened the execution search to `$1.00/hr` and found offer `9021757` (`RTX_4090`, 152 GiB disk, about `$0.401/hr`), then attempted the pinned official sequential launcher.
+- The create request used the verified retry path and failed all four attempts before instance creation with `Failed to resolve 'console.vast.ai'`; no remote official hydration run started and no held-out test was touched.
+- Based on the retry blocker and a quick literature check around PDEBench plus shift/canonical equivariant neural-operator work, updated `scripts/run_source_conditioned_transport_shift_gate.py` to support train-only fractional Fourier shift refinement.
+- The official train/val plan now includes `--fractional-refine-step 0.5` with the existing `--fit-strategy sample_mode --refine-radius 4`; the guarded post-validation command and held-out-test ledger key use the same fractional estimator configuration.
+- This is still benchmark-clean: fractional shifts are selected from train rows only, validation scores the locked train-fitted source map, and the held-out test remains blocked until `literal_test_ready`.

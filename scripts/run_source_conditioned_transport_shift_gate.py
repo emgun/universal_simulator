@@ -90,10 +90,41 @@ def _load_series_and_source(
     return data, source_file_index
 
 
+def _periodic_shift(fields: np.ndarray, shift: float) -> np.ndarray:
+    if abs(float(shift) - round(float(shift))) < 1e-9:
+        return np.roll(fields, shift=int(round(float(shift))), axis=-1)
+    width = int(fields.shape[-1])
+    frequencies = np.fft.fftfreq(width)
+    phase = np.exp(-2j * np.pi * frequencies * float(shift))
+    shifted = np.fft.ifft(np.fft.fft(fields, axis=-1) * phase, axis=-1)
+    return np.real(shifted).astype(fields.dtype, copy=False)
+
+
+def _candidate_scores_periodic(
+    fields: np.ndarray,
+    shifts: Sequence[float],
+    *,
+    rollout_steps: int,
+) -> list[dict[str, float]]:
+    steps = min(int(rollout_steps), fields.shape[1] - 1)
+    if steps <= 0:
+        raise ValueError("Need at least two trajectory frames to score a transport shift")
+    previous = fields[:, :steps]
+    current = fields[:, 1 : steps + 1]
+    rows = []
+    for shift in shifts:
+        shifted = _periodic_shift(previous, float(shift))
+        squared_error = np.square(shifted - current)
+        mse = float(np.mean(squared_error))
+        nrmse = float(np.sqrt(np.mean(squared_error)) / max(float(np.std(current)), 1e-12))
+        rows.append({"shift": float(shift), "mse": mse, "nrmse": nrmse})
+    return rows
+
+
 def _score_locked_shifts(
     fields: np.ndarray,
     source_file_index: np.ndarray,
-    source_shift_map: Mapping[int, int],
+    source_shift_map: Mapping[int, float],
     *,
     rollout_steps: int,
 ) -> dict[str, float]:
@@ -105,7 +136,7 @@ def _score_locked_shifts(
     shifted = np.empty_like(previous)
     for source_index in sorted(set(int(value) for value in source_file_index.tolist())):
         mask = source_file_index == source_index
-        shifted[mask] = np.roll(previous[mask], shift=int(source_shift_map[source_index]), axis=-1)
+        shifted[mask] = _periodic_shift(previous[mask], float(source_shift_map[source_index]))
     squared_error = np.square(shifted - current)
     mse = float(np.mean(squared_error))
     nrmse = float(np.sqrt(np.mean(squared_error)) / max(float(np.std(current)), 1e-12))
@@ -129,6 +160,23 @@ def _refined_shifts(base_shift: int, radius: int, *, width: int) -> list[int]:
     return refined
 
 
+def _fractional_refined_shifts(base_shift: float, radius: int, step: float, *, width: int) -> list[float]:
+    if radius <= 0 or step <= 0:
+        return [float(base_shift)]
+    count = int(round((2.0 * float(radius)) / float(step)))
+    start = float(base_shift) - float(radius)
+    candidates = [start + idx * float(step) for idx in range(count + 1)]
+    seen: set[int] = set()
+    refined: list[float] = []
+    for shift in candidates:
+        key = int(round((float(shift) % float(width)) / float(step)))
+        if key in seen:
+            continue
+        seen.add(key)
+        refined.append(float(shift))
+    return refined
+
+
 def _fit_source_shift_map(
     fields: np.ndarray,
     source_file_index: np.ndarray,
@@ -138,15 +186,16 @@ def _fit_source_shift_map(
     metric: str,
     fit_strategy: str,
     refine_radius: int,
-) -> tuple[dict[int, int], dict[str, Any]]:
-    selected: dict[int, int] = {}
+    fractional_refine_step: float,
+) -> tuple[dict[int, float], dict[str, Any]]:
+    selected: dict[int, float] = {}
     groups: dict[str, Any] = {}
     for source_index in sorted(set(int(value) for value in source_file_index.tolist())):
         mask = source_file_index == source_index
         group_fields = fields[mask]
         rows = _candidate_scores(group_fields, shifts, rollout_steps=rollout_steps)
         best = _select_best(rows, metric)
-        selected_shift = int(best["shift"])
+        selected_shift = float(best["shift"])
         refined_rows: list[dict[str, float | int]] = []
         refined_best: dict[str, Any] | None = None
         sample_votes: list[dict[str, Any]] = []
@@ -194,34 +243,43 @@ def _fit_source_shift_map(
                             "candidate_shifts": local_shifts,
                         }
                     )
-                selected_shift = sorted(
-                    refined_vote_scores,
-                    key=lambda shift: (
-                        -len(refined_vote_scores[shift]),
-                        float(np.mean(refined_vote_scores[shift])),
-                        abs(shift),
-                        shift,
-                    ),
-                )[0]
+                selected_shift = float(
+                    sorted(
+                        refined_vote_scores,
+                        key=lambda shift: (
+                            -len(refined_vote_scores[shift]),
+                            float(np.mean(refined_vote_scores[shift])),
+                            abs(shift),
+                            shift,
+                        ),
+                    )[0]
+                )
                 sample_votes = refined_votes
         elif fit_strategy != "aggregate":
             raise ValueError(f"Unsupported fit strategy: {fit_strategy}")
         if refine_radius > 0:
-            refined_rows = _candidate_scores(
-                group_fields,
-                _refined_shifts(selected_shift, refine_radius, width=int(group_fields.shape[-1])),
-                rollout_steps=rollout_steps,
+            local_shifts = (
+                _fractional_refined_shifts(
+                    selected_shift,
+                    refine_radius,
+                    fractional_refine_step,
+                    width=int(group_fields.shape[-1]),
+                )
+                if fractional_refine_step > 0
+                else _refined_shifts(int(round(selected_shift)), refine_radius, width=int(group_fields.shape[-1]))
             )
+            refined_rows = _candidate_scores_periodic(group_fields, local_shifts, rollout_steps=rollout_steps)
             refined_best = _select_best(refined_rows, metric)
-            selected_shift = int(refined_best["shift"])
-        selected[source_index] = int(selected_shift)
+            selected_shift = float(refined_best["shift"])
+        selected[source_index] = float(selected_shift)
         groups[str(source_index)] = {
             "sample_count": int(mask.sum()),
             "fit_strategy": fit_strategy,
-            "selected_shift": int(selected_shift),
+            "selected_shift": float(selected_shift),
             "selected_train": best,
             "candidate_scores": rows,
             "refine_radius": int(refine_radius),
+            "fractional_refine_step": float(fractional_refine_step),
             "refined_selected_train": refined_best,
             "refined_candidate_scores": refined_rows,
             "sample_votes": sample_votes,
@@ -251,6 +309,7 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         metric=args.metric,
         fit_strategy=args.fit_strategy,
         refine_radius=args.refine_radius,
+        fractional_refine_step=args.fractional_refine_step,
     )
     train_sources = sorted(source_shift_map)
     val_sources = sorted(set(int(value) for value in val_source.tolist()))
@@ -302,7 +361,8 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
                     source_shift_map,
                     rollout_steps=args.rollout_steps,
                 ),
-                "source_shift_map": {str(key): int(value) for key, value in source_shift_map.items()},
+                "source_shift_map": {str(key): float(value) for key, value in source_shift_map.items()},
+                "source_shift_map_float": {str(key): float(value) for key, value in source_shift_map.items()},
             }
 
     source_splits = [args.train_split, args.val_split]
@@ -324,11 +384,12 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             "model": "source_conditioned_periodic_shift",
             "fit_strategy": args.fit_strategy,
             "refine_radius": args.refine_radius,
+            "fractional_refine_step": args.fractional_refine_step,
             "fit_uses": "train_split source_file_index groups only",
             "candidate_shifts": shifts,
-            "source_shift_map": {str(key): int(value) for key, value in source_shift_map.items()},
+            "source_shift_map": {str(key): float(value) for key, value in source_shift_map.items()},
             "train_groups": train_groups,
-            "selected_train_shift": {str(key): int(value) for key, value in source_shift_map.items()},
+            "selected_train_shift": {str(key): float(value) for key, value in source_shift_map.items()},
             "selected_validation": selected_validation,
             "oracle_validation": oracle_validation,
             "validation_gap_to_oracle": (
@@ -347,8 +408,8 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             "val_source_file_indices": val_sources,
             "unsupported_val_source_file_indices": unsupported_val_sources,
             "best_shifts": {
-                args.train_split: {str(key): int(value) for key, value in source_shift_map.items()},
-                args.val_split: {str(key): int(source_shift_map[key]) for key in val_sources if key in source_shift_map},
+                args.train_split: {str(key): float(value) for key, value in source_shift_map.items()},
+                args.val_split: {str(key): float(source_shift_map[key]) for key in val_sources if key in source_shift_map},
             },
             "consistent_best_shift": not unsupported_val_sources,
         },
@@ -383,6 +444,7 @@ def main() -> None:
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
     parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="aggregate")
     parser.add_argument("--refine-radius", type=int, default=0)
+    parser.add_argument("--fractional-refine-step", type=float, default=0.0)
     parser.add_argument("--reference-metric-value", type=float, required=True)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
     parser.add_argument("--output-json", default="reports/research/sota_loop/source_conditioned_transport_shift_gate.json")

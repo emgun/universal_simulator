@@ -57,6 +57,7 @@ def _args(tmp_path):
         val_min_relative_improvement=0.0,
         fit_strategy="sample_mode",
         refine_radius=4,
+        fractional_refine_step=0.5,
         output_json=str(tmp_path / "plan.json"),
     )
 
@@ -77,6 +78,7 @@ def test_hydration_plan_uses_only_official_advection_train_entries(tmp_path):
     assert "run_source_conditioned_transport_shift_gate.py" in plan["commands"]["validate_without_test"]
     assert "--fit-strategy sample_mode" in plan["commands"]["validate_without_test"]
     assert "--refine-radius 4" in plan["commands"]["validate_without_test"]
+    assert "--fractional-refine-step 0.5" in plan["commands"]["validate_without_test"]
     assert plan["stratified_split_policy"]["train_per_file"] == 5
     assert plan["stratified_split_policy"]["val_per_file"] == 2
     assert plan["stratified_split_policy"]["reserved_test_per_file"] == 2

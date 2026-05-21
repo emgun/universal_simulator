@@ -30,6 +30,7 @@ def _args(tmp_path, *, status: str, execute: bool = False, execute_test: bool = 
         val_min_relative_improvement=0.0,
         fit_strategy="sample_mode",
         refine_radius=4,
+        fractional_refine_step=0.5,
         execute=execute,
         execute_test=execute_test,
         test_ledger_json=str(tmp_path / "test-ledger.json"),
@@ -73,6 +74,7 @@ def test_post_validation_test_runner_command_shape_is_gated(tmp_path):
     assert "--test-max-samples 3" in commands["run_gated_test"]
     assert "--fit-strategy sample_mode" in commands["run_gated_test"]
     assert "--refine-radius 4" in commands["run_gated_test"]
+    assert "--fractional-refine-step 0.5" in commands["run_gated_test"]
     assert "run_source_conditioned_transport_shift_gate.py" in commands["run_gated_test"]
     assert "official_hydrated_transport_shift_gate.json" in commands["run_gated_test"]
 

@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 
 import h5py
+import numpy as np
 import torch
 
-from scripts.run_source_conditioned_transport_shift_gate import run_gate
+from scripts.run_source_conditioned_transport_shift_gate import _periodic_shift, run_gate
 
 
 def _write_source_shifted_split(path, *, split: str, source_shifts: list[tuple[int, int]]) -> None:
@@ -40,6 +41,7 @@ def _args(tmp_path, *, reference: float = 1.0):
         metric="nrmse",
         fit_strategy="aggregate",
         refine_radius=0,
+        fractional_refine_step=0.0,
         reference_metric_value=reference,
         val_min_relative_improvement=0.0,
     )
@@ -113,3 +115,36 @@ def test_source_conditioned_gate_refines_sample_mode_shift_from_coarse_grid(tmp_
     assert record["fit"]["train_groups"]["0"]["refine_radius"] == 3
     assert record["fit"]["train_groups"]["0"]["refined_candidate_scores"]
     assert record["fit"]["selected_validation"]["nrmse"] == 0.0
+
+
+def test_source_conditioned_gate_fractionally_refines_train_shift(tmp_path):
+    width = 32
+    samples = [(0, 1.5), (0, 1.5), (1, -0.5), (1, -0.5)]
+    for split in ("train", "val"):
+        data = np.zeros((len(samples), 4, width, 1), dtype=np.float32)
+        source_file_index = []
+        for sample_idx, (source_index, shift) in enumerate(samples):
+            x = np.arange(width, dtype=np.float32)
+            data[sample_idx, 0, :, 0] = np.exp(-0.5 * ((x - (8 + sample_idx)) / 2.0) ** 2)
+            for step in range(1, data.shape[1]):
+                data[sample_idx, step, :, 0] = _periodic_shift(data[sample_idx : sample_idx + 1, step - 1, :, 0], shift)[
+                    0
+                ]
+            source_file_index.append(source_index)
+        with h5py.File(tmp_path / f"advection1d_{split}.h5", "w") as handle:
+            handle.create_dataset("data", data=data)
+            handle.create_dataset("source_file_index", data=source_file_index)
+            handle.create_dataset("source_sample_index", data=list(range(len(samples))))
+            handle.attrs["source_paths"] = ["beta_a.hdf5", "beta_b.hdf5"]
+
+    args = _args(tmp_path, reference=1.0)
+    args.shift = [-2, 0, 2]
+    args.refine_radius = 2
+    args.fractional_refine_step = 0.5
+
+    record = run_gate(args)
+
+    assert record["fit"]["fractional_refine_step"] == 0.5
+    assert record["fit"]["source_shift_map"] == {"0": 1.5, "1": -0.5}
+    assert record["fit"]["selected_validation"]["nrmse"] < 1e-5
+    assert record["test_eligible"] is True
