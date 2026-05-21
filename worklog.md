@@ -2440,3 +2440,10 @@ Follow-up sequential Vast relaunch check (2026-05-21):
 - Vast rejected instance creation with `Your account lacks credit; see the billing page.`
 - A later `vastai show instances --raw` refresh could not resolve `console.vast.ai` from this environment, so active instance state was not refreshed in this turn; the last successful state check before the launch attempt showed no active instances.
 - Current blocker remains external account credit or an alternate real-data execution environment. The repo-side next-run command is cheaper and ready, but no benchmark-clean train/val result exists yet.
+
+Follow-up sample-mode source-conditioned gate (2026-05-21):
+- Added `--fit-strategy aggregate|sample_mode` to `scripts/run_source_conditioned_transport_shift_gate.py`.
+- `aggregate` preserves the previous per-source aggregate-MSE selection; `sample_mode` fits each train trajectory independently, then chooses the modal train-supported shift per `source_file_index` with metric-based tie breaking.
+- Updated `scripts/plan_transport_official_hydration.py` so the official hydrated train/val gate now uses `--fit-strategy sample_mode`.
+- Regenerated the ignored official hydration plan, plan validation, dry-run plan execution record, and remote sequential plan; the validate command now includes `--fit-strategy sample_mode` while still keeping `test-count 0` for train/val hydration.
+- This targets the fallback research direction of symmetry-aware/canonical transport fitting without touching held-out test data: the model is still fit only on train rows, validation uses a locked source-to-shift map, and the held-out test remains gated behind `literal_test_ready`.

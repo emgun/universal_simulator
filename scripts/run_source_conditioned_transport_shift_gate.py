@@ -119,19 +119,45 @@ def _fit_source_shift_map(
     *,
     rollout_steps: int,
     metric: str,
+    fit_strategy: str,
 ) -> tuple[dict[int, int], dict[str, Any]]:
     selected: dict[int, int] = {}
     groups: dict[str, Any] = {}
     for source_index in sorted(set(int(value) for value in source_file_index.tolist())):
         mask = source_file_index == source_index
-        rows = _candidate_scores(fields[mask], shifts, rollout_steps=rollout_steps)
+        group_fields = fields[mask]
+        rows = _candidate_scores(group_fields, shifts, rollout_steps=rollout_steps)
         best = _select_best(rows, metric)
-        selected[source_index] = int(best["shift"])
+        selected_shift = int(best["shift"])
+        sample_votes: list[dict[str, Any]] = []
+        if fit_strategy == "sample_mode":
+            vote_scores: dict[int, list[float]] = {}
+            for sample_idx in range(group_fields.shape[0]):
+                sample_rows = _candidate_scores(group_fields[sample_idx : sample_idx + 1], shifts, rollout_steps=rollout_steps)
+                sample_best = _select_best(sample_rows, metric)
+                shift = int(sample_best["shift"])
+                vote_scores.setdefault(shift, []).append(float(sample_best[metric]))
+                sample_votes.append(
+                    {
+                        "sample_index": int(sample_idx),
+                        "selected_shift": shift,
+                        f"selected_{metric}": float(sample_best[metric]),
+                    }
+                )
+            selected_shift = sorted(
+                vote_scores,
+                key=lambda shift: (-len(vote_scores[shift]), float(np.mean(vote_scores[shift])), abs(shift), shift),
+            )[0]
+        elif fit_strategy != "aggregate":
+            raise ValueError(f"Unsupported fit strategy: {fit_strategy}")
+        selected[source_index] = int(selected_shift)
         groups[str(source_index)] = {
             "sample_count": int(mask.sum()),
-            "selected_shift": int(best["shift"]),
+            "fit_strategy": fit_strategy,
+            "selected_shift": int(selected_shift),
             "selected_train": best,
             "candidate_scores": rows,
+            "sample_votes": sample_votes,
         }
     return selected, groups
 
@@ -156,6 +182,7 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         shifts,
         rollout_steps=args.rollout_steps,
         metric=args.metric,
+        fit_strategy=args.fit_strategy,
     )
     train_sources = sorted(source_shift_map)
     val_sources = sorted(set(int(value) for value in val_source.tolist()))
@@ -227,6 +254,7 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "val_min_relative_improvement": args.val_min_relative_improvement,
         "fit": {
             "model": "source_conditioned_periodic_shift",
+            "fit_strategy": args.fit_strategy,
             "fit_uses": "train_split source_file_index groups only",
             "candidate_shifts": shifts,
             "source_shift_map": {str(key): int(value) for key, value in source_shift_map.items()},
@@ -284,6 +312,7 @@ def main() -> None:
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
+    parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="aggregate")
     parser.add_argument("--reference-metric-value", type=float, required=True)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
     parser.add_argument("--output-json", default="reports/research/sota_loop/source_conditioned_transport_shift_gate.json")

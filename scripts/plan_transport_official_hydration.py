@@ -72,6 +72,7 @@ def _gate_command(args: argparse.Namespace) -> str:
         "--task advection1d --train-split train --val-split val "
         f"--max-samples {args.train_count} --rollout-steps {args.rollout_steps} "
         f"{shift_args} --metric nrmse "
+        f"--fit-strategy {args.fit_strategy} "
         f"--reference-metric-value {args.reference_metric_value} "
         f"--val-min-relative-improvement {args.val_min_relative_improvement} "
         f"--output-json {args.output_root}/official_hydrated_transport_shift_gate.json"
@@ -172,6 +173,7 @@ def main() -> None:
     parser.add_argument("--max-files", type=int)
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
+    parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode")
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_hydration_plan.json",

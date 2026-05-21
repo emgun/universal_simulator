@@ -55,6 +55,7 @@ def _args(tmp_path):
         max_files=None,
         reference_metric_value=0.5,
         val_min_relative_improvement=0.0,
+        fit_strategy="sample_mode",
         output_json=str(tmp_path / "plan.json"),
     )
 
@@ -73,6 +74,7 @@ def test_hydration_plan_uses_only_official_advection_train_entries(tmp_path):
     assert "--split-block-offset train=0" in plan["commands"]["build_light_train_val_shards"]
     assert "--split-block-offset val=5" in plan["commands"]["build_light_train_val_shards"]
     assert "run_source_conditioned_transport_shift_gate.py" in plan["commands"]["validate_without_test"]
+    assert "--fit-strategy sample_mode" in plan["commands"]["validate_without_test"]
     assert plan["stratified_split_policy"]["train_per_file"] == 5
     assert plan["stratified_split_policy"]["val_per_file"] == 2
     assert plan["stratified_split_policy"]["reserved_test_per_file"] == 2

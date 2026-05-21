@@ -38,6 +38,7 @@ def _args(tmp_path, *, reference: float = 1.0):
         rollout_steps=3,
         shift=[0, 1, 2],
         metric="nrmse",
+        fit_strategy="aggregate",
         reference_metric_value=reference,
         val_min_relative_improvement=0.0,
     )
@@ -81,3 +82,17 @@ def test_source_conditioned_gate_measures_test_only_after_validation_passes(tmp_
     assert record["test_eligible"] is True
     assert record["test"]["selected_test"]["nrmse"] == 0.0
     assert record["next_action"] == "held-out test measured"
+
+
+def test_source_conditioned_gate_can_use_sample_mode_strategy(tmp_path):
+    _write_source_shifted_split(tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (0, 2), (1, 2)])
+    _write_source_shifted_split(tmp_path, split="val", source_shifts=[(0, 1), (1, 2)])
+    args = _args(tmp_path)
+    args.fit_strategy = "sample_mode"
+
+    record = run_gate(args)
+
+    assert record["fit"]["fit_strategy"] == "sample_mode"
+    assert record["fit"]["source_shift_map"] == {"0": 1, "1": 2}
+    assert record["fit"]["train_groups"]["0"]["sample_votes"]
+    assert record["test_eligible"] is True

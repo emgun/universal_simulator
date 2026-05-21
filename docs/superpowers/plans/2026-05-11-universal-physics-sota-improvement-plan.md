@@ -1678,3 +1678,10 @@ Sequential Vast relaunch check:
 - Vast rejected the create request with `Your account lacks credit; see the billing page.`
 - A later Vast instance-state refresh failed with DNS resolution for `console.vast.ai`, so do not treat this turn as a fresh proof that no instances exist. The prior successful check before the attempt showed no active instances.
 - Next path remains external: restore Vast credit or provide another real-data execution environment, then run the generated sequential actual launcher and accept only the official hydrated train/val gate as validation evidence before the held-out test.
+
+Sample-mode source-conditioned gate:
+
+- `scripts/run_source_conditioned_transport_shift_gate.py` now supports `--fit-strategy aggregate|sample_mode`.
+- `sample_mode` estimates each train trajectory's best periodic transport shift, then selects the modal train-supported shift per `source_file_index`; ties use the train metric, absolute shift size, then numeric shift for deterministic behavior.
+- The official hydration plan now uses `--fit-strategy sample_mode` for `validate_without_test`.
+- This is a stricter train-only canonicalization-style candidate than a single aggregate group fit. It should be more robust when a beta/source group contains mixed or noisy trajectories, while keeping the benchmark policy unchanged: no validation fitting, no test shard during train/val hydration, and exactly one held-out test only after `literal_test_ready`.
