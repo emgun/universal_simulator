@@ -36,6 +36,16 @@ def _dataset_keys(handle: h5py.File, sample_count: int) -> list[str]:
     return keys
 
 
+def _validate_source_complete(path: Path, handle: h5py.File) -> None:
+    if "sequential_hydration_complete" not in handle.attrs:
+        return
+    if not bool(handle.attrs["sequential_hydration_complete"]):
+        raise ValueError(
+            f"{path} is marked sequential_hydration_complete=False; "
+            "refusing to build light shards from partial official hydration"
+        )
+
+
 def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.ndarray]:
     remaining = int(count)
     offset = int(start)
@@ -47,6 +57,7 @@ def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.
         if remaining <= 0:
             break
         with h5py.File(path, "r") as handle:
+            _validate_source_complete(path, handle)
             if file_attrs is None:
                 file_attrs = dict(handle.attrs.items())
             if "data" not in handle:
@@ -89,6 +100,7 @@ def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.nda
         if not remaining:
             break
         with h5py.File(path, "r") as handle:
+            _validate_source_complete(path, handle)
             if file_attrs is None:
                 file_attrs = dict(handle.attrs.items())
             if "data" not in handle:
@@ -129,6 +141,7 @@ def _source_sample_count(paths: Iterable[Path]) -> int:
     total = 0
     for path in paths:
         with h5py.File(path, "r") as handle:
+            _validate_source_complete(path, handle)
             if "data" not in handle:
                 raise KeyError(f"{path} does not contain a 'data' dataset")
             total += int(handle["data"].shape[0])

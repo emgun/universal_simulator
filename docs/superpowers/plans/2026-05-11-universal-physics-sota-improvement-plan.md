@@ -1704,3 +1704,8 @@ Sequential hydration provenance hardening:
 - `scripts/hydrate_official_advection_source_sequential.py` now writes root `source_paths` before downloading/appending the first official raw file.
 - It also writes `sequential_hydration_complete=False` while appends are in progress and flips it to `True` only after every planned official train file has been appended.
 - This makes partial remote artifacts auditable after host/network failures without promoting them as benchmark evidence.
+
+Incomplete hydration shard guard:
+
+- `scripts/make_light_hdf5_shards.py` now refuses to build light shards from any HDF5 source marked `sequential_hydration_complete=False`.
+- This fail-closed check protects both official train/val validation shard creation and the later held-out test shard creation from accidentally consuming a partial remote hydration artifact.

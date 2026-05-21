@@ -160,6 +160,33 @@ def test_build_task_shard_records_accepts_stratified_block_offsets(tmp_path):
         assert handle["data"][:, 0].tolist() == [5.0, 11.0, 17.0]
 
 
+def test_build_task_shard_records_rejects_incomplete_sequential_hydration(tmp_path):
+    root = tmp_path / "source"
+    out_root = tmp_path / "light"
+    root.mkdir()
+    with h5py.File(root / "advection1d_train.h5", "w") as handle:
+        handle.create_dataset("data", data=np.arange(8, dtype=np.float32).reshape(8, 1))
+        handle.attrs["source_paths"] = ["beta0.1.hdf5"]
+        handle.attrs["sequential_hydration_complete"] = False
+
+    try:
+        build_task_shard_records(
+            root=root,
+            out_root=out_root,
+            task="advection1d",
+            source_split="train",
+            train_count=4,
+            val_count=0,
+            test_count=0,
+            start_index=0,
+            overwrite=True,
+        )
+    except ValueError as exc:
+        assert "sequential_hydration_complete=False" in str(exc)
+    else:
+        raise AssertionError("Expected incomplete sequential hydration to be rejected")
+
+
 def test_make_light_hdf5_manifest_cli(tmp_path, monkeypatch):
     from scripts import make_light_hdf5_shards
 

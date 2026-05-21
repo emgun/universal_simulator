@@ -2466,3 +2466,9 @@ Follow-up sequential hydration provenance hardening (2026-05-21):
 - Added a `sequential_hydration_complete` root attr that is set to `False` during incremental appends and `True` only after all planned files have been appended.
 - This protects remote failure forensics: if a credit-unblocked Vast run dies after partial official hydration, the partial source shard still carries the intended official source list and a clear incomplete marker.
 - The benchmark policy is unchanged; partial hydrated outputs are not treated as validation evidence, and the objective audit still requires `official_hydrated_transport_shift_gate.json`.
+
+Follow-up incomplete hydration shard guard (2026-05-21):
+- Updated `scripts/make_light_hdf5_shards.py` to reject any source HDF5 with `sequential_hydration_complete=False`.
+- This means a partially appended official hydrated source cannot be sliced into train/val/test light shards after a remote crash or retry unless the sequential hydrator completed all planned official train files.
+- The guard applies at the shard-builder boundary used by both train/val validation and the guarded post-validation test shard.
+- This keeps partial remote artifacts useful for diagnosis while preventing them from becoming benchmark evidence.
