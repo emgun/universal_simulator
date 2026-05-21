@@ -2432,3 +2432,11 @@ Follow-up sequential official hydration path (2026-05-20):
 - Updated `scripts/run_remote_official_hydration.sh` so `SEQUENTIAL_HYDRATION=1` runs sequential hydrate-convert-delete, then executes the existing shard/validate/audit stages and optional guarded post-validation test.
 - Updated `scripts/plan_remote_official_hydration.py`; the regenerated remote plan now uses `DISK_GB=32` instead of the earlier 120 GiB all-raw-files-at-once requirement, with `SEQUENTIAL_HYDRATION=1` and `SEQUENTIAL_CLEANUP_RAW=1`.
 - This does not complete the objective while Vast credit is blocked, but it materially improves the next execution route by lowering scratch-disk cost and preserving the same fail-closed no-test-before-validation policy.
+
+Follow-up sequential Vast relaunch check (2026-05-21):
+- Refreshed the literal objective audit; it still exits with `status=literal_blocked` because `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is missing and no official hydrated train/val validation exists.
+- Searched cheaper RTX 4090 offers under the new sequential requirement and found eligible 32 GiB-class routes, including offer `8936321` at about `$0.401/hr` with 59 GiB disk.
+- Attempted the actual sequential launch with `DISK_GB=32`, `SEQUENTIAL_HYDRATION=1`, `SEQUENTIAL_CLEANUP_RAW=1`, guarded post-validation test enabled, and artifact publication enabled.
+- Vast rejected instance creation with `Your account lacks credit; see the billing page.`
+- A later `vastai show instances --raw` refresh could not resolve `console.vast.ai` from this environment, so active instance state was not refreshed in this turn; the last successful state check before the launch attempt showed no active instances.
+- Current blocker remains external account credit or an alternate real-data execution environment. The repo-side next-run command is cheaper and ready, but no benchmark-clean train/val result exists yet.

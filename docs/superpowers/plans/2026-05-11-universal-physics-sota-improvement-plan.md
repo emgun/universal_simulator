@@ -1669,3 +1669,12 @@ Sequential official hydration path:
 - `scripts/run_remote_official_hydration.sh` can run this path with `SEQUENTIAL_HYDRATION=1` before the existing shard/validate/audit stages and guarded post-validation test.
 - `scripts/plan_remote_official_hydration.py` now emits sequential launcher args by default; the regenerated plan requires `DISK_GB=32` instead of 120 GiB because it no longer needs all raw train files resident at once.
 - The tradeoff is that execution remains network-bound and still needs a credit-unblocked remote or other large-data environment, but the literal benchmark policy is unchanged: train/val first, `literal_test_ready` before any held-out test, exactly one test result afterward.
+
+Sequential Vast relaunch check:
+
+- The literal audit still reports `literal_blocked`; the official hydrated gate artifact is still missing.
+- A cheaper sequential RTX 4090 route is now available in the search results: offer `8936321` had 59 GiB disk at about `$0.401/hr`, enough for the 32 GiB sequential plan.
+- The actual launch attempt used `DISK_GB=32`, `SEQUENTIAL_HYDRATION=1`, `SEQUENTIAL_CLEANUP_RAW=1`, `RUN_POST_VALIDATION_TEST=1`, `EXECUTE_TEST=1`, and `PUBLISH_ARTIFACTS=1`.
+- Vast rejected the create request with `Your account lacks credit; see the billing page.`
+- A later Vast instance-state refresh failed with DNS resolution for `console.vast.ai`, so do not treat this turn as a fresh proof that no instances exist. The prior successful check before the attempt showed no active instances.
+- Next path remains external: restore Vast credit or provide another real-data execution environment, then run the generated sequential actual launcher and accept only the official hydrated train/val gate as validation evidence before the held-out test.
