@@ -2472,3 +2472,8 @@ Follow-up incomplete hydration shard guard (2026-05-21):
 - This means a partially appended official hydrated source cannot be sliced into train/val/test light shards after a remote crash or retry unless the sequential hydrator completed all planned official train files.
 - The guard applies at the shard-builder boundary used by both train/val validation and the guarded post-validation test shard.
 - This keeps partial remote artifacts useful for diagnosis while preventing them from becoming benchmark evidence.
+
+Follow-up remote git-ref pinning (2026-05-21):
+- Updated `scripts/plan_remote_official_hydration.py` so generated Vast launchers include `GIT_REF=codex/sota-learned-gate` by default.
+- This prevents a credit-unblocked remote run from silently using the launcher script's branch default instead of the branch containing the sequential hydration guard, source-conditioned gate, and official hydrated audit promotion.
+- Tradeoff: the generated command is now branch-specific by default; use `--git-ref` when intentionally replaying the plan from another branch or immutable commit SHA.

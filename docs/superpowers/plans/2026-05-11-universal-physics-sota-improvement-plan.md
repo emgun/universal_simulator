@@ -1709,3 +1709,9 @@ Incomplete hydration shard guard:
 
 - `scripts/make_light_hdf5_shards.py` now refuses to build light shards from any HDF5 source marked `sequential_hydration_complete=False`.
 - This fail-closed check protects both official train/val validation shard creation and the later held-out test shard creation from accidentally consuming a partial remote hydration artifact.
+
+Remote git-ref pinning:
+
+- `scripts/plan_remote_official_hydration.py` now emits `GIT_REF=codex/sota-learned-gate` in the generated Vast launcher commands.
+- This keeps the next real-data run tied to the branch containing the sequential hydration completeness marker, incomplete-shard guard, source-conditioned gate, and official hydrated audit promotion.
+- If the next run should use a different branch or immutable SHA, regenerate the remote plan with `--git-ref`; otherwise use the pinned generated `actual_launcher`.

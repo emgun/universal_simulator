@@ -47,6 +47,7 @@ def _args(tmp_path):
         download_split_after_retries=2,
         download_min_split_size_mib=8,
         sequential_hydration=True,
+        git_ref="codex/sota-learned-gate",
         offer_id="",
         output_json=str(tmp_path / "remote.json"),
     )
@@ -57,9 +58,11 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
 
     assert record["status"] == "ready_for_remote_hydration"
     assert record["sequential_hydration"] is True
+    assert record["git_ref"] == "codex/sota-learned-gate"
     assert record["required_disk_gb"] == 32
     assert "DRY_RUN=1" in record["commands"]["dry_run_launcher"]
     assert "DRY_RUN=0" in record["commands"]["actual_launcher"]
+    assert "GIT_REF=codex/sota-learned-gate" in record["commands"]["actual_launcher"]
     assert "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh" in record["commands"]["actual_launcher"]
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
     assert "SEQUENTIAL_HYDRATION=1" in record["commands"]["actual_launcher"]

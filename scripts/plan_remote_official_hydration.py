@@ -41,6 +41,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
     launcher = (
         "DRY_RUN=1 "
         f"{offer_arg}"
+        f"GIT_REF={args.git_ref} "
         f"DISK_GB={required_disk_gb} "
         "GPU=RTX_4090 "
         "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh "
@@ -74,6 +75,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "max_official_file_gib": max_file_gib,
         "required_disk_gb": required_disk_gb,
         "sequential_hydration": sequential_hydration,
+        "git_ref": args.git_ref,
         "remote_plan_json": args.remote_plan_json,
         "remote_validation_json": args.remote_validation_json,
         "remote_run_json": args.remote_run_json,
@@ -99,6 +101,7 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
             "The Vast launcher invokes a bash wrapper; do not use a Python file as REMOTE_SCRIPT.",
             "The hydration plan downloads official train files only and builds train/val shards with test_count=0.",
             "Sequential hydration lowers scratch disk by keeping at most one raw official train file before appending sampled rows.",
+            "The launcher pins GIT_REF so the remote host checks out the intended benchmark branch instead of relying on launcher defaults.",
             "The post-validation test stage is chained but gated on literal_test_ready before it can build or read the held-out test shard.",
             "Downloader runtime knobs are included so remote retries use bounded reads, exponential backoff, adaptive range splitting, and same-host resume sidecars.",
         ],
@@ -142,6 +145,7 @@ def main() -> None:
     parser.add_argument("--download-split-after-retries", type=int, default=2)
     parser.add_argument("--download-min-split-size-mib", type=int, default=8)
     parser.add_argument("--sequential-hydration", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--git-ref", default="codex/sota-learned-gate", help="Git ref the Vast launcher should checkout")
     parser.add_argument("--offer-id", default="", help="Optional explicit Vast offer ID for direct relaunch")
     parser.add_argument(
         "--output-json",
