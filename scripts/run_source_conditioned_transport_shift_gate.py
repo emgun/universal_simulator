@@ -200,11 +200,11 @@ def _fit_source_shift_map(
         refined_best: dict[str, Any] | None = None
         sample_votes: list[dict[str, Any]] = []
         if fit_strategy == "sample_mode":
-            vote_scores: dict[int, list[float]] = {}
+            vote_scores: dict[float, list[float]] = {}
             for sample_idx in range(group_fields.shape[0]):
                 sample_rows = _candidate_scores(group_fields[sample_idx : sample_idx + 1], shifts, rollout_steps=rollout_steps)
                 sample_best = _select_best(sample_rows, metric)
-                shift = int(sample_best["shift"])
+                shift = float(sample_best["shift"])
                 vote_scores.setdefault(shift, []).append(float(sample_best[metric]))
                 sample_votes.append(
                     {
@@ -218,22 +218,31 @@ def _fit_source_shift_map(
                 key=lambda shift: (-len(vote_scores[shift]), float(np.mean(vote_scores[shift])), abs(shift), shift),
             )[0]
             if refine_radius > 0:
-                refined_vote_scores: dict[int, list[float]] = {}
+                refined_vote_scores: dict[float, list[float]] = {}
                 refined_votes: list[dict[str, Any]] = []
                 for vote in sample_votes:
                     sample_idx = int(vote["sample_index"])
-                    local_shifts = _refined_shifts(
-                        int(vote["selected_shift"]),
-                        refine_radius,
-                        width=int(group_fields.shape[-1]),
+                    local_shifts = (
+                        _fractional_refined_shifts(
+                            float(vote["selected_shift"]),
+                            refine_radius,
+                            fractional_refine_step,
+                            width=int(group_fields.shape[-1]),
+                        )
+                        if fractional_refine_step > 0
+                        else _refined_shifts(
+                            int(round(float(vote["selected_shift"]))),
+                            refine_radius,
+                            width=int(group_fields.shape[-1]),
+                        )
                     )
-                    sample_rows = _candidate_scores(
+                    sample_rows = _candidate_scores_periodic(
                         group_fields[sample_idx : sample_idx + 1],
                         local_shifts,
                         rollout_steps=rollout_steps,
                     )
                     sample_best = _select_best(sample_rows, metric)
-                    shift = int(sample_best["shift"])
+                    shift = float(sample_best["shift"])
                     refined_vote_scores.setdefault(shift, []).append(float(sample_best[metric]))
                     refined_votes.append(
                         {

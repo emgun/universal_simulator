@@ -1752,3 +1752,10 @@ Official Vast launcher readiness gate:
 - If `remote_launch_ready=false`, the wrapper exits before invoking `scripts/vast_launch.py launch`; dry runs and non-official remote scripts are unaffected.
 - The live checkpoint still blocks both execution routes: `console.vast.ai` does not resolve, `darus.uni-stuttgart.de` does not resolve, and local free disk is about `257413120` bytes versus the `9467911994` byte sequential requirement.
 - This is a fail-closed operational guard, not a benchmark substitute. The literal objective still requires `reports/research/sota_loop/official_hydrated_transport_shift_gate.json`, validation pass on official train/val, and exactly one held-out test only after `literal_test_ready`.
+
+Fractional sample-mode refinement:
+
+- The official estimator path already used `--fit-strategy sample_mode --refine-radius 4 --fractional-refine-step 0.5`.
+- `scripts/run_source_conditioned_transport_shift_gate.py` now applies fractional periodic refinement inside each train-sample vote, not only as a final group-level refinement after integer sample voting.
+- This better matches the shift-canonicalization direction from recent equivariant neural-operator work while remaining benchmark-clean: no validation fitting, no test-shard access during train/val hydration, and the locked source shift map is still train-derived.
+- The current execution route is still blocked externally: live readiness reports unresolved `console.vast.ai` and `darus.uni-stuttgart.de`, plus about `3282300928` local free bytes versus the `9467911994` byte sequential requirement.

@@ -2519,3 +2519,9 @@ Follow-up official Vast launcher readiness gate (2026-05-21):
 - Added a launcher unit test that simulates blocked readiness and verifies the wrapper exits before the Vast launch path.
 - Live readiness remains blocked: `console.vast.ai` and `darus.uni-stuttgart.de` do not resolve from this environment, and local free disk is about `257413120` bytes versus the `9467911994` byte sequential one-file requirement.
 - The canonical objective status remains `literal_blocked`; `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing and no held-out test is authorized.
+
+Follow-up fractional sample-mode refinement (2026-05-21):
+- Rechecked execution state after the launcher guard push: the worktree was clean, `vastai show instances --raw` returned `[]`, and live readiness still reported `status=blocked`.
+- The local disk state improved to about `3282300928` free bytes, but that remains below the `9467911994` byte sequential one-file requirement; `console.vast.ai` and `darus.uni-stuttgart.de` still do not resolve.
+- Based on the current symmetry/canonicalization direction for neural operators under shifts, tightened the train-only source-conditioned estimator so `sample_mode` performs fractional periodic refinement at the per-sample vote level when `--fractional-refine-step` is set.
+- This keeps the benchmark boundary intact: sample votes and the source shift map are fit only from train rows, validation only scores the locked train-fitted map, and the held-out test remains blocked until `literal_test_ready`.
