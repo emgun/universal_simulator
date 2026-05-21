@@ -206,6 +206,7 @@ def test_launch_passes_retry_knobs_to_create_command(monkeypatch):
 
     monkeypatch.setattr(vast_launch, "git_remote_url", lambda: "https://example.invalid/repo.git")
     monkeypatch.setattr(vast_launch, "run", fake_run)
+    monkeypatch.setattr(vast_launch, "preflight_vast_dns", lambda **_kwargs: True)
     parser = vast_launch.build_parser()
     args = parser.parse_args(
         [
@@ -232,3 +233,71 @@ def test_launch_passes_retry_knobs_to_create_command(monkeypatch):
     assert cmd[:4] == ["vastai", "create", "instance", "123456"]
     assert kwargs["retries"] == 3
     assert kwargs["retry_backoff"] == 2.5
+
+
+def test_launch_preflight_blocks_create_before_paid_request(monkeypatch):
+    vast_launch = load_vast_launch_module()
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return 0
+
+    monkeypatch.setattr(vast_launch, "git_remote_url", lambda: "https://example.invalid/repo.git")
+    monkeypatch.setattr(vast_launch, "run", fake_run)
+    monkeypatch.setattr(vast_launch, "preflight_vast_dns", lambda **_kwargs: False)
+    parser = vast_launch.build_parser()
+    args = parser.parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--disk",
+            "32",
+            "--remote-script",
+            "scripts/run_remote_official_hydration.sh",
+            "--git-ref",
+            "codex/test",
+        ]
+    )
+
+    try:
+        args.func(args)
+    except SystemExit as exc:
+        assert "not attempting paid instance creation" in str(exc)
+    else:
+        raise AssertionError("expected preflight failure to abort launch")
+
+    assert calls == []
+
+
+def test_launch_can_skip_preflight(monkeypatch):
+    vast_launch = load_vast_launch_module()
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return 0
+
+    monkeypatch.setattr(vast_launch, "git_remote_url", lambda: "https://example.invalid/repo.git")
+    monkeypatch.setattr(vast_launch, "run", fake_run)
+    monkeypatch.setattr(vast_launch, "preflight_vast_dns", lambda **_kwargs: False)
+    parser = vast_launch.build_parser()
+    args = parser.parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--disk",
+            "32",
+            "--remote-script",
+            "scripts/run_remote_official_hydration.sh",
+            "--git-ref",
+            "codex/test",
+            "--skip-launch-preflight",
+        ]
+    )
+
+    args.func(args)
+
+    assert calls

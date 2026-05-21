@@ -2494,3 +2494,10 @@ Follow-up fractional Fourier transport refinement (2026-05-21):
 - Based on the retry blocker and a quick literature check around PDEBench plus shift/canonical equivariant neural-operator work, updated `scripts/run_source_conditioned_transport_shift_gate.py` to support train-only fractional Fourier shift refinement.
 - The official train/val plan now includes `--fractional-refine-step 0.5` with the existing `--fit-strategy sample_mode --refine-radius 4`; the guarded post-validation command and held-out-test ledger key use the same fractional estimator configuration.
 - This is still benchmark-clean: fractional shifts are selected from train rows only, validation scores the locked train-fitted source map, and the held-out test remains blocked until `literal_test_ready`.
+
+Follow-up Vast DNS preflight hardening (2026-05-21):
+- Re-audited live state: the branch was clean, `vastai show instances --raw` returned `[]`, and the literal objective audit still reported `literal_blocked` because `official_hydrated_transport_shift_gate.json` is missing.
+- Current RTX 4090 offers existed under `$1/hr`, including offer `35680432` with 90 GiB disk, but the pinned official sequential launcher again failed resolving `console.vast.ai` before instance creation.
+- Local sequential hydration is not viable in the current workspace because `df -h` showed only about 471 MiB free on the shared filesystem, far below the single official train file requirement.
+- Updated `scripts/vast_launch.py` with a default DNS preflight before paid launch/create requests, plus `--skip-launch-preflight` for deliberate bypass.
+- Verified the preflight path against offer `35680432`: it failed DNS twice and stopped with `not attempting paid instance creation`, avoiding repeated paid-create attempts when local DNS is already known broken.

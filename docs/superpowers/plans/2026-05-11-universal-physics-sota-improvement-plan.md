@@ -1731,3 +1731,10 @@ Fractional Fourier transport refinement:
 - `scripts/run_source_conditioned_transport_shift_gate.py` still starts from the train-only coarse/source-conditioned map, but when `--fractional-refine-step` is positive it evaluates fractional periodic shifts around the train-selected shift using a Fourier phase ramp.
 - `scripts/plan_transport_official_hydration.py` now emits `--fractional-refine-step 0.5` for official train/val validation, and `scripts/run_official_hydrated_post_validation_test.py` passes the same estimator knob to the gated held-out test command and ledger key.
 - This preserves the benchmark boundary: no validation fitting, no test shard in the train/val hydration plan, and no held-out test execution unless the objective audit reaches `literal_test_ready`.
+
+Vast DNS preflight hardening:
+
+- A later relaunch check found current RTX 4090 offers under `$1/hr`, including offer `35680432`, but the official launcher still failed resolving `console.vast.ai` before instance creation.
+- Local sequential hydration is not currently feasible because the shared filesystem had only about 471 MiB free, far below the one-raw-file sequential hydration requirement.
+- `scripts/vast_launch.py` now runs a DNS preflight for `console.vast.ai` before paid Vast launch/create requests; if the host cannot resolve, it exits before attempting instance creation.
+- The preflight is deliberately bypassable with `--skip-launch-preflight`, but the default path avoids repeated create attempts when the local network state already proves the remote run cannot start.

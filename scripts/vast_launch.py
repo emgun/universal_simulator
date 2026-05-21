@@ -7,6 +7,7 @@ import argparse
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import time
@@ -15,6 +16,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ONSTART_DIR = REPO_ROOT / ".vast"
 REDACTED = "<redacted>"
+VAST_API_HOST = "console.vast.ai"
 
 
 def run(
@@ -62,6 +64,25 @@ def _is_transient_vast_cli_failure(stdout: str, stderr: str) -> bool:
         "connectionerror",
     )
     return any(marker in combined for marker in transient_markers)
+
+
+def preflight_vast_dns(host: str = VAST_API_HOST, *, retries: int = 0, retry_backoff: float = 5.0) -> bool:
+    attempts = max(1, int(retries) + 1)
+    last_error: OSError | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+            return True
+        except OSError as exc:
+            last_error = exc
+            print(
+                f"Vast DNS preflight failed for {host} on attempt {attempt}/{attempts}: {exc}",
+                file=sys.stderr,
+            )
+            if attempt < attempts and retry_backoff > 0:
+                time.sleep(max(0.0, float(retry_backoff)) * attempt)
+    assert last_error is not None
+    return False
 
 
 def git_remote_url() -> str:
@@ -397,6 +418,14 @@ def cmd_launch(args: argparse.Namespace) -> None:
         print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
         return
+    if not args.skip_launch_preflight and not preflight_vast_dns(
+        retries=args.launch_retries,
+        retry_backoff=args.launch_retry_backoff,
+    ):
+        raise SystemExit(
+            f"Vast API DNS preflight failed for {VAST_API_HOST}; "
+            "not attempting paid instance creation."
+        )
     run(
         cmd,
         display_cmd=_redact_command(cmd),
@@ -504,6 +533,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=5.0,
         help="Base seconds to sleep between transient Vast CLI launch/create retries",
+    )
+    p_launch.add_argument(
+        "--skip-launch-preflight",
+        action="store_true",
+        help="Skip DNS preflight before a paid Vast launch/create request",
     )
     p_launch.add_argument(
         "--b2-key-id",
