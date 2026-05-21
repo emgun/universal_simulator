@@ -1698,3 +1698,9 @@ Post-validation estimator parity:
 - `scripts/run_official_hydrated_post_validation_test.py` now passes the same estimator knobs to the guarded held-out test command: `--fit-strategy sample_mode --refine-radius 4`.
 - The held-out test ledger key now includes `fit_strategy` and `refine_radius`, so exactly-one-test enforcement is scoped to the actual estimator configuration.
 - The regenerated post-validation dry run remains blocked until `literal_test_ready`, but its command no longer differs from the official train/val validation estimator.
+
+Sequential hydration provenance hardening:
+
+- `scripts/hydrate_official_advection_source_sequential.py` now writes root `source_paths` before downloading/appending the first official raw file.
+- It also writes `sequential_hydration_complete=False` while appends are in progress and flips it to `True` only after every planned official train file has been appended.
+- This makes partial remote artifacts auditable after host/network failures without promoting them as benchmark evidence.

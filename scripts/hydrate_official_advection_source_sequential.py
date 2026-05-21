@@ -34,6 +34,28 @@ def _raw_path(raw_root: Path, logical_path: str) -> Path:
     return raw_root / logical_path
 
 
+def _source_paths(entries: list[dict[str, Any]]) -> np.ndarray:
+    return np.asarray(
+        [str(entry.get("path") or "") for entry in entries],
+        dtype=h5py.string_dtype("utf-8"),
+    )
+
+
+def _initialize_source_attrs(out_path: Path, entries: list[dict[str, Any]], *, overwrite: bool) -> None:
+    if out_path.exists() and overwrite:
+        out_path.unlink()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(out_path, "a") as out_h5:
+        out_h5.attrs["source_paths"] = _source_paths(entries)
+        out_h5.attrs["sequential_hydration_complete"] = False
+
+
+def _mark_complete(out_path: Path, entries: list[dict[str, Any]]) -> None:
+    with h5py.File(out_path, "a") as out_h5:
+        out_h5.attrs["source_paths"] = _source_paths(entries)
+        out_h5.attrs["sequential_hydration_complete"] = True
+
+
 def _append_samples(
     *,
     source_path: Path,
@@ -112,8 +134,13 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append("sequential hydration requires --execute-downloads")
 
     should_execute = bool(args.execute and not blockers)
+    source_paths_initialized = False
     if should_execute and args.overwrite:
-        out_path.unlink(missing_ok=True)
+        _initialize_source_attrs(out_path, entries, overwrite=True)
+        source_paths_initialized = True
+    elif should_execute:
+        _initialize_source_attrs(out_path, entries, overwrite=False)
+        source_paths_initialized = True
 
     for index, entry in enumerate(entries):
         logical_path = str(entry.get("path") or "")
@@ -155,10 +182,8 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
                     record["raw_removed"] = True
         records.append(record)
 
-    if should_execute:
-        with h5py.File(out_path, "a") as out_h5:
-            source_paths = [str(entry.get("path") or "") for entry in entries]
-            out_h5.attrs["source_paths"] = np.asarray(source_paths, dtype=h5py.string_dtype("utf-8"))
+    if should_execute and not blockers:
+        _mark_complete(out_path, entries)
 
     status = "executed" if args.execute and not blockers else "dry_run" if not args.execute else "blocked"
     return {
@@ -171,6 +196,7 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         "cleanup_raw": bool(args.cleanup_raw),
         "execute_requested": bool(args.execute),
         "execute_downloads": bool(args.execute_downloads),
+        "source_paths_initialized_before_download": source_paths_initialized,
         "records": records,
         "disk_strategy": "download one official file, append sampled rows, optionally remove raw file",
     }

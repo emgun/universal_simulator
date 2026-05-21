@@ -2460,3 +2460,9 @@ Follow-up post-validation estimator parity (2026-05-21):
 - Added the fit strategy and refine radius to the held-out test ledger measurement key, preventing a repeat-test collision between different estimator configurations.
 - Regenerated `reports/research/sota_loop/official_hydrated_post_validation_test_run.json`; it remains a dry run because objective status is still `literal_blocked`.
 - This keeps the post-validation held-out test on the same locked estimator family as train/val validation, rather than silently falling back to the older aggregate/no-refinement configuration.
+
+Follow-up sequential hydration provenance hardening (2026-05-21):
+- Updated `scripts/hydrate_official_advection_source_sequential.py` so the hydrated source HDF5 initializes `source_paths` before the first raw-file download/append instead of waiting until every official file succeeds.
+- Added a `sequential_hydration_complete` root attr that is set to `False` during incremental appends and `True` only after all planned files have been appended.
+- This protects remote failure forensics: if a credit-unblocked Vast run dies after partial official hydration, the partial source shard still carries the intended official source list and a clear incomplete marker.
+- The benchmark policy is unchanged; partial hydrated outputs are not treated as validation evidence, and the objective audit still requires `official_hydrated_transport_shift_gate.json`.
