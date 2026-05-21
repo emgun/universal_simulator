@@ -2477,3 +2477,12 @@ Follow-up remote git-ref pinning (2026-05-21):
 - Updated `scripts/plan_remote_official_hydration.py` so generated Vast launchers include `GIT_REF=codex/sota-learned-gate` by default.
 - This prevents a credit-unblocked remote run from silently using the launcher script's branch default instead of the branch containing the sequential hydration guard, source-conditioned gate, and official hydrated audit promotion.
 - Tradeoff: the generated command is now branch-specific by default; use `--git-ref` when intentionally replaying the plan from another branch or immutable commit SHA.
+
+Follow-up Vast create DNS retry hardening (2026-05-21):
+- Refreshed Vast state: `vastai show instances --raw` returned `[]`, so no active instance was present before relaunch.
+- Found current eligible offer `35654867` (`RTX_4090`, 275 GiB disk, about `$0.400/hr`) and attempted the pinned sequential official hydration launcher with guarded post-validation enabled.
+- The create request failed twice before instance creation with `Failed to resolve 'console.vast.ai'`; the remote benchmark path did not start, and no official hydrated validation artifact was produced.
+- Updated `scripts/vast_launch.py` to support bounded retries for transient Vast CLI DNS/connectivity failures and enabled those retries in `scripts/launch_remote_transport_shift_candidate_vast.sh`.
+- Updated `scripts/plan_remote_official_hydration.py` so regenerated launcher commands include `LAUNCH_RETRIES=3` and `LAUNCH_RETRY_BACKOFF=10.0`.
+- Re-ran the official launcher through the fixed retry path with short local backoff; all four create attempts failed with the same DNS resolution error before instance creation, and a follow-up instance check again returned `[]`.
+- This does not weaken the benchmark policy: the official hydrated train/val gate is still required before any held-out test, and the current objective status remains blocked until `official_hydrated_transport_shift_gate.json` exists and passes.

@@ -20,6 +20,8 @@ AUTO_SHUTDOWN=${AUTO_SHUTDOWN:-1}
 SSH=${SSH:-1}
 ARGS_MODE=${ARGS_MODE:-0}
 INSTALL_MODE=${INSTALL_MODE:-experiment}
+LAUNCH_RETRIES=${LAUNCH_RETRIES:-3}
+LAUNCH_RETRY_BACKOFF=${LAUNCH_RETRY_BACKOFF:-10}
 EXTRA_PIPELINE_ARGS=${EXTRA_PIPELINE_ARGS:-}
 
 read_env_key() {
@@ -66,6 +68,8 @@ args=(
   --remote-script "$REMOTE_SCRIPT"
   --skip-prefetch
   --install-mode "$INSTALL_MODE"
+  --launch-retries "$LAUNCH_RETRIES"
+  --launch-retry-backoff "$LAUNCH_RETRY_BACKOFF"
   --script-args "DRY_RUN=0 ENV_FILE=.env $EXTRA_PIPELINE_ARGS"
 )
 

@@ -9,6 +9,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -16,17 +17,51 @@ ONSTART_DIR = REPO_ROOT / ".vast"
 REDACTED = "<redacted>"
 
 
-def run(cmd: list[str], *, check: bool = True, display_cmd: list[str] | None = None) -> int:
+def run(
+    cmd: list[str],
+    *,
+    check: bool = True,
+    display_cmd: list[str] | None = None,
+    retries: int = 0,
+    retry_backoff: float = 5.0,
+) -> int:
     shown = display_cmd if display_cmd is not None else cmd
-    print("$", " ".join(shlex.quote(part) for part in shown))
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.stdout:
-        print(_redact_text(result.stdout), end="")
-    if result.stderr:
-        print(_redact_text(result.stderr), end="", file=sys.stderr)
-    if check and result.returncode != 0:
-        raise SystemExit(result.returncode)
+    attempts = max(1, int(retries) + 1)
+    for attempt in range(1, attempts + 1):
+        if attempt == 1:
+            print("$", " ".join(shlex.quote(part) for part in shown))
+        else:
+            print(
+                f"Retrying command after transient Vast CLI failure "
+                f"(attempt {attempt}/{attempts})...",
+                file=sys.stderr,
+            )
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout:
+            print(_redact_text(result.stdout), end="")
+        if result.stderr:
+            print(_redact_text(result.stderr), end="", file=sys.stderr)
+        if result.returncode == 0:
+            return result.returncode
+        if attempt < attempts and _is_transient_vast_cli_failure(result.stdout, result.stderr):
+            time.sleep(max(0.0, float(retry_backoff)) * attempt)
+            continue
+        if check:
+            raise SystemExit(result.returncode)
+        return result.returncode
     return result.returncode
+
+
+def _is_transient_vast_cli_failure(stdout: str, stderr: str) -> bool:
+    combined = f"{stdout}\n{stderr}".lower()
+    transient_markers = (
+        "failed to resolve",
+        "nameresolutionerror",
+        "temporary failure in name resolution",
+        "max retries exceeded with url",
+        "connectionerror",
+    )
+    return any(marker in combined for marker in transient_markers)
 
 
 def git_remote_url() -> str:
@@ -362,7 +397,12 @@ def cmd_launch(args: argparse.Namespace) -> None:
         print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
         return
-    run(cmd, display_cmd=_redact_command(cmd))
+    run(
+        cmd,
+        display_cmd=_redact_command(cmd),
+        retries=args.launch_retries,
+        retry_backoff=args.launch_retry_backoff,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -452,6 +492,18 @@ def build_parser() -> argparse.ArgumentParser:
             "Remote dependency install profile. 'smoke' avoids full Torch/CUDA dev deps; "
             "'experiment' adds lightweight plotting/eval deps without upgrading Torch."
         ),
+    )
+    p_launch.add_argument(
+        "--launch-retries",
+        type=int,
+        default=0,
+        help="Retry transient Vast CLI launch/create failures this many times",
+    )
+    p_launch.add_argument(
+        "--launch-retry-backoff",
+        type=float,
+        default=5.0,
+        help="Base seconds to sleep between transient Vast CLI launch/create retries",
     )
     p_launch.add_argument(
         "--b2-key-id",

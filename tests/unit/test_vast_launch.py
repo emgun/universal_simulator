@@ -162,3 +162,73 @@ def test_run_redacts_api_key_in_error_url(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "api_key=<redacted>" in captured.err
     assert "secret-api-key" not in captured.err
+
+
+def test_run_retries_transient_vast_cli_dns_failure(monkeypatch, capsys):
+    vast_launch = load_vast_launch_module()
+    attempts = []
+
+    def fake_run(cmd, **kwargs):
+        attempts.append(cmd)
+
+        class Result:
+            returncode = 1 if len(attempts) == 1 else 0
+            stdout = "created instance\n" if len(attempts) == 2 else ""
+            stderr = (
+                "NameResolutionError: Failed to resolve 'console.vast.ai'\n"
+                if len(attempts) == 1
+                else ""
+            )
+
+        return Result()
+
+    monkeypatch.setattr(vast_launch.subprocess, "run", fake_run)
+    monkeypatch.setattr(vast_launch.time, "sleep", lambda _seconds: None)
+
+    result = vast_launch.run(["vastai", "create", "instance", "1"], retries=1, retry_backoff=0)
+
+    assert result == 0
+    assert attempts == [
+        ["vastai", "create", "instance", "1"],
+        ["vastai", "create", "instance", "1"],
+    ]
+    captured = capsys.readouterr()
+    assert "Retrying command after transient Vast CLI failure" in captured.err
+
+
+def test_launch_passes_retry_knobs_to_create_command(monkeypatch):
+    vast_launch = load_vast_launch_module()
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return 0
+
+    monkeypatch.setattr(vast_launch, "git_remote_url", lambda: "https://example.invalid/repo.git")
+    monkeypatch.setattr(vast_launch, "run", fake_run)
+    parser = vast_launch.build_parser()
+    args = parser.parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--disk",
+            "32",
+            "--remote-script",
+            "scripts/run_remote_official_hydration.sh",
+            "--git-ref",
+            "codex/test",
+            "--launch-retries",
+            "3",
+            "--launch-retry-backoff",
+            "2.5",
+        ]
+    )
+
+    args.func(args)
+
+    assert calls
+    cmd, kwargs = calls[-1]
+    assert cmd[:4] == ["vastai", "create", "instance", "123456"]
+    assert kwargs["retries"] == 3
+    assert kwargs["retry_backoff"] == 2.5

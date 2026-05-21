@@ -1715,3 +1715,11 @@ Remote git-ref pinning:
 - `scripts/plan_remote_official_hydration.py` now emits `GIT_REF=codex/sota-learned-gate` in the generated Vast launcher commands.
 - This keeps the next real-data run tied to the branch containing the sequential hydration completeness marker, incomplete-shard guard, source-conditioned gate, and official hydrated audit promotion.
 - If the next run should use a different branch or immutable SHA, regenerate the remote plan with `--git-ref`; otherwise use the pinned generated `actual_launcher`.
+
+Vast create DNS retry hardening:
+
+- A live relaunch check found no active Vast instances, then found offer `35654867` as an eligible 32 GiB+ RTX 4090 route.
+- The actual create request failed twice before instance creation with `Failed to resolve 'console.vast.ai'`, so no remote official hydration run started and no benchmark artifact was produced.
+- `scripts/vast_launch.py` now supports bounded retries for transient Vast CLI DNS/connectivity failures, and `scripts/launch_remote_transport_shift_candidate_vast.sh` enables `LAUNCH_RETRIES=3` with `LAUNCH_RETRY_BACKOFF=10` by default.
+- The generated remote hydration plan now includes those launch retry knobs explicitly. The next path is still the same pinned `actual_launcher`; the retry change only makes transient pre-instance Vast failures less likely to waste the run attempt.
+- A fixed-path retry check did perform all four create attempts, but each failed on the same DNS resolution error before Vast created an instance; a follow-up instance check returned `[]`.

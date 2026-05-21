@@ -48,6 +48,8 @@ def _args(tmp_path):
         download_min_split_size_mib=8,
         sequential_hydration=True,
         git_ref="codex/sota-learned-gate",
+        launch_retries=3,
+        launch_retry_backoff=10.0,
         offer_id="",
         output_json=str(tmp_path / "remote.json"),
     )
@@ -63,6 +65,8 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "DRY_RUN=1" in record["commands"]["dry_run_launcher"]
     assert "DRY_RUN=0" in record["commands"]["actual_launcher"]
     assert "GIT_REF=codex/sota-learned-gate" in record["commands"]["actual_launcher"]
+    assert "LAUNCH_RETRIES=3" in record["commands"]["actual_launcher"]
+    assert "LAUNCH_RETRY_BACKOFF=10.0" in record["commands"]["actual_launcher"]
     assert "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh" in record["commands"]["actual_launcher"]
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
     assert "SEQUENTIAL_HYDRATION=1" in record["commands"]["actual_launcher"]
@@ -76,6 +80,7 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "PDEBENCH_DOWNLOAD_RETRY_BACKOFF=20.0" in record["commands"]["actual_launcher"]
     assert "PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES=2" in record["commands"]["actual_launcher"]
     assert record["download_runtime"]["part_size_mib"] == 128
+    assert record["launch_runtime"]["retries"] == 3
     assert record["preferred_offer_id"] is None
     assert record["remote_post_validation_test_json"] == "reports/post_validation_test.json"
     assert record["held_out_test_policy"]["test_split_downloaded"] is False
