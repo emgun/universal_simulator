@@ -39,6 +39,7 @@ def _args(tmp_path, *, reference: float = 1.0):
         shift=[0, 1, 2],
         metric="nrmse",
         fit_strategy="aggregate",
+        refine_radius=0,
         reference_metric_value=reference,
         val_min_relative_improvement=0.0,
     )
@@ -96,3 +97,19 @@ def test_source_conditioned_gate_can_use_sample_mode_strategy(tmp_path):
     assert record["fit"]["source_shift_map"] == {"0": 1, "1": 2}
     assert record["fit"]["train_groups"]["0"]["sample_votes"]
     assert record["test_eligible"] is True
+
+
+def test_source_conditioned_gate_refines_sample_mode_shift_from_coarse_grid(tmp_path):
+    _write_source_shifted_split(tmp_path, split="train", source_shifts=[(0, 3), (0, 3), (1, 1), (1, 1)])
+    _write_source_shifted_split(tmp_path, split="val", source_shifts=[(0, 3), (1, 1)])
+    args = _args(tmp_path)
+    args.shift = [0, 4]
+    args.fit_strategy = "sample_mode"
+    args.refine_radius = 3
+
+    record = run_gate(args)
+
+    assert record["fit"]["source_shift_map"] == {"0": 3, "1": 1}
+    assert record["fit"]["train_groups"]["0"]["refine_radius"] == 3
+    assert record["fit"]["train_groups"]["0"]["refined_candidate_scores"]
+    assert record["fit"]["selected_validation"]["nrmse"] == 0.0

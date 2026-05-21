@@ -2447,3 +2447,10 @@ Follow-up sample-mode source-conditioned gate (2026-05-21):
 - Updated `scripts/plan_transport_official_hydration.py` so the official hydrated train/val gate now uses `--fit-strategy sample_mode`.
 - Regenerated the ignored official hydration plan, plan validation, dry-run plan execution record, and remote sequential plan; the validate command now includes `--fit-strategy sample_mode` while still keeping `test-count 0` for train/val hydration.
 - This targets the fallback research direction of symmetry-aware/canonical transport fitting without touching held-out test data: the model is still fit only on train rows, validation uses a locked source-to-shift map, and the held-out test remains gated behind `literal_test_ready`.
+
+Follow-up train-only local shift refinement (2026-05-21):
+- Added `--refine-radius` to `scripts/run_source_conditioned_transport_shift_gate.py`.
+- The gate still starts from the configured train-only candidate shift grid, but can now evaluate a narrow integer neighborhood around each train-selected source/sample mode before locking the final `source_file_index -> shift` map.
+- Updated `scripts/plan_transport_official_hydration.py` so the official hydrated validation command now includes `--refine-radius 4` with `--fit-strategy sample_mode`.
+- Regenerated the ignored official hydration plan, validation record, dry-run execution record, and remote sequential plan; test data remains absent from the train/val hydration stage.
+- This improves the next official validation attempt by avoiding an 8-cell quantization artifact while preserving the benchmark policy: refinement uses train rows only, validation is measurement-only, and held-out test remains blocked until `literal_test_ready`.

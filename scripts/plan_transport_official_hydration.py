@@ -73,6 +73,7 @@ def _gate_command(args: argparse.Namespace) -> str:
         f"--max-samples {args.train_count} --rollout-steps {args.rollout_steps} "
         f"{shift_args} --metric nrmse "
         f"--fit-strategy {args.fit_strategy} "
+        f"--refine-radius {args.refine_radius} "
         f"--reference-metric-value {args.reference_metric_value} "
         f"--val-min-relative-improvement {args.val_min_relative_improvement} "
         f"--output-json {args.output_root}/official_hydrated_transport_shift_gate.json"
@@ -174,6 +175,7 @@ def main() -> None:
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
     parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode")
+    parser.add_argument("--refine-radius", type=int, default=4)
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_hydration_plan.json",

@@ -1685,3 +1685,10 @@ Sample-mode source-conditioned gate:
 - `sample_mode` estimates each train trajectory's best periodic transport shift, then selects the modal train-supported shift per `source_file_index`; ties use the train metric, absolute shift size, then numeric shift for deterministic behavior.
 - The official hydration plan now uses `--fit-strategy sample_mode` for `validate_without_test`.
 - This is a stricter train-only canonicalization-style candidate than a single aggregate group fit. It should be more robust when a beta/source group contains mixed or noisy trajectories, while keeping the benchmark policy unchanged: no validation fitting, no test shard during train/val hydration, and exactly one held-out test only after `literal_test_ready`.
+
+Train-only local shift refinement:
+
+- `scripts/run_source_conditioned_transport_shift_gate.py` now supports `--refine-radius`.
+- The official hydration plan uses `--fit-strategy sample_mode --refine-radius 4`, so the train fit starts from the coarse configured grid and then checks a local integer neighborhood around train-selected shifts.
+- This reduces coarse-grid quantization risk for the official Advection gate without fitting on validation or reading held-out test data.
+- The regenerated train/val plan still writes only `official_hydrated_transport_shift_gate.json`; the held-out test remains a separate post-validation step gated by `literal_test_ready`.
