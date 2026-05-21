@@ -62,6 +62,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_preflight, hydration_preflight_path = _load_json(args.hydration_preflight_json)
     hydration_storage, hydration_storage_path = _load_json(args.hydration_storage_json)
     remote_hydration_plan, remote_hydration_plan_path = _load_json(args.remote_hydration_plan_json)
+    execution_readiness, execution_readiness_path = _load_json(args.execution_readiness_json)
     official_hydrated_gate, official_hydrated_gate_path = _load_json(args.official_hydrated_gate_json)
 
     constant_status = _status(constant_audit)
@@ -76,6 +77,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     hydration_preflight_status = _status(hydration_preflight)
     hydration_storage_status = _status(hydration_storage)
     remote_hydration_plan_status = _status(remote_hydration_plan)
+    execution_readiness_status = _status(execution_readiness)
     official_hydrated_validation_passed = _gate_validation_passed(official_hydrated_gate)
     official_hydrated_test_eligible = _gate_test_eligible(official_hydrated_gate)
     official_hydrated_test_result_count = _gate_test_result_count(official_hydrated_gate)
@@ -132,6 +134,11 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append(f"official hydration storage status is {hydration_storage_status}")
         if remote_hydration_plan_status:
             blockers.append(f"remote official hydration plan status is {remote_hydration_plan_status}")
+        if execution_readiness_status:
+            blockers.append(f"official execution readiness status is {execution_readiness_status}")
+            for route, route_blockers in ((execution_readiness or {}).get("route_blockers") or {}).items():
+                for route_blocker in route_blockers:
+                    blockers.append(f"{route} blocker: {route_blocker}")
         if official_hydrated_gate_path:
             blockers.append(
                 "official hydrated train/val gate "
@@ -161,6 +168,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 or hydration_preflight
                 or hydration_storage
                 or remote_hydration_plan
+                or execution_readiness
                 or official_hydrated_gate
             )
             else "missing",
@@ -179,6 +187,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                     hydration_preflight_path,
                     hydration_storage_path,
                     remote_hydration_plan_path,
+                    execution_readiness_path,
                     official_hydrated_gate_path,
                 )
                 if path
@@ -202,6 +211,7 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 f"hydration_preflight_status={hydration_preflight_status}; "
                 f"hydration_storage_status={hydration_storage_status}; "
                 f"remote_hydration_plan_status={remote_hydration_plan_status}; "
+                f"execution_readiness_status={execution_readiness_status}; "
                 f"official_hydrated_validation_passed={official_hydrated_validation_passed}; "
                 f"context_transport_achieved={context_transport_achieved}; "
                 f"observed_context_achieved={observed_context_achieved}"
@@ -294,6 +304,11 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             "hydration_storage_status": hydration_storage_status,
             "remote_hydration_plan_json": remote_hydration_plan_path,
             "remote_hydration_plan_status": remote_hydration_plan_status,
+            "execution_readiness_json": execution_readiness_path,
+            "execution_readiness_status": execution_readiness_status,
+            "execution_readiness_route_blockers": (
+                (execution_readiness or {}).get("route_blockers") if execution_readiness else None
+            ),
             "official_hydrated_gate_json": official_hydrated_gate_path,
             "official_hydrated_validation_passed": official_hydrated_validation_passed,
             "official_hydrated_test_eligible": official_hydrated_test_eligible,
@@ -363,6 +378,10 @@ def main() -> None:
     parser.add_argument(
         "--remote-hydration-plan-json",
         default="reports/research/sota_loop/remote_official_advection_hydration_plan.json",
+    )
+    parser.add_argument(
+        "--execution-readiness-json",
+        default="reports/research/sota_loop/official_execution_readiness.json",
     )
     parser.add_argument(
         "--official-hydrated-gate-json",

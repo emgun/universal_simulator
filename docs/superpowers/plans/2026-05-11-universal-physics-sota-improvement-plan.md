@@ -1744,3 +1744,4 @@ Official execution readiness artifact:
 - `scripts/check_official_execution_readiness.py` now records route-specific readiness for the two legitimate paths: pinned remote Vast execution and local sequential hydration.
 - The live readiness artifact currently reports both routes blocked: `console.vast.ai` does not resolve for remote launch, `darus.uni-stuttgart.de` does not resolve for local download, and local free disk is about `553787392` bytes against a `9467911994` byte sequential requirement.
 - Use `reports/research/sota_loop/official_execution_readiness.json` before another launch attempt so DNS/disk blockers are visible before any paid create request or large download is attempted.
+- `scripts/run_official_transport_objective_status.sh` now includes this readiness artifact, so the canonical objective status surfaces those route-specific blockers while still requiring the official hydrated train/val gate before held-out test authorization.

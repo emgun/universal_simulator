@@ -33,6 +33,7 @@ def test_official_transport_objective_status_dry_run_defaults_to_literal_release
     assert "official_advection_hydration_preflight.json" in proc.stdout
     assert "official_advection_hydration_storage_recommendation.json" in proc.stdout
     assert "remote_official_advection_hydration_plan.json" in proc.stdout
+    assert "official_execution_readiness.json" in proc.stdout
     assert "official_hydrated_transport_shift_gate.json" in proc.stdout
     assert "require_status=literal-achieved" in proc.stdout
     assert "accept_context_transport=0" in proc.stdout

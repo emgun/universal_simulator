@@ -2507,3 +2507,8 @@ Follow-up official execution readiness artifact (2026-05-21):
 - The checker reports whether the remote Vast route can start, whether local sequential hydration can start, DNS status for `console.vast.ai` and `darus.uni-stuttgart.de`, local disk free bytes, the largest official Advection file requirement, and the unchanged held-out-test policy.
 - Live output at `reports/research/sota_loop/official_execution_readiness.json` currently reports `status=blocked`: remote launch is blocked by `console.vast.ai` DNS, and local sequential hydration is blocked by Darus DNS plus about `553787392` free bytes versus `9467911994` required bytes.
 - This does not redefine the benchmark objective; it makes the current external execution blocker auditable before the official hydrated gate can be produced.
+
+Follow-up readiness-aware objective audit (2026-05-21):
+- Updated `scripts/audit_transport_objective_status.py` and `scripts/run_official_transport_objective_status.sh` to include `reports/research/sota_loop/official_execution_readiness.json`.
+- The canonical `transport_objective_status.json` now lists the route-specific execution blockers directly: `remote_launch` cannot resolve `console.vast.ai`, and `local_sequential_hydration` cannot resolve Darus and lacks local disk.
+- The objective status remains `literal_blocked` because `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing; no held-out test is authorized.
