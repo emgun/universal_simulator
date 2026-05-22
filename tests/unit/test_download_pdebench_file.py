@@ -539,3 +539,31 @@ def test_download_resolves_redirect_before_ranged_curl_download(monkeypatch, tmp
     )
 
     assert used_urls == ["https://objects.example/file?signature=abc"]
+
+
+def test_download_ranges_fails_fast_on_name_resolution_error(monkeypatch, tmp_path: Path):
+    calls = []
+
+    def fake_download_part_to_file(*args, **kwargs):
+        calls.append(args)
+        raise downloader.NameResolutionError("curl exited 6: could not resolve host")
+
+    monkeypatch.setattr(downloader, "_download_part_to_file", fake_download_part_to_file)
+
+    with pytest.raises(downloader.NameResolutionError):
+        downloader._download_ranges(
+            "https://objects.example/file",
+            tmp_path / "file.h5",
+            8,
+            workers=2,
+            part_size=2,
+            chunk_size=2,
+            retries=1,
+            part_timeout=30,
+            retry_backoff=0,
+            split_after_retries=1,
+            min_split_size=1,
+            transport="curl",
+        )
+
+    assert len(calls) < 4

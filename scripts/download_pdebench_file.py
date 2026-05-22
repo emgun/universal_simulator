@@ -29,6 +29,10 @@ DEFAULT_REDIRECT_TIMEOUT = 30
 DEFAULT_REDIRECT_RETRIES = 3
 
 
+class NameResolutionError(RuntimeError):
+    """Raised when the download host cannot be resolved."""
+
+
 def load_manifest(path: Path) -> list[dict]:
     if not path.exists():
         raise SystemExit(f"Manifest not found at {path}. Run the manifest fetch step first.")
@@ -401,7 +405,10 @@ def _download_part_to_file_curl(
             stderr = proc.stderr.read().decode("utf-8", errors="replace") if proc.stderr else ""
             returncode = proc.wait()
             if returncode != 0:
-                raise RuntimeError(f"curl exited {returncode}: {stderr.strip()}")
+                message = f"curl exited {returncode}: {stderr.strip()}"
+                if returncode == 6 or _is_name_resolution_error(message):
+                    raise NameResolutionError(message)
+                raise RuntimeError(message)
             if total != expected_size:
                 raise OSError(f"curl range {start}-{end} wrote {total} bytes; expected {expected_size}.")
             return total
@@ -539,7 +546,12 @@ def _download_ranges(
         }
         for future in concurrent.futures.as_completed(futures):
             index, start, end = futures[future]
-            part_bytes = future.result()
+            try:
+                part_bytes = future.result()
+            except NameResolutionError:
+                for pending in futures:
+                    pending.cancel()
+                raise
             completed_bytes += part_bytes
             completed_ranges.add(_range_key(start, end))
             _write_completed_ranges(sidecar, expected_size, completed_ranges)

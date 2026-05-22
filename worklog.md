@@ -2593,3 +2593,9 @@ Follow-up resolved official URL plan path (2026-05-22):
 - The resolver preserves the original official manifest paths, sizes, and checksums, but rewrites `download_official_train_files` so a resolved pre-signed URL can be used without re-querying Darus inside each download process.
 - A live resolver attempt against `reports/research/sota_loop/official_advection_hydration_plan.json` failed on the first file after 3 Darus redirect probes with `curl: (6) Could not resolve host: darus.uni-stuttgart.de`; no resolved-url plan was written.
 - The path is ready for the next Darus availability window: run `python scripts/resolve_official_plan_urls.py --output-json reports/research/sota_loop/official_advection_hydration_plan_resolved_urls.json`, then pass that output as `PLAN_JSON` to the sequential hydration wrapper if all 8 URLs resolve.
+
+Follow-up S3 DNS fail-fast hardening (2026-05-22):
+- Re-probed Darus; a standalone `curl -I` again returned a fresh pre-signed `s3.tik.uni-stuttgart.de` URL for beta0.1, while Python readiness still reported Darus and Vast DNS failures.
+- Tried using that pre-signed S3 URL directly for `1D_Advection_Sols_beta0.1.hdf5`; every ranged `curl` part failed resolving `s3.tik.uni-stuttgart.de`, so no complete official raw file was staged.
+- Added `NameResolutionError` handling to `scripts/download_pdebench_file.py` so ranged downloads cancel pending futures and fail fast on host-resolution failures instead of waiting through every pre-submitted range.
+- This does not change benchmark evidence: downloads still require official URL/path, expected size, and MD5 checksum; the change only makes failed official data attempts cheaper and clearer.

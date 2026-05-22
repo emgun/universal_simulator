@@ -1827,3 +1827,9 @@ Resolved official URL plan path:
 - `scripts/resolve_official_plan_urls.py` can now produce a derived official hydration plan whose `remote_entries` include pre-signed `source_url` values resolved from Dataverse.
 - This is still benchmark-clean because it preserves official logical paths, byte sizes, and MD5 checksums; it only removes repeated dependence on Darus DNS after the redirects have been captured.
 - The live resolver attempt failed after 3 Darus DNS failures on the first file, so no resolved-url plan is available yet.
+
+S3 DNS fail-fast hardening:
+
+- A live attempt with a captured pre-signed S3 URL for beta0.1 also failed because `s3.tik.uni-stuttgart.de` did not resolve during ranged download.
+- `scripts/download_pdebench_file.py` now treats curl host-resolution failures as `NameResolutionError`, cancels pending ranged futures, and fails fast.
+- The official route remains blocked until Darus/S3 DNS is stable enough to resolve all required URLs or the raw files are staged from another environment.
