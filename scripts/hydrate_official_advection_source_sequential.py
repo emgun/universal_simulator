@@ -130,7 +130,7 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append("plan has no positive samples_per_file")
     if out_path.exists() and not args.overwrite and args.execute:
         blockers.append(f"{out_path} exists; pass --overwrite to replace it")
-    if not args.execute_downloads:
+    if not args.execute_downloads and not args.use_existing_raw:
         blockers.append("sequential hydration requires --execute-downloads")
 
     should_execute = bool(args.execute and not blockers)
@@ -155,20 +155,27 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
             "raw_removed": False,
         }
         if should_execute:
-            download_cmd = [
-                "python",
-                "scripts/download_pdebench_file.py",
-                logical_path,
-                "--out",
-                str(raw_root),
-            ]
-            completed = subprocess.run(download_cmd, check=False)
-            record["download_executed"] = True
-            record["download_returncode"] = completed.returncode
-            if completed.returncode != 0:
-                blockers.append(f"download failed for {logical_path} with exit code {completed.returncode}")
-                should_execute = False
+            if args.use_existing_raw:
+                if not raw_path.exists():
+                    blockers.append(f"existing raw file is missing for {logical_path}: {raw_path}")
+                    should_execute = False
+                else:
+                    record["used_existing_raw"] = True
             else:
+                download_cmd = [
+                    "python",
+                    "scripts/download_pdebench_file.py",
+                    logical_path,
+                    "--out",
+                    str(raw_root),
+                ]
+                completed = subprocess.run(download_cmd, check=False)
+                record["download_executed"] = True
+                record["download_returncode"] = completed.returncode
+                if completed.returncode != 0:
+                    blockers.append(f"download failed for {logical_path} with exit code {completed.returncode}")
+                    should_execute = False
+            if should_execute:
                 written = _append_samples(
                     source_path=raw_path,
                     out_path=out_path,
@@ -196,9 +203,14 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         "cleanup_raw": bool(args.cleanup_raw),
         "execute_requested": bool(args.execute),
         "execute_downloads": bool(args.execute_downloads),
+        "use_existing_raw": bool(args.use_existing_raw),
         "source_paths_initialized_before_download": source_paths_initialized,
         "records": records,
-        "disk_strategy": "download one official file, append sampled rows, optionally remove raw file",
+        "disk_strategy": (
+            "append sampled rows from pre-staged official raw files"
+            if args.use_existing_raw
+            else "download one official file, append sampled rows, optionally remove raw file"
+        ),
     }
 
 
@@ -210,6 +222,11 @@ def main() -> None:
     parser.add_argument("--samples-per-file", type=int)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--execute-downloads", action="store_true")
+    parser.add_argument(
+        "--use-existing-raw",
+        action="store_true",
+        help="Skip downloads and append from already staged raw official files at the planned paths.",
+    )
     parser.add_argument("--cleanup-raw", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(

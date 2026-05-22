@@ -39,6 +39,30 @@ def test_remote_official_hydration_wrapper_generates_missing_plan(tmp_path):
     assert '"status": "dry_run"' in proc.stdout
 
 
+def test_remote_official_hydration_passes_use_existing_raw_to_sequential(tmp_path):
+    env = os.environ.copy()
+    env["EXECUTE"] = "0"
+    env["EXECUTE_DOWNLOADS"] = "0"
+    env["PLAN_JSON"] = "reports/research/sota_loop/official_advection_hydration_plan.json"
+    env["VALIDATION_JSON"] = str(tmp_path / "validation.json")
+    env["RUN_JSON"] = str(tmp_path / "run.json")
+    env["SEQUENTIAL_HYDRATION"] = "1"
+    env["SEQUENTIAL_USE_EXISTING_RAW"] = "1"
+    env["SEQUENTIAL_HYDRATION_JSON"] = str(tmp_path / "sequential.json")
+
+    proc = subprocess.run(
+        ["bash", "scripts/run_remote_official_hydration.sh"],
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert proc.returncode == 0
+    sequential = json.loads((tmp_path / "sequential.json").read_text(encoding="utf-8"))
+    assert sequential["use_existing_raw"] is True
+    assert sequential["execute_downloads"] is False
+
+
 def test_remote_official_hydration_wrapper_can_chain_guarded_post_validation_test(tmp_path):
     env = os.environ.copy()
     env["EXECUTE"] = "0"

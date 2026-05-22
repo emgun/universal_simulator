@@ -30,6 +30,7 @@ def test_sequential_hydration_dry_run_records_one_file_at_a_time(tmp_path):
             samples_per_file=None,
             execute=False,
             execute_downloads=False,
+            use_existing_raw=False,
             cleanup_raw=True,
             overwrite=False,
         )
@@ -78,6 +79,7 @@ def test_sequential_hydration_initializes_source_paths_before_download(monkeypat
             samples_per_file=None,
             execute=True,
             execute_downloads=True,
+            use_existing_raw=False,
             cleanup_raw=False,
             overwrite=True,
         )
@@ -89,3 +91,76 @@ def test_sequential_hydration_initializes_source_paths_before_download(monkeypat
         assert list(handle.attrs["source_paths"]) == ["1D/Advection/Train/a.hdf5"]
         assert bool(handle.attrs["sequential_hydration_complete"]) is True
         assert handle["source_file_index"][:].tolist() == [0, 0]
+
+
+def test_sequential_hydration_can_use_existing_raw_without_download(monkeypatch, tmp_path):
+    plan = {
+        "raw_out": str(tmp_path / "raw"),
+        "hydrated_source_root": str(tmp_path / "hydrated"),
+        "samples_per_file": 2,
+        "remote_entries": [
+            {"path": "1D/Advection/Train/a.hdf5", "size_bytes": 10},
+        ],
+    }
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    source_file = tmp_path / "raw" / "1D/Advection/Train/a.hdf5"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(source_file, "w") as handle:
+        handle.create_dataset("u", data=np.ones((3, 4, 8), dtype=np.float32))
+
+    def fail_run(command, check):
+        raise AssertionError("download subprocess should not run when use_existing_raw=True")
+
+    monkeypatch.setattr("scripts.hydrate_official_advection_source_sequential.subprocess.run", fail_run)
+
+    record = hydrate_sequential(
+        Namespace(
+            plan_json=str(plan_path),
+            raw_out=None,
+            hydrated_source_root=None,
+            samples_per_file=None,
+            execute=True,
+            execute_downloads=False,
+            use_existing_raw=True,
+            cleanup_raw=False,
+            overwrite=True,
+        )
+    )
+
+    assert record["status"] == "executed"
+    assert record["use_existing_raw"] is True
+    assert record["records"][0]["used_existing_raw"] is True
+    assert record["records"][0]["download_executed"] is False
+    with h5py.File(tmp_path / "hydrated" / "advection1d_train.h5", "r") as handle:
+        assert handle["data"].shape[0] == 2
+
+
+def test_sequential_hydration_blocks_when_existing_raw_is_missing(tmp_path):
+    plan = {
+        "raw_out": str(tmp_path / "raw"),
+        "hydrated_source_root": str(tmp_path / "hydrated"),
+        "samples_per_file": 2,
+        "remote_entries": [
+            {"path": "1D/Advection/Train/a.hdf5", "size_bytes": 10},
+        ],
+    }
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+    record = hydrate_sequential(
+        Namespace(
+            plan_json=str(plan_path),
+            raw_out=None,
+            hydrated_source_root=None,
+            samples_per_file=None,
+            execute=True,
+            execute_downloads=False,
+            use_existing_raw=True,
+            cleanup_raw=False,
+            overwrite=True,
+        )
+    )
+
+    assert record["status"] == "blocked"
+    assert any("existing raw file is missing" in blocker for blocker in record["blockers"])

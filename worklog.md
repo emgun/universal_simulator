@@ -2543,3 +2543,9 @@ Follow-up readiness URL override alignment (2026-05-21):
 - Updated `scripts/check_official_execution_readiness.py` so local official data readiness probes the actual configured download hosts: manifest `url`/`download_url`/`source_url` first, then `PDEBENCH_DATAFILE_URL_TEMPLATE`, then the default Darus host.
 - Added tests proving a reachable mirror host or URL template makes `local_sequential_hydration_ready=True` when sequential disk is available, without requiring `darus.uni-stuttgart.de` to resolve.
 - Live readiness remains blocked with the current default manifest because no alternate URL is configured and both `darus.uni-stuttgart.de` and `console.vast.ai` still fail DNS resolution.
+
+Follow-up staged raw sequential hydration path (2026-05-21):
+- Rechecked local raw state; no planned official Advection raw files are currently staged under `data/pdebench/raw`, so the official hydrated train/val gate is still missing.
+- Added `--use-existing-raw` to `scripts/hydrate_official_advection_source_sequential.py` so the sequential hydrator can skip network downloads and append from already staged official raw files at the planned manifest paths.
+- Wired the mode through `scripts/run_remote_official_hydration.sh` as `SEQUENTIAL_USE_EXISTING_RAW=1`.
+- This preserves benchmark policy: the path still requires the planned logical raw paths, keeps source provenance, marks `sequential_hydration_complete=True` only after all planned files append, and downstream gates still require official train/val validation before any held-out test.

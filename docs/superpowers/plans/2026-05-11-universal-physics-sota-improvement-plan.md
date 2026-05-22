@@ -1778,3 +1778,9 @@ Readiness URL override alignment:
 - `scripts/check_official_execution_readiness.py` now derives official data DNS probes from the same URL rules as the downloader: manifest URL fields, then `PDEBENCH_DATAFILE_URL_TEMPLATE`, then the default Darus API URL.
 - This means a reachable verified mirror or pre-signed URL can make the local sequential route ready without pretending Darus itself is reachable.
 - With the current default manifest, live readiness is still blocked because no alternate URL is configured and `darus.uni-stuttgart.de` plus `console.vast.ai` still fail DNS resolution.
+
+Staged raw sequential hydration path:
+
+- `scripts/hydrate_official_advection_source_sequential.py` now supports `--use-existing-raw`.
+- `scripts/run_remote_official_hydration.sh` exposes the same path via `SEQUENTIAL_USE_EXISTING_RAW=1`.
+- Use this when official raw HDF5 files have been copied or mounted into the planned `raw_out` paths outside the downloader. The hydrator still appends only from those manifest paths, preserves `source_file_index` provenance, and leaves the held-out test gated behind `literal_test_ready`.
