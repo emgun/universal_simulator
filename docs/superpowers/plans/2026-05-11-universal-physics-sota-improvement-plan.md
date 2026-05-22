@@ -1796,3 +1796,10 @@ Staged raw checksum guard:
 - Staged raw readiness now validates MD5 checksums when the manifest provides checksum metadata.
 - `scripts/hydrate_official_advection_source_sequential.py --use-existing-raw` blocks on missing, size-mismatched, or checksum-mismatched files before appending any samples.
 - This lets staged raw files replace network access only when they match the official manifest evidence.
+
+Vast instance wrap-up checkpoint:
+
+- A live wrap-up check found no active Vast instances: `vastai show instances --raw` returned `[]`.
+- Official execution readiness remains blocked on DNS for both default data access (`darus.uni-stuttgart.de`) and remote execution (`console.vast.ai`).
+- Local sequential disk capacity is now sufficient for the active one-file-at-a-time hydration route, but the planned official raw HDF5 files are not staged under `data/pdebench/raw`.
+- The literal objective remains blocked until the official hydrated train/val gate exists and passes; held-out test execution remains unauthorized.

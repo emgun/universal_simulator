@@ -2561,3 +2561,10 @@ Follow-up staged raw checksum guard (2026-05-21):
 - `scripts/check_official_execution_readiness.py` now reports expected/actual checksums and only treats staged raw files as complete when size and checksum match.
 - `scripts/hydrate_official_advection_source_sequential.py --use-existing-raw` now blocks before append if a staged file is missing, size-mismatched, or MD5-mismatched.
 - This keeps manually copied or mounted raw files benchmark-clean: staged files can unblock DNS, but only if they match the official manifest evidence.
+
+Follow-up Vast instance wrap-up checkpoint (2026-05-22):
+- Rechecked the live instance state before ending the current Vast attempt; `vastai show instances --raw` returned `[]`, so there is no active Vast instance left to collect from or destroy.
+- Re-ran `scripts/check_official_execution_readiness.py`; the official execution path remains blocked because `darus.uni-stuttgart.de` and `console.vast.ai` do not resolve in this environment.
+- The local sequential disk route is otherwise viable for one-file-at-a-time hydration with about `45477707776` free bytes versus a `9467911994` sequential requirement, but no planned official raw files are staged under `data/pdebench/raw`.
+- Re-ran `scripts/run_official_transport_objective_status.sh`; the canonical status remains `literal_blocked` because `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing, official train/val validation has not passed, and no held-out test is authorized.
+- The next clean path is unchanged: restore DNS/Vast access, configure a verified official URL override, or stage all eight official raw Advection train files at the planned manifest paths with matching MD5 checksums, then run the sequential official hydration gate before any test attempt.
