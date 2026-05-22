@@ -1821,3 +1821,9 @@ Dataverse redirect hydration attempt:
 - A direct quoted `curl -I` to Darus briefly reached Dataverse and returned a pre-signed S3 redirect, but actual sequential hydration still failed because repeated Darus DNS lookups failed before any download or sample append completed.
 - `scripts/download_pdebench_file.py` now supports resolving the Dataverse redirect once before ranged downloads via `PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=1`, with bounded retries for transient Darus DNS failures.
 - `scripts/run_remote_official_hydration.sh` exports redirect resolution defaults for future official runs. The current live run remains blocked after 8 failed redirect probes; no official hydrated gate exists and held-out test execution remains unauthorized.
+
+Resolved official URL plan path:
+
+- `scripts/resolve_official_plan_urls.py` can now produce a derived official hydration plan whose `remote_entries` include pre-signed `source_url` values resolved from Dataverse.
+- This is still benchmark-clean because it preserves official logical paths, byte sizes, and MD5 checksums; it only removes repeated dependence on Darus DNS after the redirects have been captured.
+- The live resolver attempt failed after 3 Darus DNS failures on the first file, so no resolved-url plan is available yet.

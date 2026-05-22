@@ -2587,3 +2587,9 @@ Follow-up Dataverse redirect hydration attempt (2026-05-22):
 - Added `PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=1` support to `scripts/download_pdebench_file.py`, which resolves one Dataverse redirect with `curl --head` before ranged download so future successful probes can download from the pre-signed S3 URL instead of repeatedly resolving Darus for every range.
 - Added bounded redirect retries and exported redirect defaults from `scripts/run_remote_official_hydration.sh` (`PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=1`, `PDEBENCH_DOWNLOAD_REDIRECT_RETRIES=8`).
 - Retried actual sequential hydration with redirect resolution and 8 redirect probes; all 8 failed resolving Darus, so the run remained `status=blocked`, no official hydrated train/val gate was produced, and no held-out test was touched.
+
+Follow-up resolved official URL plan path (2026-05-22):
+- Added `scripts/resolve_official_plan_urls.py` to derive a secondary official hydration plan with `source_url` fields populated from Dataverse redirects.
+- The resolver preserves the original official manifest paths, sizes, and checksums, but rewrites `download_official_train_files` so a resolved pre-signed URL can be used without re-querying Darus inside each download process.
+- A live resolver attempt against `reports/research/sota_loop/official_advection_hydration_plan.json` failed on the first file after 3 Darus redirect probes with `curl: (6) Could not resolve host: darus.uni-stuttgart.de`; no resolved-url plan was written.
+- The path is ready for the next Darus availability window: run `python scripts/resolve_official_plan_urls.py --output-json reports/research/sota_loop/official_advection_hydration_plan_resolved_urls.json`, then pass that output as `PLAN_JSON` to the sequential hydration wrapper if all 8 URLs resolve.
