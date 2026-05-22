@@ -1803,3 +1803,9 @@ Vast instance wrap-up checkpoint:
 - Official execution readiness remains blocked on DNS for both default data access (`darus.uni-stuttgart.de`) and remote execution (`console.vast.ai`).
 - Local sequential disk capacity is now sufficient for the active one-file-at-a-time hydration route, but the planned official raw HDF5 files are not staged under `data/pdebench/raw`.
 - The literal objective remains blocked until the official hydrated train/val gate exists and passes; held-out test execution remains unauthorized.
+
+Official raw staging instructions:
+
+- `scripts/print_official_raw_staging_instructions.py` now provides the exact staged-raw checklist for the official path: local path, expected byte size, expected MD5, current completion state, and the next sequential hydration command.
+- Running it against the live readiness state currently reports `status=needs_staging` with `0/8` official raw Advection files complete.
+- This should be the next operator handoff when DNS remains broken: stage the listed files at the planned paths, rerun readiness, then run the printed `SEQUENTIAL_USE_EXISTING_RAW=1` hydration command.

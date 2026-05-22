@@ -2568,3 +2568,9 @@ Follow-up Vast instance wrap-up checkpoint (2026-05-22):
 - The local sequential disk route is otherwise viable for one-file-at-a-time hydration with about `45477707776` free bytes versus a `9467911994` sequential requirement, but no planned official raw files are staged under `data/pdebench/raw`.
 - Re-ran `scripts/run_official_transport_objective_status.sh`; the canonical status remains `literal_blocked` because `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing, official train/val validation has not passed, and no held-out test is authorized.
 - The next clean path is unchanged: restore DNS/Vast access, configure a verified official URL override, or stage all eight official raw Advection train files at the planned manifest paths with matching MD5 checksums, then run the sequential official hydration gate before any test attempt.
+
+Follow-up official raw staging instructions (2026-05-22):
+- Added `scripts/print_official_raw_staging_instructions.py` to turn the official hydration plan and readiness artifact into an operator-facing staged-raw checklist.
+- The script prints each required official Advection raw path, expected byte size, expected MD5, current completion status, and the exact `SEQUENTIAL_HYDRATION=1 SEQUENTIAL_USE_EXISTING_RAW=1 EXECUTE=1 EXECUTE_DOWNLOADS=0 ... bash scripts/run_remote_official_hydration.sh` command to run after staging.
+- Live execution wrote `reports/research/sota_loop/official_raw_staging_instructions.json` and exited with `status=needs_staging`: `0/8` files are complete, the sequential one-file requirement is `9467911994` bytes, and the unresolved local-route blocker is still `darus.uni-stuttgart.de`.
+- This is an unblocking aid, not a benchmark shortcut. The staged files still have to match the official manifest sizes and MD5s before the sequential hydrator will append them, and the held-out test remains blocked until the official hydrated train/val gate passes.
