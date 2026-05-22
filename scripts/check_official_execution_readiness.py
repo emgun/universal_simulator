@@ -4,6 +4,7 @@ from __future__ import annotations
 """Check whether the official Advection transport objective can execute here."""
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -14,6 +15,7 @@ from urllib.parse import urlparse
 
 
 DEFAULT_DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
+DEFAULT_CHUNK_SIZE = 1024 * 1024
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -72,6 +74,14 @@ def _official_data_dns_records(entries: list[dict[str, Any]], default_host: str)
     }
 
 
+def _file_md5(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(DEFAULT_CHUNK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _staged_raw_record(raw_root: str | Path, entries: list[dict[str, Any]]) -> dict[str, Any]:
     root = Path(raw_root)
     files = []
@@ -82,7 +92,14 @@ def _staged_raw_record(raw_root: str | Path, entries: list[dict[str, Any]]) -> d
         path = root / logical_path
         exists = path.exists()
         actual_size = path.stat().st_size if exists else 0
-        complete = bool(exists and expected_size > 0 and actual_size == expected_size)
+        expected_checksum = str(entry.get("checksum") or "")
+        checksum_type = str(entry.get("checksum_type") or "").lower()
+        checksum_supported = bool(expected_checksum and checksum_type in {"", "md5"})
+        actual_checksum = _file_md5(path) if exists and actual_size == expected_size and checksum_supported else None
+        checksum_matches = bool(
+            not checksum_supported or (actual_checksum and actual_checksum.lower() == expected_checksum.lower())
+        )
+        complete = bool(exists and expected_size > 0 and actual_size == expected_size and checksum_matches)
         all_present = all_present and complete
         files.append(
             {
@@ -91,6 +108,10 @@ def _staged_raw_record(raw_root: str | Path, entries: list[dict[str, Any]]) -> d
                 "exists": exists,
                 "expected_size_bytes": expected_size,
                 "actual_size_bytes": actual_size,
+                "checksum_type": checksum_type or None,
+                "expected_checksum": expected_checksum or None,
+                "actual_checksum": actual_checksum,
+                "checksum_matches": checksum_matches,
                 "complete": complete,
             }
         )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
+import hashlib
 import json
 
 import h5py
@@ -94,20 +95,20 @@ def test_sequential_hydration_initializes_source_paths_before_download(monkeypat
 
 
 def test_sequential_hydration_can_use_existing_raw_without_download(monkeypatch, tmp_path):
+    source_file = tmp_path / "raw" / "1D/Advection/Train/a.hdf5"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(source_file, "w") as handle:
+        handle.create_dataset("u", data=np.ones((3, 4, 8), dtype=np.float32))
     plan = {
         "raw_out": str(tmp_path / "raw"),
         "hydrated_source_root": str(tmp_path / "hydrated"),
         "samples_per_file": 2,
         "remote_entries": [
-            {"path": "1D/Advection/Train/a.hdf5", "size_bytes": 10},
+            {"path": "1D/Advection/Train/a.hdf5", "size_bytes": source_file.stat().st_size},
         ],
     }
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan), encoding="utf-8")
-    source_file = tmp_path / "raw" / "1D/Advection/Train/a.hdf5"
-    source_file.parent.mkdir(parents=True, exist_ok=True)
-    with h5py.File(source_file, "w") as handle:
-        handle.create_dataset("u", data=np.ones((3, 4, 8), dtype=np.float32))
 
     def fail_run(command, check):
         raise AssertionError("download subprocess should not run when use_existing_raw=True")
@@ -164,3 +165,41 @@ def test_sequential_hydration_blocks_when_existing_raw_is_missing(tmp_path):
 
     assert record["status"] == "blocked"
     assert any("existing raw file is missing" in blocker for blocker in record["blockers"])
+
+
+def test_sequential_hydration_blocks_when_existing_raw_checksum_mismatches(tmp_path):
+    plan = {
+        "raw_out": str(tmp_path / "raw"),
+        "hydrated_source_root": str(tmp_path / "hydrated"),
+        "samples_per_file": 2,
+        "remote_entries": [
+            {
+                "path": "1D/Advection/Train/a.hdf5",
+                "size_bytes": 3,
+                "checksum": hashlib.md5(b"good").hexdigest(),
+                "checksum_type": "MD5",
+            },
+        ],
+    }
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    raw_path = tmp_path / "raw" / "1D/Advection/Train/a.hdf5"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(b"bad")
+
+    record = hydrate_sequential(
+        Namespace(
+            plan_json=str(plan_path),
+            raw_out=None,
+            hydrated_source_root=None,
+            samples_per_file=None,
+            execute=True,
+            execute_downloads=False,
+            use_existing_raw=True,
+            cleanup_raw=False,
+            overwrite=True,
+        )
+    )
+
+    assert record["status"] == "blocked"
+    assert any("checksum mismatch" in blocker for blocker in record["blockers"])

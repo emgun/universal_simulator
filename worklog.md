@@ -2555,3 +2555,9 @@ Follow-up staged raw readiness detection (2026-05-21):
 - If every official `remote_entries` file exists at the expected manifest size, local sequential hydration is marked ready even when Darus DNS is unavailable.
 - Incomplete or missing staged raw files still require a resolvable official data host or URL override.
 - Live status remains blocked because no planned official raw files are staged and the default Darus/Vast hosts still do not resolve.
+
+Follow-up staged raw checksum guard (2026-05-21):
+- Tightened staged official raw handling to verify manifest MD5 checksums when checksum metadata is present.
+- `scripts/check_official_execution_readiness.py` now reports expected/actual checksums and only treats staged raw files as complete when size and checksum match.
+- `scripts/hydrate_official_advection_source_sequential.py --use-existing-raw` now blocks before append if a staged file is missing, size-mismatched, or MD5-mismatched.
+- This keeps manually copied or mounted raw files benchmark-clean: staged files can unblock DNS, but only if they match the official manifest evidence.

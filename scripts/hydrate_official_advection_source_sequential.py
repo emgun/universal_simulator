@@ -11,6 +11,7 @@ source-conditioned transport gate while reducing scratch disk requirements.
 """
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -25,6 +26,8 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from ups.data.convert_pdebench import _find_largest_dataset, _normalise_batch
 
+DEFAULT_CHUNK_SIZE = 1024 * 1024
+
 
 def _load_json(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -32,6 +35,34 @@ def _load_json(path: str | Path) -> dict[str, Any]:
 
 def _raw_path(raw_root: Path, logical_path: str) -> Path:
     return raw_root / logical_path
+
+
+def _file_md5(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(DEFAULT_CHUNK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _raw_file_blocker(raw_path: Path, entry: dict[str, Any]) -> str | None:
+    logical_path = str(entry.get("path") or raw_path)
+    if not raw_path.exists():
+        return f"existing raw file is missing for {logical_path}: {raw_path}"
+    expected_size = int(entry.get("size_bytes") or 0)
+    actual_size = int(raw_path.stat().st_size)
+    if expected_size > 0 and actual_size != expected_size:
+        return f"existing raw file size mismatch for {logical_path}: expected {expected_size}, got {actual_size}"
+    expected_checksum = str(entry.get("checksum") or "")
+    checksum_type = str(entry.get("checksum_type") or "").lower()
+    if expected_checksum and checksum_type in {"", "md5"}:
+        actual_checksum = _file_md5(raw_path)
+        if actual_checksum.lower() != expected_checksum.lower():
+            return (
+                f"existing raw file checksum mismatch for {logical_path}: "
+                f"expected {expected_checksum}, got {actual_checksum}"
+            )
+    return None
 
 
 def _source_paths(entries: list[dict[str, Any]]) -> np.ndarray:
@@ -156,8 +187,9 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         }
         if should_execute:
             if args.use_existing_raw:
-                if not raw_path.exists():
-                    blockers.append(f"existing raw file is missing for {logical_path}: {raw_path}")
+                blocker = _raw_file_blocker(raw_path, entry)
+                if blocker:
+                    blockers.append(blocker)
                     should_execute = False
                 else:
                     record["used_existing_raw"] = True

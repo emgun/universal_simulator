@@ -1790,3 +1790,9 @@ Staged raw readiness detection:
 - `scripts/check_official_execution_readiness.py` now inspects planned raw files under `raw_out`.
 - If every `remote_entries` file exists at the expected manifest size, local sequential hydration is ready even without Darus DNS.
 - This makes the staged-raw path operationally visible in the canonical readiness artifact while preserving the same manifest path and size requirements.
+
+Staged raw checksum guard:
+
+- Staged raw readiness now validates MD5 checksums when the manifest provides checksum metadata.
+- `scripts/hydrate_official_advection_source_sequential.py --use-existing-raw` blocks on missing, size-mismatched, or checksum-mismatched files before appending any samples.
+- This lets staged raw files replace network access only when they match the official manifest evidence.
