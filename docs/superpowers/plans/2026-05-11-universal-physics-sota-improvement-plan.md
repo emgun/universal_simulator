@@ -1815,3 +1815,9 @@ Official raw download handoff:
 - The readiness checker now reports `next_action=stage official raw files or restore official data DNS` in the current live state, because local sequential disk is sufficient but Darus and Vast DNS remain blocked.
 - The staging instructions now include the exact source URL and resumable `curl` command for each official raw file, in addition to the planned path, size, MD5, and sequential hydration command.
 - This makes the offline/staged route concrete without relaxing the official-data evidence requirements.
+
+Dataverse redirect hydration attempt:
+
+- A direct quoted `curl -I` to Darus briefly reached Dataverse and returned a pre-signed S3 redirect, but actual sequential hydration still failed because repeated Darus DNS lookups failed before any download or sample append completed.
+- `scripts/download_pdebench_file.py` now supports resolving the Dataverse redirect once before ranged downloads via `PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=1`, with bounded retries for transient Darus DNS failures.
+- `scripts/run_remote_official_hydration.sh` exports redirect resolution defaults for future official runs. The current live run remains blocked after 8 failed redirect probes; no official hydrated gate exists and held-out test execution remains unauthorized.

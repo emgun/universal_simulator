@@ -44,6 +44,11 @@ ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/official-hydration}
 ARTIFACT_NAME=${ARTIFACT_NAME:-}
 INSTALL_RCLONE=${INSTALL_RCLONE:-1}
 
+# Dataverse returns short-lived S3 URLs for official files. Resolve that
+# redirect once so ranged downloads do not repeatedly depend on Darus DNS.
+export PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=${PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT:-1}
+export PDEBENCH_DOWNLOAD_REDIRECT_RETRIES=${PDEBENCH_DOWNLOAD_REDIRECT_RETRIES:-8}
+
 export OBJECTIVE_STATUS_JSON
 
 ensure_artifact_rclone() {

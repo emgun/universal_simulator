@@ -2580,3 +2580,10 @@ Follow-up official raw download handoff (2026-05-22):
 - Extended `scripts/print_official_raw_staging_instructions.py` to include the resolved official source URL and a resumable `curl -L --fail --continue-at - ... -o ...` command for each required raw file.
 - Live staging output still reports `status=needs_staging` with `0/8` complete files, but the handoff now contains the exact Darus datafile URLs for file ids `255672`, `255671`, `255674`, `255666`, `255675`, `255677`, `255676`, and `255664`.
 - This keeps the benchmark boundary unchanged: the download commands only stage raw official files; readiness and sequential hydration still enforce the expected byte sizes and MD5 checksums before any official train/val gate can run.
+
+Follow-up Dataverse redirect hydration attempt (2026-05-22):
+- Re-probed live access: Python readiness still reports `darus.uni-stuttgart.de` and `console.vast.ai` DNS failures, while one quoted direct `curl -I` to Darus returned a `303 See Other` with a pre-signed `s3.tik.uni-stuttgart.de` object URL.
+- Attempted actual sequential official hydration with `SEQUENTIAL_HYDRATION=1 EXECUTE=1 EXECUTE_DOWNLOADS=1 SEQUENTIAL_CLEANUP_RAW=1 PDEBENCH_DOWNLOAD_TRANSPORT=curl`; it failed before appending any samples because all ranged `curl` parts for `1D_Advection_Sols_beta0.1.hdf5` failed resolving Darus.
+- Added `PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=1` support to `scripts/download_pdebench_file.py`, which resolves one Dataverse redirect with `curl --head` before ranged download so future successful probes can download from the pre-signed S3 URL instead of repeatedly resolving Darus for every range.
+- Added bounded redirect retries and exported redirect defaults from `scripts/run_remote_official_hydration.sh` (`PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT=1`, `PDEBENCH_DOWNLOAD_REDIRECT_RETRIES=8`).
+- Retried actual sequential hydration with redirect resolution and 8 redirect probes; all 8 failed resolving Darus, so the run remained `status=blocked`, no official hydrated train/val gate was produced, and no held-out test was touched.

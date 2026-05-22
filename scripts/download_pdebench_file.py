@@ -25,6 +25,8 @@ DEFAULT_TIMEOUT = (30, 60)
 DEFAULT_SPLIT_AFTER_RETRIES = 2
 DEFAULT_MIN_SPLIT_SIZE = 8 * 1024 * 1024
 DEFAULT_TRANSPORT = "auto"
+DEFAULT_REDIRECT_TIMEOUT = 30
+DEFAULT_REDIRECT_RETRIES = 3
 
 
 def load_manifest(path: Path) -> list[dict]:
@@ -320,6 +322,42 @@ def _is_name_resolution_error(exc: Exception) -> bool:
     return "name resolution" in text or "failed to resolve" in text or "nodename nor servname" in text
 
 
+def _resolve_redirect_url_with_curl(
+    url: str,
+    *,
+    timeout: int = DEFAULT_REDIRECT_TIMEOUT,
+    retries: int = DEFAULT_REDIRECT_RETRIES,
+    retry_backoff: float = DEFAULT_RETRY_BACKOFF,
+) -> str:
+    cmd = [
+        "curl",
+        "--silent",
+        "--show-error",
+        "--head",
+        "--max-time",
+        str(max(1, int(timeout))),
+        url,
+    ]
+    last_error: RuntimeError | None = None
+    for attempt in range(1, max(1, int(retries)) + 1):
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        if proc.returncode == 0:
+            for line in proc.stdout.splitlines():
+                name, sep, value = line.partition(":")
+                if sep and name.lower() == "location":
+                    location = value.strip()
+                    if location:
+                        return location
+            return url
+        last_error = RuntimeError(f"curl HEAD exited {proc.returncode}: {proc.stderr.strip()}")
+        print(f"redirect probe failed on attempt {attempt}/{retries}: {last_error}", file=sys.stderr, flush=True)
+        if attempt < retries and retry_backoff > 0:
+            time.sleep(retry_backoff * (2 ** (attempt - 1)))
+    assert last_error is not None
+    raise last_error
+    return url
+
+
 def _download_part_to_file_curl(
     url: str,
     dest: Path,
@@ -533,8 +571,21 @@ def download(
     split_after_retries: int = DEFAULT_SPLIT_AFTER_RETRIES,
     min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
     transport: str = DEFAULT_TRANSPORT,
+    resolve_redirect: bool = False,
+    redirect_timeout: int = DEFAULT_REDIRECT_TIMEOUT,
+    redirect_retries: int = DEFAULT_REDIRECT_RETRIES,
 ) -> None:
     url = _entry_url(entry)
+    if resolve_redirect:
+        resolved_url = _resolve_redirect_url_with_curl(
+            url,
+            timeout=redirect_timeout,
+            retries=redirect_retries,
+            retry_backoff=retry_backoff,
+        )
+        if resolved_url != url:
+            print(f"Resolved download redirect: {url} -> {resolved_url}", flush=True)
+            url = resolved_url
     dest.parent.mkdir(parents=True, exist_ok=True)
     expected_size = entry.get("size_bytes")
     expected_checksum = entry.get("checksum")
@@ -556,8 +607,8 @@ def download(
             retry_backoff=retry_backoff,
             split_after_retries=split_after_retries,
             min_split_size=min_split_size,
-            transport=transport,
-        )
+        transport=transport,
+    )
     else:
         total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
 
@@ -628,6 +679,24 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("PDEBENCH_DOWNLOAD_TRANSPORT", DEFAULT_TRANSPORT),
         help="HTTP transport for ranged downloads. auto falls back to curl when requests cannot resolve the host.",
     )
+    parser.add_argument(
+        "--resolve-redirect",
+        action="store_true",
+        default=os.environ.get("PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT", "0") == "1",
+        help="Resolve one HTTP redirect with curl HEAD before ranged downloads, useful for Dataverse S3 redirects.",
+    )
+    parser.add_argument(
+        "--redirect-timeout",
+        type=int,
+        default=int(os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_TIMEOUT", str(DEFAULT_REDIRECT_TIMEOUT))),
+        help="Maximum seconds for the curl HEAD redirect probe.",
+    )
+    parser.add_argument(
+        "--redirect-retries",
+        type=int,
+        default=int(os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_RETRIES", str(DEFAULT_REDIRECT_RETRIES))),
+        help="Retry attempts for the curl HEAD redirect probe.",
+    )
     return parser.parse_args()
 
 
@@ -648,6 +717,9 @@ def main() -> None:
         split_after_retries=max(1, args.split_after_retries),
         min_split_size=max(1, args.min_split_size_mib) * 1024 * 1024,
         transport=args.transport,
+        resolve_redirect=bool(args.resolve_redirect),
+        redirect_timeout=max(1, int(args.redirect_timeout)),
+        redirect_retries=max(1, int(args.redirect_retries)),
     )
 
 

@@ -445,3 +445,97 @@ def test_download_part_to_file_auto_falls_back_to_curl_on_name_resolution(monkey
 
     assert total == 2
     assert dest.read_bytes() == b"ok"
+
+
+def test_resolve_redirect_url_with_curl_parses_location(monkeypatch):
+    class Proc:
+        returncode = 0
+        stdout = (
+            "HTTP/1.1 303 See Other\r\n"
+            "Date: Fri, 22 May 2026 00:00:00 GMT\r\n"
+            "Location: https://objects.example/file?signature=abc\r\n"
+            "\r\n"
+        )
+        stderr = ""
+
+    seen = []
+
+    def fake_run(cmd, check=False, capture_output=True, text=True):
+        seen.append(cmd)
+        return Proc()
+
+    monkeypatch.setattr(downloader.subprocess, "run", fake_run)
+
+    assert downloader._resolve_redirect_url_with_curl("https://darus.example/file", timeout=5) == (
+        "https://objects.example/file?signature=abc"
+    )
+    assert seen[0][:4] == ["curl", "--silent", "--show-error", "--head"]
+
+
+def test_resolve_redirect_url_with_curl_retries_transient_failure(monkeypatch):
+    class FailedProc:
+        returncode = 6
+        stdout = ""
+        stderr = "Could not resolve host"
+
+    class OkProc:
+        returncode = 0
+        stdout = "HTTP/1.1 303 See Other\r\nLocation: https://objects.example/file\r\n\r\n"
+        stderr = ""
+
+    calls = []
+
+    def fake_run(cmd, check=False, capture_output=True, text=True):
+        calls.append(cmd)
+        return FailedProc() if len(calls) == 1 else OkProc()
+
+    monkeypatch.setattr(downloader.subprocess, "run", fake_run)
+    monkeypatch.setattr(downloader.time, "sleep", lambda seconds: None)
+
+    assert downloader._resolve_redirect_url_with_curl(
+        "https://darus.example/file",
+        timeout=5,
+        retries=2,
+        retry_backoff=0.1,
+    ) == "https://objects.example/file"
+    assert len(calls) == 2
+
+
+def test_download_resolves_redirect_before_ranged_curl_download(monkeypatch, tmp_path: Path):
+    used_urls = []
+
+    def fake_resolve(url, *, timeout, retries, retry_backoff):
+        assert url == "https://darus.example/file"
+        return "https://objects.example/file?signature=abc"
+
+    def fake_download_ranges(
+        url,
+        dest,
+        expected_size,
+        *,
+        workers,
+        part_size,
+        chunk_size,
+        retries,
+        part_timeout,
+        retry_backoff,
+        split_after_retries,
+        min_split_size,
+        transport,
+    ):
+        used_urls.append(url)
+        dest.write_bytes(b"abcd")
+        return expected_size
+
+    monkeypatch.setattr(downloader, "_resolve_redirect_url_with_curl", fake_resolve)
+    monkeypatch.setattr(downloader, "_download_ranges", fake_download_ranges)
+
+    downloader.download(
+        {"url": "https://darus.example/file", "size_bytes": 4},
+        tmp_path / "file.h5",
+        workers=2,
+        transport="curl",
+        resolve_redirect=True,
+    )
+
+    assert used_urls == ["https://objects.example/file?signature=abc"]
