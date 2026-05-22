@@ -1772,3 +1772,9 @@ Official data URL override path:
 - A later live probe showed `curl` also failing to resolve `darus.uni-stuttgart.de`, so the local route is blocked on default-host access rather than disk.
 - `scripts/download_pdebench_file.py` now accepts manifest-level `url`, `download_url`, or `source_url` fields and a `PDEBENCH_DATAFILE_URL_TEMPLATE` environment override.
 - `scripts/plan_transport_official_hydration.py` preserves those optional URL fields into `remote_entries`, allowing the sequential hydrator to use a verified mirror or pre-signed official object URL while retaining the same logical path, size, and checksum checks.
+
+Readiness URL override alignment:
+
+- `scripts/check_official_execution_readiness.py` now derives official data DNS probes from the same URL rules as the downloader: manifest URL fields, then `PDEBENCH_DATAFILE_URL_TEMPLATE`, then the default Darus API URL.
+- This means a reachable verified mirror or pre-signed URL can make the local sequential route ready without pretending Darus itself is reachable.
+- With the current default manifest, live readiness is still blocked because no alternate URL is configured and `darus.uni-stuttgart.de` plus `console.vast.ai` still fail DNS resolution.

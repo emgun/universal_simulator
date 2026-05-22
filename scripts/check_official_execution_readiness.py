@@ -5,10 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import socket
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+
+
+DEFAULT_DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -38,15 +43,45 @@ def _disk_record(root: str | Path) -> dict[str, Any]:
     }
 
 
+def _entry_url(entry: dict[str, Any], default_host: str) -> str:
+    explicit_url = entry.get("url") or entry.get("download_url") or entry.get("source_url")
+    if explicit_url:
+        return str(explicit_url)
+    template = os.environ.get(
+        "PDEBENCH_DATAFILE_URL_TEMPLATE",
+        f"https://{default_host}/api/access/datafile/{{file_id}}?format=original",
+    )
+    return template.format(file_id=entry.get("file_id", ""), path=entry.get("path", ""))
+
+
+def _official_data_dns_records(entries: list[dict[str, Any]], default_host: str) -> dict[str, Any]:
+    hosts = []
+    for entry in entries:
+        parsed = urlparse(_entry_url(entry, default_host))
+        host = parsed.hostname or default_host
+        if host not in hosts:
+            hosts.append(host)
+    if not hosts:
+        hosts = [default_host]
+    records = [_dns_record(host) for host in hosts]
+    return {
+        "hosts": hosts,
+        "records": records,
+        "resolves": all(bool(record["resolves"]) for record in records),
+        "unresolved_hosts": [str(record["host"]) for record in records if not record["resolves"]],
+    }
+
+
 def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
     plan = _load_json(args.plan_json)
     remote_plan = _load_json(args.remote_plan_json)
     local_disk = _disk_record(args.local_disk_root)
     remote_dns = _dns_record(args.remote_api_host)
-    official_data_dns = _dns_record(args.official_data_host)
+    remote_entries = list(plan.get("remote_entries", []))
+    official_data_dns = _official_data_dns_records(remote_entries, args.official_data_host)
 
     largest_file_bytes = max(
-        (int(entry.get("size_bytes") or 0) for entry in plan.get("remote_entries", [])),
+        (int(entry.get("size_bytes") or 0) for entry in remote_entries),
         default=0,
     )
     total_download_bytes = int(plan.get("estimated_download_bytes") or 0)
@@ -59,7 +94,10 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
     if not remote_dns["resolves"]:
         remote_blockers.append(f"remote API host {args.remote_api_host} does not resolve")
     if not official_data_dns["resolves"]:
-        local_blockers.append(f"official data host {args.official_data_host} does not resolve")
+        local_blockers.append(
+            "official data host(s) do not resolve: "
+            + ", ".join(official_data_dns["unresolved_hosts"])
+        )
     if int(local_disk["free_bytes"]) < sequential_required_bytes:
         local_blockers.append(
             f"local free bytes {local_disk['free_bytes']} below sequential requirement {sequential_required_bytes}"

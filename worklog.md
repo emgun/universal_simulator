@@ -2538,3 +2538,8 @@ Follow-up official data URL override path (2026-05-21):
 - Extended `scripts/download_pdebench_file.py` so a manifest entry may carry `url`, `download_url`, or `source_url`, and added `PDEBENCH_DATAFILE_URL_TEMPLATE` for mirror-style URL construction from `file_id` and `path`.
 - Updated `scripts/plan_transport_official_hydration.py` to preserve optional manifest URL fields in `remote_entries`.
 - This does not relax benchmark evidence: the official path still uses the same manifest logical paths, expected sizes, and checksums; it only allows a verified official mirror or pre-signed URL to replace the currently unreachable Darus API endpoint.
+
+Follow-up readiness URL override alignment (2026-05-21):
+- Updated `scripts/check_official_execution_readiness.py` so local official data readiness probes the actual configured download hosts: manifest `url`/`download_url`/`source_url` first, then `PDEBENCH_DATAFILE_URL_TEMPLATE`, then the default Darus host.
+- Added tests proving a reachable mirror host or URL template makes `local_sequential_hydration_ready=True` when sequential disk is available, without requiring `darus.uni-stuttgart.de` to resolve.
+- Live readiness remains blocked with the current default manifest because no alternate URL is configured and both `darus.uni-stuttgart.de` and `console.vast.ai` still fail DNS resolution.

@@ -83,3 +83,71 @@ def test_readiness_allows_local_when_data_dns_and_disk_are_ready(monkeypatch, tm
     assert record["local_sequential_hydration_ready"] is True
     assert record["next_action"] == "run local sequential hydration"
     assert any("remote API host" in blocker for blocker in record["route_blockers"]["remote_launch"])
+
+
+def test_readiness_uses_manifest_url_hosts_for_local_data_route(monkeypatch, tmp_path):
+    import scripts.check_official_execution_readiness as module
+
+    args = _args(tmp_path)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "estimated_download_bytes": 100,
+                "held_out_test_policy": {"test_split_downloaded": False},
+                "remote_entries": [
+                    {
+                        "path": "a.hdf5",
+                        "file_id": 1,
+                        "size_bytes": 100,
+                        "url": "https://mirror.example/a.hdf5",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    remote_plan = _write_json(tmp_path / "remote.json", {"required_disk_gb": 32})
+    args.plan_json = str(plan_path)
+    args.remote_plan_json = str(remote_plan)
+
+    def fake_dns(host):
+        resolves = host == "mirror.example"
+        return {
+            "host": host,
+            "resolves": resolves,
+            "error": None if resolves else "dns failed",
+            "addresses": ["127.0.0.1"] if resolves else [],
+        }
+
+    monkeypatch.setattr(module, "_dns_record", fake_dns)
+
+    record = check_readiness(args)
+
+    assert record["status"] == "ready"
+    assert record["local_sequential_hydration_ready"] is True
+    assert record["dns"]["official_data"]["hosts"] == ["mirror.example"]
+    assert record["next_action"] == "run local sequential hydration"
+
+
+def test_readiness_uses_datafile_url_template_hosts(monkeypatch, tmp_path):
+    import scripts.check_official_execution_readiness as module
+
+    monkeypatch.setenv("PDEBENCH_DATAFILE_URL_TEMPLATE", "https://objects.example/{file_id}/{path}")
+
+    def fake_dns(host):
+        resolves = host == "objects.example"
+        return {
+            "host": host,
+            "resolves": resolves,
+            "error": None if resolves else "dns failed",
+            "addresses": ["127.0.0.1"] if resolves else [],
+        }
+
+    monkeypatch.setattr(module, "_dns_record", fake_dns)
+
+    record = check_readiness(_args(tmp_path))
+
+    assert record["status"] == "ready"
+    assert record["local_sequential_hydration_ready"] is True
+    assert record["dns"]["official_data"]["hosts"] == ["objects.example"]
