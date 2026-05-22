@@ -86,6 +86,9 @@ def test_build_staging_instructions_lists_required_files_and_command(tmp_path):
     assert record["files"][0]["local_path"] == str(raw_root / "1D/Advection/Train/a.hdf5")
     assert record["files"][0]["expected_size_bytes"] == 3
     assert record["files"][0]["expected_checksum"] == hashlib.md5(b"aaa").hexdigest()
+    assert record["files"][0]["source_url"] == "https://darus.uni-stuttgart.de/api/access/datafile/1?format=original"
+    assert "curl -L --fail --continue-at -" in record["files"][0]["download_command"]
+    assert str(raw_root / "1D/Advection/Train/a.hdf5") in record["files"][0]["download_command"]
     assert "SEQUENTIAL_USE_EXISTING_RAW=1" in record["next_command"]
     assert "--use-existing-raw" not in record["next_command"]
     assert "scripts/run_remote_official_hydration.sh" in record["next_command"]
@@ -140,3 +143,34 @@ def test_build_staging_instructions_marks_ready_when_all_files_complete(tmp_path
     assert record["status"] == "ready_for_existing_raw_hydration"
     assert record["files"][0]["complete"] is True
     assert "SEQUENTIAL_USE_EXISTING_RAW=1" in record["next_command"]
+
+
+def test_build_staging_instructions_uses_manifest_url_for_download_command(tmp_path):
+    plan = _write_json(
+        tmp_path / "plan.json",
+        {
+            "raw_out": str(tmp_path / "raw"),
+            "remote_entries": [
+                {
+                    "path": "1D/Advection/Train/a.hdf5",
+                    "file_id": 1,
+                    "size_bytes": 3,
+                    "url": "https://mirror.example/a.hdf5",
+                }
+            ],
+        },
+    )
+    readiness = _write_json(tmp_path / "readiness.json", {"staged_raw": {"files": []}})
+
+    record = build_staging_instructions(
+        Namespace(
+            plan_json=str(plan),
+            readiness_json=str(readiness),
+            output_json=None,
+            raw_out=None,
+            run_json="reports/research/sota_loop/official_advection_sequential_hydration_run.json",
+        )
+    )
+
+    assert record["files"][0]["source_url"] == "https://mirror.example/a.hdf5"
+    assert "https://mirror.example/a.hdf5" in record["files"][0]["download_command"]

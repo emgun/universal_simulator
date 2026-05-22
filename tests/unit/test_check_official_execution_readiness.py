@@ -52,6 +52,19 @@ def test_readiness_blocks_when_dns_fails(monkeypatch, tmp_path):
     assert any("does not resolve" in blocker for blocker in record["blockers"])
 
 
+def test_readiness_next_action_points_to_staging_when_disk_is_ready_but_dns_fails(monkeypatch, tmp_path):
+    import scripts.check_official_execution_readiness as module
+
+    def fake_dns(host):
+        return {"host": host, "resolves": False, "error": "dns failed", "addresses": []}
+
+    monkeypatch.setattr(module, "_dns_record", fake_dns)
+
+    record = check_readiness(_args(tmp_path))
+
+    assert record["next_action"] == "stage official raw files or restore official data DNS"
+
+
 def test_readiness_allows_remote_when_vast_dns_resolves(monkeypatch, tmp_path):
     import scripts.check_official_execution_readiness as module
 

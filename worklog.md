@@ -2574,3 +2574,9 @@ Follow-up official raw staging instructions (2026-05-22):
 - The script prints each required official Advection raw path, expected byte size, expected MD5, current completion status, and the exact `SEQUENTIAL_HYDRATION=1 SEQUENTIAL_USE_EXISTING_RAW=1 EXECUTE=1 EXECUTE_DOWNLOADS=0 ... bash scripts/run_remote_official_hydration.sh` command to run after staging.
 - Live execution wrote `reports/research/sota_loop/official_raw_staging_instructions.json` and exited with `status=needs_staging`: `0/8` files are complete, the sequential one-file requirement is `9467911994` bytes, and the unresolved local-route blocker is still `darus.uni-stuttgart.de`.
 - This is an unblocking aid, not a benchmark shortcut. The staged files still have to match the official manifest sizes and MD5s before the sequential hydrator will append them, and the held-out test remains blocked until the official hydrated train/val gate passes.
+
+Follow-up official raw download handoff (2026-05-22):
+- Refined `scripts/check_official_execution_readiness.py` so the live blocked state now points to `next_action=stage official raw files or restore official data DNS` when local sequential disk is sufficient but Darus/Vast DNS is not.
+- Extended `scripts/print_official_raw_staging_instructions.py` to include the resolved official source URL and a resumable `curl -L --fail --continue-at - ... -o ...` command for each required raw file.
+- Live staging output still reports `status=needs_staging` with `0/8` complete files, but the handoff now contains the exact Darus datafile URLs for file ids `255672`, `255671`, `255674`, `255666`, `255675`, `255677`, `255676`, and `255664`.
+- This keeps the benchmark boundary unchanged: the download commands only stage raw official files; readiness and sequential hydration still enforce the expected byte sizes and MD5 checksums before any official train/val gate can run.

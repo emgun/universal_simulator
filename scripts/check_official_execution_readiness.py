@@ -161,6 +161,14 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
     local_ready = not local_blockers
     blockers = [] if remote_ready or local_ready else sorted(set(remote_blockers + local_blockers))
     status = "ready" if remote_ready or local_ready else "blocked"
+    if remote_ready:
+        next_action = "run pinned remote actual_launcher"
+    elif local_ready:
+        next_action = "run local sequential hydration"
+    elif int(local_disk["free_bytes"]) >= sequential_required_bytes and not staged_raw["all_present"]:
+        next_action = "stage official raw files or restore official data DNS"
+    else:
+        next_action = "restore DNS and provide enough local disk or a reachable remote executor"
     return {
         "status": status,
         "blockers": blockers,
@@ -185,13 +193,7 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
             "local_sequential_required_bytes": sequential_required_bytes,
             "remote_required_disk_gb": remote_required_gb,
         },
-        "next_action": (
-            "run pinned remote actual_launcher"
-            if remote_ready
-            else "run local sequential hydration"
-            if local_ready
-            else "restore DNS and provide enough local disk or a reachable remote executor"
-        ),
+        "next_action": next_action,
         "held_out_test_policy": plan.get("held_out_test_policy"),
     }
 

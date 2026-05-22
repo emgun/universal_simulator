@@ -5,8 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shlex
 from pathlib import Path
 from typing import Any
+
+DEFAULT_DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -18,13 +22,33 @@ def _readiness_files(readiness: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {str(row.get("logical_path") or ""): dict(row) for row in staged_raw.get("files") or []}
 
 
+def _source_url(entry: dict[str, Any]) -> str:
+    explicit_url = entry.get("url") or entry.get("download_url") or entry.get("source_url")
+    if explicit_url:
+        return str(explicit_url)
+    template = os.environ.get("PDEBENCH_DATAFILE_URL_TEMPLATE", DEFAULT_DATAFILE_URL)
+    return template.format(file_id=entry.get("file_id", ""), path=entry.get("path", ""))
+
+
+def _download_command(source_url: str, local_path: str) -> str:
+    local = Path(local_path)
+    return (
+        f"mkdir -p {shlex.quote(str(local.parent))} && "
+        f"curl -L --fail --continue-at - {shlex.quote(source_url)} -o {shlex.quote(str(local))}"
+    )
+
+
 def _file_record(raw_root: Path, entry: dict[str, Any], readiness_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
     logical_path = str(entry.get("path") or "")
     ready_row = readiness_by_path.get(logical_path, {})
+    local_path = str(ready_row.get("local_path") or raw_root / logical_path)
+    source_url = _source_url(entry)
     return {
         "logical_path": logical_path,
-        "local_path": str(ready_row.get("local_path") or raw_root / logical_path),
+        "local_path": local_path,
         "file_id": entry.get("file_id"),
+        "source_url": source_url,
+        "download_command": _download_command(source_url, local_path),
         "expected_size_bytes": int(ready_row.get("expected_size_bytes") or entry.get("size_bytes") or 0),
         "actual_size_bytes": int(ready_row.get("actual_size_bytes") or 0),
         "checksum_type": str(ready_row.get("checksum_type") or entry.get("checksum_type") or "md5").lower(),
@@ -91,8 +115,10 @@ def _print_human(record: dict[str, Any]) -> None:
         marker = "complete" if row["complete"] else "needed"
         checksum = row["expected_checksum"] or "not provided"
         print(f"  - {marker}: {row['local_path']}")
+        print(f"    source_url: {row['source_url']}")
         print(f"    size_bytes: {row['expected_size_bytes']}")
         print(f"    {row['checksum_type']}: {checksum}")
+        print(f"    download_command: {row['download_command']}")
     print("next_command:")
     print(f"  {record['next_command']}")
 

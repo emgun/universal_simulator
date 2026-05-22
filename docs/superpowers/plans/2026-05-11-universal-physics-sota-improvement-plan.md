@@ -1809,3 +1809,9 @@ Official raw staging instructions:
 - `scripts/print_official_raw_staging_instructions.py` now provides the exact staged-raw checklist for the official path: local path, expected byte size, expected MD5, current completion state, and the next sequential hydration command.
 - Running it against the live readiness state currently reports `status=needs_staging` with `0/8` official raw Advection files complete.
 - This should be the next operator handoff when DNS remains broken: stage the listed files at the planned paths, rerun readiness, then run the printed `SEQUENTIAL_USE_EXISTING_RAW=1` hydration command.
+
+Official raw download handoff:
+
+- The readiness checker now reports `next_action=stage official raw files or restore official data DNS` in the current live state, because local sequential disk is sufficient but Darus and Vast DNS remain blocked.
+- The staging instructions now include the exact source URL and resumable `curl` command for each official raw file, in addition to the planned path, size, MD5, and sequential hydration command.
+- This makes the offline/staged route concrete without relaxing the official-data evidence requirements.
