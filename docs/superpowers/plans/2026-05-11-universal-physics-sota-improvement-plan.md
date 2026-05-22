@@ -1766,3 +1766,9 @@ Sequential hydration preflight alignment:
 - `scripts/preflight_transport_hydration.py` now supports `--mode all|sequential` and defaults to sequential mode because the active hydration path downloads/appends one official Advection file at a time.
 - `scripts/recommend_transport_hydration_storage.py` uses the same mode, so storage recommendation now distinguishes full raw download storage from sequential hydration storage.
 - `scripts/audit_transport_objective_status.py` no longer reports ready evidence statuses as blockers. The remaining live blockers are unresolved `darus.uni-stuttgart.de` for local official data access, unresolved `console.vast.ai` for remote launch, and the missing official hydrated train/val gate artifact.
+
+Official data URL override path:
+
+- A later live probe showed `curl` also failing to resolve `darus.uni-stuttgart.de`, so the local route is blocked on default-host access rather than disk.
+- `scripts/download_pdebench_file.py` now accepts manifest-level `url`, `download_url`, or `source_url` fields and a `PDEBENCH_DATAFILE_URL_TEMPLATE` environment override.
+- `scripts/plan_transport_official_hydration.py` preserves those optional URL fields into `remote_entries`, allowing the sequential hydrator to use a verified mirror or pre-signed official object URL while retaining the same logical path, size, and checksum checks.

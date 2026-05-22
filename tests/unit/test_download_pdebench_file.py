@@ -37,6 +37,18 @@ def test_download_skips_existing_file_with_matching_checksum(tmp_path: Path):
     assert dest.read_bytes() == b"payload"
 
 
+def test_entry_url_prefers_manifest_url():
+    entry = {"file_id": 1, "path": "a.hdf5", "url": "https://mirror.example/a.hdf5"}
+
+    assert downloader._entry_url(entry) == "https://mirror.example/a.hdf5"
+
+
+def test_entry_url_can_use_environment_template(monkeypatch):
+    monkeypatch.setenv("PDEBENCH_DATAFILE_URL_TEMPLATE", "https://mirror.example/{file_id}/{path}")
+
+    assert downloader._entry_url({"file_id": 7, "path": "a/b.hdf5"}) == "https://mirror.example/7/a/b.hdf5"
+
+
 def test_download_part_rejects_non_range_response(monkeypatch, tmp_path: Path):
     class Response:
         status_code = 200

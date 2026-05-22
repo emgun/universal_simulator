@@ -2532,3 +2532,9 @@ Follow-up sequential hydration preflight alignment (2026-05-21):
 - Added the same mode to `scripts/recommend_transport_hydration_storage.py`; sequential mode now recommends `data/pdebench/raw` instead of reporting external storage required.
 - Updated the objective audit so ready statuses such as `ready_for_sequential_download`, `storage_root_available`, `valid`, and `ready_for_remote_hydration` are not listed as blockers.
 - The canonical status remains `literal_blocked`; the only execution-readiness blockers are Python DNS failures for `darus.uni-stuttgart.de` and `console.vast.ai`, and `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing.
+
+Follow-up official data URL override path (2026-05-21):
+- Rechecked the smallest live Darus probe; `curl` now also fails resolving `darus.uni-stuttgart.de`, so local official hydration still cannot start from the default Dataverse host in this environment.
+- Extended `scripts/download_pdebench_file.py` so a manifest entry may carry `url`, `download_url`, or `source_url`, and added `PDEBENCH_DATAFILE_URL_TEMPLATE` for mirror-style URL construction from `file_id` and `path`.
+- Updated `scripts/plan_transport_official_hydration.py` to preserve optional manifest URL fields in `remote_entries`.
+- This does not relax benchmark evidence: the official path still uses the same manifest logical paths, expected sizes, and checksums; it only allows a verified official mirror or pre-signed URL to replace the currently unreachable Darus API endpoint.

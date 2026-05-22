@@ -25,6 +25,7 @@ def _advection_entries(manifest_path: Path) -> list[dict[str, Any]]:
                 "size_bytes": int(entry.get("size_bytes") or 0),
                 "checksum": entry.get("checksum"),
                 "checksum_type": entry.get("checksum_type"),
+                "url": entry.get("url") or entry.get("download_url") or entry.get("source_url"),
             }
         )
     return rows

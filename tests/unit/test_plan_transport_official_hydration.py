@@ -18,6 +18,7 @@ def _write_manifest(path) -> None:
                         "size_bytes": 100,
                         "checksum": "a",
                         "checksum_type": "MD5",
+                        "url": "https://mirror.example/beta0.1.hdf5",
                     },
                     {
                         "path": "1D/Burgers/Train/ignored.hdf5",
@@ -68,6 +69,7 @@ def test_hydration_plan_uses_only_official_advection_train_entries(tmp_path):
     assert plan["status"] == "ready_for_explicit_hydration"
     assert plan["selected_file_count"] == 2
     assert plan["estimated_download_bytes"] == 300
+    assert plan["remote_entries"][0]["url"] == "https://mirror.example/beta0.1.hdf5"
     assert len(plan["commands"]["download_official_train_files"]) == 2
     assert "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5" in plan["commands"]["download_official_train_files"][0]
     assert "test-count 0" in plan["commands"]["build_light_train_val_shards"]

@@ -44,6 +44,14 @@ def find_entry(manifest: list[dict], logical_path: str) -> dict:
     raise SystemExit(f"Path '{logical_path}' not found in manifest.")
 
 
+def _entry_url(entry: dict) -> str:
+    explicit_url = entry.get("url") or entry.get("download_url") or entry.get("source_url")
+    if explicit_url:
+        return str(explicit_url)
+    template = os.environ.get("PDEBENCH_DATAFILE_URL_TEMPLATE", DATAFILE_URL)
+    return template.format(file_id=entry["file_id"], path=entry.get("path", ""))
+
+
 def _part_ranges(total_size: int, part_size: int) -> list[tuple[int, int, int]]:
     if total_size <= 0:
         return []
@@ -526,8 +534,7 @@ def download(
     min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
     transport: str = DEFAULT_TRANSPORT,
 ) -> None:
-    file_id = entry["file_id"]
-    url = DATAFILE_URL.format(file_id=file_id)
+    url = _entry_url(entry)
     dest.parent.mkdir(parents=True, exist_ok=True)
     expected_size = entry.get("size_bytes")
     expected_checksum = entry.get("checksum")
