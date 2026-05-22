@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import quote, urlparse
 
 import requests
 import yaml
@@ -27,6 +28,7 @@ DEFAULT_MIN_SPLIT_SIZE = 8 * 1024 * 1024
 DEFAULT_TRANSPORT = "auto"
 DEFAULT_REDIRECT_TIMEOUT = 30
 DEFAULT_REDIRECT_RETRIES = 3
+DEFAULT_DOH_ENDPOINT = "https://1.1.1.1/dns-query"
 
 
 class NameResolutionError(RuntimeError):
@@ -56,6 +58,60 @@ def _entry_url(entry: dict) -> str:
         return str(explicit_url)
     template = os.environ.get("PDEBENCH_DATAFILE_URL_TEMPLATE", DATAFILE_URL)
     return template.format(file_id=entry["file_id"], path=entry.get("path", ""))
+
+
+def _resolve_host_with_doh(
+    host: str,
+    *,
+    endpoint: str = DEFAULT_DOH_ENDPOINT,
+    timeout: int = 10,
+) -> list[str]:
+    url = f"{endpoint}?name={quote(host)}&type=A"
+    try:
+        response = requests.get(url, headers={"accept": "application/dns-json"}, timeout=timeout)
+        response.raise_for_status()
+        payload = response.json()
+    except Exception:
+        proc = subprocess.run(
+            [
+                "curl",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                str(max(1, int(timeout))),
+                url,
+                "-H",
+                "accept: application/dns-json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise NameResolutionError(f"DoH lookup failed for {host}: {proc.stderr.strip()}")
+        payload = json.loads(proc.stdout)
+    return [
+        str(row["data"])
+        for row in payload.get("Answer", [])
+        if int(row.get("type") or 0) == 1 and row.get("data")
+    ]
+
+
+def _host_from_url(url: str) -> str | None:
+    return urlparse(url).hostname
+
+
+def _format_resolved_addresses(addresses: list[str]) -> str:
+    return ",".join(addresses)
+
+
+def _select_resolve_ip(resolve_ip: str | None, *, attempt: int, salt: int = 0) -> str | None:
+    if not resolve_ip:
+        return None
+    addresses = [item.strip() for item in resolve_ip.split(",") if item.strip()]
+    if not addresses:
+        return None
+    return addresses[(max(1, int(attempt)) - 1 + salt) % len(addresses)]
 
 
 def _part_ranges(total_size: int, part_size: int) -> list[tuple[int, int, int]]:
@@ -199,6 +255,7 @@ def _download_part_to_file(
     split_after_retries: int = DEFAULT_SPLIT_AFTER_RETRIES,
     min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
     transport: str = DEFAULT_TRANSPORT,
+    resolve_ip: str | None = None,
 ) -> int:
     expected_size = end - start + 1
     if transport == "curl":
@@ -211,6 +268,7 @@ def _download_part_to_file(
             retries=retries,
             part_timeout=part_timeout,
             retry_backoff=retry_backoff,
+            resolve_ip=resolve_ip,
         )
     headers = {"Range": f"bytes={start}-{end}"}
     last_error: Exception | None = None
@@ -332,7 +390,9 @@ def _resolve_redirect_url_with_curl(
     timeout: int = DEFAULT_REDIRECT_TIMEOUT,
     retries: int = DEFAULT_REDIRECT_RETRIES,
     retry_backoff: float = DEFAULT_RETRY_BACKOFF,
+    resolve_ip: str | None = None,
 ) -> str:
+    host = _host_from_url(url)
     cmd = [
         "curl",
         "--silent",
@@ -344,7 +404,11 @@ def _resolve_redirect_url_with_curl(
     ]
     last_error: RuntimeError | None = None
     for attempt in range(1, max(1, int(retries)) + 1):
-        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        selected_ip = _select_resolve_ip(resolve_ip, attempt=attempt)
+        attempt_cmd = list(cmd)
+        if host and selected_ip:
+            attempt_cmd[1:1] = ["--resolve", f"{host}:443:{selected_ip}"]
+        proc = subprocess.run(attempt_cmd, check=False, capture_output=True, text=True)
         if proc.returncode == 0:
             for line in proc.stdout.splitlines():
                 name, sep, value = line.partition(":")
@@ -372,6 +436,7 @@ def _download_part_to_file_curl(
     retries: int,
     part_timeout: int,
     retry_backoff: float = DEFAULT_RETRY_BACKOFF,
+    resolve_ip: str | None = None,
 ) -> int:
     expected_size = end - start + 1
     last_error: Exception | None = None
@@ -380,6 +445,7 @@ def _download_part_to_file_curl(
             "curl",
             "--fail",
             "--location",
+            "--http1.1",
             "--silent",
             "--show-error",
             "--max-time",
@@ -388,6 +454,10 @@ def _download_part_to_file_curl(
             f"{start}-{end}",
             url,
         ]
+        host = _host_from_url(url)
+        selected_ip = _select_resolve_ip(resolve_ip, attempt=attempt, salt=start // max(1, DEFAULT_PART_SIZE))
+        if host and selected_ip:
+            cmd[1:1] = ["--resolve", f"{host}:443:{selected_ip}"]
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert proc.stdout is not None
@@ -404,14 +474,21 @@ def _download_part_to_file_curl(
                     total += len(chunk)
             stderr = proc.stderr.read().decode("utf-8", errors="replace") if proc.stderr else ""
             returncode = proc.wait()
+            if total == expected_size:
+                if returncode != 0:
+                    print(
+                        f"curl range {start}-{end} wrote all {total} bytes before exiting {returncode}; "
+                        "accepting completed range",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                return total
             if returncode != 0:
                 message = f"curl exited {returncode}: {stderr.strip()}"
                 if returncode == 6 or _is_name_resolution_error(message):
                     raise NameResolutionError(message)
                 raise RuntimeError(message)
-            if total != expected_size:
-                raise OSError(f"curl range {start}-{end} wrote {total} bytes; expected {expected_size}.")
-            return total
+            raise OSError(f"curl range {start}-{end} wrote {total} bytes; expected {expected_size}.")
         except Exception as exc:
             last_error = exc
             print(
@@ -490,6 +567,7 @@ def _download_ranges(
     split_after_retries: int,
     min_split_size: int,
     transport: str = DEFAULT_TRANSPORT,
+    resolve_ip: str | None = None,
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
     temp_dest = dest.with_suffix(dest.suffix + ".tmp")
@@ -541,6 +619,7 @@ def _download_ranges(
                 split_after_retries=split_after_retries,
                 min_split_size=min_split_size,
                 transport=transport,
+                resolve_ip=resolve_ip,
             ): (index, start, end)
             for index, start, end in pending_ranges
         }
@@ -586,18 +665,37 @@ def download(
     resolve_redirect: bool = False,
     redirect_timeout: int = DEFAULT_REDIRECT_TIMEOUT,
     redirect_retries: int = DEFAULT_REDIRECT_RETRIES,
+    doh_resolve: bool = False,
+    doh_endpoint: str = DEFAULT_DOH_ENDPOINT,
 ) -> None:
     url = _entry_url(entry)
+    resolve_ip: str | None = None
+    if doh_resolve:
+        host = _host_from_url(url)
+        if host:
+            addresses = _resolve_host_with_doh(host, endpoint=doh_endpoint)
+            if addresses:
+                resolve_ip = _format_resolved_addresses(addresses)
+                print(f"Resolved {host} with DNS-over-HTTPS: {resolve_ip}", flush=True)
     if resolve_redirect:
         resolved_url = _resolve_redirect_url_with_curl(
             url,
             timeout=redirect_timeout,
             retries=redirect_retries,
             retry_backoff=retry_backoff,
+            resolve_ip=resolve_ip,
         )
         if resolved_url != url:
             print(f"Resolved download redirect: {url} -> {resolved_url}", flush=True)
             url = resolved_url
+            resolve_ip = None
+            if doh_resolve:
+                host = _host_from_url(url)
+                if host:
+                    addresses = _resolve_host_with_doh(host, endpoint=doh_endpoint)
+                    if addresses:
+                        resolve_ip = _format_resolved_addresses(addresses)
+                        print(f"Resolved {host} with DNS-over-HTTPS: {resolve_ip}", flush=True)
     dest.parent.mkdir(parents=True, exist_ok=True)
     expected_size = entry.get("size_bytes")
     expected_checksum = entry.get("checksum")
@@ -619,8 +717,9 @@ def download(
             retry_backoff=retry_backoff,
             split_after_retries=split_after_retries,
             min_split_size=min_split_size,
-        transport=transport,
-    )
+            transport=transport,
+            resolve_ip=resolve_ip,
+        )
     else:
         total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
 
@@ -709,6 +808,17 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_RETRIES", str(DEFAULT_REDIRECT_RETRIES))),
         help="Retry attempts for the curl HEAD redirect probe.",
     )
+    parser.add_argument(
+        "--doh-resolve",
+        action="store_true",
+        default=os.environ.get("PDEBENCH_DOWNLOAD_DOH_RESOLVE", "0") == "1",
+        help="Resolve download hosts through DNS-over-HTTPS and pass the address to curl --resolve.",
+    )
+    parser.add_argument(
+        "--doh-endpoint",
+        default=os.environ.get("PDEBENCH_DOWNLOAD_DOH_ENDPOINT", DEFAULT_DOH_ENDPOINT),
+        help="DNS-over-HTTPS endpoint used by --doh-resolve.",
+    )
     return parser.parse_args()
 
 
@@ -732,6 +842,8 @@ def main() -> None:
         resolve_redirect=bool(args.resolve_redirect),
         redirect_timeout=max(1, int(args.redirect_timeout)),
         redirect_retries=max(1, int(args.redirect_retries)),
+        doh_resolve=bool(args.doh_resolve),
+        doh_endpoint=str(args.doh_endpoint),
     )
 
 

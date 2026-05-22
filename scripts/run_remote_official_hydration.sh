@@ -37,6 +37,7 @@ EXECUTE_DOWNLOADS=${EXECUTE_DOWNLOADS:-1}
 SEQUENTIAL_HYDRATION=${SEQUENTIAL_HYDRATION:-0}
 SEQUENTIAL_CLEANUP_RAW=${SEQUENTIAL_CLEANUP_RAW:-1}
 SEQUENTIAL_USE_EXISTING_RAW=${SEQUENTIAL_USE_EXISTING_RAW:-0}
+SEQUENTIAL_RESUME=${SEQUENTIAL_RESUME:-0}
 RUN_POST_VALIDATION_TEST=${RUN_POST_VALIDATION_TEST:-0}
 EXECUTE_TEST=${EXECUTE_TEST:-0}
 PUBLISH_ARTIFACTS=${PUBLISH_ARTIFACTS:-0}
@@ -144,8 +145,12 @@ if [ "$SEQUENTIAL_HYDRATION" -eq 1 ]; then
     python scripts/hydrate_official_advection_source_sequential.py
     --plan-json "$PLAN_JSON"
     --output-json "$SEQUENTIAL_HYDRATION_JSON"
-    --overwrite
   )
+  if [ "$SEQUENTIAL_RESUME" -eq 1 ]; then
+    sequential_args+=(--resume)
+  else
+    sequential_args+=(--overwrite)
+  fi
   if [ "$EXECUTE" -eq 1 ]; then
     sequential_args+=(--execute)
   fi

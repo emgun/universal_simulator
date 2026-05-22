@@ -191,6 +191,7 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
         split_after_retries,
         min_split_size,
         transport,
+        resolve_ip=None,
     ):
         with open(dest, "r+b") as fh:
             fh.seek(start)
@@ -237,6 +238,7 @@ def test_download_ranges_resumes_completed_temp_ranges(monkeypatch, tmp_path: Pa
         split_after_retries,
         min_split_size,
         transport,
+        resolve_ip=None,
     ):
         calls.append((start, end))
         with open(dest, "r+b") as fh:
@@ -407,6 +409,45 @@ def test_download_part_to_file_can_use_curl_transport(monkeypatch, tmp_path: Pat
     assert "2-5" in seen_cmds[0]
 
 
+def test_curl_transport_accepts_full_range_before_nonzero_exit(monkeypatch, tmp_path: Path):
+    class Stdout:
+        def __init__(self):
+            self.chunks = iter([b"ab", b"cd", b""])
+
+        def read(self, chunk_size):
+            return next(self.chunks)
+
+    class Stderr:
+        def read(self):
+            return b"operation timed out"
+
+    class Proc:
+        def __init__(self, cmd, stdout=None, stderr=None):
+            self.stdout = Stdout()
+            self.stderr = Stderr()
+
+        def wait(self):
+            return 28
+
+    monkeypatch.setattr(downloader.subprocess, "Popen", Proc)
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"\0" * 4)
+
+    total = downloader._download_part_to_file_curl(
+        "https://example.test/file",
+        dest,
+        0,
+        3,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+        retry_backoff=0,
+    )
+
+    assert total == 4
+    assert dest.read_bytes() == b"abcd"
+
+
 def test_download_part_to_file_auto_falls_back_to_curl_on_name_resolution(monkeypatch, tmp_path: Path):
     class Response:
         status_code = 206
@@ -504,7 +545,7 @@ def test_resolve_redirect_url_with_curl_retries_transient_failure(monkeypatch):
 def test_download_resolves_redirect_before_ranged_curl_download(monkeypatch, tmp_path: Path):
     used_urls = []
 
-    def fake_resolve(url, *, timeout, retries, retry_backoff):
+    def fake_resolve(url, *, timeout, retries, retry_backoff, resolve_ip=None):
         assert url == "https://darus.example/file"
         return "https://objects.example/file?signature=abc"
 
@@ -522,6 +563,7 @@ def test_download_resolves_redirect_before_ranged_curl_download(monkeypatch, tmp
         split_after_retries,
         min_split_size,
         transport,
+        resolve_ip=None,
     ):
         used_urls.append(url)
         dest.write_bytes(b"abcd")
@@ -567,3 +609,84 @@ def test_download_ranges_fails_fast_on_name_resolution_error(monkeypatch, tmp_pa
         )
 
     assert len(calls) < 4
+
+
+def test_resolve_host_with_doh_parses_a_records(monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "Answer": [
+                    {"type": 28, "data": "2001:db8::1"},
+                    {"type": 1, "data": "129.69.5.99"},
+                    {"type": 1, "data": "129.69.5.100"},
+                ]
+            }
+
+    def fake_get(url, headers=None, timeout=None):
+        assert "name=s3.tik.uni-stuttgart.de" in url
+        return Response()
+
+    monkeypatch.setattr(downloader.requests, "get", fake_get)
+
+    assert downloader._resolve_host_with_doh("s3.tik.uni-stuttgart.de") == ["129.69.5.99", "129.69.5.100"]
+
+
+def test_resolve_host_with_doh_falls_back_to_curl(monkeypatch):
+    def fake_get(url, headers=None, timeout=None):
+        raise downloader.requests.ConnectionError("blocked")
+
+    class Proc:
+        returncode = 0
+        stdout = '{"Answer":[{"type":1,"data":"129.69.7.87"}]}'
+        stderr = ""
+
+    monkeypatch.setattr(downloader.requests, "get", fake_get)
+    monkeypatch.setattr(downloader.subprocess, "run", lambda *args, **kwargs: Proc())
+
+    assert downloader._resolve_host_with_doh("darus.uni-stuttgart.de") == ["129.69.7.87"]
+
+
+def test_curl_command_includes_resolve_ip(monkeypatch, tmp_path: Path):
+    seen_cmds = []
+
+    class Stdout:
+        def __init__(self):
+            self.chunks = iter([b"ab", b"cd", b""])
+
+        def read(self, chunk_size):
+            return next(self.chunks)
+
+    class Stderr:
+        def read(self):
+            return b""
+
+    class Proc:
+        def __init__(self, cmd, stdout=None, stderr=None):
+            seen_cmds.append(cmd)
+            self.stdout = Stdout()
+            self.stderr = Stderr()
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(downloader.subprocess, "Popen", Proc)
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"\0" * 4)
+
+    downloader._download_part_to_file_curl(
+        "https://s3.tik.uni-stuttgart.de/file",
+        dest,
+        0,
+        3,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+        retry_backoff=0,
+        resolve_ip="129.69.5.99",
+    )
+
+    assert "--resolve" in seen_cmds[0]
+    assert "s3.tik.uni-stuttgart.de:443:129.69.5.99" in seen_cmds[0]

@@ -137,6 +137,61 @@ def test_sequential_hydration_can_use_existing_raw_without_download(monkeypatch,
         assert handle["data"].shape[0] == 2
 
 
+def test_sequential_hydration_resume_skips_completed_sources(monkeypatch, tmp_path):
+    source_file = tmp_path / "raw" / "1D/Advection/Train/b.hdf5"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(source_file, "w") as handle:
+        handle.create_dataset("u", data=np.full((3, 4, 8), 2, dtype=np.float32))
+    out_path = tmp_path / "hydrated" / "advection1d_train.h5"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(out_path, "w") as handle:
+        handle.create_dataset("data", data=np.ones((2, 4, 8, 1), dtype=np.float32), maxshape=(None, 4, 8, 1))
+        handle.create_dataset("source_file_index", data=np.asarray([0, 0], dtype=np.int32), maxshape=(None,))
+        handle.create_dataset("source_sample_index", data=np.asarray([0, 1], dtype=np.int64), maxshape=(None,))
+    plan = {
+        "raw_out": str(tmp_path / "raw"),
+        "hydrated_source_root": str(tmp_path / "hydrated"),
+        "samples_per_file": 2,
+        "remote_entries": [
+            {"path": "1D/Advection/Train/a.hdf5", "size_bytes": 10},
+            {"path": "1D/Advection/Train/b.hdf5", "size_bytes": source_file.stat().st_size},
+        ],
+    }
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+    def fake_run(command, check):
+        assert command[2] == "1D/Advection/Train/b.hdf5"
+
+        class Completed:
+            returncode = 0
+
+        return Completed()
+
+    monkeypatch.setattr("scripts.hydrate_official_advection_source_sequential.subprocess.run", fake_run)
+
+    record = hydrate_sequential(
+        Namespace(
+            plan_json=str(plan_path),
+            raw_out=None,
+            hydrated_source_root=None,
+            samples_per_file=None,
+            execute=True,
+            execute_downloads=True,
+            use_existing_raw=False,
+            cleanup_raw=False,
+            overwrite=False,
+            resume=True,
+        )
+    )
+
+    assert record["status"] == "executed"
+    assert record["records"][0]["resume_skipped"] is True
+    assert record["records"][1]["append_executed"] is True
+    with h5py.File(out_path, "r") as handle:
+        assert handle["source_file_index"][:].tolist() == [0, 0, 1, 1]
+
+
 def test_sequential_hydration_blocks_when_existing_raw_is_missing(tmp_path):
     plan = {
         "raw_out": str(tmp_path / "raw"),

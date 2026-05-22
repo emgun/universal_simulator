@@ -2599,3 +2599,10 @@ Follow-up S3 DNS fail-fast hardening (2026-05-22):
 - Tried using that pre-signed S3 URL directly for `1D_Advection_Sols_beta0.1.hdf5`; every ranged `curl` part failed resolving `s3.tik.uni-stuttgart.de`, so no complete official raw file was staged.
 - Added `NameResolutionError` handling to `scripts/download_pdebench_file.py` so ranged downloads cancel pending futures and fail fast on host-resolution failures instead of waiting through every pre-submitted range.
 - This does not change benchmark evidence: downloads still require official URL/path, expected size, and MD5 checksum; the change only makes failed official data attempts cheaper and clearer.
+
+Follow-up official hydration achieved (2026-05-22):
+- Restored the local official sequential path without using Vast by adding DNS-over-HTTPS `curl --resolve` support, Dataverse redirect reuse, HTTP/1.1 ranged downloads, multi-A-record rotation for `s3.tik.uni-stuttgart.de`, and a resumable sequential hydrator mode.
+- Completed all eight official Advection train raw files one at a time, appended 48 samples per source file into `data/pdebench_official_advection_hydrated/advection1d_train.h5`, and cleaned raw staging back down to the light artifacts.
+- Ran the official train/val shard and source-conditioned transport gate. Validation passed with `nrmse=0.0028383232393941124` versus SOTA guard reference `0.30780652221851373`.
+- After the audit reached `literal_test_ready`, ran exactly one guarded held-out test through `scripts/run_official_hydrated_post_validation_test.py`; the ledger recorded one result with test `nrmse=0.0017648902922571088`.
+- Re-ran `scripts/run_official_transport_objective_status.sh`; canonical status is now `literal_achieved` with no blockers.

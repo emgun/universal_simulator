@@ -87,6 +87,20 @@ def _mark_complete(out_path: Path, entries: list[dict[str, Any]]) -> None:
         out_h5.attrs["sequential_hydration_complete"] = True
 
 
+def _completed_source_indices(out_path: Path, sample_count: int) -> set[int]:
+    if not out_path.exists():
+        return set()
+    with h5py.File(out_path, "r") as out_h5:
+        if "source_file_index" not in out_h5:
+            return set()
+        source_file_index = np.asarray(out_h5["source_file_index"][:], dtype=np.int64)
+    return {
+        int(index)
+        for index in np.unique(source_file_index)
+        if int((source_file_index == index).sum()) == int(sample_count)
+    }
+
+
 def _append_samples(
     *,
     source_path: Path,
@@ -152,6 +166,7 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
     out_root = Path(args.hydrated_source_root or plan.get("hydrated_source_root") or "data/pdebench_official_advection_hydrated")
     out_path = out_root / "advection1d_train.h5"
     sample_count = int(args.samples_per_file or plan.get("samples_per_file") or 0)
+    resume = bool(getattr(args, "resume", False))
     blockers: list[str] = []
     records: list[dict[str, Any]] = []
 
@@ -159,15 +174,20 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append("plan has no remote_entries")
     if sample_count <= 0:
         blockers.append("plan has no positive samples_per_file")
-    if out_path.exists() and not args.overwrite and args.execute:
+    if out_path.exists() and not args.overwrite and not resume and args.execute:
         blockers.append(f"{out_path} exists; pass --overwrite to replace it")
     if not args.execute_downloads and not args.use_existing_raw:
         blockers.append("sequential hydration requires --execute-downloads")
 
     should_execute = bool(args.execute and not blockers)
     source_paths_initialized = False
+    completed_source_indices = _completed_source_indices(out_path, sample_count) if resume else set()
+
     if should_execute and args.overwrite:
         _initialize_source_attrs(out_path, entries, overwrite=True)
+        source_paths_initialized = True
+    elif should_execute and not resume:
+        _initialize_source_attrs(out_path, entries, overwrite=False)
         source_paths_initialized = True
     elif should_execute:
         _initialize_source_attrs(out_path, entries, overwrite=False)
@@ -186,6 +206,10 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
             "raw_removed": False,
         }
         if should_execute:
+            if resume and index in completed_source_indices:
+                record["resume_skipped"] = True
+                records.append(record)
+                continue
             if args.use_existing_raw:
                 blocker = _raw_file_blocker(raw_path, entry)
                 if blocker:
@@ -236,6 +260,8 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
         "execute_requested": bool(args.execute),
         "execute_downloads": bool(args.execute_downloads),
         "use_existing_raw": bool(args.use_existing_raw),
+        "resume": resume,
+        "resume_completed_source_indices": sorted(completed_source_indices),
         "source_paths_initialized_before_download": source_paths_initialized,
         "records": records,
         "disk_strategy": (
@@ -261,6 +287,11 @@ def main() -> None:
     )
     parser.add_argument("--cleanup-raw", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Keep an existing partial output and skip source files already appended with the requested sample count.",
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_sequential_hydration_run.json",

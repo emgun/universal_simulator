@@ -1833,3 +1833,11 @@ S3 DNS fail-fast hardening:
 - A live attempt with a captured pre-signed S3 URL for beta0.1 also failed because `s3.tik.uni-stuttgart.de` did not resolve during ranged download.
 - `scripts/download_pdebench_file.py` now treats curl host-resolution failures as `NameResolutionError`, cancels pending ranged futures, and fails fast.
 - The official route remains blocked until Darus/S3 DNS is stable enough to resolve all required URLs or the raw files are staged from another environment.
+
+Official hydrated benchmark achieved:
+
+- The local route ultimately succeeded using DNS-over-HTTPS backed `curl --resolve`, Dataverse redirect reuse, HTTP/1.1 ranged downloads, S3 A-record rotation, and `SEQUENTIAL_RESUME=1` for partial official hydration recovery.
+- `reports/research/sota_loop/official_advection_sequential_hydration_run.json` is `status=executed`: all eight official Advection train files were appended with 48 samples each and raw staging was cleaned.
+- `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` passed validation with `nrmse=0.0028383232393941124` against reference `0.30780652221851373`; the locked train-fitted source shift map is `{0: 1.0, 1: 2.0, 2: 4.0, 3: 7.0, 4: 10.0, 5: 20.5, 6: 41.0, 7: 71.5}`.
+- Exactly one held-out test was then run after `literal_test_ready`; `reports/research/sota_loop/official_hydrated_post_validation_test_run.json` records `test_result_count=1` and test `nrmse=0.0017648902922571088`.
+- `reports/research/sota_loop/transport_objective_status.json` now reports `status=literal_achieved` with no blockers. Do not rerun the held-out test unless a future plan explicitly changes the ledger policy and benchmark protocol.
