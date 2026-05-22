@@ -31,6 +31,21 @@ def _status(record: dict[str, Any] | None) -> str | None:
     return str(record.get("status")) if record and record.get("status") is not None else None
 
 
+READY_STATUSES = {
+    "ready",
+    "valid",
+    "ready_for_download",
+    "ready_for_explicit_hydration",
+    "ready_for_remote_hydration",
+    "ready_for_sequential_download",
+    "storage_root_available",
+}
+
+
+def _is_blocking_status(status: str | None) -> bool:
+    return bool(status and status not in READY_STATUSES)
+
+
 def _gate_validation_passed(record: dict[str, Any] | None) -> bool:
     guard = ((record or {}).get("fit") or {}).get("validation_guard") or {}
     return bool(guard.get("passed"))
@@ -122,17 +137,17 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
             blockers.append(f"train-only identifiability audit status is {identifiability_status}")
         if hydration_status:
             blockers.append(f"transport data hydration status is {hydration_status}")
-        if hydration_plan_status:
+        if _is_blocking_status(hydration_plan_status):
             blockers.append(f"official hydration plan status is {hydration_plan_status}")
-        if hydration_plan_validation_status:
+        if _is_blocking_status(hydration_plan_validation_status):
             blockers.append(f"official hydration plan validation status is {hydration_plan_validation_status}")
-        if hydration_plan_run_status:
+        if _is_blocking_status(hydration_plan_run_status):
             blockers.append(f"official hydration plan run status is {hydration_plan_run_status}")
-        if hydration_preflight_status:
+        if _is_blocking_status(hydration_preflight_status):
             blockers.append(f"official hydration preflight status is {hydration_preflight_status}")
-        if hydration_storage_status:
+        if _is_blocking_status(hydration_storage_status):
             blockers.append(f"official hydration storage status is {hydration_storage_status}")
-        if remote_hydration_plan_status:
+        if _is_blocking_status(remote_hydration_plan_status):
             blockers.append(f"remote official hydration plan status is {remote_hydration_plan_status}")
         if execution_readiness_status:
             blockers.append(f"official execution readiness status is {execution_readiness_status}")

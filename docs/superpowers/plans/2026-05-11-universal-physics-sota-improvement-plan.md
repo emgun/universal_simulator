@@ -1759,3 +1759,10 @@ Fractional sample-mode refinement:
 - `scripts/run_source_conditioned_transport_shift_gate.py` now applies fractional periodic refinement inside each train-sample vote, not only as a final group-level refinement after integer sample voting.
 - This better matches the shift-canonicalization direction from recent equivariant neural-operator work while remaining benchmark-clean: no validation fitting, no test-shard access during train/val hydration, and the locked source shift map is still train-derived.
 - The current execution route is still blocked externally: live readiness reports unresolved `console.vast.ai` and `darus.uni-stuttgart.de`, plus about `3282300928` local free bytes versus the `9467911994` byte sequential requirement.
+
+Sequential hydration preflight alignment:
+
+- Local disk later improved to about `45878403072` free bytes, enough for the one-file sequential requirement but still below the all-files raw requirement.
+- `scripts/preflight_transport_hydration.py` now supports `--mode all|sequential` and defaults to sequential mode because the active hydration path downloads/appends one official Advection file at a time.
+- `scripts/recommend_transport_hydration_storage.py` uses the same mode, so storage recommendation now distinguishes full raw download storage from sequential hydration storage.
+- `scripts/audit_transport_objective_status.py` no longer reports ready evidence statuses as blockers. The remaining live blockers are unresolved `darus.uni-stuttgart.de` for local official data access, unresolved `console.vast.ai` for remote launch, and the missing official hydrated train/val gate artifact.

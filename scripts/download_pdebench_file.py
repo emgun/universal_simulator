@@ -6,6 +6,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -23,6 +24,7 @@ DEFAULT_RETRY_BACKOFF = 15.0
 DEFAULT_TIMEOUT = (30, 60)
 DEFAULT_SPLIT_AFTER_RETRIES = 2
 DEFAULT_MIN_SPLIT_SIZE = 8 * 1024 * 1024
+DEFAULT_TRANSPORT = "auto"
 
 
 def load_manifest(path: Path) -> list[dict]:
@@ -182,8 +184,20 @@ def _download_part_to_file(
     retry_backoff: float = DEFAULT_RETRY_BACKOFF,
     split_after_retries: int = DEFAULT_SPLIT_AFTER_RETRIES,
     min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
+    transport: str = DEFAULT_TRANSPORT,
 ) -> int:
     expected_size = end - start + 1
+    if transport == "curl":
+        return _download_part_to_file_curl(
+            url,
+            dest,
+            start,
+            end,
+            chunk_size=chunk_size,
+            retries=retries,
+            part_timeout=part_timeout,
+            retry_backoff=retry_backoff,
+        )
     headers = {"Range": f"bytes={start}-{end}"}
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
@@ -254,6 +268,7 @@ def _download_part_to_file(
                     retry_backoff=retry_backoff,
                     split_after_retries=split_after_retries,
                     min_split_size=min_split_size,
+                    transport=transport,
                 )
                 second = _download_part_to_file(
                     url,
@@ -266,8 +281,91 @@ def _download_part_to_file(
                     retry_backoff=retry_backoff,
                     split_after_retries=split_after_retries,
                     min_split_size=min_split_size,
+                    transport=transport,
                 )
                 return first + second
+            if transport == "auto" and _is_name_resolution_error(exc):
+                print(
+                    f"requests could not resolve host for range {start}-{end}; retrying range with curl transport",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return _download_part_to_file_curl(
+                    url,
+                    dest,
+                    start,
+                    end,
+                    chunk_size=chunk_size,
+                    retries=retries,
+                    part_timeout=part_timeout,
+                    retry_backoff=retry_backoff,
+                )
+            if attempt < retries and retry_backoff > 0:
+                time.sleep(retry_backoff * (2 ** (attempt - 1)))
+
+    assert last_error is not None
+    raise last_error
+
+
+def _is_name_resolution_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "name resolution" in text or "failed to resolve" in text or "nodename nor servname" in text
+
+
+def _download_part_to_file_curl(
+    url: str,
+    dest: Path,
+    start: int,
+    end: int,
+    *,
+    chunk_size: int,
+    retries: int,
+    part_timeout: int,
+    retry_backoff: float = DEFAULT_RETRY_BACKOFF,
+) -> int:
+    expected_size = end - start + 1
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        cmd = [
+            "curl",
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            str(max(1, int(part_timeout))),
+            "--range",
+            f"{start}-{end}",
+            url,
+        ]
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            assert proc.stdout is not None
+            total = 0
+            offset = start
+            with open(dest, "r+b") as fh:
+                while True:
+                    chunk = proc.stdout.read(chunk_size)
+                    if not chunk:
+                        break
+                    fh.seek(offset)
+                    fh.write(chunk)
+                    offset += len(chunk)
+                    total += len(chunk)
+            stderr = proc.stderr.read().decode("utf-8", errors="replace") if proc.stderr else ""
+            returncode = proc.wait()
+            if returncode != 0:
+                raise RuntimeError(f"curl exited {returncode}: {stderr.strip()}")
+            if total != expected_size:
+                raise OSError(f"curl range {start}-{end} wrote {total} bytes; expected {expected_size}.")
+            return total
+        except Exception as exc:
+            last_error = exc
+            print(
+                f"curl part {start}-{end} failed on attempt {attempt}/{retries}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
             if attempt < retries and retry_backoff > 0:
                 time.sleep(retry_backoff * (2 ** (attempt - 1)))
 
@@ -338,6 +436,7 @@ def _download_ranges(
     retry_backoff: float,
     split_after_retries: int,
     min_split_size: int,
+    transport: str = DEFAULT_TRANSPORT,
 ) -> int:
     ranges = _part_ranges(expected_size, part_size)
     temp_dest = dest.with_suffix(dest.suffix + ".tmp")
@@ -388,6 +487,7 @@ def _download_ranges(
                 retry_backoff=retry_backoff,
                 split_after_retries=split_after_retries,
                 min_split_size=min_split_size,
+                transport=transport,
             ): (index, start, end)
             for index, start, end in pending_ranges
         }
@@ -424,6 +524,7 @@ def download(
     retry_backoff: float = DEFAULT_RETRY_BACKOFF,
     split_after_retries: int = DEFAULT_SPLIT_AFTER_RETRIES,
     min_split_size: int = DEFAULT_MIN_SPLIT_SIZE,
+    transport: str = DEFAULT_TRANSPORT,
 ) -> None:
     file_id = entry["file_id"]
     url = DATAFILE_URL.format(file_id=file_id)
@@ -448,6 +549,7 @@ def download(
             retry_backoff=retry_backoff,
             split_after_retries=split_after_retries,
             min_split_size=min_split_size,
+            transport=transport,
         )
     else:
         total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
@@ -513,6 +615,12 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get("PDEBENCH_DOWNLOAD_MIN_SPLIT_SIZE_MIB", "8")),
         help="Smallest ranged part size, in MiB, eligible for timeout splitting",
     )
+    parser.add_argument(
+        "--transport",
+        choices=("auto", "requests", "curl"),
+        default=os.environ.get("PDEBENCH_DOWNLOAD_TRANSPORT", DEFAULT_TRANSPORT),
+        help="HTTP transport for ranged downloads. auto falls back to curl when requests cannot resolve the host.",
+    )
     return parser.parse_args()
 
 
@@ -532,6 +640,7 @@ def main() -> None:
         retry_backoff=max(0.0, args.retry_backoff),
         split_after_retries=max(1, args.split_after_retries),
         min_split_size=max(1, args.min_split_size_mib) * 1024 * 1024,
+        transport=args.transport,
     )
 
 

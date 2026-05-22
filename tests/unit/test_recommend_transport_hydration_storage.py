@@ -24,6 +24,7 @@ def test_storage_recommendation_finds_viable_tmp_root(tmp_path):
             plan_json=str(path),
             candidate_root=[str(tmp_path)],
             safety_factor=1.0,
+            mode="all",
             output_json=str(tmp_path / "storage.json"),
         )
     )
@@ -42,6 +43,7 @@ def test_storage_recommendation_blocks_when_no_candidate_has_space(tmp_path):
             plan_json=str(path),
             candidate_root=[str(tmp_path)],
             safety_factor=1.0,
+            mode="all",
             output_json=str(tmp_path / "storage.json"),
         )
     )
@@ -49,3 +51,24 @@ def test_storage_recommendation_blocks_when_no_candidate_has_space(tmp_path):
     assert record["status"] == "external_or_freed_space_required"
     assert record["recommended_root"] is None
     assert record["blockers"]
+
+
+def test_storage_recommendation_sequential_mode_uses_largest_file(tmp_path):
+    plan = create_plan(plan_args(tmp_path))
+    plan["estimated_download_bytes"] = 10**30
+    plan["remote_entries"] = [{"path": "a", "size_bytes": 1}]
+    path = _write_plan(tmp_path, plan)
+
+    record = recommend_storage(
+        Namespace(
+            plan_json=str(path),
+            candidate_root=[str(tmp_path)],
+            safety_factor=1.0,
+            mode="sequential",
+            output_json=str(tmp_path / "storage.json"),
+        )
+    )
+
+    assert record["status"] == "storage_root_available"
+    assert record["required_download_bytes"] == 1
+    assert record["mode"] == "sequential"

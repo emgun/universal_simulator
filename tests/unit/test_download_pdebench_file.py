@@ -178,6 +178,7 @@ def test_download_ranges_uses_single_temp_file(monkeypatch, tmp_path: Path):
         retry_backoff,
         split_after_retries,
         min_split_size,
+        transport,
     ):
         with open(dest, "r+b") as fh:
             fh.seek(start)
@@ -223,6 +224,7 @@ def test_download_ranges_resumes_completed_temp_ranges(monkeypatch, tmp_path: Pa
         retry_backoff,
         split_after_retries,
         min_split_size,
+        transport,
     ):
         calls.append((start, end))
         with open(dest, "r+b") as fh:
@@ -346,3 +348,88 @@ def test_download_part_to_file_splits_repeated_timeout(monkeypatch, tmp_path: Pa
     assert total == 8
     assert seen_ranges == ["bytes=0-7", "bytes=0-7", "bytes=0-3", "bytes=4-7"]
     assert dest.read_bytes() == b"AAAAEEEE"
+
+
+def test_download_part_to_file_can_use_curl_transport(monkeypatch, tmp_path: Path):
+    seen_cmds = []
+
+    class Stdout:
+        def __init__(self):
+            self.chunks = iter([b"ab", b"cd", b""])
+
+        def read(self, chunk_size):
+            return next(self.chunks)
+
+    class Stderr:
+        def read(self):
+            return b""
+
+    class Proc:
+        def __init__(self, cmd, stdout=None, stderr=None):
+            seen_cmds.append(cmd)
+            self.stdout = Stdout()
+            self.stderr = Stderr()
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(downloader.subprocess, "Popen", Proc)
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"\0" * 8)
+
+    total = downloader._download_part_to_file(
+        "https://example.test/file",
+        dest,
+        2,
+        5,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+        retry_backoff=0,
+        transport="curl",
+    )
+
+    assert total == 4
+    assert dest.read_bytes() == b"\0\0abcd\0\0"
+    assert "--range" in seen_cmds[0]
+    assert "2-5" in seen_cmds[0]
+
+
+def test_download_part_to_file_auto_falls_back_to_curl_on_name_resolution(monkeypatch, tmp_path: Path):
+    class Response:
+        status_code = 206
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size):
+            yield b""
+
+    def fake_get(url, headers=None, stream=True, timeout=None):
+        raise downloader.requests.ConnectionError("Failed to resolve 'example.test'")
+
+    def fake_curl(url, dest, start, end, *, chunk_size, retries, part_timeout, retry_backoff):
+        with open(dest, "r+b") as fh:
+            fh.seek(start)
+            fh.write(b"ok")
+        return end - start + 1
+
+    monkeypatch.setattr(downloader.requests, "get", fake_get)
+    monkeypatch.setattr(downloader, "_download_part_to_file_curl", fake_curl)
+    dest = tmp_path / "data.h5.tmp"
+    dest.write_bytes(b"\0" * 2)
+
+    total = downloader._download_part_to_file(
+        "https://example.test/file",
+        dest,
+        0,
+        1,
+        chunk_size=2,
+        retries=1,
+        part_timeout=30,
+        retry_backoff=0,
+        transport="auto",
+    )
+
+    assert total == 2
+    assert dest.read_bytes() == b"ok"

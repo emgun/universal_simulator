@@ -44,8 +44,19 @@ def _candidate_usage(path: str, required_free_bytes: int) -> dict[str, Any]:
 
 def recommend_storage(args: argparse.Namespace) -> dict[str, Any]:
     plan = _load_json(args.plan_json)
-    remaining_bytes = int(plan.get("estimated_download_bytes") or 0)
-    required_free_bytes = int(remaining_bytes * float(args.safety_factor))
+    total_download_bytes = int(plan.get("estimated_download_bytes") or 0)
+    largest_file_bytes = max(
+        (int(entry.get("size_bytes") or 0) for entry in plan.get("remote_entries", [])),
+        default=total_download_bytes,
+    )
+    mode = str(getattr(args, "mode", "all"))
+    if mode == "sequential":
+        required_download_bytes = largest_file_bytes
+    elif mode == "all":
+        required_download_bytes = total_download_bytes
+    else:
+        raise ValueError(f"Unsupported storage recommendation mode: {mode}")
+    required_free_bytes = int(required_download_bytes * float(args.safety_factor))
     candidate_paths = args.candidate_root or [
         str(plan.get("raw_out") or "data/pdebench/raw"),
         "/private/tmp",
@@ -63,8 +74,11 @@ def recommend_storage(args: argparse.Namespace) -> dict[str, Any]:
             "free local disk space or provide a larger mounted volume and regenerate the hydration plan with that root",
         ],
         "plan_json": str(args.plan_json),
-        "remaining_download_bytes": remaining_bytes,
+        "remaining_download_bytes": total_download_bytes,
+        "largest_file_bytes": largest_file_bytes,
+        "required_download_bytes": required_download_bytes,
         "required_free_bytes": required_free_bytes,
+        "mode": mode,
         "safety_factor": float(args.safety_factor),
         "recommended_root": viable[0]["path"] if viable else None,
         "candidates": candidates,
@@ -86,6 +100,12 @@ def main() -> None:
     parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
     parser.add_argument("--candidate-root", action="append", default=None)
     parser.add_argument("--safety-factor", type=float, default=1.15)
+    parser.add_argument(
+        "--mode",
+        choices=("all", "sequential"),
+        default="sequential",
+        help="Recommend storage for all raw files or the largest file needed by sequential hydration.",
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_hydration_storage_recommendation.json",

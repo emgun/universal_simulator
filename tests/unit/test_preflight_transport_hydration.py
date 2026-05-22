@@ -20,6 +20,7 @@ def _args(path, tmp_path, *, safety_factor: float = 1.0):
         raw_out=str(tmp_path / "raw"),
         disk_root=str(tmp_path),
         safety_factor=safety_factor,
+        mode="all",
         output_json=str(tmp_path / "preflight.json"),
     )
 
@@ -62,3 +63,19 @@ def test_preflight_blocks_when_safety_factor_exceeds_free_space(tmp_path):
 
     assert record["status"] == "blocked_insufficient_disk"
     assert record["blockers"]
+
+
+def test_preflight_sequential_mode_requires_only_largest_missing_file(monkeypatch, tmp_path):
+    plan = create_plan(plan_args(tmp_path))
+    plan["raw_out"] = str(tmp_path / "raw")
+    plan_path = _write_plan(tmp_path, plan)
+    args = _args(plan_path, tmp_path)
+    args.mode = "sequential"
+
+    record = preflight(args)
+
+    assert record["status"] == "ready_for_sequential_download"
+    assert record["remaining_download_bytes"] == 300
+    assert record["largest_missing_file_bytes"] == 200
+    assert record["required_download_bytes"] == 200
+    assert record["mode"] == "sequential"

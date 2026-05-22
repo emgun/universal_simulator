@@ -35,6 +35,7 @@ def preflight(args: argparse.Namespace) -> dict[str, Any]:
 
     file_rows = []
     remaining_bytes = 0
+    largest_missing_file_bytes = 0
     for logical_path in selected:
         path = _raw_file_path(raw_out, logical_path)
         expected_size = int(size_by_path.get(logical_path) or 0)
@@ -42,7 +43,9 @@ def preflight(args: argparse.Namespace) -> dict[str, Any]:
         actual_size = path.stat().st_size if exists else 0
         complete = exists and expected_size > 0 and actual_size == expected_size
         if not complete:
-            remaining_bytes += max(expected_size - actual_size, 0)
+            missing_bytes = max(expected_size - actual_size, 0)
+            remaining_bytes += missing_bytes
+            largest_missing_file_bytes = max(largest_missing_file_bytes, missing_bytes)
         file_rows.append(
             {
                 "logical_path": logical_path,
@@ -57,7 +60,14 @@ def preflight(args: argparse.Namespace) -> dict[str, Any]:
     disk_root = Path(args.disk_root or raw_out)
     disk_root.mkdir(parents=True, exist_ok=True)
     usage = shutil.disk_usage(disk_root)
-    required_free_bytes = int(remaining_bytes * float(args.safety_factor))
+    mode = str(getattr(args, "mode", "all"))
+    if mode == "sequential":
+        required_download_bytes = largest_missing_file_bytes
+    elif mode == "all":
+        required_download_bytes = remaining_bytes
+    else:
+        raise ValueError(f"Unsupported preflight mode: {mode}")
+    required_free_bytes = int(required_download_bytes * float(args.safety_factor))
     blockers = []
     if remaining_bytes <= 0:
         status = "ready_raw_files_present"
@@ -65,10 +75,10 @@ def preflight(args: argparse.Namespace) -> dict[str, Any]:
         status = "blocked_insufficient_disk"
         blockers.append(
             f"available bytes {usage.free} below required {required_free_bytes} "
-            f"for remaining download bytes {remaining_bytes} with safety factor {args.safety_factor}"
+            f"for {mode} download bytes {required_download_bytes} with safety factor {args.safety_factor}"
         )
     else:
-        status = "ready_for_download"
+        status = "ready_for_sequential_download" if mode == "sequential" else "ready_for_download"
 
     return {
         "status": status,
@@ -84,7 +94,10 @@ def preflight(args: argparse.Namespace) -> dict[str, Any]:
         "selected_file_count": len(selected),
         "complete_file_count": sum(1 for row in file_rows if row["complete"]),
         "remaining_download_bytes": remaining_bytes,
+        "largest_missing_file_bytes": largest_missing_file_bytes,
+        "required_download_bytes": required_download_bytes,
         "required_free_bytes": required_free_bytes,
+        "mode": mode,
         "safety_factor": float(args.safety_factor),
         "files": file_rows,
         "held_out_test_policy": plan.get("held_out_test_policy"),
@@ -97,6 +110,12 @@ def main() -> None:
     parser.add_argument("--raw-out", default="data/pdebench/raw")
     parser.add_argument("--disk-root")
     parser.add_argument("--safety-factor", type=float, default=1.15)
+    parser.add_argument(
+        "--mode",
+        choices=("all", "sequential"),
+        default="sequential",
+        help="Require space for all remaining files or only the largest missing file for sequential hydration.",
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_hydration_preflight.json",

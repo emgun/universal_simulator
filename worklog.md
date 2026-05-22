@@ -2525,3 +2525,10 @@ Follow-up fractional sample-mode refinement (2026-05-21):
 - The local disk state improved to about `3282300928` free bytes, but that remains below the `9467911994` byte sequential one-file requirement; `console.vast.ai` and `darus.uni-stuttgart.de` still do not resolve.
 - Based on the current symmetry/canonicalization direction for neural operators under shifts, tightened the train-only source-conditioned estimator so `sample_mode` performs fractional periodic refinement at the per-sample vote level when `--fractional-refine-step` is set.
 - This keeps the benchmark boundary intact: sample votes and the source shift map are fit only from train rows, validation only scores the locked train-fitted map, and the held-out test remains blocked until `literal_test_ready`.
+
+Follow-up sequential hydration preflight alignment (2026-05-21):
+- Rechecked the official path after local space became available: `data/pdebench/raw` had about `45878403072` free bytes, enough for the `9467911994` byte largest-file sequential requirement but not enough for all eight raw files at once.
+- Added `--mode all|sequential` to `scripts/preflight_transport_hydration.py` and made the CLI default to sequential mode, matching `scripts/hydrate_official_advection_source_sequential.py`.
+- Added the same mode to `scripts/recommend_transport_hydration_storage.py`; sequential mode now recommends `data/pdebench/raw` instead of reporting external storage required.
+- Updated the objective audit so ready statuses such as `ready_for_sequential_download`, `storage_root_available`, `valid`, and `ready_for_remote_hydration` are not listed as blockers.
+- The canonical status remains `literal_blocked`; the only execution-readiness blockers are Python DNS failures for `darus.uni-stuttgart.de` and `console.vast.ai`, and `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` is still missing.
