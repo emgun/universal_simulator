@@ -2549,3 +2549,9 @@ Follow-up staged raw sequential hydration path (2026-05-21):
 - Added `--use-existing-raw` to `scripts/hydrate_official_advection_source_sequential.py` so the sequential hydrator can skip network downloads and append from already staged official raw files at the planned manifest paths.
 - Wired the mode through `scripts/run_remote_official_hydration.sh` as `SEQUENTIAL_USE_EXISTING_RAW=1`.
 - This preserves benchmark policy: the path still requires the planned logical raw paths, keeps source provenance, marks `sequential_hydration_complete=True` only after all planned files append, and downstream gates still require official train/val validation before any held-out test.
+
+Follow-up staged raw readiness detection (2026-05-21):
+- Updated `scripts/check_official_execution_readiness.py` to inspect planned raw files under `raw_out`.
+- If every official `remote_entries` file exists at the expected manifest size, local sequential hydration is marked ready even when Darus DNS is unavailable.
+- Incomplete or missing staged raw files still require a resolvable official data host or URL override.
+- Live status remains blocked because no planned official raw files are staged and the default Darus/Vast hosts still do not resolve.

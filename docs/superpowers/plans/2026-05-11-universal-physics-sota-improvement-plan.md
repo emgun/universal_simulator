@@ -1784,3 +1784,9 @@ Staged raw sequential hydration path:
 - `scripts/hydrate_official_advection_source_sequential.py` now supports `--use-existing-raw`.
 - `scripts/run_remote_official_hydration.sh` exposes the same path via `SEQUENTIAL_USE_EXISTING_RAW=1`.
 - Use this when official raw HDF5 files have been copied or mounted into the planned `raw_out` paths outside the downloader. The hydrator still appends only from those manifest paths, preserves `source_file_index` provenance, and leaves the held-out test gated behind `literal_test_ready`.
+
+Staged raw readiness detection:
+
+- `scripts/check_official_execution_readiness.py` now inspects planned raw files under `raw_out`.
+- If every `remote_entries` file exists at the expected manifest size, local sequential hydration is ready even without Darus DNS.
+- This makes the staged-raw path operationally visible in the canonical readiness artifact while preserving the same manifest path and size requirements.

@@ -72,6 +72,37 @@ def _official_data_dns_records(entries: list[dict[str, Any]], default_host: str)
     }
 
 
+def _staged_raw_record(raw_root: str | Path, entries: list[dict[str, Any]]) -> dict[str, Any]:
+    root = Path(raw_root)
+    files = []
+    all_present = bool(entries)
+    for entry in entries:
+        logical_path = str(entry.get("path") or "")
+        expected_size = int(entry.get("size_bytes") or 0)
+        path = root / logical_path
+        exists = path.exists()
+        actual_size = path.stat().st_size if exists else 0
+        complete = bool(exists and expected_size > 0 and actual_size == expected_size)
+        all_present = all_present and complete
+        files.append(
+            {
+                "logical_path": logical_path,
+                "local_path": str(path),
+                "exists": exists,
+                "expected_size_bytes": expected_size,
+                "actual_size_bytes": actual_size,
+                "complete": complete,
+            }
+        )
+    return {
+        "raw_root": str(root),
+        "all_present": all_present,
+        "complete_file_count": sum(1 for row in files if row["complete"]),
+        "selected_file_count": len(entries),
+        "files": files,
+    }
+
+
 def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
     plan = _load_json(args.plan_json)
     remote_plan = _load_json(args.remote_plan_json)
@@ -79,6 +110,8 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
     remote_dns = _dns_record(args.remote_api_host)
     remote_entries = list(plan.get("remote_entries", []))
     official_data_dns = _official_data_dns_records(remote_entries, args.official_data_host)
+    raw_root = str(plan.get("raw_out") or args.local_disk_root)
+    staged_raw = _staged_raw_record(raw_root, remote_entries)
 
     largest_file_bytes = max(
         (int(entry.get("size_bytes") or 0) for entry in remote_entries),
@@ -93,12 +126,12 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
     local_blockers: list[str] = []
     if not remote_dns["resolves"]:
         remote_blockers.append(f"remote API host {args.remote_api_host} does not resolve")
-    if not official_data_dns["resolves"]:
+    if not staged_raw["all_present"] and not official_data_dns["resolves"]:
         local_blockers.append(
             "official data host(s) do not resolve: "
             + ", ".join(official_data_dns["unresolved_hosts"])
         )
-    if int(local_disk["free_bytes"]) < sequential_required_bytes:
+    if not staged_raw["all_present"] and int(local_disk["free_bytes"]) < sequential_required_bytes:
         local_blockers.append(
             f"local free bytes {local_disk['free_bytes']} below sequential requirement {sequential_required_bytes}"
         )
@@ -122,6 +155,7 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
             "remote_api": remote_dns,
             "official_data": official_data_dns,
         },
+        "staged_raw": staged_raw,
         "disk": {
             "local": local_disk,
             "largest_official_file_bytes": largest_file_bytes,

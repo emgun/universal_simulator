@@ -151,3 +151,80 @@ def test_readiness_uses_datafile_url_template_hosts(monkeypatch, tmp_path):
     assert record["status"] == "ready"
     assert record["local_sequential_hydration_ready"] is True
     assert record["dns"]["official_data"]["hosts"] == ["objects.example"]
+
+
+def test_readiness_allows_local_when_all_raw_files_are_staged(monkeypatch, tmp_path):
+    import scripts.check_official_execution_readiness as module
+
+    args = _args(tmp_path)
+    raw_root = tmp_path / "raw"
+    plan_path = tmp_path / "plan.json"
+    entries = [
+        {"path": "1D/Advection/Train/a.hdf5", "file_id": 1, "size_bytes": 3},
+        {"path": "1D/Advection/Train/b.hdf5", "file_id": 2, "size_bytes": 4},
+    ]
+    for entry in entries:
+        path = raw_root / entry["path"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x" * int(entry["size_bytes"]))
+    plan_path.write_text(
+        json.dumps(
+            {
+                "raw_out": str(raw_root),
+                "estimated_download_bytes": 7,
+                "held_out_test_policy": {"test_split_downloaded": False},
+                "remote_entries": entries,
+            }
+        ),
+        encoding="utf-8",
+    )
+    args.plan_json = str(plan_path)
+
+    def fake_dns(host):
+        return {"host": host, "resolves": False, "error": "dns failed", "addresses": []}
+
+    monkeypatch.setattr(module, "_dns_record", fake_dns)
+
+    record = check_readiness(args)
+
+    assert record["status"] == "ready"
+    assert record["local_sequential_hydration_ready"] is True
+    assert record["staged_raw"]["all_present"] is True
+    assert record["staged_raw"]["complete_file_count"] == 2
+    assert record["route_blockers"]["local_sequential_hydration"] == []
+
+
+def test_readiness_blocks_when_staged_raw_size_is_incomplete_and_dns_fails(monkeypatch, tmp_path):
+    import scripts.check_official_execution_readiness as module
+
+    args = _args(tmp_path)
+    raw_root = tmp_path / "raw"
+    plan_path = tmp_path / "plan.json"
+    entry = {"path": "1D/Advection/Train/a.hdf5", "file_id": 1, "size_bytes": 3}
+    path = raw_root / entry["path"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"x")
+    plan_path.write_text(
+        json.dumps(
+            {
+                "raw_out": str(raw_root),
+                "estimated_download_bytes": 3,
+                "held_out_test_policy": {"test_split_downloaded": False},
+                "remote_entries": [entry],
+            }
+        ),
+        encoding="utf-8",
+    )
+    args.plan_json = str(plan_path)
+
+    def fake_dns(host):
+        return {"host": host, "resolves": False, "error": "dns failed", "addresses": []}
+
+    monkeypatch.setattr(module, "_dns_record", fake_dns)
+
+    record = check_readiness(args)
+
+    assert record["status"] == "blocked"
+    assert record["staged_raw"]["all_present"] is False
+    assert record["staged_raw"]["complete_file_count"] == 0
+    assert any("official data host" in blocker for blocker in record["route_blockers"]["local_sequential_hydration"])
