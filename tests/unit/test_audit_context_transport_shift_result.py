@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import sys
 from argparse import Namespace
 
 import h5py
@@ -142,7 +143,7 @@ def test_context_audit_cli_runs_from_repo_root(tmp_path):
 
     proc = subprocess.run(
         [
-            "/opt/anaconda3/bin/python",
+            sys.executable,
             "scripts/audit_context_transport_shift_result.py",
             "--context-gate-json",
             str(tmp_path / "missing.json"),
