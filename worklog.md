@@ -2606,3 +2606,10 @@ Follow-up official hydration achieved (2026-05-22):
 - Ran the official train/val shard and source-conditioned transport gate. Validation passed with `nrmse=0.0028383232393941124` versus SOTA guard reference `0.30780652221851373`.
 - After the audit reached `literal_test_ready`, ran exactly one guarded held-out test through `scripts/run_official_hydrated_post_validation_test.py`; the ledger recorded one result with test `nrmse=0.0017648902922571088`.
 - Re-ran `scripts/run_official_transport_objective_status.sh`; canonical status is now `literal_achieved` with no blockers.
+
+Parameter-conditioned transport successor (2026-05-24):
+- Added a beta-parameter-conditioned transport gate that fits a linear periodic-shift rule from official train rows only, using `source_file_index` only to join each row to the parsed Advection `beta` metadata rather than as the learned shift key.
+- Re-ran the source-conditioned validation baseline without test access: validation `nrmse=0.0028383232393941124`.
+- Ran the parameter-conditioned validation gate on official `light-v1` train/val with the same fractional refinement envelope; validation improved to `nrmse=0.001981674036057911` with fitted `shift = 10.236877359639507 * beta - 0.08098891730605368`.
+- Because validation passed the guard against reference `0.30780652221851373`, ran exactly one new held-out test for this locked estimator using `reports/research/sota_loop/causal_transport_head/parameter_conditioned_test_ledger.json`; held-out test `nrmse=0.001232006631009314`.
+- This is a stronger narrow transport result and a cleaner step toward the universal SOTA goal than the source-conditioned map, but it is still an Advection-specific parameterized mechanism rather than a general learned physics simulator.
