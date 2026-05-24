@@ -10,15 +10,15 @@ import json
 import math
 import os
 import shutil
+import sys
 import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, Sequence
+from typing import Any
 
 import h5py
 import torch
 import yaml
-
-import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -27,10 +27,13 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from scripts import evaluate as evaluate_script
 from scripts import train as train_script
 from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
-from ups.eval.promotion import evaluate_promotion_rules, parse_promotion_rule, promotion_rules_from_config
+from ups.eval.promotion import (
+    evaluate_promotion_rules,
+    parse_promotion_rule,
+    promotion_rules_from_config,
+)
 from ups.utils.config_loader import load_config_with_includes
 from ups.utils.monitoring import init_monitoring_session
-
 
 STAGE_FUNCTIONS = {
     "operator": train_script.train_operator,
@@ -43,7 +46,7 @@ STAGE_FUNCTIONS = {
 }
 
 
-def _deep_merge(base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(base)
     for key, value in overlay.items():
         if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
@@ -60,8 +63,8 @@ def _parse_override(text: str) -> tuple[str, Any]:
     return key.strip(), yaml.safe_load(raw)
 
 
-def _set_dotpath(cfg: Dict[str, Any], path: str, value: Any) -> None:
-    cursor: Dict[str, Any] = cfg
+def _set_dotpath(cfg: dict[str, Any], path: str, value: Any) -> None:
+    cursor: dict[str, Any] = cfg
     parts = [part for part in path.split(".") if part]
     if not parts:
         raise ValueError(f"Invalid override path '{path}'")
@@ -72,7 +75,7 @@ def _set_dotpath(cfg: Dict[str, Any], path: str, value: Any) -> None:
     cursor[parts[-1]] = value
 
 
-def _apply_overrides(cfg: Dict[str, Any], overrides: Sequence[str]) -> Dict[str, Any]:
+def _apply_overrides(cfg: dict[str, Any], overrides: Sequence[str]) -> dict[str, Any]:
     updated = copy.deepcopy(cfg)
     for text in overrides:
         key, value = _parse_override(text)
@@ -80,13 +83,15 @@ def _apply_overrides(cfg: Dict[str, Any], overrides: Sequence[str]) -> Dict[str,
     return updated
 
 
-def _task_names(cfg: Dict[str, Any]) -> list[str]:
+def _task_names(cfg: dict[str, Any]) -> list[str]:
     task_cfg = cfg.get("data", {}).get("task")
     if isinstance(task_cfg, str):
         return [task_cfg]
     if isinstance(task_cfg, (list, tuple)):
         return [str(task) for task in task_cfg]
-    raise ValueError("Experiment configs require data.task to be a task name or a list of task names")
+    raise ValueError(
+        "Experiment configs require data.task to be a task name or a list of task names"
+    )
 
 
 def _all_tasks(*task_groups: Iterable[str]) -> list[str]:
@@ -101,23 +106,23 @@ def _all_tasks(*task_groups: Iterable[str]) -> list[str]:
     return ordered
 
 
-def _split_name(cfg: Dict[str, Any], default: str = "train") -> str:
+def _split_name(cfg: dict[str, Any], default: str = "train") -> str:
     return str(cfg.get("data", {}).get("split", default))
 
 
-def _override_data_root(cfg: Dict[str, Any], root: Path) -> Dict[str, Any]:
+def _override_data_root(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
     updated = copy.deepcopy(cfg)
     updated.setdefault("data", {})["root"] = str(root)
     return updated
 
 
 def _prepare_runtime_cfg(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     *,
     checkpoint_dir: Path,
     log_dir: Path,
     disable_wandb: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     updated = copy.deepcopy(cfg)
     updated.setdefault("checkpoint", {})["dir"] = str(checkpoint_dir)
     updated.setdefault("training", {})["log_path"] = str(log_dir / "training.jsonl")
@@ -128,19 +133,23 @@ def _prepare_runtime_cfg(
 
 
 def _prepare_eval_cfg(
-    train_cfg: Dict[str, Any],
-    eval_cfg: Dict[str, Any] | None,
+    train_cfg: dict[str, Any],
+    eval_cfg: dict[str, Any] | None,
     *,
     log_dir: Path,
     disable_wandb: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if eval_cfg is None:
         prepared = copy.deepcopy(train_cfg)
     else:
         prepared = _deep_merge(train_cfg, eval_cfg)
     prepared.setdefault("training", {})
-    prepared["training"]["dt"] = train_cfg.get("training", {}).get("dt", prepared["training"].get("dt", 0.1))
-    prepared["training"].setdefault("batch_size", train_cfg.get("training", {}).get("batch_size", 1))
+    prepared["training"]["dt"] = train_cfg.get("training", {}).get(
+        "dt", prepared["training"].get("dt", 0.1)
+    )
+    prepared["training"].setdefault(
+        "batch_size", train_cfg.get("training", {}).get("batch_size", 1)
+    )
     prepared["training"].setdefault("num_workers", 0)
     prepared["training"].setdefault("pin_memory", False)
     prepared["training"]["log_path"] = str(log_dir / "evaluation.jsonl")
@@ -164,7 +173,7 @@ def _split_env_list(text: str) -> list[str]:
 
 
 def _configure_wandb(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     *,
     enabled: bool,
     run_name: str,
@@ -173,7 +182,7 @@ def _configure_wandb(
     group: str,
     tags: Sequence[str],
     job_type: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     updated = copy.deepcopy(cfg)
     wandb_cfg = updated.setdefault("logging", {}).setdefault("wandb", {})
     wandb_cfg["enabled"] = bool(enabled)
@@ -194,11 +203,11 @@ def _configure_wandb(
     return updated
 
 
-def _read_wandb_run_records(log_dir: Path) -> list[Dict[str, Any]]:
+def _read_wandb_run_records(log_dir: Path) -> list[dict[str, Any]]:
     path = log_dir / "wandb_runs.jsonl"
     if not path.exists():
         return []
-    records: list[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -214,9 +223,9 @@ def _read_wandb_run_records(log_dir: Path) -> list[Dict[str, Any]]:
 def _tracking_payload(
     *,
     allow_wandb: bool,
-    train_cfg: Dict[str, Any],
+    train_cfg: dict[str, Any],
     log_dir: Path,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     wandb_cfg = train_cfg.get("logging", {}).get("wandb", {})
     runs = _read_wandb_run_records(log_dir)
     return {
@@ -236,8 +245,8 @@ def _tracking_payload(
     }
 
 
-def _summary_wandb_payload(summary: Dict[str, Any]) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {}
+def _summary_wandb_payload(summary: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
     for key, value in summary.get("metrics", {}).items():
         if isinstance(value, (int, float)) and math.isfinite(float(value)):
             payload[f"summary/{key}"] = float(value)
@@ -264,9 +273,9 @@ def _summary_wandb_payload(summary: Dict[str, Any]) -> Dict[str, Any]:
 def _log_summary_to_wandb(
     *,
     allow_wandb: bool,
-    train_cfg: Dict[str, Any],
+    train_cfg: dict[str, Any],
     log_dir: Path,
-    summary: Dict[str, Any],
+    summary: dict[str, Any],
 ) -> None:
     if not allow_wandb or not train_cfg.get("logging", {}).get("wandb", {}).get("enabled"):
         return
@@ -331,7 +340,9 @@ def _make_1d_series(task: str, split: str, samples: int, steps: int, width: int)
     return data
 
 
-def _make_2d_series(task: str, split: str, samples: int, steps: int, height: int, width: int) -> torch.Tensor:
+def _make_2d_series(
+    task: str, split: str, samples: int, steps: int, height: int, width: int
+) -> torch.Tensor:
     ys = torch.linspace(0.0, 1.0, height, dtype=torch.float32)
     xs = torch.linspace(0.0, 1.0, width, dtype=torch.float32)
     grid_y, grid_x = torch.meshgrid(ys, xs, indexing="ij")
@@ -341,7 +352,11 @@ def _make_2d_series(task: str, split: str, samples: int, steps: int, height: int
         amplitude = 0.4 + 0.08 * sample_idx + base_shift
         for step_idx in range(steps):
             phase = 0.25 * step_idx + 0.1 * sample_idx + base_shift
-            field = amplitude * torch.sin(2.0 * math.pi * (grid_x + phase)) * torch.cos(2.0 * math.pi * (grid_y - phase))
+            field = (
+                amplitude
+                * torch.sin(2.0 * math.pi * (grid_x + phase))
+                * torch.cos(2.0 * math.pi * (grid_y - phase))
+            )
             if "darcy" in task:
                 field = field + 0.15 * grid_x
             elif "navier" in task:
@@ -379,12 +394,19 @@ def bootstrap_synthetic_pdebench(
                     fields = _make_2d_series(task, split, samples, steps, shape[0], shape[1])
                 handle.create_dataset("data", data=fields.numpy())
                 for idx, key in enumerate(param_keys):
-                    handle.create_dataset(key, data=_make_metadata_dataset(samples, steps, idx).numpy())
+                    handle.create_dataset(
+                        key, data=_make_metadata_dataset(samples, steps, idx).numpy()
+                    )
                 for idx, key in enumerate(bc_keys):
-                    handle.create_dataset(key, data=_make_metadata_dataset(samples, steps, idx + len(param_keys)).numpy())
+                    handle.create_dataset(
+                        key,
+                        data=_make_metadata_dataset(samples, steps, idx + len(param_keys)).numpy(),
+                    )
 
 
-def _clone_eval_cfg(cfg: Dict[str, Any], *, tasks: Sequence[str] | None = None, split: str | None = None) -> Dict[str, Any]:
+def _clone_eval_cfg(
+    cfg: dict[str, Any], *, tasks: Sequence[str] | None = None, split: str | None = None
+) -> dict[str, Any]:
     cloned = copy.deepcopy(cfg)
     data_cfg = cloned.setdefault("data", {})
     if tasks:
@@ -400,7 +422,7 @@ def _safe_artifact_name(text: str) -> str:
 
 
 def _evaluate_once(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     *,
     checkpoint_dir: Path,
     decoded: bool,
@@ -409,8 +431,10 @@ def _evaluate_once(
     transfer_tasks: Sequence[str],
     transfer_split: str | None,
     cli_promotion_rules: Sequence[str],
-) -> Dict[str, Any]:
-    operator_ckpt = _preferred_checkpoint(checkpoint_dir, ("operator_joint.pt", "operator_decoded.pt", "operator.pt"))
+) -> dict[str, Any]:
+    operator_ckpt = _preferred_checkpoint(
+        checkpoint_dir, ("operator_joint.pt", "operator_decoded.pt", "operator.pt")
+    )
     if operator_ckpt is None:
         raise FileNotFoundError(f"No operator checkpoint found in {checkpoint_dir}")
 
@@ -423,7 +447,9 @@ def _evaluate_once(
         encoder_ckpt = _preferred_checkpoint(checkpoint_dir, ("encoder_joint.pt", "encoder.pt"))
         decoder_ckpt = _preferred_checkpoint(checkpoint_dir, ("decoder_joint.pt", "decoder.pt"))
         if encoder_ckpt is None or decoder_ckpt is None:
-            raise FileNotFoundError("Decoded evaluation requested but encoder/decoder checkpoints are missing")
+            raise FileNotFoundError(
+                "Decoded evaluation requested but encoder/decoder checkpoints are missing"
+            )
         encoder = evaluate_script.make_encoder(cfg)
         decoder = evaluate_script.make_decoder(cfg)
         evaluate_script._load_state_dict_compat(encoder, str(encoder_ckpt), prefix_to_strip="")
@@ -444,8 +470,12 @@ def _evaluate_once(
 
     if transfer_tasks:
         transfer_cfg = _clone_eval_cfg(cfg, tasks=transfer_tasks, split=transfer_split)
-        transfer_report = evaluate_latent_operator(transfer_cfg, operator, device=device, return_details=False)
-        report.metrics.update({f"transfer_{key}": value for key, value in transfer_report.metrics.items()})
+        transfer_report = evaluate_latent_operator(
+            transfer_cfg, operator, device=device, return_details=False
+        )
+        report.metrics.update(
+            {f"transfer_{key}": value for key, value in transfer_report.metrics.items()}
+        )
         if report.extra is None:
             report.extra = {}
         report.extra["transfer_tasks"] = list(transfer_tasks)
@@ -466,7 +496,9 @@ def _evaluate_once(
                 device=device,
                 rollout_steps=decoded_rollout_steps,
             )
-            report.metrics.update({f"transfer_{key}": value for key, value in transfer_decoded_report.metrics.items()})
+            report.metrics.update(
+                {f"transfer_{key}": value for key, value in transfer_decoded_report.metrics.items()}
+            )
 
     promotion_rules = promotion_rules_from_config(cfg)
     promotion_rules.extend(parse_promotion_rule(rule) for rule in cli_promotion_rules)
@@ -485,13 +517,21 @@ def _evaluate_once(
         "details": details,
         "checkpoints": {
             "operator": str(operator_ckpt),
-            "encoder": str(_preferred_checkpoint(checkpoint_dir, ("encoder_joint.pt", "encoder.pt"))) if decoded else None,
-            "decoder": str(_preferred_checkpoint(checkpoint_dir, ("decoder_joint.pt", "decoder.pt"))) if decoded else None,
+            "encoder": (
+                str(_preferred_checkpoint(checkpoint_dir, ("encoder_joint.pt", "encoder.pt")))
+                if decoded
+                else None
+            ),
+            "decoder": (
+                str(_preferred_checkpoint(checkpoint_dir, ("decoder_joint.pt", "decoder.pt")))
+                if decoded
+                else None
+            ),
         },
     }
 
 
-def _main_metric(metrics: Dict[str, float]) -> tuple[str, float]:
+def _main_metric(metrics: dict[str, float]) -> tuple[str, float]:
     for key in (
         "decoded_rollout_nrmse",
         "transfer_decoded_rollout_nrmse",
@@ -504,7 +544,7 @@ def _main_metric(metrics: Dict[str, float]) -> tuple[str, float]:
     return first_key, float(metrics[first_key])
 
 
-def _append_results_row(path: Path, row: Dict[str, Any]) -> None:
+def _append_results_row(path: Path, row: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "run_name",
@@ -521,7 +561,7 @@ def _append_results_row(path: Path, row: Dict[str, Any]) -> None:
         "wandb_run_ids",
         "wandb_urls",
     ]
-    row_map: Dict[str, Dict[str, Any]] = {}
+    row_map: dict[str, dict[str, Any]] = {}
     if path.exists():
         with path.open("r", encoding="utf-8", newline="") as fh:
             reader = csv.DictReader(fh, delimiter="\t")
@@ -537,39 +577,131 @@ def _append_results_row(path: Path, row: Dict[str, Any]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run lightweight UPS experiments with resolved configs and summaries")
+    parser = argparse.ArgumentParser(
+        description="Run lightweight UPS experiments with resolved configs and summaries"
+    )
     parser.add_argument("--config", required=True, help="Training config path")
-    parser.add_argument("--eval-config", help="Optional evaluation config path; defaults to the training config")
-    parser.add_argument("--name", required=True, help="Experiment name used for the output directory")
-    parser.add_argument("--output-root", default="reports/light_experiments", help="Root directory for experiment outputs")
-    parser.add_argument("--stage", action="append", default=None, choices=sorted(STAGE_FUNCTIONS), help="Training stage(s) to run in order")
-    parser.add_argument("--skip-training", action="store_true", help="Skip training stages and evaluate existing/copied checkpoints")
-    parser.add_argument("--checkpoint-source", help="Directory containing checkpoints or a run directory with checkpoints/")
-    parser.add_argument("--override", action="append", default=[], help="Config override like latent.dim=16")
-    parser.add_argument("--eval-override", action="append", default=[], help="Eval-only override like data.split=val")
+    parser.add_argument(
+        "--eval-config", help="Optional evaluation config path; defaults to the training config"
+    )
+    parser.add_argument(
+        "--name", required=True, help="Experiment name used for the output directory"
+    )
+    parser.add_argument(
+        "--output-root",
+        default="reports/light_experiments",
+        help="Root directory for experiment outputs",
+    )
+    parser.add_argument(
+        "--stage",
+        action="append",
+        default=None,
+        choices=sorted(STAGE_FUNCTIONS),
+        help="Training stage(s) to run in order",
+    )
+    parser.add_argument(
+        "--skip-training",
+        action="store_true",
+        help="Skip training stages and evaluate existing/copied checkpoints",
+    )
+    parser.add_argument(
+        "--checkpoint-source",
+        help="Directory containing checkpoints or a run directory with checkpoints/",
+    )
+    parser.add_argument(
+        "--override", action="append", default=[], help="Config override like latent.dim=16"
+    )
+    parser.add_argument(
+        "--eval-override",
+        action="append",
+        default=[],
+        help="Eval-only override like data.split=val",
+    )
     parser.add_argument(
         "--extra-eval-split",
         action="append",
         default=[],
         help="Additional data split to evaluate with the same trained checkpoints; can be repeated",
     )
-    parser.add_argument("--transfer-task", action="append", default=[], help="Optional transfer evaluation task; can be repeated")
+    parser.add_argument(
+        "--transfer-task",
+        action="append",
+        default=[],
+        help="Optional transfer evaluation task; can be repeated",
+    )
     parser.add_argument("--transfer-split", help="Optional split override for transfer evaluation")
-    parser.add_argument("--promotion-rule", action="append", default=[], help="Optional promotion rule like max:family_*_decoded_rollout_nrmse<=0.3")
-    parser.add_argument("--decoded", action="store_true", help="Run decoded evaluation when encoder/decoder checkpoints are available")
-    parser.add_argument("--decoded-rollout-steps", type=int, default=None, help="Optional rollout cap for decoded evaluation")
+    parser.add_argument(
+        "--promotion-rule",
+        action="append",
+        default=[],
+        help="Optional promotion rule like max:family_*_decoded_rollout_nrmse<=0.3",
+    )
+    parser.add_argument(
+        "--decoded",
+        action="store_true",
+        help="Run decoded evaluation when encoder/decoder checkpoints are available",
+    )
+    parser.add_argument(
+        "--decoded-rollout-steps",
+        type=int,
+        default=None,
+        help="Optional rollout cap for decoded evaluation",
+    )
     parser.add_argument("--device", default="cpu", help="Evaluation device")
-    parser.add_argument("--bootstrap-synthetic", action="store_true", help="Create tiny PDEBench-style HDF5 files if data is unavailable")
-    parser.add_argument("--synthetic-root", help="Where to place synthetic PDEBench files; defaults to <run_dir>/synthetic_pdebench")
-    parser.add_argument("--synthetic-samples", type=int, default=2, help="Number of synthetic trajectories per task/split")
-    parser.add_argument("--synthetic-steps", type=int, default=4, help="Number of synthetic time steps per trajectory")
-    parser.add_argument("--keep-existing-synthetic", action="store_true", help="Reuse an existing synthetic root without regenerating files")
-    parser.add_argument("--allow-wandb", action="store_true", help="Keep W&B enabled instead of forcing it off for lightweight runs")
-    parser.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT", ""), help="W&B project override when --allow-wandb is set")
-    parser.add_argument("--wandb-entity", default=os.environ.get("WANDB_ENTITY", ""), help="W&B entity override when --allow-wandb is set")
-    parser.add_argument("--wandb-group", default=os.environ.get("WANDB_GROUP", ""), help="W&B group for this experiment batch")
-    parser.add_argument("--wandb-tag", action="append", default=[], help="Extra W&B tag; can be repeated")
-    parser.add_argument("--wandb-job-type", default=os.environ.get("WANDB_JOB_TYPE", "light-experiment"), help="W&B job type")
+    parser.add_argument(
+        "--bootstrap-synthetic",
+        action="store_true",
+        help="Create tiny PDEBench-style HDF5 files if data is unavailable",
+    )
+    parser.add_argument(
+        "--synthetic-root",
+        help="Where to place synthetic PDEBench files; defaults to <run_dir>/synthetic_pdebench",
+    )
+    parser.add_argument(
+        "--synthetic-samples",
+        type=int,
+        default=2,
+        help="Number of synthetic trajectories per task/split",
+    )
+    parser.add_argument(
+        "--synthetic-steps",
+        type=int,
+        default=4,
+        help="Number of synthetic time steps per trajectory",
+    )
+    parser.add_argument(
+        "--keep-existing-synthetic",
+        action="store_true",
+        help="Reuse an existing synthetic root without regenerating files",
+    )
+    parser.add_argument(
+        "--allow-wandb",
+        action="store_true",
+        help="Keep W&B enabled instead of forcing it off for lightweight runs",
+    )
+    parser.add_argument(
+        "--wandb-project",
+        default=os.environ.get("WANDB_PROJECT", ""),
+        help="W&B project override when --allow-wandb is set",
+    )
+    parser.add_argument(
+        "--wandb-entity",
+        default=os.environ.get("WANDB_ENTITY", ""),
+        help="W&B entity override when --allow-wandb is set",
+    )
+    parser.add_argument(
+        "--wandb-group",
+        default=os.environ.get("WANDB_GROUP", ""),
+        help="W&B group for this experiment batch",
+    )
+    parser.add_argument(
+        "--wandb-tag", action="append", default=[], help="Extra W&B tag; can be repeated"
+    )
+    parser.add_argument(
+        "--wandb-job-type",
+        default=os.environ.get("WANDB_JOB_TYPE", "light-experiment"),
+        help="W&B job type",
+    )
     args = parser.parse_args()
 
     stages = [] if args.skip_training else (args.stage or ["operator"])
@@ -582,7 +714,11 @@ def main() -> None:
 
     train_cfg = _apply_overrides(load_config_with_includes(args.config), args.override)
     eval_source = load_config_with_includes(args.eval_config) if args.eval_config else {}
-    eval_cfg = _apply_overrides(eval_source, args.eval_override) if args.eval_config or args.eval_override else None
+    eval_cfg = (
+        _apply_overrides(eval_source, args.eval_override)
+        if args.eval_config or args.eval_override
+        else None
+    )
     train_cfg = _configure_wandb(
         train_cfg,
         enabled=args.allow_wandb,
@@ -606,9 +742,15 @@ def main() -> None:
         )
 
     if args.bootstrap_synthetic:
-        synthetic_root = Path(args.synthetic_root) if args.synthetic_root else (run_dir / "synthetic_pdebench")
+        synthetic_root = (
+            Path(args.synthetic_root) if args.synthetic_root else (run_dir / "synthetic_pdebench")
+        )
         train_tasks = _task_names(train_cfg)
-        eval_tasks = _task_names(eval_cfg) if eval_cfg is not None and eval_cfg.get("data", {}).get("task") is not None else train_tasks
+        eval_tasks = (
+            _task_names(eval_cfg)
+            if eval_cfg is not None and eval_cfg.get("data", {}).get("task") is not None
+            else train_tasks
+        )
         all_tasks = _all_tasks(train_tasks, eval_tasks, args.transfer_task)
         splits = {_split_name(train_cfg), _split_name(eval_cfg or train_cfg)}
         splits.update(str(split) for split in args.extra_eval_split)
@@ -674,7 +816,7 @@ def main() -> None:
     summary["config"] = str(train_cfg_path)
     summary["eval_config"] = str(eval_cfg_path)
 
-    extra_evaluations: Dict[str, Any] = {}
+    extra_evaluations: dict[str, Any] = {}
     for split in args.extra_eval_split:
         split_name = str(split)
         split_cfg = _clone_eval_cfg(eval_cfg, split=split_name)
@@ -712,7 +854,9 @@ def main() -> None:
         log_dir=log_dir,
         summary=summary,
     )
-    summary["tracking"] = _tracking_payload(allow_wandb=args.allow_wandb, train_cfg=train_cfg, log_dir=log_dir)
+    summary["tracking"] = _tracking_payload(
+        allow_wandb=args.allow_wandb, train_cfg=train_cfg, log_dir=log_dir
+    )
     for split in args.extra_eval_split:
         split_path = run_dir / f"summary_{_safe_artifact_name(str(split))}.json"
         split_summary = json.loads(split_path.read_text(encoding="utf-8"))
@@ -735,20 +879,31 @@ def main() -> None:
         "main_metric_name": main_metric_name,
         "main_metric_value": main_metric_value,
         "summary_json": str(summary_path),
-        "wandb_run_ids": ",".join(str(run.get("id", "")) for run in summary["tracking"]["wandb"]["runs"] if run.get("id")),
-        "wandb_urls": ",".join(str(run.get("url", "")) for run in summary["tracking"]["wandb"]["runs"] if run.get("url")),
+        "wandb_run_ids": ",".join(
+            str(run.get("id", "")) for run in summary["tracking"]["wandb"]["runs"] if run.get("id")
+        ),
+        "wandb_urls": ",".join(
+            str(run.get("url", ""))
+            for run in summary["tracking"]["wandb"]["runs"]
+            if run.get("url")
+        ),
     }
     _append_results_row(output_root / "results.tsv", results_row)
 
-    print(json.dumps({
-        "run_dir": str(run_dir),
-        "summary": str(summary_path),
-        "main_metric": {main_metric_name: main_metric_value},
-        "extra_evaluations": {
-            split: payload["summary"] for split, payload in extra_evaluations.items()
-        },
-        "promotion_passed": summary["extra"].get("promotion_passed"),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "run_dir": str(run_dir),
+                "summary": str(summary_path),
+                "main_metric": {main_metric_name: main_metric_value},
+                "extra_evaluations": {
+                    split: payload["summary"] for split, payload in extra_evaluations.items()
+                },
+                "promotion_passed": summary["extra"].get("promotion_passed"),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

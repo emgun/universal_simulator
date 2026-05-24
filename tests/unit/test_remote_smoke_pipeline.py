@@ -32,8 +32,12 @@ def test_remote_smoke_pipeline_generates_queue_without_b2_or_training(tmp_path):
     assert (queue_dir / "smoke_queue.jsonl").exists()
     assert (queue_dir / "smoke_queue.tsv").exists()
     assert (queue_dir / "run_smoke_queue.sh").exists()
-    assert "ups_smoke_current_best" in (queue_dir / "run_smoke_queue.sh").read_text(encoding="utf-8")
-    assert "ups_smoke_no_conditioning" in (queue_dir / "run_smoke_queue.sh").read_text(encoding="utf-8")
+    assert "ups_smoke_current_best" in (queue_dir / "run_smoke_queue.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "ups_smoke_no_conditioning" in (queue_dir / "run_smoke_queue.sh").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_remote_smoke_pipeline_accepts_cli_assignments(tmp_path):
@@ -78,7 +82,9 @@ def test_remote_smoke_pipeline_keeps_queue_dry_run_when_prep_is_live(tmp_path):
         text=True,
     )
 
-    queue_script = (tmp_path / "pipeline" / "queue" / "run_smoke_queue.sh").read_text(encoding="utf-8")
+    queue_script = (tmp_path / "pipeline" / "queue" / "run_smoke_queue.sh").read_text(
+        encoding="utf-8"
+    )
     assert "DRY_RUN=1" in queue_script
     assert "RUN_NAME=ups_smoke_current_best" in queue_script
 

@@ -17,8 +17,9 @@ import argparse
 import hashlib
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import torch
 
@@ -96,11 +97,14 @@ def _score_observed_transport(
     rollout_steps: int,
     metric: str,
 ) -> dict[str, Any]:
+    fields = torch.as_tensor(fields, dtype=torch.float32)
     if rollout_steps <= 0:
         raise ValueError("rollout_steps must be positive")
     steps = min(int(rollout_steps), fields.shape[1] - 2)
     if steps <= 0:
-        raise ValueError("Need at least three trajectory frames for lagged observed transport scoring")
+        raise ValueError(
+            "Need at least three trajectory frames for lagged observed transport scoring"
+        )
 
     shift_tensor = torch.tensor([int(shift) for shift in shifts], dtype=torch.long)
     predictions: list[torch.Tensor] = []
@@ -125,7 +129,9 @@ def _score_observed_transport(
     target_stack = torch.stack(targets, dim=1)
     shift_stack = torch.stack(selected_shifts, dim=1).float()
     mse = float((pred_stack - target_stack).pow(2).mean().item())
-    nrmse = float(torch.sqrt((pred_stack - target_stack).pow(2).mean()) / target_stack.std().clamp_min(1e-12))
+    nrmse = float(
+        torch.sqrt((pred_stack - target_stack).pow(2).mean()) / target_stack.std().clamp_min(1e-12)
+    )
     return {
         "mse": mse,
         "nrmse": nrmse,
@@ -202,7 +208,9 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
     test_measurement_key = None
     test_ledger_recorded = False
     if test_eligible and args.test_split:
-        test_measurement_key = _test_measurement_key(args=args, shifts=shifts, data_sources=data_sources)
+        test_measurement_key = _test_measurement_key(
+            args=args, shifts=shifts, data_sources=data_sources
+        )
         ledger = _load_test_ledger(ledger_path)
         existing_keys = {
             str(entry.get("measurement_key"))
@@ -269,15 +277,19 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "next_action": (
             "held-out test measured"
             if test_record
-            else "run exactly one held-out test with the locked observed-transport estimator"
-            if test_eligible
-            else "do not run held-out test; train a causal transport head or rebuild compatible shards"
+            else (
+                "run exactly one held-out test with the locked observed-transport estimator"
+                if test_eligible
+                else "do not run held-out test; train a causal transport head or rebuild compatible shards"
+            )
         ),
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Gate a lagged observed-transition transport estimator")
+    parser = argparse.ArgumentParser(
+        description="Gate a lagged observed-transition transport estimator"
+    )
     parser.add_argument("--data-root", default="data/pdebench")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
@@ -296,8 +308,12 @@ def main() -> None:
         "--test-ledger-json",
         help="Optional ledger that prevents measuring the same guarded held-out test more than once",
     )
-    parser.add_argument("--allow-repeat-test", action="store_true", help="Bypass the held-out test ledger guard")
-    parser.add_argument("--output-json", default="reports/research/sota_loop/observed_transport_shift_gate.json")
+    parser.add_argument(
+        "--allow-repeat-test", action="store_true", help="Bypass the held-out test ledger guard"
+    )
+    parser.add_argument(
+        "--output-json", default="reports/research/sota_loop/observed_transport_shift_gate.json"
+    )
     args = parser.parse_args()
 
     record = run_gate(args)

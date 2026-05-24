@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 from scripts.plan_transport_official_hydration import create_plan
 from scripts.run_transport_official_hydration_plan import run_plan

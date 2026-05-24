@@ -2,11 +2,10 @@ from __future__ import annotations
 
 """Lightweight monitoring helpers with optional Weights & Biases hooks."""
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-import json
+from typing import Any
 
 try:
     import wandb  # type: ignore
@@ -16,12 +15,12 @@ except ImportError:  # pragma: no cover - optional dependency
 
 @dataclass
 class MonitoringSession:
-    file_path: Optional[Path]
+    file_path: Path | None
     run: Any = None
-    component: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    component: str | None = None
+    metadata: dict[str, Any] | None = None
 
-    def log(self, data: Dict[str, Any]) -> None:
+    def log(self, data: dict[str, Any]) -> None:
         if self.file_path is not None:
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
             with self.file_path.open("a", encoding="utf-8") as fh:
@@ -48,10 +47,10 @@ class MonitoringSession:
 
 
 def init_monitoring_session(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     *,
     component: str,
-    file_path: Optional[str] = None,
+    file_path: str | None = None,
 ) -> MonitoringSession:
     logging_cfg = cfg.get("logging", {})
     run = None
@@ -84,7 +83,9 @@ def init_monitoring_session(
     return MonitoringSession(path, run, component, metadata)
 
 
-def _wandb_run_metadata(run: Any, *, component: str, wandb_cfg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _wandb_run_metadata(
+    run: Any, *, component: str, wandb_cfg: dict[str, Any]
+) -> dict[str, Any] | None:
     if run is None:
         return None
     return {
@@ -99,7 +100,7 @@ def _wandb_run_metadata(run: Any, *, component: str, wandb_cfg: Dict[str, Any]) 
     }
 
 
-def _append_wandb_metadata(path: Path, metadata: Dict[str, Any]) -> None:
+def _append_wandb_metadata(path: Path, metadata: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(metadata, sort_keys=True) + "\n")

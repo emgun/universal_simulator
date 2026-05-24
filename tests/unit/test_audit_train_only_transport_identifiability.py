@@ -8,7 +8,9 @@ import numpy as np
 from scripts.audit_train_only_transport_identifiability import audit_identifiability
 
 
-def _write_split(root, *, split: str, shift: int, samples: int = 2, steps: int = 5, width: int = 8) -> None:
+def _write_split(
+    root, *, split: str, shift: int, samples: int = 2, steps: int = 5, width: int = 8
+) -> None:
     path = root / f"advection1d_{split}.h5"
     base = np.zeros((samples, width), dtype=np.float32)
     base[:, 1] = 1.0

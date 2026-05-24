@@ -14,7 +14,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.diagnose_transport_shift_splits import diagnose as diagnose_splits
-from scripts.fit_transport_shift_head import _candidate_scores, _load_series, _select_best, fit_and_validate
+from scripts.fit_transport_shift_head import (
+    _candidate_scores,
+    _load_series,
+    _select_best,
+    fit_and_validate,
+)
 
 
 def _sha256_file(path: Path) -> str:
@@ -124,9 +129,13 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "test": test_record,
         "blockers": blockers,
         "next_action": (
-            "held-out test measured" if test_record else "run exactly one held-out test with fit.selected_override"
-            if test_eligible and not test_record
-            else "do not run held-out test; fix split construction or train a per-trajectory head first"
+            "held-out test measured"
+            if test_record
+            else (
+                "run exactly one held-out test with fit.selected_override"
+                if test_eligible and not test_record
+                else "do not run held-out test; fix split construction or train a per-trajectory head first"
+            )
         ),
     }
 
@@ -137,9 +146,15 @@ def main() -> None:
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="val")
-    parser.add_argument("--test-split", default="", help="Optional held-out test split to evaluate only if train/val gate passes")
+    parser.add_argument(
+        "--test-split",
+        default="",
+        help="Optional held-out test split to evaluate only if train/val gate passes",
+    )
     parser.add_argument("--max-samples", type=int, default=32)
-    parser.add_argument("--test-max-samples", type=int, help="Optional max samples for held-out test split")
+    parser.add_argument(
+        "--test-max-samples", type=int, help="Optional max samples for held-out test split"
+    )
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
@@ -148,7 +163,9 @@ def main() -> None:
     parser.add_argument("--reference-metric-value", type=float, required=True)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
     parser.add_argument("--top-k", type=int, default=5)
-    parser.add_argument("--output-json", default="reports/research/sota_loop/transport_shift_gate.json")
+    parser.add_argument(
+        "--output-json", default="reports/research/sota_loop/transport_shift_gate.json"
+    )
     args = parser.parse_args()
 
     record = run_gate(args)

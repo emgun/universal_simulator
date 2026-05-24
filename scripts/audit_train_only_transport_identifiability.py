@@ -6,15 +6,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.fit_transport_shift_head import _candidate_scores, _candidate_shifts, _load_series, _select_best
+from scripts.fit_transport_shift_head import (
+    _candidate_scores,
+    _candidate_shifts,
+    _load_series,
+    _select_best,
+)
 
 
 def _max_samples(value: int | None) -> int | None:
@@ -28,13 +34,16 @@ def _per_sample_best_shifts(
     rollout_steps: int,
     metric: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    fields = torch.as_tensor(fields, dtype=torch.float32)
     labels: list[int] = []
     margins: list[float] = []
     for sample in fields:
         rows = _candidate_scores(sample.unsqueeze(0), shifts, rollout_steps=rollout_steps)
         ranked = sorted(rows, key=lambda row: float(row[metric]))
         labels.append(int(ranked[0]["shift"]))
-        margins.append(float(ranked[1][metric]) - float(ranked[0][metric]) if len(ranked) > 1 else 0.0)
+        margins.append(
+            float(ranked[1][metric]) - float(ranked[0][metric]) if len(ranked) > 1 else 0.0
+        )
     return torch.tensor(labels, dtype=torch.long), torch.tensor(margins, dtype=torch.float32)
 
 
@@ -62,6 +71,7 @@ def _split_candidate_summary(
     metric: str,
     top_k: int,
 ) -> dict[str, Any]:
+    fields = torch.as_tensor(fields, dtype=torch.float32)
     rows = _candidate_scores(fields, shifts, rollout_steps=rollout_steps)
     return {
         "best": _select_best(rows, metric),
@@ -163,8 +173,12 @@ def main() -> None:
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="val")
-    parser.add_argument("--max-samples", type=int, default=128, help="Train sample cap; use -1 for full split")
-    parser.add_argument("--val-max-samples", type=int, help="Validation sample cap; use -1 for full split")
+    parser.add_argument(
+        "--max-samples", type=int, default=128, help="Train sample cap; use -1 for full split"
+    )
+    parser.add_argument(
+        "--val-max-samples", type=int, help="Validation sample cap; use -1 for full split"
+    )
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")

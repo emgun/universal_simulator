@@ -82,7 +82,12 @@ def test_gate_candidates_build_default_and_json_sweep_configs():
     candidates = _gate_candidates(args)
 
     assert candidates == [
-        {"bias": 0.2, "feature_weights": {"residual_rms": -0.1}, "min_alpha": 0.05, "max_alpha": 0.95},
+        {
+            "bias": 0.2,
+            "feature_weights": {"residual_rms": -0.1},
+            "min_alpha": 0.05,
+            "max_alpha": 0.95,
+        },
         {
             "feature_weights": {"residual_rms": -0.1, "horizon_norm": 0.3},
             "min_alpha": 0.05,
@@ -121,7 +126,9 @@ def test_relative_improvement_supports_min_and_max():
 
 
 def test_test_guard_result_skips_when_validation_gain_is_too_small():
-    result = _test_guard_result(value=0.3556, reference=0.3568, min_relative_improvement=0.01, mode="min")
+    result = _test_guard_result(
+        value=0.3556, reference=0.3568, min_relative_improvement=0.01, mode="min"
+    )
 
     assert result["enabled"]
     assert not result["passed"]
@@ -129,7 +136,9 @@ def test_test_guard_result_skips_when_validation_gain_is_too_small():
 
 
 def test_test_guard_result_passes_when_disabled():
-    assert _test_guard_result(value=0.4, reference=None, min_relative_improvement=0.01, mode="min") == {
+    assert _test_guard_result(
+        value=0.4, reference=None, min_relative_improvement=0.01, mode="min"
+    ) == {
         "enabled": False,
         "passed": True,
     }
@@ -157,7 +166,9 @@ def test_select_horizon_schedule_uses_per_horizon_family_metrics():
         },
     ]
 
-    schedule, selections = _select_horizon_schedule(rows, kind="family", key="transport", mode="min")
+    schedule, selections = _select_horizon_schedule(
+        rows, kind="family", key="transport", mode="min"
+    )
 
     assert schedule == {1: 0.1, 2: 0.4}
     assert [selection["run_name"] for selection in selections] == ["alpha01", "alpha04"]

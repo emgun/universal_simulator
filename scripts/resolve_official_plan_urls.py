@@ -31,13 +31,13 @@ def _download_commands(entries: list[dict[str, Any]], out_root: str) -> list[str
     commands = []
     for entry in entries:
         path = str(entry.get("path") or "")
-        source_url = str(entry.get("source_url") or entry.get("url") or entry.get("download_url") or "")
-        prefix = (
-            f"PDEBENCH_DATAFILE_URL_TEMPLATE={shlex.quote(source_url)} "
-            if source_url
-            else ""
+        source_url = str(
+            entry.get("source_url") or entry.get("url") or entry.get("download_url") or ""
         )
-        commands.append(f"{prefix}python scripts/download_pdebench_file.py {shlex.quote(path)} --out {out_root}")
+        prefix = f"PDEBENCH_DATAFILE_URL_TEMPLATE={shlex.quote(source_url)} " if source_url else ""
+        commands.append(
+            f"{prefix}python scripts/download_pdebench_file.py {shlex.quote(path)} --out {out_root}"
+        )
     return commands
 
 
@@ -117,8 +117,12 @@ def resolve_plan_urls(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Resolve official hydration plan URLs to direct source URLs")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser = argparse.ArgumentParser(
+        description="Resolve official hydration plan URLs to direct source URLs"
+    )
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_hydration_plan_resolved_urls.json",

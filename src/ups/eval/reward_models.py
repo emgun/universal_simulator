@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Reward models to score candidate latent trajectories for TTC."""
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Dict, Mapping, Optional, Sequence
 
 import torch
 from torch import nn
@@ -19,7 +19,7 @@ class RewardModel(nn.Module):
         self,
         prev_state: LatentState,
         next_state: LatentState,
-        context: Optional[Mapping[str, float]] = None,
+        context: Mapping[str, float] | None = None,
     ) -> torch.Tensor:
         raise NotImplementedError
 
@@ -53,10 +53,10 @@ class AnalyticalRewardModel(RewardModel):
         *,
         grid_shape: Sequence[int],
         weights: AnalyticalRewardWeights,
-        mass_field: Optional[str] = None,
-        momentum_field: Optional[Sequence[str]] = None,
-        energy_field: Optional[str] = None,
-        device: Optional[torch.device] = None,
+        mass_field: str | None = None,
+        momentum_field: Sequence[str] | None = None,
+        energy_field: str | None = None,
+        device: torch.device | None = None,
     ) -> None:
         super().__init__()
         self.decoder = decoder
@@ -66,17 +66,19 @@ class AnalyticalRewardModel(RewardModel):
         self.energy_field = energy_field
         self.height, self.width = int(grid_shape[0]), int(grid_shape[1])
         self.device = device or next(decoder.parameters()).device
-        self.register_buffer("query_points", _build_grid_coords(self.height, self.width, self.device))
+        self.register_buffer(
+            "query_points", _build_grid_coords(self.height, self.width, self.device)
+        )
 
     def _decode(
         self,
         state: LatentState,
-    ) -> Dict[str, torch.Tensor]:
+    ) -> dict[str, torch.Tensor]:
         tokens = state.z.to(self.device)
         cond = {k: v.to(self.device) for k, v in state.cond.items()}
         points = self.query_points.expand(tokens.size(0), -1, -1)
         outputs = self.decoder(points, tokens, conditioning=cond)
-        decoded: Dict[str, torch.Tensor] = {}
+        decoded: dict[str, torch.Tensor] = {}
         for name, values in outputs.items():
             decoded[name] = values.view(tokens.size(0), self.height, self.width, -1)
         return decoded
@@ -85,7 +87,7 @@ class AnalyticalRewardModel(RewardModel):
         self,
         prev_state: LatentState,
         next_state: LatentState,
-        context: Optional[Mapping[str, float]] = None,
+        context: Mapping[str, float] | None = None,
     ) -> torch.Tensor:
         with torch.no_grad():
             prev_fields = self._decode(prev_state)

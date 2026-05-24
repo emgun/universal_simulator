@@ -40,7 +40,13 @@ def test_write_shell_defaults_to_dry_run_commands(tmp_path):
     )
     output = tmp_path / "queue.sh"
 
-    write_shell(rows, output, wrapper="scripts/run_remote_light_promotion.sh", env_file="/workspace/.env", dry_run=1)
+    write_shell(
+        rows,
+        output,
+        wrapper="scripts/run_remote_light_promotion.sh",
+        env_file="/workspace/.env",
+        dry_run=1,
+    )
     text = output.read_text(encoding="utf-8")
 
     assert "DRY_RUN=1" in text
@@ -67,7 +73,10 @@ def test_task_signature_focused_variants_compose_overrides():
         "task_signature_semigroup0",
         "task_signature_joint48_rollout4",
     ]
-    assert 'operator.conditioning.sources={"task_id":3,"equation_signature":15}' in rows[0]["light_extra_args"]
+    assert (
+        'operator.conditioning.sources={"task_id":3,"equation_signature":15}'
+        in rows[0]["light_extra_args"]
+    )
     assert "training.lambda_semigroup=0.0" in rows[0]["light_extra_args"]
     assert "stages.joint_codec_operator.epochs=48" in rows[1]["light_extra_args"]
     assert "stages.joint_codec_operator.rollout_steps=4" in rows[1]["light_extra_args"]
@@ -76,7 +85,11 @@ def test_task_signature_focused_variants_compose_overrides():
 def test_task_signature_decoded_and_reconstruction_variants():
     rows = build_rows(
         tier="smoke",
-        variants=["task_signature_joint16", "task_signature_opdecoded4_joint16", "task_signature_recon0"],
+        variants=[
+            "task_signature_joint16",
+            "task_signature_opdecoded4_joint16",
+            "task_signature_recon0",
+        ],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",
         output_root="reports/light_experiments_remote",
@@ -136,7 +149,10 @@ def test_task_signature_trained_residual_variant_adds_training_losses():
 
     assert rows[0]["variant"] == "task_signature_trained_residual"
     assert "stages.operator_decoded.lambda_persistence_residual=0.5" in rows[0]["light_extra_args"]
-    assert "stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05" in rows[0]["light_extra_args"]
+    assert (
+        "stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05"
+        in rows[0]["light_extra_args"]
+    )
     assert "evaluation.decoded_persistence_residual_alpha=0.25" in rows[0]["light_extra_args"]
 
 
@@ -155,7 +171,10 @@ def test_task_signature_transport_residual_gate_adds_family_alpha_overrides():
     )
 
     assert rows[0]["variant"] == "task_signature_transport_residual_gate"
-    assert 'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.2}' in rows[0]["light_extra_args"]
+    assert (
+        'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.2}'
+        in rows[0]["light_extra_args"]
+    )
     assert "evaluation.decoded_persistence_residual_alpha=0.0" in rows[0]["light_extra_args"]
 
 

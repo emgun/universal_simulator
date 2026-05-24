@@ -50,7 +50,10 @@ def test_remote_shard_prep_dry_run_supports_split_source_mapping():
     )
 
     assert "source_splits=val" in proc.stdout
-    assert "split_source_args=--split-source train=val --split-source val=val --split-source test=val" in proc.stdout
+    assert (
+        "split_source_args=--split-source train=val --split-source val=val --split-source test=val"
+        in proc.stdout
+    )
     assert "fetch full/advection1d/advection1d_val.h5" in proc.stdout
     assert "advection1d_train.h5" not in proc.stdout
 
@@ -90,7 +93,10 @@ def test_smoke_shard_prep_wrapper_uses_smoke_defaults():
     assert "fetch full/burgers1d/burgers1d_train_000.h5" in proc.stdout
     assert "fetch full/advection1d/advection1d_val.h5" in proc.stdout
     assert "fetch full/darcy2d/darcy2d_test.h5" in proc.stdout
-    assert "publish data/pdebench_smoke/*.h5 and docs/demo_smoke_data_manifest.yaml to prefix smoke-v1" in proc.stdout
+    assert (
+        "publish data/pdebench_smoke/*.h5 and docs/demo_smoke_data_manifest.yaml to prefix smoke-v1"
+        in proc.stdout
+    )
 
 
 def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp_path):
@@ -135,7 +141,11 @@ def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp
     assert "PUBLISH_SHARDS=0: skipping B2 publish." in proc.stdout
     payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
     assert [record["source_split"] for record in payload["records"]] == ["val", "val", "val"]
-    assert [record["derived_from_source_split"] for record in payload["records"]] == [True, False, True]
+    assert [record["derived_from_source_split"] for record in payload["records"]] == [
+        True,
+        False,
+        True,
+    ]
     with h5py.File(out_root / "advection1d" / "advection1d_train.h5", "r") as handle:
         assert handle["data"].shape == (4, 2)
 

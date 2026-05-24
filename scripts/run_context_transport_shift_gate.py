@@ -7,8 +7,9 @@ import argparse
 import hashlib
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import torch
 
@@ -32,6 +33,7 @@ def _score_context_transport(
     rollout_steps: int,
     metric: str,
 ) -> dict[str, Any]:
+    fields = torch.as_tensor(fields, dtype=torch.float32)
     if rollout_steps <= 0:
         raise ValueError("rollout_steps must be positive")
     steps = min(int(rollout_steps), fields.shape[1] - 2)
@@ -60,7 +62,9 @@ def _score_context_transport(
     pred_stack = torch.stack(predictions, dim=1)
     target_stack = torch.stack(targets, dim=1)
     mse = float((pred_stack - target_stack).pow(2).mean().item())
-    nrmse = float(torch.sqrt((pred_stack - target_stack).pow(2).mean()) / target_stack.std().clamp_min(1e-12))
+    nrmse = float(
+        torch.sqrt((pred_stack - target_stack).pow(2).mean()) / target_stack.std().clamp_min(1e-12)
+    )
     return {
         "mse": mse,
         "nrmse": nrmse,
@@ -166,7 +170,9 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
     test_measurement_key = None
     test_ledger_recorded = False
     if test_eligible and args.test_split:
-        test_measurement_key = _test_measurement_key(args=args, shifts=shifts, data_sources=data_sources)
+        test_measurement_key = _test_measurement_key(
+            args=args, shifts=shifts, data_sources=data_sources
+        )
         ledger = _load_test_ledger(ledger_path)
         existing_keys = {
             str(entry.get("measurement_key"))
@@ -233,9 +239,11 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "next_action": (
             "held-out test measured"
             if test_record
-            else "run exactly one held-out test with the locked context-transport estimator"
-            if test_eligible
-            else "do not run held-out test; validation failed"
+            else (
+                "run exactly one held-out test with the locked context-transport estimator"
+                if test_eligible
+                else "do not run held-out test; validation failed"
+            )
         ),
     }
 
@@ -258,7 +266,9 @@ def main() -> None:
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
     parser.add_argument("--test-ledger-json")
     parser.add_argument("--allow-repeat-test", action="store_true")
-    parser.add_argument("--output-json", default="reports/research/sota_loop/context_transport_shift_gate.json")
+    parser.add_argument(
+        "--output-json", default="reports/research/sota_loop/context_transport_shift_gate.json"
+    )
     args = parser.parse_args()
 
     record = run_gate(args)

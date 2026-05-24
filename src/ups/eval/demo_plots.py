@@ -52,4 +52,3 @@ def write_scorecard_plots(scorecard: Scorecard, output_dir: str | Path) -> dict[
         plt.close(fig)
         plots[label] = str(path.relative_to(out_dir))
     return plots
-

@@ -3,13 +3,14 @@ from __future__ import annotations
 """Calibration utilities (reliability diagrams and temperature scaling)."""
 
 from dataclasses import dataclass
-from typing import Iterable, Tuple
 
 import torch
 from torch import nn
 
 
-def reliability_diagram(probabilities: torch.Tensor, targets: torch.Tensor, n_bins: int = 10) -> Tuple[torch.Tensor, torch.Tensor]:
+def reliability_diagram(
+    probabilities: torch.Tensor, targets: torch.Tensor, n_bins: int = 10
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute empirical accuracy and mean confidence per bin.
 
     Parameters
@@ -43,7 +44,9 @@ def reliability_diagram(probabilities: torch.Tensor, targets: torch.Tensor, n_bi
     return confidences, accuracies
 
 
-def expected_calibration_error(probabilities: torch.Tensor, targets: torch.Tensor, n_bins: int = 10) -> torch.Tensor:
+def expected_calibration_error(
+    probabilities: torch.Tensor, targets: torch.Tensor, n_bins: int = 10
+) -> torch.Tensor:
     confidences, accuracies = reliability_diagram(probabilities, targets, n_bins)
     probs = probabilities.detach().flatten()
     bin_boundaries = torch.linspace(0.0, 1.0, n_bins + 1, device=probs.device)
@@ -70,7 +73,9 @@ class TemperatureScaler:
     def forward(self, logits: torch.Tensor) -> torch.Tensor:
         return logits / self.temperature.clamp_min(1e-4)
 
-    def fit(self, logits: torch.Tensor, targets: torch.Tensor, lr: float = 0.01, steps: int = 100) -> None:
+    def fit(
+        self, logits: torch.Tensor, targets: torch.Tensor, lr: float = 0.01, steps: int = 100
+    ) -> None:
         optimizer = torch.optim.LBFGS([self.temperature], lr=lr, max_iter=steps)
 
         targets = targets.long()
@@ -86,4 +91,3 @@ class TemperatureScaler:
 
     def calibrate(self, logits: torch.Tensor) -> torch.Tensor:
         return self.forward(logits)
-

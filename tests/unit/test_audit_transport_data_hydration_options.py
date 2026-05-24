@@ -9,7 +9,9 @@ import yaml
 from scripts.audit_transport_data_hydration_options import audit_hydration_options
 
 
-def _write_split(root, *, split: str, shift: int, samples: int = 2, steps: int = 5, width: int = 8) -> None:
+def _write_split(
+    root, *, split: str, shift: int, samples: int = 2, steps: int = 5, width: int = 8
+) -> None:
     path = root / f"advection1d_{split}.h5"
     root.mkdir(parents=True, exist_ok=True)
     base = np.zeros((samples, width), dtype=np.float32)

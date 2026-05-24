@@ -41,7 +41,14 @@ TASK_SPECS: Dict[str, PDEBenchSpec] = {
     "navier_stokes2d": PDEBenchSpec(
         field_key="data",
         family="fluid",
-        traits=("vector", "time_dependent", "transport", "nonlinear", "dissipative", "incompressible"),
+        traits=(
+            "vector",
+            "time_dependent",
+            "transport",
+            "nonlinear",
+            "dissipative",
+            "incompressible",
+        ),
     ),
 }
 
@@ -168,9 +175,15 @@ def pdebench_equation_nodes(
     spec = get_pdebench_spec(task)
     resolved_family_vocab = tuple(str(name) for name in (family_vocab or pdebench_family_vocab()))
     resolved_trait_vocab = tuple(str(name) for name in (trait_vocab or pdebench_trait_vocab()))
-    family_index = resolved_family_vocab.index(spec.family) if spec.family in resolved_family_vocab else -1
-    family_nodes = _indicator_node_set(len(resolved_family_vocab), [family_index] if family_index >= 0 else [])
-    trait_indices = [resolved_trait_vocab.index(name) for name in spec.traits if name in resolved_trait_vocab]
+    family_index = (
+        resolved_family_vocab.index(spec.family) if spec.family in resolved_family_vocab else -1
+    )
+    family_nodes = _indicator_node_set(
+        len(resolved_family_vocab), [family_index] if family_index >= 0 else []
+    )
+    trait_indices = [
+        resolved_trait_vocab.index(name) for name in spec.traits if name in resolved_trait_vocab
+    ]
     trait_nodes = _indicator_node_set(len(resolved_trait_vocab), trait_indices)
     if family_nodes.numel() == 0:
         return trait_nodes
@@ -179,12 +192,18 @@ def pdebench_equation_nodes(
     max_dim = max(family_nodes.shape[-1], trait_nodes.shape[-1])
     if family_nodes.shape[-1] < max_dim:
         family_nodes = torch.cat(
-            [family_nodes, family_nodes.new_zeros(family_nodes.shape[0], max_dim - family_nodes.shape[-1])],
+            [
+                family_nodes,
+                family_nodes.new_zeros(family_nodes.shape[0], max_dim - family_nodes.shape[-1]),
+            ],
             dim=-1,
         )
     if trait_nodes.shape[-1] < max_dim:
         trait_nodes = torch.cat(
-            [trait_nodes, trait_nodes.new_zeros(trait_nodes.shape[0], max_dim - trait_nodes.shape[-1])],
+            [
+                trait_nodes,
+                trait_nodes.new_zeros(trait_nodes.shape[0], max_dim - trait_nodes.shape[-1]),
+            ],
             dim=-1,
         )
     return torch.cat([family_nodes, trait_nodes], dim=0)
@@ -283,12 +302,18 @@ class PDEBenchDataset(Dataset):
                         f_fields = _normalise_fields(f_fields)
                     fields_list.append(f_fields)
                     if spec.target_key and spec.target_key in f:
-                        targets_list.append(torch.from_numpy(f[spec.target_key][sample_slice]).float())
+                        targets_list.append(
+                            torch.from_numpy(f[spec.target_key][sample_slice]).float()
+                        )
                     else:
                         targets_list.append(f_fields)
                     # Parameter/BC aggregation (if present): concatenate along first axis
                     if param_keys:
-                        p = {key: torch.from_numpy(f[key][sample_slice]).float() for key in param_keys if key in f}
+                        p = {
+                            key: torch.from_numpy(f[key][sample_slice]).float()
+                            for key in param_keys
+                            if key in f
+                        }
                         if p:
                             if params_accum is None:
                                 params_accum = {k: v.clone() for k, v in p.items()}
@@ -297,7 +322,11 @@ class PDEBenchDataset(Dataset):
                                     if k in params_accum:
                                         params_accum[k] = torch.cat([params_accum[k], v], dim=0)
                     if bc_keys:
-                        b = {key: torch.from_numpy(f[key][sample_slice]).float() for key in bc_keys if key in f}
+                        b = {
+                            key: torch.from_numpy(f[key][sample_slice]).float()
+                            for key in bc_keys
+                            if key in f
+                        }
                         if b:
                             if bc_accum is None:
                                 bc_accum = {k: v.clone() for k, v in b.items()}
@@ -309,7 +338,9 @@ class PDEBenchDataset(Dataset):
                         remaining -= take
 
             if not fields_list:
-                raise RuntimeError(f"No samples loaded for PDEBench task '{cfg.task}' split '{cfg.split}'")
+                raise RuntimeError(
+                    f"No samples loaded for PDEBench task '{cfg.task}' split '{cfg.split}'"
+                )
             self.fields = torch.cat(fields_list, dim=0)
             self.targets = torch.cat(targets_list, dim=0)
             self.params = params_accum

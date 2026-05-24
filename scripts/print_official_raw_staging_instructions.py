@@ -10,7 +10,9 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-DEFAULT_DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
+DEFAULT_DATAFILE_URL = (
+    "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
+)
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -38,7 +40,9 @@ def _download_command(source_url: str, local_path: str) -> str:
     )
 
 
-def _file_record(raw_root: Path, entry: dict[str, Any], readiness_by_path: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _file_record(
+    raw_root: Path, entry: dict[str, Any], readiness_by_path: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
     logical_path = str(entry.get("path") or "")
     ready_row = readiness_by_path.get(logical_path, {})
     local_path = str(ready_row.get("local_path") or raw_root / logical_path)
@@ -49,9 +53,13 @@ def _file_record(raw_root: Path, entry: dict[str, Any], readiness_by_path: dict[
         "file_id": entry.get("file_id"),
         "source_url": source_url,
         "download_command": _download_command(source_url, local_path),
-        "expected_size_bytes": int(ready_row.get("expected_size_bytes") or entry.get("size_bytes") or 0),
+        "expected_size_bytes": int(
+            ready_row.get("expected_size_bytes") or entry.get("size_bytes") or 0
+        ),
         "actual_size_bytes": int(ready_row.get("actual_size_bytes") or 0),
-        "checksum_type": str(ready_row.get("checksum_type") or entry.get("checksum_type") or "md5").lower(),
+        "checksum_type": str(
+            ready_row.get("checksum_type") or entry.get("checksum_type") or "md5"
+        ).lower(),
         "expected_checksum": ready_row.get("expected_checksum") or entry.get("checksum"),
         "actual_checksum": ready_row.get("actual_checksum"),
         "exists": bool(ready_row.get("exists", False)),
@@ -87,8 +95,12 @@ def build_staging_instructions(args: argparse.Namespace) -> dict[str, Any]:
         "selected_file_count": selected_count,
         "complete_file_count": complete_count,
         "missing_or_incomplete_file_count": selected_count - complete_count,
-        "local_sequential_required_bytes": (readiness.get("disk") or {}).get("local_sequential_required_bytes"),
-        "local_route_blockers": (readiness.get("route_blockers") or {}).get("local_sequential_hydration", []),
+        "local_sequential_required_bytes": (readiness.get("disk") or {}).get(
+            "local_sequential_required_bytes"
+        ),
+        "local_route_blockers": (readiness.get("route_blockers") or {}).get(
+            "local_sequential_hydration", []
+        ),
         "files": files,
         "next_command": _next_command(str(args.plan_json), str(args.run_json)),
         "held_out_test_policy": plan.get("held_out_test_policy"),
@@ -125,7 +137,9 @@ def _print_human(record: dict[str, Any]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Print official raw staging instructions")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument(
         "--readiness-json",
         default="reports/research/sota_loop/official_execution_readiness.json",
@@ -136,7 +150,9 @@ def main() -> None:
     )
     parser.add_argument("--raw-out")
     parser.add_argument("--output-json")
-    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON instead of a checklist.")
+    parser.add_argument(
+        "--json", action="store_true", help="Print machine-readable JSON instead of a checklist."
+    )
     args = parser.parse_args()
 
     record = build_staging_instructions(args)

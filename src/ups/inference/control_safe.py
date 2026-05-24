@@ -2,13 +2,12 @@ from __future__ import annotations
 
 """Model predictive control (MPC) with control barrier functions in latent space."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Sequence, Tuple
 
 import torch
 
 from ups.core.latent_state import LatentState
-
 
 BarrierFn = Callable[[LatentState], torch.Tensor]
 DynamicsFn = Callable[[LatentState, torch.Tensor], LatentState]
@@ -20,7 +19,7 @@ class MPCConfig:
     control_dim: int
     step_size: float = 0.1
     barrier_weight: float = 10.0
-    control_limits: Tuple[float, float] = (-1.0, 1.0)
+    control_limits: tuple[float, float] = (-1.0, 1.0)
 
 
 def safe_mpc(
@@ -42,4 +41,3 @@ def safe_mpc(
         optimizer.step()
         control.data.clamp_(*cfg.control_limits)
     return control.detach()
-

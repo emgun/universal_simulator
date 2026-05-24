@@ -12,7 +12,6 @@ from typing import Any
 
 from ups.eval.promotion import evaluate_promotion_rules, parse_promotion_rule
 
-
 MAIN_METRIC_ORDER = (
     "decoded_rollout_nrmse",
     "decoded_step1_nrmse",
@@ -208,7 +207,9 @@ def _tracking_fields(summary: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(wandb_tracking, Mapping):
         wandb_tracking = {}
     runs = wandb_tracking.get("runs", [])
-    run_records = [run for run in runs if isinstance(run, Mapping)] if isinstance(runs, list) else []
+    run_records = (
+        [run for run in runs if isinstance(run, Mapping)] if isinstance(runs, list) else []
+    )
     run_ids = [str(run.get("id", "")) for run in run_records if run.get("id")]
     urls = [str(run.get("url", "")) for run in run_records if run.get("url")]
     return {
@@ -260,7 +261,9 @@ def scorecard_row_from_summary(
         missing_metrics = result.missing_metrics
 
     row: dict[str, Any] = {
-        "run_name": summary.get("run_name", Path(str(summary.get("_summary_json", ""))).parent.name),
+        "run_name": summary.get(
+            "run_name", Path(str(summary.get("_summary_json", ""))).parent.name
+        ),
         "summary_json": summary.get("_summary_json", ""),
         "config": summary.get("config", ""),
         "eval_config": summary.get("eval_config", ""),
@@ -311,8 +314,12 @@ def annotate_baseline_comparison(
             fields["baseline_metric_delta"] = row_value - baseline_value
             if baseline_value != 0:
                 fields["baseline_metric_ratio"] = row_value / baseline_value
-                fields["baseline_improvement_fraction"] = (baseline_value - row_value) / baseline_value
-                fields["baseline_improvement_passed"] = fields["baseline_improvement_fraction"] >= min_improvement
+                fields["baseline_improvement_fraction"] = (
+                    baseline_value - row_value
+                ) / baseline_value
+                fields["baseline_improvement_passed"] = (
+                    fields["baseline_improvement_fraction"] >= min_improvement
+                )
             else:
                 fields["baseline_improvement_passed"] = False
         annotated = dict(row)
@@ -362,12 +369,18 @@ def collect_scorecard(
 def write_scorecard_tsv(scorecard: Scorecard, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = list(BASE_FIELDS) + scorecard.metric_keys + [
-        "promotion_failed_rules",
-        "promotion_missing_metrics",
-    ]
+    fieldnames = (
+        list(BASE_FIELDS)
+        + scorecard.metric_keys
+        + [
+            "promotion_failed_rules",
+            "promotion_missing_metrics",
+        ]
+    )
     with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
+        writer = csv.DictWriter(
+            handle, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore"
+        )
         writer.writeheader()
         for row in scorecard.rows:
             writer.writerow({key: _stringify(row.get(key)) for key in fieldnames})
@@ -395,14 +408,14 @@ def render_scorecard_html(
     for row in scorecard.rows:
         cells = "".join(f"<td>{html.escape(_stringify(row.get(field)))}</td>" for field in fields)
         body_rows.append(f"<tr>{cells}</tr>")
-    body = "\n".join(body_rows) or f"<tr><td colspan=\"{len(fields)}\">No runs found.</td></tr>"
+    body = "\n".join(body_rows) or f'<tr><td colspan="{len(fields)}">No runs found.</td></tr>'
     escaped_title = html.escape(title)
     plot_html = ""
     if plots:
         cards = []
         for label, src in plots.items():
             cards.append(
-                f"<figure><img src=\"{html.escape(src)}\" alt=\"{html.escape(label)}\"><figcaption>{html.escape(label)}</figcaption></figure>"
+                f'<figure><img src="{html.escape(src)}" alt="{html.escape(label)}"><figcaption>{html.escape(label)}</figcaption></figure>'
             )
         plot_html = "<section><h2>Metric Plots</h2>" + "\n".join(cards) + "</section>"
     return f"""<!doctype html>

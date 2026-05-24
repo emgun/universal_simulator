@@ -20,8 +20,14 @@ def test_candidate_shifts_use_default_or_explicit_values():
 
 
 def test_shift_override_serializes_task_and_family_maps():
-    assert _shift_override("task", "advection1d", 40) == 'evaluation.decoded_roll_shift_by_task={"advection1d":40}'
-    assert _shift_override("family", "transport", -2) == 'evaluation.decoded_roll_shift_by_family={"transport":-2}'
+    assert (
+        _shift_override("task", "advection1d", 40)
+        == 'evaluation.decoded_roll_shift_by_task={"advection1d":40}'
+    )
+    assert (
+        _shift_override("family", "transport", -2)
+        == 'evaluation.decoded_roll_shift_by_family={"transport":-2}'
+    )
 
 
 def test_schedule_override_serializes_horizon_maps():
@@ -55,7 +61,9 @@ def test_select_horizon_schedule_uses_matching_task_metrics():
         },
     ]
 
-    schedule, selections = _select_horizon_schedule(rows, kind="task", key="advection1d", mode="min")
+    schedule, selections = _select_horizon_schedule(
+        rows, kind="task", key="advection1d", mode="min"
+    )
 
     assert schedule == {1: 2, 2: 4}
     assert [selection["run_name"] for selection in selections] == ["shift2", "shift4"]

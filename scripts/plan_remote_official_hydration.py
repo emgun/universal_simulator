@@ -20,11 +20,15 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
     estimated_gib = float(hydration_plan.get("estimated_download_gib") or 0.0)
     sequential_hydration = bool(getattr(args, "sequential_hydration", True))
     remote_entries = list(hydration_plan.get("remote_entries") or [])
-    max_file_gib = max((float(entry.get("size_bytes") or 0) / float(1024**3) for entry in remote_entries), default=estimated_gib)
+    max_file_gib = max(
+        (float(entry.get("size_bytes") or 0) / float(1024**3) for entry in remote_entries),
+        default=estimated_gib,
+    )
     if sequential_hydration:
         required_disk_gb = max(
             int(getattr(args, "sequential_min_disk_gb", 32)),
-            int(max_file_gib * float(args.disk_multiplier)) + int(getattr(args, "sequential_disk_padding_gb", 16)),
+            int(max_file_gib * float(args.disk_multiplier))
+            + int(getattr(args, "sequential_disk_padding_gb", 16)),
         )
     else:
         required_disk_gb = max(
@@ -33,9 +37,13 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         )
     blockers = []
     if preflight.get("status") != "blocked_insufficient_disk":
-        blockers.append(f"local preflight status is {preflight.get('status')}; remote plan may not be needed")
+        blockers.append(
+            f"local preflight status is {preflight.get('status')}; remote plan may not be needed"
+        )
     if storage.get("status") != "external_or_freed_space_required":
-        blockers.append(f"storage recommendation status is {storage.get('status')}; remote plan may not be needed")
+        blockers.append(
+            f"storage recommendation status is {storage.get('status')}; remote plan may not be needed"
+        )
 
     offer_arg = f"OFFER_ID={args.offer_id} " if args.offer_id else ""
     launcher = (
@@ -68,7 +76,9 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
         "bash scripts/launch_remote_transport_shift_candidate_vast.sh"
     )
     return {
-        "status": "ready_for_remote_hydration" if not blockers else "blocked_remote_plan_not_needed",
+        "status": (
+            "ready_for_remote_hydration" if not blockers else "blocked_remote_plan_not_needed"
+        ),
         "blockers": blockers,
         "hydration_plan_json": args.hydration_plan_json,
         "local_preflight_status": preflight.get("status"),
@@ -117,7 +127,10 @@ def create_remote_plan(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plan remote official Advection hydration")
-    parser.add_argument("--hydration-plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser.add_argument(
+        "--hydration-plan-json",
+        default="reports/research/sota_loop/official_advection_hydration_plan.json",
+    )
     parser.add_argument(
         "--preflight-json",
         default="reports/research/sota_loop/official_advection_hydration_preflight.json",
@@ -126,7 +139,10 @@ def main() -> None:
         "--storage-json",
         default="reports/research/sota_loop/official_advection_hydration_storage_recommendation.json",
     )
-    parser.add_argument("--remote-plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser.add_argument(
+        "--remote-plan-json",
+        default="reports/research/sota_loop/official_advection_hydration_plan.json",
+    )
     parser.add_argument(
         "--remote-validation-json",
         default="reports/research/sota_loop/official_advection_hydration_plan_validation.json",
@@ -151,11 +167,19 @@ def main() -> None:
     parser.add_argument("--download-retry-backoff", type=float, default=20.0)
     parser.add_argument("--download-split-after-retries", type=int, default=2)
     parser.add_argument("--download-min-split-size-mib", type=int, default=8)
-    parser.add_argument("--sequential-hydration", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--git-ref", default="codex/sota-learned-gate", help="Git ref the Vast launcher should checkout")
+    parser.add_argument(
+        "--sequential-hydration", action=argparse.BooleanOptionalAction, default=True
+    )
+    parser.add_argument(
+        "--git-ref",
+        default="codex/sota-learned-gate",
+        help="Git ref the Vast launcher should checkout",
+    )
     parser.add_argument("--launch-retries", type=int, default=3)
     parser.add_argument("--launch-retry-backoff", type=float, default=10.0)
-    parser.add_argument("--offer-id", default="", help="Optional explicit Vast offer ID for direct relaunch")
+    parser.add_argument(
+        "--offer-id", default="", help="Optional explicit Vast offer ID for direct relaunch"
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/remote_official_advection_hydration_plan.json",

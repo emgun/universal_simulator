@@ -164,7 +164,12 @@ def test_run_light_experiment_logs_benchmark_summary_to_wandb(tmp_path, monkeypa
     def fake_init_monitoring_session(cfg, *, component, file_path=None):
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         with (Path(file_path).parent / "wandb_runs.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"component": component, "id": "summary123", "url": FakeSession.metadata["url"]}) + "\n")
+            handle.write(
+                json.dumps(
+                    {"component": component, "id": "summary123", "url": FakeSession.metadata["url"]}
+                )
+                + "\n"
+            )
         return FakeSession()
 
     monkeypatch.setattr(runner_script, "init_monitoring_session", fake_init_monitoring_session)
@@ -190,7 +195,9 @@ def test_run_light_experiment_logs_benchmark_summary_to_wandb(tmp_path, monkeypa
 
     runner_script.main()
 
-    summary = json.loads((output_root / "wandb_summary" / "summary.json").read_text(encoding="utf-8"))
+    summary = json.loads(
+        (output_root / "wandb_summary" / "summary.json").read_text(encoding="utf-8")
+    )
     assert logged_payloads
     assert "summary/mse" in logged_payloads[-1]
     assert summary["tracking"]["wandb"]["run_count"] >= 1

@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-
-DEFAULT_DATAFILE_URL = "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
+DEFAULT_DATAFILE_URL = (
+    "https://darus.uni-stuttgart.de/api/access/datafile/{file_id}?format=original"
+)
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 
 
@@ -24,7 +25,9 @@ def _load_json(path: str | Path) -> dict[str, Any]:
 
 def _dns_record(host: str) -> dict[str, Any]:
     try:
-        addresses = sorted({row[4][0] for row in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)})
+        addresses = sorted(
+            {row[4][0] for row in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+        )
     except OSError as exc:
         return {"host": host, "resolves": False, "error": str(exc), "addresses": []}
     return {"host": host, "resolves": True, "error": None, "addresses": addresses}
@@ -95,11 +98,18 @@ def _staged_raw_record(raw_root: str | Path, entries: list[dict[str, Any]]) -> d
         expected_checksum = str(entry.get("checksum") or "")
         checksum_type = str(entry.get("checksum_type") or "").lower()
         checksum_supported = bool(expected_checksum and checksum_type in {"", "md5"})
-        actual_checksum = _file_md5(path) if exists and actual_size == expected_size and checksum_supported else None
-        checksum_matches = bool(
-            not checksum_supported or (actual_checksum and actual_checksum.lower() == expected_checksum.lower())
+        actual_checksum = (
+            _file_md5(path)
+            if exists and actual_size == expected_size and checksum_supported
+            else None
         )
-        complete = bool(exists and expected_size > 0 and actual_size == expected_size and checksum_matches)
+        checksum_matches = bool(
+            not checksum_supported
+            or (actual_checksum and actual_checksum.lower() == expected_checksum.lower())
+        )
+        complete = bool(
+            exists and expected_size > 0 and actual_size == expected_size and checksum_matches
+        )
         all_present = all_present and complete
         files.append(
             {
@@ -139,7 +149,9 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
         default=0,
     )
     total_download_bytes = int(plan.get("estimated_download_bytes") or 0)
-    local_required_bytes = int(max(largest_file_bytes, total_download_bytes) * float(args.local_safety_factor))
+    local_required_bytes = int(
+        max(largest_file_bytes, total_download_bytes) * float(args.local_safety_factor)
+    )
     sequential_required_bytes = int(largest_file_bytes * float(args.local_safety_factor))
     remote_required_gb = int(remote_plan.get("required_disk_gb") or 0)
 
@@ -165,7 +177,9 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
         next_action = "run pinned remote actual_launcher"
     elif local_ready:
         next_action = "run local sequential hydration"
-    elif int(local_disk["free_bytes"]) >= sequential_required_bytes and not staged_raw["all_present"]:
+    elif (
+        int(local_disk["free_bytes"]) >= sequential_required_bytes and not staged_raw["all_present"]
+    ):
         next_action = "stage official raw files or restore official data DNS"
     else:
         next_action = "restore DNS and provide enough local disk or a reachable remote executor"
@@ -200,7 +214,9 @@ def check_readiness(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check official transport execution readiness")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument(
         "--remote-plan-json",
         default="reports/research/sota_loop/remote_official_advection_hydration_plan.json",

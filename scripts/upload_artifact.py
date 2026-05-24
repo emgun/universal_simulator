@@ -14,9 +14,9 @@ Adds --cache-dir to steer W&B staging to a local directory.
 """
 
 import argparse
-from pathlib import Path
 import os
-from typing import Iterable
+from collections.abc import Iterable
+from pathlib import Path
 
 import wandb
 
@@ -30,7 +30,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--entity", default=None, help="Optional W&B entity")
     parser.add_argument("--run-name", default=None, help="Override run name")
     parser.add_argument("--metadata", default=None, help="Optional JSON string metadata")
-    parser.add_argument("--cache-dir", default=None, help="Optional W&B cache/staging directory (sets WANDB_CACHE_DIR)")
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        help="Optional W&B cache/staging directory (sets WANDB_CACHE_DIR)",
+    )
     return parser.parse_args()
 
 
@@ -53,7 +57,11 @@ def main() -> None:
         cache_dir.mkdir(parents=True, exist_ok=True)
         os.environ["WANDB_CACHE_DIR"] = str(cache_dir)
 
-    run = wandb.init(project=args.project, entity=args.entity, name=args.run_name or f"artifact-upload-{args.name}")
+    run = wandb.init(
+        project=args.project,
+        entity=args.entity,
+        name=args.run_name or f"artifact-upload-{args.name}",
+    )
     metadata = None
     if args.metadata:
         import json

@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import h5py
 import torch
@@ -35,12 +36,16 @@ def _load_time_window(
     with h5py.File(path, "r") as handle:
         total_steps = int(handle["data"].shape[1])
         if start_step < 0 or stop_step > total_steps:
-            raise ValueError(f"Temporal window [{start_step}, {stop_step}) is outside {path} with {total_steps} steps")
+            raise ValueError(
+                f"Temporal window [{start_step}, {stop_step}) is outside {path} with {total_steps} steps"
+            )
         data = torch.from_numpy(handle["data"][sample_slice, start_step:stop_step]).float()
     if data.dim() == 4 and data.shape[-1] == 1:
         data = data[..., 0]
     if data.dim() != 3:
-        raise ValueError(f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
+        raise ValueError(
+            f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}"
+        )
     return data
 
 
@@ -89,9 +94,13 @@ def _histogram(rows: Sequence[dict[str, Any]]) -> dict[str, int]:
 
 def diagnose(args: argparse.Namespace) -> dict[str, Any]:
     shifts = _candidate_shifts(args.shift)
-    train_max_samples = None if args.max_samples is not None and args.max_samples < 0 else args.max_samples
+    train_max_samples = (
+        None if args.max_samples is not None and args.max_samples < 0 else args.max_samples
+    )
     val_max_samples = args.max_samples if args.val_max_samples is None else args.val_max_samples
-    val_max_samples = None if val_max_samples is not None and val_max_samples < 0 else val_max_samples
+    val_max_samples = (
+        None if val_max_samples is not None and val_max_samples < 0 else val_max_samples
+    )
     with h5py.File(Path(args.data_root) / f"{args.task}_{args.train_split}.h5", "r") as handle:
         total_steps = int(handle["data"].shape[1])
     latest_start = total_steps - args.rollout_steps - 1
@@ -145,7 +154,11 @@ def diagnose(args: argparse.Namespace) -> dict[str, Any]:
         "common_temporal_best_shifts": common_shifts,
         "train_windows": train_rows,
         "val_windows": val_rows,
-        "conclusion": "temporal_train_val_shift_support_found" if common_shifts else "blocked_no_temporal_common_shift",
+        "conclusion": (
+            "temporal_train_val_shift_support_found"
+            if common_shifts
+            else "blocked_no_temporal_common_shift"
+        ),
         "notes": [
             "Uses train and validation splits only.",
             "Scans temporal start windows; does not read or evaluate held-out test.",
@@ -160,8 +173,12 @@ def main() -> None:
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="val")
-    parser.add_argument("--max-samples", type=int, default=128, help="Train sample cap; use -1 for full split")
-    parser.add_argument("--val-max-samples", type=int, help="Validation sample cap; use -1 for full split")
+    parser.add_argument(
+        "--max-samples", type=int, default=128, help="Train sample cap; use -1 for full split"
+    )
+    parser.add_argument(
+        "--val-max-samples", type=int, help="Validation sample cap; use -1 for full split"
+    )
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--start-step", type=int, default=0)
     parser.add_argument("--stride", type=int, default=16)
@@ -169,7 +186,10 @@ def main() -> None:
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
     parser.add_argument("--top-k", type=int, default=3)
-    parser.add_argument("--output-json", default="reports/research/sota_loop/transport_temporal_window_diagnostic.json")
+    parser.add_argument(
+        "--output-json",
+        default="reports/research/sota_loop/transport_temporal_window_diagnostic.json",
+    )
     args = parser.parse_args()
 
     record = diagnose(args)

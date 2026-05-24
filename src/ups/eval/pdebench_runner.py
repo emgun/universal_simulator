@@ -3,9 +3,9 @@ from __future__ import annotations
 """PDEBench evaluation helpers."""
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import torch
 
@@ -70,20 +70,22 @@ def _encode_grid_trajectory(
     field_name: str,
     device: torch.device,
 ) -> torch.Tensor:
-    latents: List[torch.Tensor] = []
+    latents: list[torch.Tensor] = []
     for step in range(fields.shape[0]):
         flattened = _flatten_field_step(fields[step], grid_shape).to(device)
-        latent = encoder({field_name: flattened}, coords.to(device), meta={"grid_shape": grid_shape})
+        latent = encoder(
+            {field_name: flattened}, coords.to(device), meta={"grid_shape": grid_shape}
+        )
         latents.append(latent.detach().cpu())
     return torch.cat(latents, dim=0)
 
 
 def _aggregate_chunk_metrics(
-    pred_chunks: List[torch.Tensor],
-    target_chunks: List[torch.Tensor],
+    pred_chunks: list[torch.Tensor],
+    target_chunks: list[torch.Tensor],
     *,
     eps: float = 1e-8,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     if len(pred_chunks) != len(target_chunks) or not pred_chunks:
         raise ValueError("pred_chunks and target_chunks must be non-empty and aligned")
 
@@ -129,7 +131,10 @@ def _alpha_map(raw: Any, *, setting: str) -> dict[str, float]:
         return {}
     if not isinstance(raw, Mapping):
         raise ValueError(f"{setting} must be a mapping")
-    return {str(key): _nonnegative_alpha(value, setting=f"{setting}[{key!r}]") for key, value in raw.items()}
+    return {
+        str(key): _nonnegative_alpha(value, setting=f"{setting}[{key!r}]")
+        for key, value in raw.items()
+    }
 
 
 def _horizon_alpha_map(raw: Any, *, setting: str) -> dict[int, float]:
@@ -190,7 +195,10 @@ def _nested_horizon_int_map(raw: Any, *, setting: str) -> dict[str, dict[int, in
         return {}
     if not isinstance(raw, Mapping):
         raise ValueError(f"{setting} must be a mapping")
-    return {str(key): _horizon_int_map(value, setting=f"{setting}[{key!r}]") for key, value in raw.items()}
+    return {
+        str(key): _horizon_int_map(value, setting=f"{setting}[{key!r}]")
+        for key, value in raw.items()
+    }
 
 
 def _resolve_residual_alpha(
@@ -243,15 +251,21 @@ def _resolve_roll_shift(
     return 0
 
 
-def _roll_flattened_grid(field: torch.Tensor, grid_shape: tuple[int, int], *, shift_x: int) -> torch.Tensor:
+def _roll_flattened_grid(
+    field: torch.Tensor, grid_shape: tuple[int, int], *, shift_x: int
+) -> torch.Tensor:
     if shift_x == 0:
         return field
     if field.dim() != 3:
-        raise ValueError(f"Expected flattened grid field shaped (B, N, C), got {tuple(field.shape)}")
+        raise ValueError(
+            f"Expected flattened grid field shaped (B, N, C), got {tuple(field.shape)}"
+        )
     batch, nodes, channels = field.shape
     H, W = grid_shape
     if nodes != H * W:
-        raise ValueError(f"Flattened grid has {nodes} nodes, expected {H * W} for grid shape {grid_shape}")
+        raise ValueError(
+            f"Flattened grid has {nodes} nodes, expected {H * W} for grid shape {grid_shape}"
+        )
     grid = field.transpose(1, 2).reshape(batch, channels, H, W)
     rolled = torch.roll(grid, shifts=int(shift_x), dims=-1)
     return rolled.reshape(batch, channels, H * W).transpose(1, 2).contiguous()
@@ -268,7 +282,9 @@ def _roll_shift_estimator_config(raw: Any) -> dict[str, Any]:
         [-64, -48, -40, -32, -24, -16, -8, -4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64],
     )
     if not isinstance(candidate_shifts, Sequence) or isinstance(candidate_shifts, (str, bytes)):
-        raise ValueError("decoded observed roll-shift estimator candidate_shifts must be a sequence of integers")
+        raise ValueError(
+            "decoded observed roll-shift estimator candidate_shifts must be a sequence of integers"
+        )
     cfg["candidate_shifts"] = [int(shift) for shift in candidate_shifts]
     cfg["enabled"] = bool(cfg.get("enabled", True))
     for key in ("tasks", "families"):
@@ -309,7 +325,9 @@ def _roll_shift_estimator_applies(
 def _roll_shift_estimator_mode(cfg: Mapping[str, Any]) -> str:
     mode = str(cfg.get("mode", "roll_prediction"))
     if mode not in {"roll_prediction", "roll_persistence"}:
-        raise ValueError("decoded roll-shift estimator mode must be 'roll_prediction' or 'roll_persistence'")
+        raise ValueError(
+            "decoded roll-shift estimator mode must be 'roll_prediction' or 'roll_persistence'"
+        )
     return mode
 
 
@@ -375,7 +393,9 @@ def _residual_gate_config(raw: Any) -> dict[str, Any]:
     min_alpha = float(cfg.get("min_alpha", 0.0))
     max_alpha = float(cfg.get("max_alpha", 1.0))
     if min_alpha < 0.0 or max_alpha > 1.0 or min_alpha > max_alpha:
-        raise ValueError("decoded residual gate alpha bounds must satisfy 0 <= min_alpha <= max_alpha <= 1")
+        raise ValueError(
+            "decoded residual gate alpha bounds must satisfy 0 <= min_alpha <= max_alpha <= 1"
+        )
     for key in ("feature_weights", "task_bias", "family_bias", "horizon_bias"):
         value = cfg.get(key, {})
         if value is not None and not isinstance(value, Mapping):
@@ -467,16 +487,16 @@ def evaluate_pdebench(task: str, split: str = "test", root: str | None = None) -
 
 
 def evaluate_latent_operator(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     operator: LatentOperator,
     *,
-    diffusion: Optional[DiffusionResidual] = None,
+    diffusion: DiffusionResidual | None = None,
     tau: float = 0.5,
     device: str | torch.device = "cpu",
     return_details: bool = False,
-    ttc_config: Optional[TTCConfig] = None,
-    reward_model: Optional[RewardModel] = None,
-) -> MetricReport | tuple[MetricReport, Dict[str, Any]]:
+    ttc_config: TTCConfig | None = None,
+    reward_model: RewardModel | None = None,
+) -> MetricReport | tuple[MetricReport, dict[str, Any]]:
     """Evaluate a latent operator (optionally with diffusion corrector) on PDEBench data."""
 
     device = torch.device(device)
@@ -495,14 +515,16 @@ def evaluate_latent_operator(
     total_elements = 0
     sample_mse: list[torch.Tensor] = []
     sample_mae: list[torch.Tensor] = []
-    preview: Dict[str, torch.Tensor] | None = None
-    ttc_step_logs: List[Dict[str, Any]] = []
+    preview: dict[str, torch.Tensor] | None = None
+    ttc_step_logs: list[dict[str, Any]] = []
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             target = z1.to(device)
 
             if ttc_config is not None and reward_model is not None:
@@ -585,7 +607,7 @@ def evaluate_latent_operator(
     if not return_details:
         return report
 
-    details: Dict[str, Any] = {}
+    details: dict[str, Any] = {}
     if sample_mse:
         mse_tensor = torch.cat(sample_mse)
         mae_tensor = torch.cat(sample_mae)
@@ -603,13 +625,13 @@ def evaluate_latent_operator(
 
 
 def evaluate_decoded_operator(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     encoder: Any,
     operator: Any,
     decoder: Any,
     *,
     device: str | torch.device = "cpu",
-    rollout_steps: Optional[int] = None,
+    rollout_steps: int | None = None,
 ) -> MetricReport:
     """Evaluate decoded physical-space rollout metrics for grid PDEBench tasks.
 
@@ -624,10 +646,16 @@ def evaluate_decoded_operator(
     task_cfg = data_cfg.get("task")
     if isinstance(task_cfg, str):
         task_names = [task_cfg]
-    elif isinstance(task_cfg, (list, tuple)) and task_cfg and all(isinstance(task, str) for task in task_cfg):
+    elif (
+        isinstance(task_cfg, (list, tuple))
+        and task_cfg
+        and all(isinstance(task, str) for task in task_cfg)
+    ):
         task_names = [str(task) for task in task_cfg]
     else:
-        raise ValueError("Decoded operator evaluation currently requires one PDEBench task or a non-empty list of task names")
+        raise ValueError(
+            "Decoded operator evaluation currently requires one PDEBench task or a non-empty list of task names"
+        )
 
     device = torch.device(device)
     operator = operator.to(device)
@@ -686,28 +714,36 @@ def evaluate_decoded_operator(
         eval_cfg.get("decoded_roll_shift_by_family_horizon"),
         setting="evaluation.decoded_roll_shift_by_family_horizon",
     )
-    observed_roll_shift_cfg = _roll_shift_estimator_config(eval_cfg.get("decoded_observed_roll_shift_estimator"))
-    prediction_roll_shift_cfg = _roll_shift_estimator_config(eval_cfg.get("decoded_prediction_roll_shift_estimator"))
+    observed_roll_shift_cfg = _roll_shift_estimator_config(
+        eval_cfg.get("decoded_observed_roll_shift_estimator")
+    )
+    prediction_roll_shift_cfg = _roll_shift_estimator_config(
+        eval_cfg.get("decoded_prediction_roll_shift_estimator")
+    )
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
 
     total_pred = []
     total_target = []
     alpha_stats: dict[str, list[float]] = {}
     shift_stats: dict[str, list[float]] = {}
-    horizon_pred: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
-    horizon_target: Dict[int, List[torch.Tensor]] = {horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS}
-    per_task_pred: Dict[str, List[torch.Tensor]] = {}
-    per_task_target: Dict[str, List[torch.Tensor]] = {}
-    per_task_step1_pred: Dict[str, List[torch.Tensor]] = {}
-    per_task_step1_target: Dict[str, List[torch.Tensor]] = {}
-    per_task_horizon_pred: Dict[str, Dict[int, List[torch.Tensor]]] = {}
-    per_task_horizon_target: Dict[str, Dict[int, List[torch.Tensor]]] = {}
-    per_family_pred: Dict[str, List[torch.Tensor]] = {}
-    per_family_target: Dict[str, List[torch.Tensor]] = {}
-    per_family_step1_pred: Dict[str, List[torch.Tensor]] = {}
-    per_family_step1_target: Dict[str, List[torch.Tensor]] = {}
-    per_family_horizon_pred: Dict[str, Dict[int, List[torch.Tensor]]] = {}
-    per_family_horizon_target: Dict[str, Dict[int, List[torch.Tensor]]] = {}
+    horizon_pred: dict[int, list[torch.Tensor]] = {
+        horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS
+    }
+    horizon_target: dict[int, list[torch.Tensor]] = {
+        horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS
+    }
+    per_task_pred: dict[str, list[torch.Tensor]] = {}
+    per_task_target: dict[str, list[torch.Tensor]] = {}
+    per_task_step1_pred: dict[str, list[torch.Tensor]] = {}
+    per_task_step1_target: dict[str, list[torch.Tensor]] = {}
+    per_task_horizon_pred: dict[str, dict[int, list[torch.Tensor]]] = {}
+    per_task_horizon_target: dict[str, dict[int, list[torch.Tensor]]] = {}
+    per_family_pred: dict[str, list[torch.Tensor]] = {}
+    per_family_target: dict[str, list[torch.Tensor]] = {}
+    per_family_step1_pred: dict[str, list[torch.Tensor]] = {}
+    per_family_step1_target: dict[str, list[torch.Tensor]] = {}
+    per_family_horizon_pred: dict[str, dict[int, list[torch.Tensor]]] = {}
+    per_family_horizon_target: dict[str, dict[int, list[torch.Tensor]]] = {}
 
     with torch.no_grad():
         for task_name in task_names:
@@ -727,9 +763,11 @@ def evaluate_decoded_operator(
             sample_fields = dataset.fields[0]
             grid_shape = infer_grid_shape(sample_fields)
             coords = make_grid_coords(grid_shape, device)
-            base_cond: Dict[str, torch.Tensor] = {}
+            base_cond: dict[str, torch.Tensor] = {}
             if bool(cfg.get("training", {}).get("auto_conditioning", False)):
-                extras = pdebench_conditioning_extras(task_name=task_name, grid_shape=grid_shape, task_vocab=task_names)
+                extras = pdebench_conditioning_extras(
+                    task_name=task_name, grid_shape=grid_shape, task_vocab=task_names
+                )
                 base_cond = {key: value.to(device) for key, value in extras.items()}
             param_vocab = tuple(data_cfg.get("param_keys", ()))
             bc_vocab = tuple(data_cfg.get("bc_keys", ()))
@@ -760,7 +798,11 @@ def evaluate_decoded_operator(
                     param_vocab=param_vocab,
                     bc_vocab=bc_vocab,
                 )
-                state = LatentState(z=latent_seq[0:1].to(device), t=torch.tensor(0.0, device=device), cond={k: v.to(device) for k, v in initial_cond.items()})
+                state = LatentState(
+                    z=latent_seq[0:1].to(device),
+                    t=torch.tensor(0.0, device=device),
+                    cond={k: v.to(device) for k, v in initial_cond.items()},
+                )
 
                 for step in range(steps):
                     cond = pdebench_condition_step(
@@ -772,7 +814,9 @@ def evaluate_decoded_operator(
                         param_vocab=param_vocab,
                         bc_vocab=bc_vocab,
                     )
-                    state = LatentState(z=state.z, t=state.t, cond={k: v.to(device) for k, v in cond.items()})
+                    state = LatentState(
+                        z=state.z, t=state.t, cond={k: v.to(device) for k, v in cond.items()}
+                    )
                     state = operator(state, dt_tensor)
                     decoded = decoder(coords, state.z, conditioning={})
                     if field_name not in decoded:
@@ -807,12 +851,28 @@ def evaluate_decoded_operator(
                             horizon=horizon,
                             features=gate_features,
                         )
-                        _append_stat(alpha_stats, "decoded_residual_gate_alpha", task_residual_alpha)
-                        _append_stat(alpha_stats, f"task_{task_name}_decoded_residual_gate_alpha", task_residual_alpha)
-                        _append_stat(alpha_stats, f"family_{task_family}_decoded_residual_gate_alpha", task_residual_alpha)
-                        _append_stat(alpha_stats, f"decoded_residual_gate_h{horizon}_alpha", task_residual_alpha)
+                        _append_stat(
+                            alpha_stats, "decoded_residual_gate_alpha", task_residual_alpha
+                        )
+                        _append_stat(
+                            alpha_stats,
+                            f"task_{task_name}_decoded_residual_gate_alpha",
+                            task_residual_alpha,
+                        )
+                        _append_stat(
+                            alpha_stats,
+                            f"family_{task_family}_decoded_residual_gate_alpha",
+                            task_residual_alpha,
+                        )
+                        _append_stat(
+                            alpha_stats,
+                            f"decoded_residual_gate_h{horizon}_alpha",
+                            task_residual_alpha,
+                        )
                     if task_residual_alpha != 1.0:
-                        pred_field = persistence_field + task_residual_alpha * (pred_field - persistence_field)
+                        pred_field = persistence_field + task_residual_alpha * (
+                            pred_field - persistence_field
+                        )
                     roll_shift = _resolve_roll_shift(
                         task_name=task_name,
                         task_family=task_family,
@@ -822,14 +882,11 @@ def evaluate_decoded_operator(
                         shift_by_task_horizon=roll_shift_by_task_horizon,
                         shift_by_family_horizon=roll_shift_by_family_horizon,
                     )
-                    if (
-                        roll_shift == 0
-                        and _roll_shift_estimator_applies(
-                            cfg=observed_roll_shift_cfg,
-                            task_name=task_name,
-                            task_family=task_family,
-                            horizon=horizon,
-                        )
+                    if roll_shift == 0 and _roll_shift_estimator_applies(
+                        cfg=observed_roll_shift_cfg,
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=horizon,
                     ):
                         previous_field = _flatten_field_step(fields[step - 1], grid_shape).cpu()
                         roll_shift = _estimate_observed_roll_shift(
@@ -839,17 +896,26 @@ def evaluate_decoded_operator(
                             candidate_shifts=observed_roll_shift_cfg.get("candidate_shifts", ()),
                         )
                         _append_stat(shift_stats, "decoded_observed_roll_shift", float(roll_shift))
-                        _append_stat(shift_stats, f"task_{task_name}_decoded_observed_roll_shift", float(roll_shift))
-                        _append_stat(shift_stats, f"family_{task_family}_decoded_observed_roll_shift", float(roll_shift))
-                        _append_stat(shift_stats, f"decoded_observed_roll_shift_h{horizon}", float(roll_shift))
-                    if (
-                        roll_shift == 0
-                        and _roll_shift_estimator_applies(
-                            cfg=prediction_roll_shift_cfg,
-                            task_name=task_name,
-                            task_family=task_family,
-                            horizon=horizon,
+                        _append_stat(
+                            shift_stats,
+                            f"task_{task_name}_decoded_observed_roll_shift",
+                            float(roll_shift),
                         )
+                        _append_stat(
+                            shift_stats,
+                            f"family_{task_family}_decoded_observed_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"decoded_observed_roll_shift_h{horizon}",
+                            float(roll_shift),
+                        )
+                    if roll_shift == 0 and _roll_shift_estimator_applies(
+                        cfg=prediction_roll_shift_cfg,
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=horizon,
                     ):
                         roll_shift = _estimate_prediction_roll_shift(
                             persistence_field=persistence_field,
@@ -857,11 +923,28 @@ def evaluate_decoded_operator(
                             grid_shape=grid_shape,
                             candidate_shifts=prediction_roll_shift_cfg.get("candidate_shifts", ()),
                         )
-                        _append_stat(shift_stats, "decoded_prediction_roll_shift", float(roll_shift))
-                        _append_stat(shift_stats, f"task_{task_name}_decoded_prediction_roll_shift", float(roll_shift))
-                        _append_stat(shift_stats, f"family_{task_family}_decoded_prediction_roll_shift", float(roll_shift))
-                        _append_stat(shift_stats, f"decoded_prediction_roll_shift_h{horizon}", float(roll_shift))
-                        if _roll_shift_estimator_mode(prediction_roll_shift_cfg) == "roll_persistence":
+                        _append_stat(
+                            shift_stats, "decoded_prediction_roll_shift", float(roll_shift)
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"task_{task_name}_decoded_prediction_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"family_{task_family}_decoded_prediction_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"decoded_prediction_roll_shift_h{horizon}",
+                            float(roll_shift),
+                        )
+                        if (
+                            _roll_shift_estimator_mode(prediction_roll_shift_cfg)
+                            == "roll_persistence"
+                        ):
                             pred_field = persistence_field
                     pred_field = _roll_flattened_grid(pred_field, grid_shape, shift_x=roll_shift)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
@@ -871,14 +954,24 @@ def evaluate_decoded_operator(
                     per_task_target.setdefault(task_name, []).append(target_field)
                     per_family_pred.setdefault(task_family, []).append(pred_field)
                     per_family_target.setdefault(task_family, []).append(target_field)
-                    track_horizon = report_all_horizon_metrics or horizon in _DEFAULT_DECODED_HORIZONS
+                    track_horizon = (
+                        report_all_horizon_metrics or horizon in _DEFAULT_DECODED_HORIZONS
+                    )
                     if track_horizon:
                         horizon_pred.setdefault(horizon, []).append(pred_field)
                         horizon_target.setdefault(horizon, []).append(target_field)
-                        per_task_horizon_pred.setdefault(task_name, {}).setdefault(horizon, []).append(pred_field)
-                        per_task_horizon_target.setdefault(task_name, {}).setdefault(horizon, []).append(target_field)
-                        per_family_horizon_pred.setdefault(task_family, {}).setdefault(horizon, []).append(pred_field)
-                        per_family_horizon_target.setdefault(task_family, {}).setdefault(horizon, []).append(target_field)
+                        per_task_horizon_pred.setdefault(task_name, {}).setdefault(
+                            horizon, []
+                        ).append(pred_field)
+                        per_task_horizon_target.setdefault(task_name, {}).setdefault(
+                            horizon, []
+                        ).append(target_field)
+                        per_family_horizon_pred.setdefault(task_family, {}).setdefault(
+                            horizon, []
+                        ).append(pred_field)
+                        per_family_horizon_target.setdefault(task_family, {}).setdefault(
+                            horizon, []
+                        ).append(target_field)
                     if horizon == 1:
                         per_task_step1_pred.setdefault(task_name, []).append(pred_field)
                         per_task_step1_target.setdefault(task_name, []).append(target_field)
@@ -923,7 +1016,9 @@ def evaluate_decoded_operator(
         if step1_pred and step1_target:
             step1_stats = _aggregate_chunk_metrics(step1_pred, step1_target)
             metrics[f"task_{task_name}_decoded_step1_nrmse"] = step1_stats["nrmse"]
-        for horizon, horizon_pred_chunks in sorted(per_task_horizon_pred.get(task_name, {}).items()):
+        for horizon, horizon_pred_chunks in sorted(
+            per_task_horizon_pred.get(task_name, {}).items()
+        ):
             if horizon == 1 and not report_all_horizon_metrics:
                 continue
             if horizon in (4, 16) or report_all_horizon_metrics:
@@ -942,7 +1037,9 @@ def evaluate_decoded_operator(
         if step1_pred and step1_target:
             step1_stats = _aggregate_chunk_metrics(step1_pred, step1_target)
             metrics[f"family_{family_name}_decoded_step1_nrmse"] = step1_stats["nrmse"]
-        for horizon, horizon_pred_chunks in sorted(per_family_horizon_pred.get(family_name, {}).items()):
+        for horizon, horizon_pred_chunks in sorted(
+            per_family_horizon_pred.get(family_name, {}).items()
+        ):
             if horizon == 1 and not report_all_horizon_metrics:
                 continue
             if horizon in (4, 16) or report_all_horizon_metrics:
@@ -979,7 +1076,7 @@ def evaluate_decoded_operator(
 
 
 def evaluate_latent_model(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     model: Any,
     *,
     device: str | torch.device = "cpu",

@@ -108,7 +108,9 @@ def test_remote_official_hydration_wrapper_can_chain_guarded_post_validation_tes
 
     assert proc.returncode == 0
     assert "expected literal_test_ready" in proc.stdout
-    post_validation = json.loads((tmp_path / "post_validation_test.json").read_text(encoding="utf-8"))
+    post_validation = json.loads(
+        (tmp_path / "post_validation_test.json").read_text(encoding="utf-8")
+    )
     assert post_validation["objective_status"] == "literal_blocked"
     assert post_validation["held_out_test_policy"]["requires_literal_test_ready"] is True
 
@@ -135,8 +137,8 @@ def test_remote_official_hydration_exports_custom_objective_status_to_audit(tmp_
             "objective_audit_after_validation": (
                 "REQUIRE_STATUS=literal-test-ready python -c "
                 "'import json, os, pathlib; "
-                "pathlib.Path(os.environ[\"OBJECTIVE_STATUS_JSON\"]).write_text("
-                "json.dumps({\"status\":\"literal_blocked\"}), encoding=\"utf-8\")'"
+                'pathlib.Path(os.environ["OBJECTIVE_STATUS_JSON"]).write_text('
+                'json.dumps({"status":"literal_blocked"}), encoding="utf-8")\''
             ),
         },
         "notes": ["The current workspace has not performed these downloads."],
@@ -186,7 +188,7 @@ def test_remote_official_hydration_exports_redirect_resolution_defaults(tmp_path
                 (
                     "python scripts/download_pdebench_file.py "
                     "'1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5' --help && "
-                    f"{sys.executable} -c \"import json, os, pathlib; "
+                    f'{sys.executable} -c "import json, os, pathlib; '
                     f"pathlib.Path('{env_path}').write_text(json.dumps({{"
                     f"'resolve': os.environ.get('PDEBENCH_DOWNLOAD_RESOLVE_REDIRECT'), "
                     f"'retries': os.environ.get('PDEBENCH_DOWNLOAD_REDIRECT_RETRIES')}}), encoding='utf-8')\""
@@ -197,8 +199,8 @@ def test_remote_official_hydration_exports_redirect_resolution_defaults(tmp_path
             "validate_without_test": "true",
             "objective_audit_after_validation": (
                 "REQUIRE_STATUS=literal-test-ready python -c 'import json, os, pathlib; "
-                "pathlib.Path(os.environ[\"OBJECTIVE_STATUS_JSON\"]).write_text("
-                "json.dumps({\"status\":\"literal_blocked\"}), encoding=\"utf-8\")'"
+                'pathlib.Path(os.environ["OBJECTIVE_STATUS_JSON"]).write_text('
+                'json.dumps({"status":"literal_blocked"}), encoding="utf-8")\''
             ),
         },
         "notes": ["The current workspace has not performed these downloads."],
@@ -234,8 +236,7 @@ def test_remote_official_hydration_can_publish_report_artifacts(tmp_path):
     rclone_log = tmp_path / "rclone_args.txt"
     rclone = fake_bin / "rclone"
     rclone.write_text(
-        "#!/usr/bin/env bash\n"
-        f"printf '%s\\n' \"$*\" > {rclone_log}\n",
+        f"#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" > {rclone_log}\n",
         encoding="utf-8",
     )
     rclone.chmod(0o755)
@@ -260,8 +261,8 @@ def test_remote_official_hydration_can_publish_report_artifacts(tmp_path):
             "validate_without_test": "true",
             "objective_audit_after_validation": (
                 "REQUIRE_STATUS=literal-test-ready python -c 'import json, os, pathlib; "
-                "pathlib.Path(os.environ[\"OBJECTIVE_STATUS_JSON\"]).write_text("
-                "json.dumps({\"status\":\"literal_blocked\"}), encoding=\"utf-8\")'"
+                'pathlib.Path(os.environ["OBJECTIVE_STATUS_JSON"]).write_text('
+                'json.dumps({"status":"literal_blocked"}), encoding="utf-8")\''
             ),
         },
         "notes": ["The current workspace has not performed these downloads."],
@@ -295,8 +296,9 @@ def test_remote_official_hydration_can_publish_report_artifacts(tmp_path):
 
     assert proc.returncode == 0
     assert "Published official hydration artifacts" in proc.stdout
-    assert "copyto /tmp/official_test.tar.gz UPSB2:bucket/remote-runs/test/official_test.tar.gz" in rclone_log.read_text(
-        encoding="utf-8"
+    assert (
+        "copyto /tmp/official_test.tar.gz UPSB2:bucket/remote-runs/test/official_test.tar.gz"
+        in rclone_log.read_text(encoding="utf-8")
     )
 
 
@@ -310,7 +312,7 @@ def test_remote_official_hydration_can_install_rclone_before_publishing(tmp_path
     apt_get.write_text(
         "#!/usr/bin/env bash\n"
         f"printf '%s\\n' \"$*\" >> {apt_log}\n"
-        "if [ \"$1\" = install ]; then\n"
+        'if [ "$1" = install ]; then\n'
         f"  cat > {fake_bin / 'rclone'} <<'EOF'\n"
         "#!/usr/bin/env bash\n"
         f"printf '%s\\n' \"$*\" > {rclone_log}\n"
@@ -341,8 +343,8 @@ def test_remote_official_hydration_can_install_rclone_before_publishing(tmp_path
             "validate_without_test": "true",
             "objective_audit_after_validation": (
                 "REQUIRE_STATUS=literal-test-ready python -c 'import json, os, pathlib; "
-                "pathlib.Path(os.environ[\"OBJECTIVE_STATUS_JSON\"]).write_text("
-                "json.dumps({\"status\":\"literal_blocked\"}), encoding=\"utf-8\")'"
+                'pathlib.Path(os.environ["OBJECTIVE_STATUS_JSON"]).write_text('
+                'json.dumps({"status":"literal_blocked"}), encoding="utf-8")\''
             ),
         },
         "notes": ["The current workspace has not performed these downloads."],
@@ -377,6 +379,7 @@ def test_remote_official_hydration_can_install_rclone_before_publishing(tmp_path
     assert proc.returncode == 0
     assert "update" in apt_log.read_text(encoding="utf-8")
     assert "install -y rclone" in apt_log.read_text(encoding="utf-8")
-    assert "copyto /tmp/official_installed.tar.gz UPSB2:bucket/remote-runs/test/official_installed.tar.gz" in rclone_log.read_text(
-        encoding="utf-8"
+    assert (
+        "copyto /tmp/official_installed.tar.gz UPSB2:bucket/remote-runs/test/official_installed.tar.gz"
+        in rclone_log.read_text(encoding="utf-8")
     )

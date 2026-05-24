@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 
 def _load_scan(path: Path) -> dict[str, Any]:
@@ -33,7 +34,9 @@ def select_compatible(args: argparse.Namespace) -> dict[str, Any]:
         "test": _load_scan(Path(args.test_scan)) if args.test_scan else None,
     }
     grouped = {split: _windows_by_shift(scan) for split, scan in scans.items() if scan is not None}
-    required_splits = ["train", "val"] + (["test"] if args.require_test and grouped.get("test") is not None else [])
+    required_splits = ["train", "val"] + (
+        ["test"] if args.require_test and grouped.get("test") is not None else []
+    )
     common_shifts = set(grouped[required_splits[0]])
     for split in required_splits[1:]:
         common_shifts &= set(grouped[split])
@@ -68,7 +71,9 @@ def select_compatible(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Select compatible transport windows from scan JSON files")
+    parser = argparse.ArgumentParser(
+        description="Select compatible transport windows from scan JSON files"
+    )
     parser.add_argument("--train-scan", required=True)
     parser.add_argument("--val-scan", required=True)
     parser.add_argument("--test-scan")

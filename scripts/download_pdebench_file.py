@@ -9,8 +9,8 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 from urllib.parse import quote, urlparse
 
 import requests
@@ -147,7 +147,9 @@ def _request_with_retries(
             return response
         except (requests.RequestException, requests.Timeout) as exc:
             last_error = exc
-            print(f"request failed on attempt {attempt}/{retries}: {exc}", file=sys.stderr, flush=True)
+            print(
+                f"request failed on attempt {attempt}/{retries}: {exc}", file=sys.stderr, flush=True
+            )
     assert last_error is not None
     raise last_error
 
@@ -163,7 +165,7 @@ def _download_stream(url: str, dest: Path, expected_size: int | None, chunk_size
             total += len(chunk)
             if expected_size:
                 pct = total / expected_size * 100
-                sys.stdout.write(f"\rDownloaded {total/1024**2:.2f} MiB ({pct:.1f}%)")
+                sys.stdout.write(f"\rDownloaded {total / 1024**2:.2f} MiB ({pct:.1f}%)")
                 sys.stdout.flush()
     sys.stdout.write("\n")
     return total
@@ -381,7 +383,9 @@ def _download_part_to_file(
 
 def _is_name_resolution_error(exc: Exception) -> bool:
     text = str(exc).lower()
-    return "name resolution" in text or "failed to resolve" in text or "nodename nor servname" in text
+    return (
+        "name resolution" in text or "failed to resolve" in text or "nodename nor servname" in text
+    )
 
 
 def _resolve_redirect_url_with_curl(
@@ -418,7 +422,11 @@ def _resolve_redirect_url_with_curl(
                         return location
             return url
         last_error = RuntimeError(f"curl HEAD exited {proc.returncode}: {proc.stderr.strip()}")
-        print(f"redirect probe failed on attempt {attempt}/{retries}: {last_error}", file=sys.stderr, flush=True)
+        print(
+            f"redirect probe failed on attempt {attempt}/{retries}: {last_error}",
+            file=sys.stderr,
+            flush=True,
+        )
         if attempt < retries and retry_backoff > 0:
             time.sleep(retry_backoff * (2 ** (attempt - 1)))
     assert last_error is not None
@@ -455,7 +463,9 @@ def _download_part_to_file_curl(
             url,
         ]
         host = _host_from_url(url)
-        selected_ip = _select_resolve_ip(resolve_ip, attempt=attempt, salt=start // max(1, DEFAULT_PART_SIZE))
+        selected_ip = _select_resolve_ip(
+            resolve_ip, attempt=attempt, salt=start // max(1, DEFAULT_PART_SIZE)
+        )
         if host and selected_ip:
             cmd[1:1] = ["--resolve", f"{host}:443:{selected_ip}"]
         try:
@@ -488,7 +498,9 @@ def _download_part_to_file_curl(
                 if returncode == 6 or _is_name_resolution_error(message):
                     raise NameResolutionError(message)
                 raise RuntimeError(message)
-            raise OSError(f"curl range {start}-{end} wrote {total} bytes; expected {expected_size}.")
+            raise OSError(
+                f"curl range {start}-{end} wrote {total} bytes; expected {expected_size}."
+            )
         except Exception as exc:
             last_error = exc
             print(
@@ -588,19 +600,17 @@ def _download_ranges(
         if _range_key(start, end) not in completed_ranges
     ]
     completed_bytes = sum(
-        end - start + 1
-        for _, start, end in ranges
-        if _range_key(start, end) in completed_ranges
+        end - start + 1 for _, start, end in ranges if _range_key(start, end) in completed_ranges
     )
     print(
-        f"Downloading {expected_size/1024**3:.2f} GiB as {len(ranges)} ranged parts "
+        f"Downloading {expected_size / 1024**3:.2f} GiB as {len(ranges)} ranged parts "
         f"with {workers} workers",
         flush=True,
     )
     if completed_ranges:
         print(
             f"Resuming with {len(completed_ranges)}/{len(ranges)} completed parts "
-            f"({completed_bytes/1024**3:.2f} GiB)",
+            f"({completed_bytes / 1024**3:.2f} GiB)",
             flush=True,
         )
 
@@ -637,7 +647,7 @@ def _download_ranges(
             pct = completed_bytes / expected_size * 100
             print(
                 f"completed part {index + 1}/{len(ranges)} "
-                f"({start}-{end}); aggregate {completed_bytes/1024**3:.2f} GiB ({pct:.1f}%)",
+                f"({start}-{end}); aggregate {completed_bytes / 1024**3:.2f} GiB ({pct:.1f}%)",
                 flush=True,
             )
 
@@ -701,7 +711,7 @@ def download(
     expected_checksum = entry.get("checksum")
     if dest.exists() and expected_size and dest.stat().st_size == int(expected_size):
         if not expected_checksum or _existing_checksum(dest) == expected_checksum:
-            print(f"Already present {dest} ({dest.stat().st_size/1024**3:.2f} GiB)")
+            print(f"Already present {dest} ({dest.stat().st_size / 1024**3:.2f} GiB)")
             return
 
     if expected_size and workers > 1:
@@ -721,7 +731,9 @@ def download(
             resolve_ip=resolve_ip,
         )
     else:
-        total = _download_stream(url, dest, int(expected_size) if expected_size else None, chunk_size)
+        total = _download_stream(
+            url, dest, int(expected_size) if expected_size else None, chunk_size
+        )
 
     if expected_checksum:
         digest = _existing_checksum(dest)
@@ -729,17 +741,21 @@ def download(
             raise SystemExit(
                 f"Checksum mismatch for {dest}. Expected {expected_checksum}, got {digest}."
             )
-    print(f"Saved {dest} ({total/1024**3:.2f} GiB)")
+    print(f"Saved {dest} ({total / 1024**3:.2f} GiB)")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Download a specific PDEBench file using the manifest")
+    parser = argparse.ArgumentParser(
+        description="Download a specific PDEBench file using the manifest"
+    )
     parser.add_argument(
         "logical_path",
         help="Path as listed in manifest, e.g. '1D/Burgers/Train/...' ",
     )
     parser.add_argument("--out", default="data/pdebench/raw", help="Root output directory")
-    parser.add_argument("--manifest", default=str(MANIFEST_PATH), help="Path to pdebench_manifest.yaml")
+    parser.add_argument(
+        "--manifest", default=str(MANIFEST_PATH), help="Path to pdebench_manifest.yaml"
+    )
     parser.add_argument(
         "--workers",
         type=int,
@@ -767,14 +783,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--retry-backoff",
         type=float,
-        default=float(os.environ.get("PDEBENCH_DOWNLOAD_RETRY_BACKOFF", str(DEFAULT_RETRY_BACKOFF))),
+        default=float(
+            os.environ.get("PDEBENCH_DOWNLOAD_RETRY_BACKOFF", str(DEFAULT_RETRY_BACKOFF))
+        ),
         help="Initial seconds to sleep between ranged part retry attempts; doubles per attempt",
     )
     parser.add_argument(
         "--split-after-retries",
         type=int,
         default=int(
-            os.environ.get("PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES", str(DEFAULT_SPLIT_AFTER_RETRIES))
+            os.environ.get(
+                "PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES", str(DEFAULT_SPLIT_AFTER_RETRIES)
+            )
         ),
         help="Split a timed-out ranged part into smaller ranges after this many failed attempts",
     )
@@ -799,13 +819,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--redirect-timeout",
         type=int,
-        default=int(os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_TIMEOUT", str(DEFAULT_REDIRECT_TIMEOUT))),
+        default=int(
+            os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_TIMEOUT", str(DEFAULT_REDIRECT_TIMEOUT))
+        ),
         help="Maximum seconds for the curl HEAD redirect probe.",
     )
     parser.add_argument(
         "--redirect-retries",
         type=int,
-        default=int(os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_RETRIES", str(DEFAULT_REDIRECT_RETRIES))),
+        default=int(
+            os.environ.get("PDEBENCH_DOWNLOAD_REDIRECT_RETRIES", str(DEFAULT_REDIRECT_RETRIES))
+        ),
         help="Retry attempts for the curl HEAD redirect probe.",
     )
     parser.add_argument(

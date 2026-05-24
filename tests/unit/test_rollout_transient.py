@@ -74,4 +74,3 @@ def test_rollout_gate_blocks_corrections():
     )
     assert not any(log.corrections)
     assert torch.allclose(log.states[-1].z, init_state.z)
-

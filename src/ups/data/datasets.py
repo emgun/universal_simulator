@@ -33,7 +33,9 @@ class GridZarrDataset(Dataset):
       - group attrs: {'kind': 'grid', 'H': int, 'W': int}
     """
 
-    def __init__(self, path: str, group: Optional[str] = None, device: Optional[torch.device] = None):
+    def __init__(
+        self, path: str, group: Optional[str] = None, device: Optional[torch.device] = None
+    ):
         import zarr  # imported lazily
 
         self.path = path
@@ -53,7 +55,9 @@ class GridZarrDataset(Dataset):
             raise ValueError(f"Unsupported kind '{self.kind}' in GridZarrDataset")
 
         self.coords = np.asarray(g["coords"])  # (N, 2)
-        self.time = np.asarray(g["time"]) if "time" in g else np.arange(len(next(g["fields"].values())))
+        self.time = (
+            np.asarray(g["time"]) if "time" in g else np.arange(len(next(g["fields"].values())))
+        )
         self.dt = float(g.attrs.get("dt", 0.0))
         self.H = int(g.attrs.get("H", 0))
         self.W = int(g.attrs.get("W", 0))
@@ -107,7 +111,9 @@ class GridZarrDataset(Dataset):
         bc: Dict[str, Any] = {"type": "periodic"}
         params: Dict[str, float] = {}
         geom: Dict[str, Any] = {"domain": "unit_square"}
-        time = torch.tensor(float(self.time[idx]) if len(self.time) > idx else float(idx), dtype=torch.float32)
+        time = torch.tensor(
+            float(self.time[idx]) if len(self.time) > idx else float(idx), dtype=torch.float32
+        )
         dt = torch.tensor(self.dt if self.dt > 0 else 0.0, dtype=torch.float32)
         meta: Dict[str, Any] = {
             "zarr_path": self.path,
@@ -119,7 +125,9 @@ class GridZarrDataset(Dataset):
             "kind": kind,
             "coords": coords if self.device is None else coords.to(self.device),
             "connect": None,
-            "fields": fields if self.device is None else {k: v.to(self.device) for k, v in fields.items()},
+            "fields": (
+                fields if self.device is None else {k: v.to(self.device) for k, v in fields.items()}
+            ),
             "bc": bc,
             "params": params,
             "geom": geom,
@@ -133,7 +141,9 @@ class GridZarrDataset(Dataset):
 class MeshZarrDataset(Dataset):
     """Iterable dataset that yields mesh samples with cached Laplacians."""
 
-    def __init__(self, path: str, group: str = "mesh_poisson", device: Optional[torch.device] = None):
+    def __init__(
+        self, path: str, group: str = "mesh_poisson", device: Optional[torch.device] = None
+    ):
         try:
             import zarr
         except ImportError as exc:
@@ -197,7 +207,9 @@ class MeshZarrDataset(Dataset):
 class ParticleZarrDataset(Dataset):
     """Dataset for particle advection samples with cached neighbour graphs."""
 
-    def __init__(self, path: str, group: str = "particles_advect", device: Optional[torch.device] = None):
+    def __init__(
+        self, path: str, group: str = "particles_advect", device: Optional[torch.device] = None
+    ):
         try:
             import zarr
         except ImportError as exc:

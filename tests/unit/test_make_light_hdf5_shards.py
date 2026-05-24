@@ -31,7 +31,11 @@ def test_build_task_shards_slices_source_train_file(tmp_path):
         overwrite=False,
     )
 
-    assert [path.name for path in outputs] == ["burgers1d_train.h5", "burgers1d_val.h5", "burgers1d_test.h5"]
+    assert [path.name for path in outputs] == [
+        "burgers1d_train.h5",
+        "burgers1d_val.h5",
+        "burgers1d_test.h5",
+    ]
     with h5py.File(out_root / "burgers1d_train.h5", "r") as handle:
         assert handle["data"].shape == (3, 4)
         assert handle["data"][0].tolist() == [4.0, 5.0, 6.0, 7.0]
@@ -50,7 +54,7 @@ def test_build_task_shard_records_prefers_native_splits_and_falls_back_to_train(
     root.mkdir()
     for split, offset in (("train", 0), ("val", 100), ("test", 200)):
         with h5py.File(root / f"burgers1d_{split}.h5", "w") as handle:
-            data = (np.arange(10 * 2, dtype=np.float32).reshape(10, 2) + offset)
+            data = np.arange(10 * 2, dtype=np.float32).reshape(10, 2) + offset
             handle.create_dataset("data", data=data)
     with h5py.File(root / "darcy2d_train.h5", "w") as handle:
         handle.create_dataset("data", data=np.arange(10 * 2, dtype=np.float32).reshape(10, 2))
@@ -155,7 +159,11 @@ def test_build_task_shard_records_accepts_stratified_block_offsets(tmp_path):
         assert handle["data"][:, 0].tolist() == [0.0, 1.0, 2.0, 6.0, 7.0, 8.0, 12.0, 13.0, 14.0]
     with h5py.File(out_root / "advection1d_val.h5", "r") as handle:
         assert handle["data"][:, 0].tolist() == [3.0, 4.0, 9.0, 10.0, 15.0, 16.0]
-        assert list(handle.attrs["source_paths"]) == ["beta0.1.hdf5", "beta0.2.hdf5", "beta0.4.hdf5"]
+        assert list(handle.attrs["source_paths"]) == [
+            "beta0.1.hdf5",
+            "beta0.2.hdf5",
+            "beta0.4.hdf5",
+        ]
     with h5py.File(out_root / "advection1d_test.h5", "r") as handle:
         assert handle["data"][:, 0].tolist() == [5.0, 11.0, 17.0]
 

@@ -7,10 +7,10 @@ import argparse
 import csv
 import json
 import subprocess
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
-
+from typing import Any
 
 DEFAULT_FIELDS = (
     "timestamp",
@@ -110,7 +110,11 @@ def extract_row(
     if baseline_summary_path:
         baseline = _load_json(baseline_summary_path)
         baseline_metrics = baseline.get("metrics", {})
-        if isinstance(baseline_metrics, Mapping) and metric_name in baseline_metrics and metric_value != "":
+        if (
+            isinstance(baseline_metrics, Mapping)
+            and metric_name in baseline_metrics
+            and metric_value != ""
+        ):
             baseline_value = float(baseline_metrics[metric_name])
             if baseline_value != 0.0:
                 baseline_ratio = float(metric_value) / baseline_value
@@ -150,7 +154,9 @@ def append_row(path: str | Path, row: Mapping[str, Any]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not output_path.exists() or output_path.stat().st_size == 0
     with output_path.open("a", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=DEFAULT_FIELDS, delimiter="\t", extrasaction="ignore")
+        writer = csv.DictWriter(
+            handle, fieldnames=DEFAULT_FIELDS, delimiter="\t", extrasaction="ignore"
+        )
         if write_header:
             writer.writeheader()
         writer.writerow(row)
@@ -159,12 +165,16 @@ def append_row(path: str | Path, row: Mapping[str, Any]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract compact metrics from a UPS summary.json")
     parser.add_argument("summary", help="Path to experiment summary.json")
-    parser.add_argument("--baseline-summary", help="Optional baseline summary.json for ratio/improvement")
+    parser.add_argument(
+        "--baseline-summary", help="Optional baseline summary.json for ratio/improvement"
+    )
     parser.add_argument("--primary-metric", default="decoded_rollout_nrmse")
     parser.add_argument("--status", default="")
     parser.add_argument("--description", default="")
     parser.add_argument("--output-tsv", help="Append row to a TSV ledger")
-    parser.add_argument("--print-header", action="store_true", help="Print TSV header before the row")
+    parser.add_argument(
+        "--print-header", action="store_true", help="Print TSV header before the row"
+    )
     args = parser.parse_args()
 
     row = extract_row(

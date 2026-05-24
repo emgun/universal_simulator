@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 import h5py
 import torch
@@ -95,13 +95,18 @@ def test_audit_reports_incompatible_full_source_splits_as_blocker(tmp_path):
     assert record["data_schema"]["splits"]["train"]["datasets"]["data"]["shape"] == [2, 3, 4, 1]
     assert record["data_schema"]["splits"]["train"]["bytes"] > 0
     assert len(record["data_schema"]["splits"]["train"]["sha256"]) == 64
-    assert any(req["name"] == "validation_sota_guard_passed" and req["status"] == "failed" for req in record["requirements"])
+    assert any(
+        req["name"] == "validation_sota_guard_passed" and req["status"] == "failed"
+        for req in record["requirements"]
+    )
 
 
 def test_audit_allows_exactly_one_test_only_after_validation_pass(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=True, test_eligible=True), tmp_path))
+    _write_json(
+        gate, _add_gate_sources(_base_gate(guard_passed=True, test_eligible=True), tmp_path)
+    )
     _write_json(selection, {"compatible": True, "common_shifts": [0], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -113,7 +118,12 @@ def test_audit_allows_exactly_one_test_only_after_validation_pass(tmp_path):
 def test_audit_marks_achieved_only_when_gate_passed_and_test_exists(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=True, test_eligible=True, with_test=True), tmp_path))
+    _write_json(
+        gate,
+        _add_gate_sources(
+            _base_gate(guard_passed=True, test_eligible=True, with_test=True), tmp_path
+        ),
+    )
     _write_json(selection, {"compatible": True, "common_shifts": [0], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -126,7 +136,12 @@ def test_audit_marks_achieved_only_when_gate_passed_and_test_exists(tmp_path):
 def test_audit_flags_test_result_when_gate_not_eligible(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
-    _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False, test_eligible=False, with_test=True), tmp_path))
+    _write_json(
+        gate,
+        _add_gate_sources(
+            _base_gate(guard_passed=False, test_eligible=False, with_test=True), tmp_path
+        ),
+    )
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
 
     record = audit_goal(_args(tmp_path, gate, selection))
@@ -154,7 +169,9 @@ def test_audit_flags_multiple_test_results(tmp_path):
 
 
 def test_audit_reports_missing_evidence(tmp_path):
-    record = audit_goal(_args(tmp_path, tmp_path / "missing_gate.json", tmp_path / "missing_selection.json"))
+    record = audit_goal(
+        _args(tmp_path, tmp_path / "missing_gate.json", tmp_path / "missing_selection.json")
+    )
 
     assert record["status"] == "missing_evidence"
     assert record["test_allowed"] is False
@@ -224,7 +241,9 @@ def test_audit_can_require_result_records(tmp_path):
     gate = tmp_path / "gate.json"
     selection = tmp_path / "selection.json"
     record_path = tmp_path / "worklog.md"
-    record_path.write_text("status: blocked_incompatible_splits\nvalidation_nrmse: 0.5\n", encoding="utf-8")
+    record_path.write_text(
+        "status: blocked_incompatible_splits\nvalidation_nrmse: 0.5\n", encoding="utf-8"
+    )
     _write_json(gate, _add_gate_sources(_base_gate(guard_passed=False), tmp_path))
     _write_json(selection, {"compatible": False, "common_shifts": [], "histograms": {}})
     args = _args(tmp_path, gate, selection)
@@ -235,7 +254,10 @@ def test_audit_can_require_result_records(tmp_path):
 
     assert record["status"] == "blocked_incompatible_splits"
     assert record["result_record_policy"]["passed"] is True
-    assert record["result_record_policy"]["required_tokens"] == ["blocked_incompatible_splits", "0.5"]
+    assert record["result_record_policy"]["required_tokens"] == [
+        "blocked_incompatible_splits",
+        "0.5",
+    ]
 
 
 def test_audit_flags_missing_result_record_status(tmp_path):
@@ -285,7 +307,9 @@ def test_audit_flags_gate_source_mismatch(tmp_path):
     record = audit_goal(_args(tmp_path, gate, selection))
 
     assert record["status"] == "invalid_data_identity"
-    assert any("gate data_sources train.sha256 mismatch" in blocker for blocker in record["blockers"])
+    assert any(
+        "gate data_sources train.sha256 mismatch" in blocker for blocker in record["blockers"]
+    )
 
 
 def test_audit_exit_policy_fails_closed_for_blocked_status():

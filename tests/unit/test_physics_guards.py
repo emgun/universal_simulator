@@ -1,6 +1,10 @@
 import torch
 
-from ups.models.physics_guards import helmholtz_hodge_projection_grid, positify, interface_flux_projection
+from ups.models.physics_guards import (
+    helmholtz_hodge_projection_grid,
+    interface_flux_projection,
+    positify,
+)
 
 
 def test_helmholtz_hodge_projection_reduces_divergence():

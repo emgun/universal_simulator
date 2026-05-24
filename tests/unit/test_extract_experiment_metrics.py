@@ -34,7 +34,9 @@ def test_extract_row_computes_baseline_ratio_and_task_metrics(tmp_path):
         ),
         encoding="utf-8",
     )
-    baseline_path.write_text(json.dumps({"metrics": {"decoded_rollout_nrmse": 0.5}}), encoding="utf-8")
+    baseline_path.write_text(
+        json.dumps({"metrics": {"decoded_rollout_nrmse": 0.5}}), encoding="utf-8"
+    )
 
     row = extract_row(
         summary_path,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, Mapping, Optional, Tuple
 
 import torch
 from torch import nn
@@ -36,7 +36,9 @@ def _flatten_fields(fields: Mapping[str, torch.Tensor]) -> torch.Tensor:
     return torch.cat(flattened, dim=-1)
 
 
-def _build_adjacency(num_nodes: int, edges: torch.Tensor, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+def _build_adjacency(
+    num_nodes: int, edges: torch.Tensor, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
     if edges.numel() == 0:
         # no edges; fall back to self loops
         rows = torch.arange(num_nodes, device=device)
@@ -58,7 +60,7 @@ class MeshParticleEncoder(nn.Module):
     def __init__(self, cfg: MeshParticleEncoderConfig):
         super().__init__()
         self.cfg = cfg
-        self.node_proj: Optional[nn.Linear] = None
+        self.node_proj: nn.Linear | None = None
         self.hidden_dim = cfg.hidden_dim
         self.latent_dim = cfg.latent_dim
         self.message_layers = nn.ModuleList(
@@ -70,7 +72,7 @@ class MeshParticleEncoder(nn.Module):
         else:
             self.latent_proj = nn.Linear(cfg.hidden_dim, cfg.latent_dim)
             self.latent_to_hidden = nn.Linear(cfg.latent_dim, cfg.hidden_dim)
-        self.output_proj: Optional[nn.Linear] = None
+        self.output_proj: nn.Linear | None = None
 
     def _ensure_projections(self, input_dim: int) -> None:
         if self.node_proj is None:
@@ -86,11 +88,11 @@ class MeshParticleEncoder(nn.Module):
 
     def forward(
         self,
-        fields: Dict[str, torch.Tensor],
+        fields: dict[str, torch.Tensor],
         coords: torch.Tensor,
         *,
-        connect: Optional[torch.Tensor] = None,
-        meta: Optional[Mapping[str, object]] = None,
+        connect: torch.Tensor | None = None,
+        meta: Mapping[str, object] | None = None,
     ) -> torch.Tensor:
         device = coords.device
         feat = _flatten_fields(fields).to(device)

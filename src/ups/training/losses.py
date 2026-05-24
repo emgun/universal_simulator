@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Collection of core training losses for latent evolution."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, Mapping, Optional, Sequence
 
 import torch
 from torch import Tensor
@@ -15,7 +15,7 @@ class LossBundle:
     """Container for individual loss terms and their weighted total."""
 
     total: Tensor
-    components: Dict[str, Tensor]
+    components: dict[str, Tensor]
 
 
 def mse(pred: Tensor, target: Tensor, reduction: str = "mean") -> Tensor:
@@ -27,7 +27,9 @@ def inverse_encoding_loss(encoded: Tensor, reconstructed: Tensor, weight: float 
     return weight * loss
 
 
-def inverse_decoding_loss(pred_fields: Mapping[str, Tensor], target_fields: Mapping[str, Tensor], weight: float = 1.0) -> Tensor:
+def inverse_decoding_loss(
+    pred_fields: Mapping[str, Tensor], target_fields: Mapping[str, Tensor], weight: float = 1.0
+) -> Tensor:
     if pred_fields.keys() != target_fields.keys():
         missing = pred_fields.keys() ^ target_fields.keys()
         raise KeyError(f"Pred/target field mismatch: {missing}")
@@ -47,7 +49,9 @@ def rollout_loss(pred_seq: Tensor, target_seq: Tensor, weight: float = 1.0) -> T
     return weight * mse(pred_seq, target_seq)
 
 
-def semigroup_consistency_loss(pred_direct: Tensor, pred_composed: Tensor, weight: float = 1.0) -> Tensor:
+def semigroup_consistency_loss(
+    pred_direct: Tensor, pred_composed: Tensor, weight: float = 1.0
+) -> Tensor:
     if pred_direct.shape != pred_composed.shape:
         raise ValueError("Semigroup predictions must share shape")
     return weight * mse(pred_direct, pred_composed)
@@ -91,16 +95,20 @@ def compute_loss_bundle(
     consistency_target: Tensor,
     latent_for_tv: Tensor,
     edges: Tensor,
-    weights: Optional[Mapping[str, float]] = None,
+    weights: Mapping[str, float] | None = None,
 ) -> LossBundle:
     weights = weights or {}
     comp = {}
     comp["L_inv_enc"] = inverse_encoding_loss(encoded, reconstructed, weights.get("L_inv_enc", 1.0))
-    comp["L_inv_dec"] = inverse_decoding_loss(decoded_pred, decoded_target, weights.get("L_inv_dec", 1.0))
+    comp["L_inv_dec"] = inverse_decoding_loss(
+        decoded_pred, decoded_target, weights.get("L_inv_dec", 1.0)
+    )
     comp["L_one_step"] = one_step_loss(pred_next, target_next, weights.get("L_one_step", 1.0))
     comp["L_rollout"] = rollout_loss(pred_rollout, target_rollout, weights.get("L_rollout", 1.0))
     comp["L_spec"] = spectral_loss(spectral_pred, spectral_target, weights.get("L_spec", 1.0))
-    comp["L_cons"] = consistency_loss(consistency_pred, consistency_target, weights.get("L_cons", 1.0))
+    comp["L_cons"] = consistency_loss(
+        consistency_pred, consistency_target, weights.get("L_cons", 1.0)
+    )
     comp["L_tv_edge"] = edge_total_variation(latent_for_tv, edges, weights.get("L_tv_edge", 1.0))
     total = torch.stack([c for c in comp.values() if c.numel() == 1]).sum()
     return LossBundle(total=total, components=comp)

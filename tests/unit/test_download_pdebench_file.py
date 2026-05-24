@@ -46,7 +46,10 @@ def test_entry_url_prefers_manifest_url():
 def test_entry_url_can_use_environment_template(monkeypatch):
     monkeypatch.setenv("PDEBENCH_DATAFILE_URL_TEMPLATE", "https://mirror.example/{file_id}/{path}")
 
-    assert downloader._entry_url({"file_id": 7, "path": "a/b.hdf5"}) == "https://mirror.example/7/a/b.hdf5"
+    assert (
+        downloader._entry_url({"file_id": 7, "path": "a/b.hdf5"})
+        == "https://mirror.example/7/a/b.hdf5"
+    )
 
 
 def test_download_part_rejects_non_range_response(monkeypatch, tmp_path: Path):
@@ -448,7 +451,9 @@ def test_curl_transport_accepts_full_range_before_nonzero_exit(monkeypatch, tmp_
     assert dest.read_bytes() == b"abcd"
 
 
-def test_download_part_to_file_auto_falls_back_to_curl_on_name_resolution(monkeypatch, tmp_path: Path):
+def test_download_part_to_file_auto_falls_back_to_curl_on_name_resolution(
+    monkeypatch, tmp_path: Path
+):
     class Response:
         status_code = 206
 
@@ -533,12 +538,15 @@ def test_resolve_redirect_url_with_curl_retries_transient_failure(monkeypatch):
     monkeypatch.setattr(downloader.subprocess, "run", fake_run)
     monkeypatch.setattr(downloader.time, "sleep", lambda seconds: None)
 
-    assert downloader._resolve_redirect_url_with_curl(
-        "https://darus.example/file",
-        timeout=5,
-        retries=2,
-        retry_backoff=0.1,
-    ) == "https://objects.example/file"
+    assert (
+        downloader._resolve_redirect_url_with_curl(
+            "https://darus.example/file",
+            timeout=5,
+            retries=2,
+            retry_backoff=0.1,
+        )
+        == "https://objects.example/file"
+    )
     assert len(calls) == 2
 
 
@@ -631,7 +639,10 @@ def test_resolve_host_with_doh_parses_a_records(monkeypatch):
 
     monkeypatch.setattr(downloader.requests, "get", fake_get)
 
-    assert downloader._resolve_host_with_doh("s3.tik.uni-stuttgart.de") == ["129.69.5.99", "129.69.5.100"]
+    assert downloader._resolve_host_with_doh("s3.tik.uni-stuttgart.de") == [
+        "129.69.5.99",
+        "129.69.5.100",
+    ]
 
 
 def test_resolve_host_with_doh_falls_back_to_curl(monkeypatch):

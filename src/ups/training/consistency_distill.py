@@ -2,14 +2,12 @@ from __future__ import annotations
 
 """Consistency distillation utilities for few-step diffusion corrector."""
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 
 import torch
-from torch import nn
 
 from ups.core.latent_state import LatentState
-
 
 TeacherFn = Callable[[LatentState, torch.Tensor], LatentState]
 StudentFn = Callable[[LatentState, torch.Tensor], LatentState]

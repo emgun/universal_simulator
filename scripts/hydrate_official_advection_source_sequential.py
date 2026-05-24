@@ -72,7 +72,9 @@ def _source_paths(entries: list[dict[str, Any]]) -> np.ndarray:
     )
 
 
-def _initialize_source_attrs(out_path: Path, entries: list[dict[str, Any]], *, overwrite: bool) -> None:
+def _initialize_source_attrs(
+    out_path: Path, entries: list[dict[str, Any]], *, overwrite: bool
+) -> None:
     if out_path.exists() and overwrite:
         out_path.unlink()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,7 +165,11 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
     plan = _load_json(args.plan_json)
     entries = list(plan.get("remote_entries") or [])
     raw_root = Path(args.raw_out or plan.get("raw_out") or "data/pdebench/raw")
-    out_root = Path(args.hydrated_source_root or plan.get("hydrated_source_root") or "data/pdebench_official_advection_hydrated")
+    out_root = Path(
+        args.hydrated_source_root
+        or plan.get("hydrated_source_root")
+        or "data/pdebench_official_advection_hydrated"
+    )
     out_path = out_root / "advection1d_train.h5"
     sample_count = int(args.samples_per_file or plan.get("samples_per_file") or 0)
     resume = bool(getattr(args, "resume", False))
@@ -181,7 +187,9 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
 
     should_execute = bool(args.execute and not blockers)
     source_paths_initialized = False
-    completed_source_indices = _completed_source_indices(out_path, sample_count) if resume else set()
+    completed_source_indices = (
+        _completed_source_indices(out_path, sample_count) if resume else set()
+    )
 
     if should_execute and args.overwrite:
         _initialize_source_attrs(out_path, entries, overwrite=True)
@@ -229,7 +237,9 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
                 record["download_executed"] = True
                 record["download_returncode"] = completed.returncode
                 if completed.returncode != 0:
-                    blockers.append(f"download failed for {logical_path} with exit code {completed.returncode}")
+                    blockers.append(
+                        f"download failed for {logical_path} with exit code {completed.returncode}"
+                    )
                     should_execute = False
             if should_execute:
                 written = _append_samples(
@@ -248,7 +258,11 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
     if should_execute and not blockers:
         _mark_complete(out_path, entries)
 
-    status = "executed" if args.execute and not blockers else "dry_run" if not args.execute else "blocked"
+    status = (
+        "executed"
+        if args.execute and not blockers
+        else "dry_run" if not args.execute else "blocked"
+    )
     return {
         "status": status,
         "blockers": blockers,
@@ -273,8 +287,12 @@ def hydrate_sequential(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Sequentially hydrate official Advection source data")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser = argparse.ArgumentParser(
+        description="Sequentially hydrate official Advection source data"
+    )
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument("--raw-out")
     parser.add_argument("--hydrated-source-root")
     parser.add_argument("--samples-per-file", type=int)

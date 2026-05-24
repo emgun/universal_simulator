@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import yaml
 
@@ -52,17 +53,27 @@ def _local_split_support(
             "status": "missing_required_local_splits",
         }
 
-    train_fields = _load_series(root=root, task=task, split=train_split, max_samples=train_max_samples)
+    train_fields = _load_series(
+        root=root, task=task, split=train_split, max_samples=train_max_samples
+    )
     val_fields = _load_series(root=root, task=task, split=val_split, max_samples=val_max_samples)
-    train_labels, _ = _per_sample_best_shifts(train_fields, shifts, rollout_steps=rollout_steps, metric=metric)
-    val_labels, _ = _per_sample_best_shifts(val_fields, shifts, rollout_steps=rollout_steps, metric=metric)
+    train_labels, _ = _per_sample_best_shifts(
+        train_fields, shifts, rollout_steps=rollout_steps, metric=metric
+    )
+    val_labels, _ = _per_sample_best_shifts(
+        val_fields, shifts, rollout_steps=rollout_steps, metric=metric
+    )
     train_support = sorted(set(int(value) for value in train_labels.tolist()))
     val_support = sorted(set(int(value) for value in val_labels.tolist()))
     unsupported_val = sorted(set(val_support) - set(train_support))
     return {
         "root": str(root),
         "exists": exists,
-        "status": "local_support_covers_validation" if not unsupported_val else "local_train_support_missing_validation_shift",
+        "status": (
+            "local_support_covers_validation"
+            if not unsupported_val
+            else "local_train_support_missing_validation_shift"
+        ),
         "train_path": str(train_path),
         "val_path": str(val_path),
         "train_shape": list(train_fields.shape),
@@ -122,7 +133,9 @@ def audit_hydration_options(args: argparse.Namespace) -> dict[str, Any]:
         train_split=args.train_split,
         val_split=args.val_split,
         train_max_samples=_max_samples(args.max_samples),
-        val_max_samples=_max_samples(args.val_max_samples if args.val_max_samples is not None else args.max_samples),
+        val_max_samples=_max_samples(
+            args.val_max_samples if args.val_max_samples is not None else args.max_samples
+        ),
         shifts=shifts,
         rollout_steps=args.rollout_steps,
         metric=args.metric,
@@ -181,9 +194,11 @@ def audit_hydration_options(args: argparse.Namespace) -> dict[str, Any]:
             "Hydrate official raw Advection train files or build an explicitly approved split-compatible benchmark; "
             "do not use synthetic report shards as benchmark-clean evidence."
             if status == "remote_official_hydration_required"
-            else "Use the canonical local support for a literal train-only gate."
-            if status == "local_benchmark_clean_support_available"
-            else "No local or manifest-backed benchmark-clean hydration path was found."
+            else (
+                "Use the canonical local support for a literal train-only gate."
+                if status == "local_benchmark_clean_support_available"
+                else "No local or manifest-backed benchmark-clean hydration path was found."
+            )
         ),
         "notes": [
             "Reads train/val only for local support; does not read or evaluate held-out test.",

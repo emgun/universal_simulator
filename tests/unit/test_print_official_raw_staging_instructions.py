@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import hashlib
 import json
+from argparse import Namespace
 
 from scripts.print_official_raw_staging_instructions import build_staging_instructions
 
@@ -41,7 +41,9 @@ def test_build_staging_instructions_lists_required_files_and_command(tmp_path):
         {
             "status": "blocked",
             "disk": {"local_sequential_required_bytes": 4},
-            "route_blockers": {"local_sequential_hydration": ["official data host(s) do not resolve: darus"]},
+            "route_blockers": {
+                "local_sequential_hydration": ["official data host(s) do not resolve: darus"]
+            },
             "staged_raw": {
                 "complete_file_count": 0,
                 "selected_file_count": 2,
@@ -86,7 +88,10 @@ def test_build_staging_instructions_lists_required_files_and_command(tmp_path):
     assert record["files"][0]["local_path"] == str(raw_root / "1D/Advection/Train/a.hdf5")
     assert record["files"][0]["expected_size_bytes"] == 3
     assert record["files"][0]["expected_checksum"] == hashlib.md5(b"aaa").hexdigest()
-    assert record["files"][0]["source_url"] == "https://darus.uni-stuttgart.de/api/access/datafile/1?format=original"
+    assert (
+        record["files"][0]["source_url"]
+        == "https://darus.uni-stuttgart.de/api/access/datafile/1?format=original"
+    )
     assert "curl -L --fail --continue-at -" in record["files"][0]["download_command"]
     assert str(raw_root / "1D/Advection/Train/a.hdf5") in record["files"][0]["download_command"]
     assert "SEQUENTIAL_USE_EXISTING_RAW=1" in record["next_command"]
@@ -103,7 +108,9 @@ def test_build_staging_instructions_marks_ready_when_all_files_complete(tmp_path
         "checksum": hashlib.md5(b"aaa").hexdigest(),
         "checksum_type": "MD5",
     }
-    plan = _write_json(tmp_path / "plan.json", {"raw_out": str(raw_root), "remote_entries": [entry]})
+    plan = _write_json(
+        tmp_path / "plan.json", {"raw_out": str(raw_root), "remote_entries": [entry]}
+    )
     readiness = _write_json(
         tmp_path / "readiness.json",
         {

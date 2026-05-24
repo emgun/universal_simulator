@@ -6,14 +6,14 @@ import h5py
 import torch
 import yaml
 
-from scripts import evaluate as evaluate_script
 from scripts import benchmark as benchmark_script
+from scripts import evaluate as evaluate_script
 from scripts import train as train_script
 from scripts import train_baselines as train_baselines_script
 from ups.core.latent_state import LatentState
-from ups.eval.persistence_baselines import evaluate_persistence_decoded
 from ups.eval import pdebench_runner
 from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
+from ups.eval.persistence_baselines import evaluate_persistence_decoded
 
 
 def _write_minimal_hdf5(tmp_path) -> None:
@@ -59,7 +59,9 @@ class _AddOperator(torch.nn.Module):
         self.delta = delta
 
     def forward(self, state: LatentState, dt):
-        return LatentState(z=state.z + self.delta, t=dt if state.t is None else state.t + dt, cond=state.cond)
+        return LatentState(
+            z=state.z + self.delta, t=dt if state.t is None else state.t + dt, cond=state.cond
+        )
 
 
 class _RollOperator(torch.nn.Module):
@@ -213,13 +215,18 @@ def test_evaluate_decoded_operator_can_apply_task_specific_residual_alpha(tmp_pa
         rollout_steps=1,
     )
 
-    assert report.metrics["task_burgers1d_decoded_rollout_nrmse"] > report.metrics["task_advection1d_decoded_rollout_nrmse"]
+    assert (
+        report.metrics["task_burgers1d_decoded_rollout_nrmse"]
+        > report.metrics["task_advection1d_decoded_rollout_nrmse"]
+    )
     assert report.metrics["task_advection1d_decoded_rollout_nrmse"] > 0.0
     assert report.extra["decoded_persistence_residual_alpha_by_task"] == {"advection1d": 1.0}
 
 
 def test_evaluate_decoded_operator_can_apply_task_horizon_residual_alpha(tmp_path):
-    data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]], dtype=torch.float32)
+    data = torch.tensor(
+        [[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]], dtype=torch.float32
+    )
     file_path = tmp_path / "advection1d_train.h5"
     with h5py.File(file_path, "w") as handle:
         handle.create_dataset("data", data=data.numpy())
@@ -228,7 +235,9 @@ def test_evaluate_decoded_operator_can_apply_task_horizon_residual_alpha(tmp_pat
         "training": {"batch_size": 1, "dt": 0.1},
         "evaluation": {
             "decoded_persistence_residual_alpha": 0.0,
-            "decoded_persistence_residual_alpha_by_task_horizon": {"advection1d": {"1": 0.5, 2: 1.0 / 3.0}},
+            "decoded_persistence_residual_alpha_by_task_horizon": {
+                "advection1d": {"1": 0.5, 2: 1.0 / 3.0}
+            },
             "report_all_horizon_metrics": True,
         },
         "data": {
@@ -261,13 +270,23 @@ def test_evaluate_decoded_operator_can_apply_task_horizon_residual_alpha(tmp_pat
         rollout_steps=2,
     )
 
-    assert report.metrics["task_advection1d_decoded_h2_nrmse"] < baseline_report.metrics["task_advection1d_decoded_h2_nrmse"]
-    assert report.metrics["family_transport_decoded_h2_nrmse"] < baseline_report.metrics["family_transport_decoded_h2_nrmse"]
-    assert report.extra["decoded_persistence_residual_alpha_by_task_horizon"] == {"advection1d": {1: 0.5, 2: 1.0 / 3.0}}
+    assert (
+        report.metrics["task_advection1d_decoded_h2_nrmse"]
+        < baseline_report.metrics["task_advection1d_decoded_h2_nrmse"]
+    )
+    assert (
+        report.metrics["family_transport_decoded_h2_nrmse"]
+        < baseline_report.metrics["family_transport_decoded_h2_nrmse"]
+    )
+    assert report.extra["decoded_persistence_residual_alpha_by_task_horizon"] == {
+        "advection1d": {1: 0.5, 2: 1.0 / 3.0}
+    }
 
 
 def test_evaluate_decoded_operator_can_apply_bounded_residual_gate(tmp_path):
-    data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]], dtype=torch.float32)
+    data = torch.tensor(
+        [[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]], dtype=torch.float32
+    )
     file_path = tmp_path / "advection1d_train.h5"
     with h5py.File(file_path, "w") as handle:
         handle.create_dataset("data", data=data.numpy())
@@ -304,9 +323,18 @@ def test_evaluate_decoded_operator_can_apply_bounded_residual_gate(tmp_path):
     )
 
     assert 0.1 <= report.metrics["decoded_residual_gate_alpha_mean"] <= 0.9
-    assert report.metrics["decoded_residual_gate_h1_alpha_mean"] > report.metrics["decoded_residual_gate_h2_alpha_mean"]
-    assert report.metrics["task_advection1d_decoded_residual_gate_alpha_mean"] == report.metrics["decoded_residual_gate_alpha_mean"]
-    assert report.metrics["family_transport_decoded_residual_gate_alpha_mean"] == report.metrics["decoded_residual_gate_alpha_mean"]
+    assert (
+        report.metrics["decoded_residual_gate_h1_alpha_mean"]
+        > report.metrics["decoded_residual_gate_h2_alpha_mean"]
+    )
+    assert (
+        report.metrics["task_advection1d_decoded_residual_gate_alpha_mean"]
+        == report.metrics["decoded_residual_gate_alpha_mean"]
+    )
+    assert (
+        report.metrics["family_transport_decoded_residual_gate_alpha_mean"]
+        == report.metrics["decoded_residual_gate_alpha_mean"]
+    )
     assert report.extra["decoded_persistence_residual_gate"]["base_alpha"] == 0.5
 
 
@@ -349,7 +377,10 @@ def test_evaluate_decoded_operator_can_apply_task_roll_shift(tmp_path):
     )
 
     assert shifted_report.metrics["task_advection1d_decoded_rollout_nrmse"] == 0.0
-    assert shifted_report.metrics["decoded_rollout_nrmse"] < baseline_report.metrics["decoded_rollout_nrmse"]
+    assert (
+        shifted_report.metrics["decoded_rollout_nrmse"]
+        < baseline_report.metrics["decoded_rollout_nrmse"]
+    )
     assert shifted_report.extra["decoded_roll_shift_by_task"] == {"advection1d": 1}
 
 
@@ -370,7 +401,10 @@ def test_evaluate_decoded_operator_can_estimate_observed_roll_shift(tmp_path):
 
     base_cfg = {
         "training": {"batch_size": 1, "dt": 0.1},
-        "evaluation": {"decoded_persistence_residual_alpha": 0.0, "report_all_horizon_metrics": True},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "report_all_horizon_metrics": True,
+        },
         "data": {
             "task": "advection1d",
             "split": "train",
@@ -407,9 +441,14 @@ def test_evaluate_decoded_operator_can_estimate_observed_roll_shift(tmp_path):
     )
 
     assert estimator_report.metrics["task_advection1d_decoded_h2_nrmse"] == 0.0
-    assert estimator_report.metrics["decoded_rollout_nrmse"] < baseline_report.metrics["decoded_rollout_nrmse"]
+    assert (
+        estimator_report.metrics["decoded_rollout_nrmse"]
+        < baseline_report.metrics["decoded_rollout_nrmse"]
+    )
     assert estimator_report.metrics["decoded_observed_roll_shift_mean"] == 1.0
-    assert estimator_report.extra["decoded_observed_roll_shift_estimator"]["tasks"] == ["advection1d"]
+    assert estimator_report.extra["decoded_observed_roll_shift_estimator"]["tasks"] == [
+        "advection1d"
+    ]
 
 
 def test_evaluate_decoded_operator_can_estimate_prediction_roll_shift(tmp_path):
@@ -554,7 +593,7 @@ def test_evaluate_cli_main(tmp_path, monkeypatch, capsys):
 
     evaluate_script.main()
     output = capsys.readouterr().out
-    assert "\"metrics\"" in output
+    assert '"metrics"' in output
     assert output_prefix.with_suffix(".json").exists()
     assert output_prefix.with_suffix(".csv").exists()
     assert output_prefix.with_suffix(".html").exists()
@@ -624,9 +663,9 @@ def test_evaluate_cli_main_with_decoded_metrics(tmp_path, monkeypatch, capsys):
 
     evaluate_script.main()
     output = capsys.readouterr().out
-    assert "\"decoded_mse\"" in output
-    assert "\"decoded_rollout_nrmse\"" in output
-    assert "\"decoded_h4_nrmse\"" not in output
+    assert '"decoded_mse"' in output
+    assert '"decoded_rollout_nrmse"' in output
+    assert '"decoded_h4_nrmse"' not in output
 
 
 def test_evaluate_cli_main_with_transfer_tasks(tmp_path, monkeypatch, capsys):
@@ -695,9 +734,9 @@ def test_evaluate_cli_main_with_transfer_tasks(tmp_path, monkeypatch, capsys):
 
     evaluate_script.main()
     output = capsys.readouterr().out
-    assert "\"transfer_mse\"" in output
-    assert "\"transfer_decoded_rollout_nrmse\"" in output
-    assert "\"transfer_task_advection1d_decoded_rollout_nrmse\"" in output
+    assert '"transfer_mse"' in output
+    assert '"transfer_decoded_rollout_nrmse"' in output
+    assert '"transfer_task_advection1d_decoded_rollout_nrmse"' in output
 
 
 def test_evaluate_cli_main_with_promotion_rules(tmp_path, monkeypatch, capsys):
@@ -734,7 +773,7 @@ def test_evaluate_cli_main_with_promotion_rules(tmp_path, monkeypatch, capsys):
 
     evaluate_script.main()
     output = capsys.readouterr().out
-    assert "\"promotion_passed\": true" in output
+    assert '"promotion_passed": true' in output
 
 
 def test_evaluate_cli_main_with_wildcard_family_promotion_rule(tmp_path, monkeypatch, capsys):
@@ -770,9 +809,11 @@ def test_evaluate_cli_main_with_wildcard_family_promotion_rule(tmp_path, monkeyp
     monkeypatch.setattr(
         evaluate_script,
         "_load_state_dict_compat",
-        lambda model, *args, **kwargs: real_load_state_dict(model, *args, **kwargs)
-        if isinstance(model, evaluate_script.LatentOperator)
-        else None,
+        lambda model, *args, **kwargs: (
+            real_load_state_dict(model, *args, **kwargs)
+            if isinstance(model, evaluate_script.LatentOperator)
+            else None
+        ),
     )
 
     output_prefix = tmp_path / "eval_family_promotion"
@@ -799,7 +840,7 @@ def test_evaluate_cli_main_with_wildcard_family_promotion_rule(tmp_path, monkeyp
 
     evaluate_script.main()
     output = capsys.readouterr().out
-    assert "\"promotion_passed\": true" in output
+    assert '"promotion_passed": true' in output
 
 
 def test_evaluate_cli_main_fails_on_promotion_failure(tmp_path, monkeypatch):

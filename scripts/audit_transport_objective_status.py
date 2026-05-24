@@ -8,12 +8,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 PASS_STATUSES_BY_MODE = {
     "report": None,
     "literal-achieved": {"literal_achieved"},
     "literal-test-ready": {"literal_achieved", "literal_test_ready"},
-    "observed-accepted": {"literal_achieved", "observed_context_achieved", "context_transport_achieved"},
+    "observed-accepted": {
+        "literal_achieved",
+        "observed_context_achieved",
+        "context_transport_achieved",
+    },
     "context-accepted": {"literal_achieved", "context_transport_achieved"},
 }
 
@@ -72,13 +75,17 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
     identifiability_audit, identifiability_path = _load_json(args.train_identifiability_audit_json)
     hydration_audit, hydration_path = _load_json(args.hydration_options_json)
     hydration_plan, hydration_plan_path = _load_json(args.hydration_plan_json)
-    hydration_plan_validation, hydration_plan_validation_path = _load_json(args.hydration_plan_validation_json)
+    hydration_plan_validation, hydration_plan_validation_path = _load_json(
+        args.hydration_plan_validation_json
+    )
     hydration_plan_run, hydration_plan_run_path = _load_json(args.hydration_plan_run_json)
     hydration_preflight, hydration_preflight_path = _load_json(args.hydration_preflight_json)
     hydration_storage, hydration_storage_path = _load_json(args.hydration_storage_json)
     remote_hydration_plan, remote_hydration_plan_path = _load_json(args.remote_hydration_plan_json)
     execution_readiness, execution_readiness_path = _load_json(args.execution_readiness_json)
-    official_hydrated_gate, official_hydrated_gate_path = _load_json(args.official_hydrated_gate_json)
+    official_hydrated_gate, official_hydrated_gate_path = _load_json(
+        args.official_hydrated_gate_json
+    )
 
     constant_status = _status(constant_audit)
     observed_status = _status(observed_audit)
@@ -140,7 +147,9 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         if _is_blocking_status(hydration_plan_status):
             blockers.append(f"official hydration plan status is {hydration_plan_status}")
         if _is_blocking_status(hydration_plan_validation_status):
-            blockers.append(f"official hydration plan validation status is {hydration_plan_validation_status}")
+            blockers.append(
+                f"official hydration plan validation status is {hydration_plan_validation_status}"
+            )
         if _is_blocking_status(hydration_plan_run_status):
             blockers.append(f"official hydration plan run status is {hydration_plan_run_status}")
         if _is_blocking_status(hydration_preflight_status):
@@ -148,10 +157,14 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         if _is_blocking_status(hydration_storage_status):
             blockers.append(f"official hydration storage status is {hydration_storage_status}")
         if _is_blocking_status(remote_hydration_plan_status):
-            blockers.append(f"remote official hydration plan status is {remote_hydration_plan_status}")
+            blockers.append(
+                f"remote official hydration plan status is {remote_hydration_plan_status}"
+            )
         if execution_readiness_status:
             blockers.append(f"official execution readiness status is {execution_readiness_status}")
-            for route, route_blockers in ((execution_readiness or {}).get("route_blockers") or {}).items():
+            for route, route_blockers in (
+                (execution_readiness or {}).get("route_blockers") or {}
+            ).items():
                 for route_blocker in route_blockers:
                     blockers.append(f"{route} blocker: {route_blocker}")
         if official_hydrated_gate_path:
@@ -162,31 +175,37 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
                 f"test_result_count={official_hydrated_test_result_count}"
             )
         if context_status == "achieved":
-            blockers.append("two-frame context transport result is achieved but not accepted for literal objective")
+            blockers.append(
+                "two-frame context transport result is achieved but not accepted for literal objective"
+            )
         if observed_status == "achieved":
-            blockers.append("observed-context result is achieved but not accepted for literal objective")
+            blockers.append(
+                "observed-context result is achieved but not accepted for literal objective"
+            )
 
     requirements = [
         {
             "name": "real_light_v1_train_val_accessed",
-            "status": "satisfied"
-            if (
-                constant_audit
-                or observed_audit
-                or context_audit
-                or feature_diag
-                or identifiability_audit
-                or hydration_audit
-                or hydration_plan
-                or hydration_plan_validation
-                or hydration_plan_run
-                or hydration_preflight
-                or hydration_storage
-                or remote_hydration_plan
-                or execution_readiness
-                or official_hydrated_gate
-            )
-            else "missing",
+            "status": (
+                "satisfied"
+                if (
+                    constant_audit
+                    or observed_audit
+                    or context_audit
+                    or feature_diag
+                    or identifiability_audit
+                    or hydration_audit
+                    or hydration_plan
+                    or hydration_plan_validation
+                    or hydration_plan_run
+                    or hydration_preflight
+                    or hydration_storage
+                    or remote_hydration_plan
+                    or execution_readiness
+                    or official_hydrated_gate
+                )
+                else "missing"
+            ),
             "evidence": ", ".join(
                 path
                 for path in (
@@ -211,12 +230,14 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         },
         {
             "name": "fit_transport_shift_only_on_train",
-            "status": "satisfied"
-            if constant_status == "achieved"
-            or official_hydrated_validation_passed
-            or context_transport_achieved
-            or observed_context_achieved
-            else "blocked",
+            "status": (
+                "satisfied"
+                if constant_status == "achieved"
+                or official_hydrated_validation_passed
+                or context_transport_achieved
+                or observed_context_achieved
+                else "blocked"
+            ),
             "evidence": (
                 f"constant_audit_status={constant_status}; "
                 f"feature_conclusion={feature_conclusion}; identifiability_status={identifiability_status}; "
@@ -234,14 +255,16 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         },
         {
             "name": "validate_on_val_against_sota_guard",
-            "status": "satisfied"
-            if (
-                constant_status == "achieved"
-                or official_hydrated_validation_passed
-                or context_transport_achieved
-                or observed_context_achieved
-            )
-            else "blocked",
+            "status": (
+                "satisfied"
+                if (
+                    constant_status == "achieved"
+                    or official_hydrated_validation_passed
+                    or context_transport_achieved
+                    or observed_context_achieved
+                )
+                else "blocked"
+            ),
             "evidence": (
                 f"constant_audit_status={constant_status}; "
                 f"official_hydrated_validation_passed={official_hydrated_validation_passed}; "
@@ -250,18 +273,20 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         },
         {
             "name": "exactly_one_held_out_test_only_after_validation",
-            "status": "satisfied"
-            if (
-                constant_status == "achieved"
-                or (
-                    official_hydrated_test_eligible
-                    and official_hydrated_test_result_count == 1
-                    and official_hydrated_validation_passed
+            "status": (
+                "satisfied"
+                if (
+                    constant_status == "achieved"
+                    or (
+                        official_hydrated_test_eligible
+                        and official_hydrated_test_result_count == 1
+                        and official_hydrated_validation_passed
+                    )
+                    or context_transport_achieved
+                    or observed_context_achieved
                 )
-                or context_transport_achieved
-                or observed_context_achieved
-            )
-            else "blocked",
+                else "blocked"
+            ),
             "evidence": (
                 f"constant_policy={(constant_audit or {}).get('held_out_test_policy')}; "
                 f"official_hydrated_validation_passed={official_hydrated_validation_passed}; "
@@ -273,13 +298,15 @@ def audit_objective(args: argparse.Namespace) -> dict[str, Any]:
         },
         {
             "name": "results_recorded",
-            "status": "satisfied"
-            if (
-                ((constant_audit or {}).get("result_record_policy") or {}).get("passed")
-                or ((context_audit or {}).get("result_record_policy") or {}).get("passed")
-                or ((observed_audit or {}).get("result_record_policy") or {}).get("passed")
-            )
-            else "missing",
+            "status": (
+                "satisfied"
+                if (
+                    ((constant_audit or {}).get("result_record_policy") or {}).get("passed")
+                    or ((context_audit or {}).get("result_record_policy") or {}).get("passed")
+                    or ((observed_audit or {}).get("result_record_policy") or {}).get("passed")
+                )
+                else "missing"
+            ),
             "evidence": (
                 f"constant_record_policy={(constant_audit or {}).get('result_record_policy')}; "
                 f"context_record_policy={(context_audit or {}).get('result_record_policy')}; "

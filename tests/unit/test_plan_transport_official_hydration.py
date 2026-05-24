@@ -71,20 +71,28 @@ def test_hydration_plan_uses_only_official_advection_train_entries(tmp_path):
     assert plan["estimated_download_bytes"] == 300
     assert plan["remote_entries"][0]["url"] == "https://mirror.example/beta0.1.hdf5"
     assert len(plan["commands"]["download_official_train_files"]) == 2
-    assert "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5" in plan["commands"]["download_official_train_files"][0]
+    assert (
+        "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5"
+        in plan["commands"]["download_official_train_files"][0]
+    )
     assert "test-count 0" in plan["commands"]["build_light_train_val_shards"]
     assert "--samples 9" in plan["commands"]["build_train_val_source"]
     assert "--split-block-size 9" in plan["commands"]["build_light_train_val_shards"]
     assert "--split-block-offset train=0" in plan["commands"]["build_light_train_val_shards"]
     assert "--split-block-offset val=5" in plan["commands"]["build_light_train_val_shards"]
-    assert "run_source_conditioned_transport_shift_gate.py" in plan["commands"]["validate_without_test"]
+    assert (
+        "run_source_conditioned_transport_shift_gate.py"
+        in plan["commands"]["validate_without_test"]
+    )
     assert "--fit-strategy sample_mode" in plan["commands"]["validate_without_test"]
     assert "--refine-radius 4" in plan["commands"]["validate_without_test"]
     assert "--fractional-refine-step 0.5" in plan["commands"]["validate_without_test"]
     assert plan["stratified_split_policy"]["train_per_file"] == 5
     assert plan["stratified_split_policy"]["val_per_file"] == 2
     assert plan["stratified_split_policy"]["reserved_test_per_file"] == 2
-    assert "REQUIRE_STATUS=literal-test-ready" in plan["commands"]["objective_audit_after_validation"]
+    assert (
+        "REQUIRE_STATUS=literal-test-ready" in plan["commands"]["objective_audit_after_validation"]
+    )
     assert plan["held_out_test_policy"]["test_split_downloaded"] is False
 
 

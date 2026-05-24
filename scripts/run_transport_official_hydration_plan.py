@@ -7,8 +7,9 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -82,11 +83,17 @@ def run_plan(args: argparse.Namespace) -> dict[str, Any]:
                 command_record["executed"] = True
                 command_record["returncode"] = completed.returncode
                 if completed.returncode != 0:
-                    blockers.append(f"{record['stage']} command failed with exit code {completed.returncode}")
+                    blockers.append(
+                        f"{record['stage']} command failed with exit code {completed.returncode}"
+                    )
                     should_execute = False
             executed.append(command_record)
 
-    status = "executed" if args.execute and not blockers else "dry_run" if not args.execute else "blocked"
+    status = (
+        "executed"
+        if args.execute and not blockers
+        else "dry_run" if not args.execute else "blocked"
+    )
     return {
         "status": status,
         "blockers": blockers,
@@ -101,16 +108,24 @@ def run_plan(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run or preview official Advection hydration stages")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser = argparse.ArgumentParser(
+        description="Run or preview official Advection hydration stages"
+    )
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument(
         "--validation-json",
         default="reports/research/sota_loop/official_advection_hydration_plan_validation.json",
     )
     parser.add_argument("--min-download-bytes", type=int, default=1)
-    parser.add_argument("--stage", action="append", choices=("download", "convert", "shard", "validate", "audit"))
+    parser.add_argument(
+        "--stage", action="append", choices=("download", "convert", "shard", "validate", "audit")
+    )
     parser.add_argument("--execute", action="store_true", help="Execute non-download stages")
-    parser.add_argument("--execute-downloads", action="store_true", help="Allow the large official download stage")
+    parser.add_argument(
+        "--execute-downloads", action="store_true", help="Allow the large official download stage"
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_advection_hydration_plan_run.json",

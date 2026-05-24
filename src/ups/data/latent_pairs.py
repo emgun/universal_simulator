@@ -182,7 +182,9 @@ def prepare_conditioning(
             _presence_signature(param_vocab, params),
             seq_len,
         )
-        cond["parameter_nodes"] = _broadcast_static_condition_tensor(_presence_nodes(param_vocab, params), seq_len)
+        cond["parameter_nodes"] = _broadcast_static_condition_tensor(
+            _presence_nodes(param_vocab, params), seq_len
+        )
 
     if bc_vocab:
         bc_presence = _presence_signature(bc_vocab, bc)[:-1]
@@ -191,7 +193,9 @@ def prepare_conditioning(
             _presence_signature(bc_vocab, bc),
             seq_len,
         )
-        cond["boundary_nodes"] = _broadcast_static_condition_tensor(_presence_nodes(bc_vocab, bc), seq_len)
+        cond["boundary_nodes"] = _broadcast_static_condition_tensor(
+            _presence_nodes(bc_vocab, bc), seq_len
+        )
 
     if time is not None:
         tensor = _to_float_tensor(time)
@@ -278,7 +282,9 @@ def conditioning_source_dims_from_sample(
 ) -> Dict[str, int]:
     fields = sample["fields"]
     seq_len = max(int(fields.shape[0]) - 1, 1)
-    extras = pdebench_conditioning_extras(task_name=task_name, grid_shape=grid_shape, task_vocab=task_vocab)
+    extras = pdebench_conditioning_extras(
+        task_name=task_name, grid_shape=grid_shape, task_vocab=task_vocab
+    )
     cond = prepare_conditioning(
         sample.get("params"),
         sample.get("bc"),
@@ -338,14 +344,20 @@ def pdebench_condition_step(
         param_signature = _presence_signature(param_vocab, params)
         param_presence = param_signature[:-1]
         cond["param_presence"] = param_presence.view(1, -1).expand(batch_size, -1).contiguous()
-        cond["parameter_signature"] = param_signature.view(1, -1).expand(batch_size, -1).contiguous()
-        cond["parameter_nodes"] = _expand_batch_static_condition_tensor(_presence_nodes(param_vocab, params), batch_size)
+        cond["parameter_signature"] = (
+            param_signature.view(1, -1).expand(batch_size, -1).contiguous()
+        )
+        cond["parameter_nodes"] = _expand_batch_static_condition_tensor(
+            _presence_nodes(param_vocab, params), batch_size
+        )
     if bc_vocab:
         bc_signature = _presence_signature(bc_vocab, bc)
         bc_presence = bc_signature[:-1]
         cond["bc_presence"] = bc_presence.view(1, -1).expand(batch_size, -1).contiguous()
         cond["boundary_signature"] = bc_signature.view(1, -1).expand(batch_size, -1).contiguous()
-        cond["boundary_nodes"] = _expand_batch_static_condition_tensor(_presence_nodes(bc_vocab, bc), batch_size)
+        cond["boundary_nodes"] = _expand_batch_static_condition_tensor(
+            _presence_nodes(bc_vocab, bc), batch_size
+        )
     if extras:
         for key, value in extras.items():
             tensor = _to_float_tensor(value)
@@ -423,7 +435,9 @@ def _fields_to_latent_batch(
     return latent.cpu()
 
 
-def _encode_grid_sample(encoder: GridEncoder, sample: Dict[str, Any], device: Optional[torch.device] = None) -> torch.Tensor:
+def _encode_grid_sample(
+    encoder: GridEncoder, sample: Dict[str, Any], device: Optional[torch.device] = None
+) -> torch.Tensor:
     meta = dict(sample.get("meta", {}))
     if "grid_shape" not in meta:
         raise ValueError("Grid sample meta must include 'grid_shape'")
@@ -492,7 +506,9 @@ class GridLatentPairDataset(Dataset):
         self.grid_shape = grid_shape
         self.field_name = field_name
         self.conditioning_extras = dict(conditioning_extras or {})
-        self.param_vocab = tuple(param_vocab if param_vocab is not None else getattr(base, "param_keys", ()))
+        self.param_vocab = tuple(
+            param_vocab if param_vocab is not None else getattr(base, "param_keys", ())
+        )
         self.bc_vocab = tuple(bc_vocab if bc_vocab is not None else getattr(base, "bc_keys", ()))
         self.cache_dir = Path(cache_dir) if cache_dir else None
         if self.cache_dir:
@@ -529,7 +545,9 @@ class GridLatentPairDataset(Dataset):
             fields = fields_cpu.to(self.device, non_blocking=True)
             params_device = None
             if params_cpu is not None:
-                params_device = {k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()}
+                params_device = {
+                    k: v.to(self.device, non_blocking=True) for k, v in params_cpu.items()
+                }
             bc_device = None
             if bc_cpu is not None:
                 bc_device = {k: v.to(self.device, non_blocking=True) for k, v in bc_cpu.items()}
@@ -543,7 +561,9 @@ class GridLatentPairDataset(Dataset):
                 field_name=self.field_name,
             )
             if self.cache_dir and not cache_hit:
-                to_store = latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+                to_store = (
+                    latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
+                )
                 tmp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
                 tmp_path.unlink(missing_ok=True)
                 payload = {
@@ -663,7 +683,9 @@ class GraphLatentPairDataset(Dataset):
         latents: List[torch.Tensor] = []
         for step in range(time_dim):
             field_batch = {name: tensor[step].unsqueeze(0) for name, tensor in step_fields.items()}
-            coords = _graph_coords_at_time(sample, step_fields, step).to(self.device, non_blocking=True)
+            coords = _graph_coords_at_time(sample, step_fields, step).to(
+                self.device, non_blocking=True
+            )
             connect = sample.get("connect")
             if connect is not None:
                 connect = connect.to(self.device, dtype=torch.long, non_blocking=True)
@@ -683,7 +705,9 @@ class GraphLatentPairDataset(Dataset):
         return LatentPair(latent_seq[:-1], latent_seq[1:], cond, z_seq=latent_seq)
 
 
-def collate_latent_pairs(batch_items: Iterable[LatentPair]) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
+def collate_latent_pairs(
+    batch_items: Iterable[LatentPair],
+) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
     items = list(batch_items)
     z0_chunks = []
     z1_chunks = []
@@ -711,7 +735,9 @@ def _pad_sequence_tensors(tensors: List[torch.Tensor]) -> Tuple[torch.Tensor, to
     return padded, lengths
 
 
-def _pad_condition_sequences(conditions: List[Dict[str, torch.Tensor]], max_len: int) -> Dict[str, torch.Tensor]:
+def _pad_condition_sequences(
+    conditions: List[Dict[str, torch.Tensor]], max_len: int
+) -> Dict[str, torch.Tensor]:
     keys = set()
     for cond in conditions:
         keys.update(cond.keys())
@@ -731,9 +757,14 @@ def _pad_condition_sequences(conditions: List[Dict[str, torch.Tensor]], max_len:
 def collate_latent_pairs_with_sequences(batch_items: Iterable[LatentPair]) -> Dict[str, Any]:
     items = list(batch_items)
     z0, z1, cond = collate_latent_pairs(items)
-    sequences = [item.z_seq if item.z_seq is not None else torch.cat([item.z0, item.z1[-1:]], dim=0) for item in items]
+    sequences = [
+        item.z_seq if item.z_seq is not None else torch.cat([item.z0, item.z1[-1:]], dim=0)
+        for item in items
+    ]
     z_seq, seq_lens = _pad_sequence_tensors(sequences)
-    cond_seq = _pad_condition_sequences([item.cond for item in items], max(int(seq_lens.max().item()) - 1, 0))
+    cond_seq = _pad_condition_sequences(
+        [item.cond for item in items], max(int(seq_lens.max().item()) - 1, 0)
+    )
     return {
         "z0": z0,
         "z1": z1,
@@ -744,7 +775,9 @@ def collate_latent_pairs_with_sequences(batch_items: Iterable[LatentPair]) -> Di
     }
 
 
-def _build_pdebench_dataset(data_cfg: Dict[str, Any]) -> Tuple[Dataset, GridEncoder, Tuple[int, int], str]:
+def _build_pdebench_dataset(
+    data_cfg: Dict[str, Any]
+) -> Tuple[Dataset, GridEncoder, Tuple[int, int], str]:
     dataset = PDEBenchDataset(
         PDEBenchConfig(
             task=data_cfg["task"],
@@ -770,7 +803,9 @@ def _build_pdebench_dataset(data_cfg: Dict[str, Any]) -> Tuple[Dataset, GridEnco
     return dataset, grid_encoder, grid_shape, field_name
 
 
-def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[Any] = None) -> DataLoader:
+def build_latent_pair_loader(
+    cfg: Dict[str, Any], *, encoder_override: Optional[Any] = None
+) -> DataLoader:
     """Construct a DataLoader that yields latent pairs from data config."""
 
     data_cfg = cfg.get("data", {})
@@ -785,7 +820,11 @@ def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[
     cache_dir_cfg = train_cfg.get("latent_cache_dir")
     cache_root: Optional[Path] = Path(cache_dir_cfg) if cache_dir_cfg else None
     cache_dtype_str = train_cfg.get("latent_cache_dtype", "float16") or None
-    cache_dtype = getattr(torch, cache_dtype_str) if cache_dtype_str and hasattr(torch, cache_dtype_str) else None
+    cache_dtype = (
+        getattr(torch, cache_dtype_str)
+        if cache_dtype_str and hasattr(torch, cache_dtype_str)
+        else None
+    )
     split_name = data_cfg.get("split", "train")
     time_stride = int(train_cfg.get("time_stride", 1))
 
@@ -794,7 +833,9 @@ def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[
     loader_kwargs: Dict[str, Any] = {
         "batch_size": batch,
         "shuffle": True,
-        "collate_fn": collate_latent_pairs_with_sequences if preserve_sequences else collate_latent_pairs,
+        "collate_fn": (
+            collate_latent_pairs_with_sequences if preserve_sequences else collate_latent_pairs
+        ),
         "num_workers": num_workers,
         "pin_memory": pin_memory,
         "persistent_workers": num_workers > 0,
@@ -812,7 +853,11 @@ def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[
             for task_name in tasks:
                 ds_cfg = {**data_cfg, "task": task_name}
                 dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
-                    {**ds_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
+                    {
+                        **ds_cfg,
+                        "latent_dim": latent_cfg.get("dim", 32),
+                        "latent_len": latent_cfg.get("tokens", 16),
+                    }
                 )
                 if encoder_override is not None:
                     encoder = encoder_override
@@ -820,7 +865,9 @@ def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[
                 coords = make_grid_coords(grid_shape, device)
                 ds_cache = cache_root / f"{task_name}_{split_name}" if cache_root else None
                 extras = (
-                    pdebench_conditioning_extras(task_name=str(task_name), grid_shape=grid_shape, task_vocab=task_vocab)
+                    pdebench_conditioning_extras(
+                        task_name=str(task_name), grid_shape=grid_shape, task_vocab=task_vocab
+                    )
                     if auto_conditioning
                     else None
                 )
@@ -841,13 +888,21 @@ def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[
             return DataLoader(mixed, **loader_kwargs)
         else:
             dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
-                {**data_cfg, "latent_dim": latent_cfg.get("dim", 32), "latent_len": latent_cfg.get("tokens", 16)}
+                {
+                    **data_cfg,
+                    "latent_dim": latent_cfg.get("dim", 32),
+                    "latent_len": latent_cfg.get("tokens", 16),
+                }
             )
             if encoder_override is not None:
                 encoder = encoder_override
             encoder = encoder.to(device)
             coords = make_grid_coords(grid_shape, device)
-            ds_cache = cache_root / f"{tasks}_{split_name}" if cache_root and isinstance(tasks, str) else cache_root
+            ds_cache = (
+                cache_root / f"{tasks}_{split_name}"
+                if cache_root and isinstance(tasks, str)
+                else cache_root
+            )
             extras = (
                 pdebench_conditioning_extras(task_name=str(tasks), grid_shape=grid_shape)
                 if auto_conditioning and isinstance(tasks, str)
@@ -871,7 +926,9 @@ def build_latent_pair_loader(cfg: Dict[str, Any], *, encoder_override: Optional[
     if kind == "grid":
         dataset = GridZarrDataset(data_cfg["path"], group=data_cfg.get("group"))
         if len(dataset) < 2:
-            raise ValueError("GridZarrDataset must contain at least two time steps to form latent pairs")
+            raise ValueError(
+                "GridZarrDataset must contain at least two time steps to form latent pairs"
+            )
         sample0 = dataset[0]
         field_channels = {name: tensor.shape[1] for name, tensor in sample0["fields"].items()}
         encoder_cfg = GridEncoderConfig(

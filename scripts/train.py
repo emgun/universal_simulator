@@ -5,22 +5,20 @@ from __future__ import annotations
 
 import argparse
 import copy
-import json
 import random
-from pathlib import Path
-from typing import Any, Dict, Optional
-
 import sys
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
+import torch.multiprocessing as mp
+import yaml
 from torch import nn
 from torch.nn import functional as F
 from torch.nn.parameter import UninitializedParameter
 from torch.optim import lr_scheduler
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
-import yaml
-import torch.multiprocessing as mp
 
 try:
     import wandb
@@ -33,16 +31,11 @@ try:
 except RuntimeError:
     pass
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from ups.core.blocks_pdet import PDETransformerConfig
 from ups.core.conditioning import ConditioningConfig
 from ups.core.latent_state import LatentState
-from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
-from ups.core.blocks_pdet import PDETransformerConfig
-from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
-from ups.training.consistency_distill import DistillationConfig, distillation_loss
-from ups.training.losses import semigroup_consistency_loss
-from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
 from ups.data.latent_pairs import (
     build_latent_pair_loader,
     conditioning_source_dims_from_sample,
@@ -56,15 +49,23 @@ from ups.data.latent_pairs import (
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
 from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
-from ups.utils.monitoring import init_monitoring_session, MonitoringSession
+from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
+from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
+from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
+from ups.training.losses import semigroup_consistency_loss
+from ups.utils.monitoring import MonitoringSession, init_monitoring_session
+
 
 # ---- Auxiliary training losses ----
 def _nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     mse = torch.mean((pred - target) ** 2)
-    denom = torch.mean(target ** 2) + eps
+    denom = torch.mean(target**2) + eps
     return torch.sqrt(mse / denom)
 
-def _spectral_energy_loss(pred: torch.Tensor, target: torch.Tensor, dim: int = 1, eps: float = 1e-8) -> torch.Tensor:
+
+def _spectral_energy_loss(
+    pred: torch.Tensor, target: torch.Tensor, dim: int = 1, eps: float = 1e-8
+) -> torch.Tensor:
     """Relative spectral energy difference along the given axis (default: token axis)."""
     pred_fft = torch.fft.rfft(pred, dim=dim)
     tgt_fft = torch.fft.rfft(target, dim=dim)
@@ -78,7 +79,7 @@ def _decoded_field_loss(
     target: torch.Tensor,
     previous: torch.Tensor,
     *,
-    stage_cfg: Dict[str, Any],
+    stage_cfg: dict[str, Any],
 ) -> torch.Tensor:
     loss = F.mse_loss(pred, target)
     residual_weight = float(stage_cfg.get("lambda_persistence_residual", 0.0) or 0.0)
@@ -87,9 +88,13 @@ def _decoded_field_loss(
     spectral_weight = float(stage_cfg.get("lambda_spectral", 0.0) or 0.0)
     if spectral_weight > 0.0:
         loss = loss + spectral_weight * _spectral_energy_loss(pred, target, dim=1)
-    residual_spectral_weight = float(stage_cfg.get("lambda_persistence_residual_spectral", 0.0) or 0.0)
+    residual_spectral_weight = float(
+        stage_cfg.get("lambda_persistence_residual_spectral", 0.0) or 0.0
+    )
     if residual_spectral_weight > 0.0:
-        loss = loss + residual_spectral_weight * _spectral_energy_loss(pred - previous, target - previous, dim=1)
+        loss = loss + residual_spectral_weight * _spectral_energy_loss(
+            pred - previous, target - previous, dim=1
+        )
     relative_weight = float(stage_cfg.get("lambda_relative", 0.0) or 0.0)
     if relative_weight > 0.0:
         loss = loss + relative_weight * _nrmse(pred, target)
@@ -102,11 +107,11 @@ def load_config(path: str) -> dict:
 
         return load_config_with_includes(path)
     except ImportError:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             return yaml.safe_load(fh) or {}
 
 
-def set_seed(cfg: Dict) -> None:
+def set_seed(cfg: dict) -> None:
     seed = cfg.get("seed", 17)
     random.seed(seed)
     np.random.seed(seed)
@@ -123,18 +128,26 @@ def ensure_checkpoint_dir(cfg: dict) -> Path:
 
 
 class TrainingLogger:
-    def __init__(self, cfg: Dict[str, Dict], stage: str, global_step: int = 0, shared_run=None) -> None:
+    def __init__(
+        self, cfg: dict[str, dict], stage: str, global_step: int = 0, shared_run=None
+    ) -> None:
         training_cfg = cfg.get("training", {})
         log_path = training_cfg.get("log_path", "reports/training_log.jsonl")
         self.stage = stage
         self.global_step = global_step
-        
+
         # Use shared run if provided, otherwise create new one
         if shared_run is not None:
-            self.session = MonitoringSession(file_path=Path(log_path) if log_path else None, run=shared_run, component=f"training-{stage}")
+            self.session = MonitoringSession(
+                file_path=Path(log_path) if log_path else None,
+                run=shared_run,
+                component=f"training-{stage}",
+            )
             self.owns_run = False
         else:
-            self.session = init_monitoring_session(cfg, component=f"training-{stage}", file_path=log_path)
+            self.session = init_monitoring_session(
+                cfg, component=f"training-{stage}", file_path=log_path
+            )
             self.owns_run = True
 
     def log(
@@ -143,14 +156,14 @@ class TrainingLogger:
         epoch: int,
         loss: float,
         optimizer: torch.optim.Optimizer,
-        patience_counter: Optional[int] = None,
-        grad_norm: Optional[float] = None,
-        epoch_time: Optional[float] = None,
-        best_loss: Optional[float] = None,
+        patience_counter: int | None = None,
+        grad_norm: float | None = None,
+        epoch_time: float | None = None,
+        best_loss: float | None = None,
     ) -> None:
         lr = optimizer.param_groups[0].get("lr") if optimizer.param_groups else None
         self.global_step += 1
-        
+
         # Log with stage-specific prefixes for better W&B charts
         entry = {
             f"{self.stage}/loss": loss,
@@ -158,7 +171,7 @@ class TrainingLogger:
             f"{self.stage}/lr": lr,
             "global_step": self.global_step,
         }
-        
+
         # Add optional metrics
         if patience_counter is not None:
             entry[f"{self.stage}/epochs_since_improve"] = patience_counter
@@ -168,14 +181,14 @@ class TrainingLogger:
             entry[f"{self.stage}/epoch_time_sec"] = epoch_time
         if best_loss is not None:
             entry[f"{self.stage}/best_loss"] = best_loss
-        
+
         self.session.log(entry)
 
     def close(self) -> None:
         # Only finish the run if we own it
         if self.owns_run:
             self.session.finish()
-    
+
     def get_global_step(self) -> int:
         return self.global_step
 
@@ -189,25 +202,31 @@ def dataset_loader(cfg: dict, *, encoder_override=None) -> DataLoader:
     return build_latent_pair_loader(cfg, encoder_override=encoder_override)
 
 
-def _supports_grid_codec(cfg: Dict) -> bool:
+def _supports_grid_codec(cfg: dict) -> bool:
     data_cfg = cfg.get("data", {})
     tasks = data_cfg.get("task")
     if isinstance(tasks, str):
         return True
-    return isinstance(tasks, (list, tuple)) and len(tasks) > 0 and all(isinstance(task, str) for task in tasks)
+    return (
+        isinstance(tasks, (list, tuple))
+        and len(tasks) > 0
+        and all(isinstance(task, str) for task in tasks)
+    )
 
 
-def _pdebench_tasks(cfg: Dict) -> list[str]:
+def _pdebench_tasks(cfg: dict) -> list[str]:
     data_cfg = cfg.get("data", {})
     tasks = data_cfg.get("task")
     if isinstance(tasks, str):
         return [tasks]
     if isinstance(tasks, (list, tuple)) and tasks and all(isinstance(task, str) for task in tasks):
         return [str(task) for task in tasks]
-    raise ValueError("Grid codec support currently requires one PDEBench task or a non-empty list of task names")
+    raise ValueError(
+        "Grid codec support currently requires one PDEBench task or a non-empty list of task names"
+    )
 
 
-def _pdebench_codec_context(cfg: Dict) -> tuple[list[dict[str, Any]], int, str]:
+def _pdebench_codec_context(cfg: dict) -> tuple[list[dict[str, Any]], int, str]:
     data_cfg = cfg.get("data", {})
     field_name = data_cfg.get("field_name", "u")
     specs: list[dict[str, Any]] = []
@@ -225,20 +244,24 @@ def _pdebench_codec_context(cfg: Dict) -> tuple[list[dict[str, Any]], int, str]:
         sample_fields = dataset.fields[0]
         grid_shape = infer_grid_shape(sample_fields)
         channels = infer_channel_count(sample_fields, grid_shape)
-        specs.append({"task": task, "dataset": dataset, "grid_shape": grid_shape, "channels": channels})
+        specs.append(
+            {"task": task, "dataset": dataset, "grid_shape": grid_shape, "channels": channels}
+        )
     channels = int(specs[0]["channels"])
     if any(int(spec["channels"]) != channels for spec in specs[1:]):
-        raise ValueError("Multi-task grid codec training currently requires all tasks to share the same channel count")
+        raise ValueError(
+            "Multi-task grid codec training currently requires all tasks to share the same channel count"
+        )
     return specs, channels, field_name
 
 
-def _auto_conditioning_sources(cfg: Dict[str, Any]) -> Dict[str, int]:
+def _auto_conditioning_sources(cfg: dict[str, Any]) -> dict[str, int]:
     specs, _, _ = _pdebench_codec_context(cfg)
     task_vocab = tuple(str(spec["task"]) for spec in specs) if len(specs) > 1 else None
     data_cfg = cfg.get("data", {})
     param_vocab = tuple(data_cfg.get("param_keys", ()))
     bc_vocab = tuple(data_cfg.get("bc_keys", ()))
-    sources: Dict[str, int] = {}
+    sources: dict[str, int] = {}
     for spec in specs:
         sample = spec["dataset"][0]
         sample_sources = conditioning_source_dims_from_sample(
@@ -254,13 +277,13 @@ def _auto_conditioning_sources(cfg: Dict[str, Any]) -> Dict[str, int]:
     return sources
 
 
-def _pdebench_grid_spec(cfg: Dict) -> tuple[PDEBenchDataset, tuple[int, int], int, str]:
+def _pdebench_grid_spec(cfg: dict) -> tuple[PDEBenchDataset, tuple[int, int], int, str]:
     specs, channels, field_name = _pdebench_codec_context(cfg)
     first = specs[0]
     return first["dataset"], first["grid_shape"], channels, field_name
 
 
-def make_encoder(cfg: Dict[str, Any]) -> GridEncoder:
+def make_encoder(cfg: dict[str, Any]) -> GridEncoder:
     _, channels, field_name = _pdebench_codec_context(cfg)
     data_cfg = cfg.get("data", {})
     latent_cfg = cfg.get("latent", {})
@@ -273,7 +296,7 @@ def make_encoder(cfg: Dict[str, Any]) -> GridEncoder:
     return GridEncoder(encoder_cfg)
 
 
-def make_decoder(cfg: Dict[str, Any]) -> AnyPointDecoder:
+def make_decoder(cfg: dict[str, Any]) -> AnyPointDecoder:
     _, channels, field_name = _pdebench_codec_context(cfg)
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     decoder_cfg = cfg.get("decoder", {})
@@ -337,7 +360,7 @@ def _encode_sequence_batch(
     return latent
 
 
-def _materialize_encoder(encoder: GridEncoder, cfg: Dict[str, Any], device: torch.device) -> None:
+def _materialize_encoder(encoder: GridEncoder, cfg: dict[str, Any], device: torch.device) -> None:
     dataset, grid_shape, _, field_name = _pdebench_grid_spec(cfg)
     sample = dataset[0]["fields"].float()
     if sample.dim() >= 2:
@@ -406,23 +429,27 @@ def make_operator(cfg: dict) -> LatentOperator:
 
 
 def _grid_structured_conditioning(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     *,
     grid_shape: tuple[int, int],
     batch_size: int,
     device: torch.device,
-    task_name: Optional[str] = None,
-    params: Optional[Dict[str, Any]] = None,
-    bc: Optional[Dict[str, Any]] = None,
+    task_name: str | None = None,
+    params: dict[str, Any] | None = None,
+    bc: dict[str, Any] | None = None,
     step: int = 0,
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     if not bool(cfg.get("training", {}).get("auto_conditioning", False)):
         return {}
     data_cfg = cfg.get("data", {})
     task = data_cfg.get("task")
-    resolved_task = task_name if task_name is not None else (task if isinstance(task, str) else None)
+    resolved_task = (
+        task_name if task_name is not None else (task if isinstance(task, str) else None)
+    )
     task_vocab = tuple(str(name) for name in task) if isinstance(task, (list, tuple)) else None
-    extras = pdebench_conditioning_extras(task_name=resolved_task, grid_shape=grid_shape, task_vocab=task_vocab)
+    extras = pdebench_conditioning_extras(
+        task_name=resolved_task, grid_shape=grid_shape, task_vocab=task_vocab
+    )
     cond = pdebench_condition_step(
         params,
         bc,
@@ -443,13 +470,13 @@ class _NamedPDEBenchDataset(Dataset):
     def __len__(self) -> int:
         return len(self.base)
 
-    def __getitem__(self, idx: int) -> Dict[str, Any]:
+    def __getitem__(self, idx: int) -> dict[str, Any]:
         sample = dict(self.base[idx])
         sample["task_name"] = self.task_name
         return sample
 
 
-def _raw_pdebench_dataset(cfg: Dict[str, Any]) -> tuple[Dataset, str]:
+def _raw_pdebench_dataset(cfg: dict[str, Any]) -> tuple[Dataset, str]:
     specs, _, field_name = _pdebench_codec_context(cfg)
     datasets = [_NamedPDEBenchDataset(spec["dataset"], str(spec["task"])) for spec in specs]
     if len(datasets) == 1:
@@ -457,7 +484,7 @@ def _raw_pdebench_dataset(cfg: Dict[str, Any]) -> tuple[Dataset, str]:
     return ConcatDataset(datasets), field_name
 
 
-def _task_name_from_batch(batch: Dict[str, Any]) -> Optional[str]:
+def _task_name_from_batch(batch: dict[str, Any]) -> str | None:
     task_name = batch.get("task_name")
     if isinstance(task_name, str):
         return task_name
@@ -466,7 +493,7 @@ def _task_name_from_batch(batch: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _raw_collate(batch: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+def _raw_collate(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return batch
 
 
@@ -482,7 +509,9 @@ def _create_optimizer(cfg: dict, model: nn.Module, stage: str) -> torch.optim.Op
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     if name == "sgd":
         momentum = opt_cfg.get("momentum", 0.9)
-        return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+        return torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay
+        )
     raise ValueError(f"Unsupported optimizer '{name}'")
 
 
@@ -523,7 +552,7 @@ def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: dict, stage: str):
     raise ValueError(f"Unsupported scheduler '{name}'")
 
 
-def _amp_enabled(cfg: Dict) -> bool:
+def _amp_enabled(cfg: dict) -> bool:
     return bool(cfg.get("training", {}).get("amp", False)) and torch.cuda.is_available()
 
 
@@ -543,7 +572,7 @@ def _grad_scaler(enabled: bool):
     return torch.cuda.amp.GradScaler(enabled=enabled)
 
 
-def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
+def _maybe_compile(model: nn.Module, cfg: dict, name: str) -> nn.Module:
     """Optionally compile a model with torch.compile when enabled and available.
 
     Controlled by training.compile bool. Falls back silently if unavailable.
@@ -564,7 +593,8 @@ def _maybe_compile(model: nn.Module, cfg: Dict, name: str) -> nn.Module:
         # If torch.compile is unavailable or fails, just return the original model
         return model
 
-def _grad_clip_value(cfg: Dict, stage: str) -> Optional[float]:
+
+def _grad_clip_value(cfg: dict, stage: str) -> float | None:
     # Stage-specific override takes precedence; fallback to training.grad_clip
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     if "grad_clip" in stage_cfg:
@@ -572,7 +602,7 @@ def _grad_clip_value(cfg: Dict, stage: str) -> Optional[float]:
     return cfg.get("training", {}).get("grad_clip")
 
 
-def _get_ema_decay(cfg: Dict, stage: str) -> Optional[float]:
+def _get_ema_decay(cfg: dict, stage: str) -> float | None:
     stage_cfg = cfg.get("stages", {}).get(stage, {}) if isinstance(cfg.get("stages"), dict) else {}
     if "ema_decay" in stage_cfg:
         return stage_cfg.get("ema_decay")
@@ -597,7 +627,9 @@ def _semigroup_loss_from_batch(
     if z_seq.dim() != 4 or z_seq.shape[1] < 3:
         return z_seq.new_tensor(0.0)
 
-    valid = torch.arange(z_seq.shape[1] - 2, device=device).unsqueeze(0) < (seq_lens - 2).unsqueeze(1)
+    valid = torch.arange(z_seq.shape[1] - 2, device=device).unsqueeze(0) < (seq_lens - 2).unsqueeze(
+        1
+    )
     if not torch.any(valid):
         return z_seq.new_tensor(0.0)
 
@@ -631,7 +663,7 @@ def _update_ema(ema_model: nn.Module, model: nn.Module, decay: float) -> None:
         p_ema.mul_(decay).add_(p.data, alpha=1.0 - decay)
 
 
-def _get_patience(cfg: dict, stage: str) -> Optional[int]:
+def _get_patience(cfg: dict, stage: str) -> int | None:
     stage_cfg = cfg.get("stages", {}).get(stage, {})
     if "patience" in stage_cfg:
         return stage_cfg["patience"]
@@ -639,7 +671,7 @@ def _get_patience(cfg: dict, stage: str) -> Optional[int]:
     return training_cfg.get("patience")
 
 
-def _should_stop(patience: Optional[int], epochs_since_improve: int) -> bool:
+def _should_stop(patience: int | None, epochs_since_improve: int) -> bool:
     if patience is None:
         return False
     return epochs_since_improve > patience
@@ -662,7 +694,9 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     if _supports_grid_codec(cfg):
         export_encoder = make_encoder(cfg)
-        _materialize_encoder(export_encoder, cfg, torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        _materialize_encoder(
+            export_encoder, cfg, torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
     if lam_semigroup > 0.0 and not bool(train_cfg.get("preserve_sequences", False)):
         loader_cfg = copy.deepcopy(cfg)
         loader_cfg.setdefault("training", {})["preserve_sequences"] = True
@@ -689,8 +723,9 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     ema_model = _init_ema(operator) if ema_decay else None
     clip_val = _grad_clip_value(cfg, "operator")
     epochs_since_improve = 0
-    
+
     import time
+
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
@@ -705,7 +740,9 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         for i, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             target = z1.to(device)
             try:
                 with _autocast(device, use_amp):
@@ -713,11 +750,15 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     base = F.mse_loss(next_state.z, target)
                     extra = 0.0
                     if lam_spec > 0.0:
-                        extra = extra + lam_spec * _spectral_energy_loss(next_state.z, target, dim=1)
+                        extra = extra + lam_spec * _spectral_energy_loss(
+                            next_state.z, target, dim=1
+                        )
                     if lam_rel > 0.0:
                         extra = extra + lam_rel * _nrmse(next_state.z, target)
                     if lam_semigroup > 0.0:
-                        extra = extra + lam_semigroup * _semigroup_loss_from_batch(operator, batch, device, dt_tensor)
+                        extra = extra + lam_semigroup * _semigroup_loss_from_batch(
+                            operator, batch, device, dt_tensor
+                        )
                     loss = base + extra
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
@@ -736,12 +777,16 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 if use_amp:
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        operator.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += float(grad_norm)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(operator.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        operator.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += grad_norm.item()
                     optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
@@ -750,11 +795,11 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     _update_ema(ema_model, operator, ema_decay)
             epoch_loss += loss_value
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -790,19 +835,19 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         operator_ema_path = checkpoint_dir / "operator_ema.pt"
         torch.save(ema_model.state_dict(), operator_ema_path)
         print(f"Saved operator EMA checkpoint to {operator_ema_path}")
-    
+
     # Upload checkpoint to W&B
     if wandb is not None and wandb.run is not None:
         wandb.save(str(operator_path), base_path=str(checkpoint_dir.parent))
-        print(f"Uploaded operator checkpoint to W&B")
-    
+        print("Uploaded operator checkpoint to W&B")
+
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
         try:
             wandb.alert(
                 title="✅ Operator Training Complete",
                 text=f"Final loss: {best_loss:.6f} | Ready for the next training stage",
-                level=wandb.AlertLevel.INFO
+                level=wandb.AlertLevel.INFO,
             )
         except Exception:
             pass
@@ -853,6 +898,7 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     epochs_since_improve = 0
 
     import time
+
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -878,7 +924,9 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     flat_targets = []
                     for batch_idx in range(fields.shape[0]):
                         for step_idx in range(fields.shape[1]):
-                            flat_targets.append(_flatten_field_step(fields[batch_idx, step_idx], grid_shape))
+                            flat_targets.append(
+                                _flatten_field_step(fields[batch_idx, step_idx], grid_shape)
+                            )
                     targets = torch.cat(flat_targets, dim=0).to(device)
                     coords_batch = coords.expand(targets.shape[0], -1, -1)
                     decoded = decoder(coords_batch, latent, conditioning={})
@@ -910,7 +958,9 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             flat_targets = []
             for batch_idx in range(fields.shape[0]):
                 for step_idx in range(fields.shape[1]):
-                    flat_targets.append(_flatten_field_step(fields[batch_idx, step_idx], grid_shape))
+                    flat_targets.append(
+                        _flatten_field_step(fields[batch_idx, step_idx], grid_shape)
+                    )
             targets = torch.cat(flat_targets, dim=0).to(device)
             coords_batch = coords.expand(targets.shape[0], -1, -1)
 
@@ -960,7 +1010,9 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 
 def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     if not _supports_grid_codec(cfg):
-        raise ValueError("Decoded operator fine-tuning currently supports single-task PDEBench grid data only")
+        raise ValueError(
+            "Decoded operator fine-tuning currently supports single-task PDEBench grid data only"
+        )
 
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     operator_path = checkpoint_dir / "operator.pt"
@@ -1006,7 +1058,9 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
     optimizer = _create_optimizer(cfg, operator, "operator_decoded")
     scheduler = _create_scheduler(optimizer, cfg, "operator_decoded")
     patience = _get_patience(cfg, "operator_decoded")
-    logger = TrainingLogger(cfg, stage="operator_decoded", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(
+        cfg, stage="operator_decoded", global_step=global_step, shared_run=shared_run
+    )
     dt = cfg.get("training", {}).get("dt", 0.1)
     dt_tensor = torch.tensor(dt, device=device)
     rollout_steps = int(stage_cfg.get("rollout_steps", 1) or 1)
@@ -1017,6 +1071,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
     epochs_since_improve = 0
 
     import time
+
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -1042,7 +1097,9 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                         field_name=field_name,
                         device=device,
                     )
-                    targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(device)
+                    targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(
+                        device
+                    )
                     state = LatentState(
                         z=latent,
                         t=torch.tensor(0.0, device=device),
@@ -1210,7 +1267,9 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
 
 def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     if not _supports_grid_codec(cfg):
-        raise ValueError("Joint codec/operator training currently supports single-task PDEBench grid data only")
+        raise ValueError(
+            "Joint codec/operator training currently supports single-task PDEBench grid data only"
+        )
 
     checkpoint_dir = ensure_checkpoint_dir(cfg)
     operator_path = checkpoint_dir / "operator.pt"
@@ -1218,7 +1277,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
     decoder_path = checkpoint_dir / "decoder.pt"
     for required in (operator_path, encoder_path, decoder_path):
         if not required.exists():
-            raise FileNotFoundError(f"Joint codec/operator training requires checkpoint: {required}")
+            raise FileNotFoundError(
+                f"Joint codec/operator training requires checkpoint: {required}"
+            )
 
     stage_cfg = cfg.get("stages", {}).get("joint_codec_operator", {})
     epochs = int(stage_cfg.get("epochs", 0) or 0)
@@ -1253,7 +1314,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
     optimizer = _create_optimizer(cfg, joint_model, "joint_codec_operator")
     scheduler = _create_scheduler(optimizer, cfg, "joint_codec_operator")
     patience = _get_patience(cfg, "joint_codec_operator")
-    logger = TrainingLogger(cfg, stage="joint_codec_operator", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(
+        cfg, stage="joint_codec_operator", global_step=global_step, shared_run=shared_run
+    )
     dt = cfg.get("training", {}).get("dt", 0.1)
     dt_tensor = torch.tensor(dt, device=device)
     rollout_steps = int(stage_cfg.get("rollout_steps", 1) or 1)
@@ -1272,6 +1335,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
     clip_val = _grad_clip_value(cfg, "joint_codec_operator")
 
     import time
+
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
@@ -1289,7 +1353,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                     grid_shape = infer_grid_shape(sample["fields"].float())
                     coords = make_grid_coords(grid_shape, device)
                     max_steps = min(rollout_steps, max(fields.shape[1] - 1, 0))
-                    targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(device)
+                    targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(
+                        device
+                    )
                     coords_batch = coords.expand(1, -1, -1)
                     structured_cond = _grid_structured_conditioning(
                         cfg,
@@ -1300,13 +1366,22 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                     )
                     try:
                         with _autocast(device, use_amp):
-                            latent0 = encoder({field_name: targets[:, 0]}, coords_batch, meta={"grid_shape": grid_shape})
+                            latent0 = encoder(
+                                {field_name: targets[:, 0]},
+                                coords_batch,
+                                meta={"grid_shape": grid_shape},
+                            )
                             losses = []
                             if lambda_reconstruction > 0.0:
                                 reconstructed = decoder(coords_batch, latent0, conditioning={})
-                                losses.append(lambda_reconstruction * F.mse_loss(reconstructed[field_name], targets[:, 0]))
+                                losses.append(
+                                    lambda_reconstruction
+                                    * F.mse_loss(reconstructed[field_name], targets[:, 0])
+                                )
 
-                            state = LatentState(z=latent0, t=torch.tensor(0.0, device=device), cond=structured_cond)
+                            state = LatentState(
+                                z=latent0, t=torch.tensor(0.0, device=device), cond=structured_cond
+                            )
                             decoded_losses = []
                             for step in range(1, max_steps + 1):
                                 cond = _grid_structured_conditioning(
@@ -1343,7 +1418,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         if "out of memory" in str(e).lower():
                             if torch.cuda.is_available():
                                 torch.cuda.empty_cache()
-                            print("Warning: OOM encountered in joint codec/operator step, skipping sample")
+                            print(
+                                "Warning: OOM encountered in joint codec/operator step, skipping sample"
+                            )
                             continue
                         raise
 
@@ -1355,13 +1432,17 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                     scaler.scale(loss).backward()
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(joint_model.parameters(), float("inf") if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        joint_model.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += float(grad_norm)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
                     loss.backward()
-                    grad_norm = torch.nn.utils.clip_grad_norm_(joint_model.parameters(), float("inf") if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        joint_model.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += grad_norm.item()
                     optimizer.step()
                 epoch_loss += loss.detach().item()
@@ -1390,13 +1471,20 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
 
             try:
                 with _autocast(device, use_amp):
-                    latent0 = encoder({field_name: targets[:, 0]}, coords_batch, meta={"grid_shape": grid_shape})
+                    latent0 = encoder(
+                        {field_name: targets[:, 0]}, coords_batch, meta={"grid_shape": grid_shape}
+                    )
                     losses = []
                     if lambda_reconstruction > 0.0:
                         reconstructed = decoder(coords_batch, latent0, conditioning={})
-                        losses.append(lambda_reconstruction * F.mse_loss(reconstructed[field_name], targets[:, 0]))
+                        losses.append(
+                            lambda_reconstruction
+                            * F.mse_loss(reconstructed[field_name], targets[:, 0])
+                        )
 
-                    state = LatentState(z=latent0, t=torch.tensor(0.0, device=device), cond=structured_cond)
+                    state = LatentState(
+                        z=latent0, t=torch.tensor(0.0, device=device), cond=structured_cond
+                    )
                     decoded_losses = []
                     for step in range(1, max_steps + 1):
                         cond = _grid_structured_conditioning(
@@ -1443,13 +1531,17 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                 scaler.scale(loss).backward()
                 if clip_val is not None:
                     scaler.unscale_(optimizer)
-                grad_norm = torch.nn.utils.clip_grad_norm_(joint_model.parameters(), float("inf") if clip_val is None else clip_val)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    joint_model.parameters(), float("inf") if clip_val is None else clip_val
+                )
                 total_grad_norm += float(grad_norm)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
-                grad_norm = torch.nn.utils.clip_grad_norm_(joint_model.parameters(), float("inf") if clip_val is None else clip_val)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    joint_model.parameters(), float("inf") if clip_val is None else clip_val
+                )
                 total_grad_norm += grad_norm.item()
                 optimizer.step()
 
@@ -1513,11 +1605,11 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
 def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     loader = dataset_loader(cfg)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    
+
     # Determine device FIRST
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    
+
     # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
@@ -1530,17 +1622,21 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
 
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("diff_residual", {})
-    diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
+    diff = DiffusionResidual(
+        DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2)
+    )
     _ensure_model_on_device(diff, device)
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
-    
+
     optimizer = _create_optimizer(cfg, diff, "diff_residual")
     scheduler = _create_scheduler(optimizer, cfg, "diff_residual")
     patience = _get_patience(cfg, "diff_residual")
     dt = cfg.get("training", {}).get("dt", 0.1)
     epochs = stage_cfg.get("epochs", 1)
     checkpoint_interval = int(cfg.get("training", {}).get("checkpoint_interval", 0) or 0)
-    logger = TrainingLogger(cfg, stage="diffusion_residual", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(
+        cfg, stage="diffusion_residual", global_step=global_step, shared_run=shared_run
+    )
     dt_tensor = torch.tensor(dt, device=device)
     best_loss = float("inf")
     best_state = copy.deepcopy(diff.state_dict())
@@ -1552,8 +1648,9 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     best_ema_state = copy.deepcopy(ema_model.state_dict()) if ema_model is not None else None
     clip_val = _grad_clip_value(cfg, "diff_residual")
     epochs_since_improve = 0
-    
+
     import time
+
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     lam_spec = float(cfg.get("training", {}).get("lambda_spectral", 0.0) or 0.0)
     lam_rel = float(cfg.get("training", {}).get("lambda_relative", 0.0) or 0.0)
@@ -1568,7 +1665,9 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         for i, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             target = z1.to(device)
             try:
                 with torch.no_grad():
@@ -1589,7 +1688,9 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     base = F.mse_loss(drift, residual_target)
                     extra = 0.0
                     if lam_spec > 0.0:
-                        extra = extra + lam_spec * _spectral_energy_loss(drift, residual_target, dim=1)
+                        extra = extra + lam_spec * _spectral_energy_loss(
+                            drift, residual_target, dim=1
+                        )
                     if lam_rel > 0.0:
                         extra = extra + lam_rel * _nrmse(drift, residual_target)
                     loss = base + extra
@@ -1610,12 +1711,16 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 if use_amp:
                     if clip_val is not None:
                         scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        diff.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += float(grad_norm)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        diff.parameters(), float("inf") if clip_val is None else clip_val
+                    )
                     total_grad_norm += grad_norm.item()
                     optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
@@ -1624,11 +1729,11 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                     _update_ema(ema_model, diff, ema_decay)
             epoch_loss += loss.item()
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1667,21 +1772,24 @@ def train_diffusion(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     print(f"Saved diffusion residual checkpoint to {diffusion_path}")
     if ema_model is not None:
         diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
-        torch.save(best_ema_state if best_ema_state is not None else ema_model.state_dict(), diffusion_ema_path)
+        torch.save(
+            best_ema_state if best_ema_state is not None else ema_model.state_dict(),
+            diffusion_ema_path,
+        )
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
-    
+
     # Upload checkpoint to W&B
     if wandb is not None and wandb.run is not None:
         wandb.save(str(diffusion_path), base_path=str(checkpoint_dir.parent))
-        print(f"Uploaded diffusion checkpoint to W&B")
-    
+        print("Uploaded diffusion checkpoint to W&B")
+
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
         try:
             wandb.alert(
                 title="✅ Diffusion Residual Training Complete",
                 text=f"Final loss: {best_loss:.6f} | Ready for consistency distillation",
-                level=wandb.AlertLevel.INFO
+                level=wandb.AlertLevel.INFO,
             )
         except Exception:
             pass
@@ -1705,16 +1813,18 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     # This stage needs both operator and diffusion models loaded
     cfg_copy = copy.deepcopy(cfg)
     original_batch_size = cfg_copy.get("training", {}).get("batch_size", 32)
-    consistency_batch_size = cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
+    consistency_batch_size = (
+        cfg_copy.get("stages", {}).get("consistency_distill", {}).get("batch_size", 8)
+    )
     cfg_copy.setdefault("training", {})["batch_size"] = consistency_batch_size
-    
+
     loader = dataset_loader(cfg_copy)
     checkpoint_dir = ensure_checkpoint_dir(cfg)
-    
+
     # Determine device FIRST
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-    
+
     # Create operator and load checkpoint directly to target device
     operator = make_operator(cfg)
     op_path = checkpoint_dir / "operator.pt"
@@ -1724,25 +1834,29 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     _ensure_model_on_device(operator, device)
     operator = _maybe_compile(operator, cfg, "operator_teacher")
     operator.eval()
-    
+
     # Create diffusion model and load checkpoint directly to target device
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     stage_cfg = cfg.get("stages", {}).get("consistency_distill", {})
-    diff = DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2))
+    diff = DiffusionResidual(
+        DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2)
+    )
     diff_path = checkpoint_dir / "diffusion_residual.pt"
     if diff_path.exists():
         diff_state = torch.load(diff_path, map_location="cpu")
         diff.load_state_dict(diff_state)
     _ensure_model_on_device(diff, device)
     diff = _maybe_compile(diff, cfg, "diffusion_residual")
-    
+
     epochs = stage_cfg.get("epochs", 1)
     optimizer = _create_optimizer(cfg, diff, "consistency_distill")
     scheduler = _create_scheduler(optimizer, cfg, "consistency_distill")
     patience = _get_patience(cfg, "consistency_distill")
-    logger = TrainingLogger(cfg, stage="consistency_distill", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(
+        cfg, stage="consistency_distill", global_step=global_step, shared_run=shared_run
+    )
     dt = cfg.get("training", {}).get("dt", 0.1)
-    
+
     dt_tensor = torch.tensor(dt, device=device)
 
     # Teacher/student are inlined below to enable reuse and vectorized taus
@@ -1755,18 +1869,19 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     ema_model = _init_ema(diff) if ema_decay else None
     clip_val = _grad_clip_value(cfg, "consistency_distill")
     epochs_since_improve = 0
-    
+
     # Get micro-batch size for gradient accumulation
     distill_micro = cfg.get("training", {}).get("distill_micro_batch")
     num_taus = int(cfg.get("training", {}).get("distill_num_taus", 3) or 3)
-    
+
     import time
+
     for epoch in range(epochs):
         epoch_start = time.time()
         epoch_loss = 0.0
         total_grad_norm = 0.0
         batches = 0
-        
+
         for batch in loader:
             z0, _, cond = unpack_batch(batch)
             batch_size = z0.shape[0]
@@ -1817,23 +1932,27 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             if use_amp:
                 if clip_val is not None:
                     scaler.unscale_(optimizer)
-                grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    diff.parameters(), float("inf") if clip_val is None else clip_val
+                )
                 total_grad_norm += float(grad_norm)
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                grad_norm = torch.nn.utils.clip_grad_norm_(diff.parameters(), float('inf') if clip_val is None else clip_val)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    diff.parameters(), float("inf") if clip_val is None else clip_val
+                )
                 total_grad_norm += grad_norm.item()
                 optimizer.step()
             if ema_model is not None and ema_decay is not None:
                 _update_ema(ema_model, diff, ema_decay)
             epoch_loss += batch_loss_value
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(batches, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1862,24 +1981,24 @@ def train_consistency(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         diffusion_ema_path = checkpoint_dir / "diffusion_residual_ema.pt"
         torch.save(ema_model.state_dict(), diffusion_ema_path)
         print(f"Saved diffusion EMA checkpoint to {diffusion_ema_path}")
-    
+
     # Upload updated checkpoint to W&B
     if wandb is not None and wandb.run is not None:
         wandb.save(str(diffusion_path), base_path=str(checkpoint_dir.parent))
-        print(f"Uploaded updated diffusion checkpoint to W&B")
-    
+        print("Uploaded updated diffusion checkpoint to W&B")
+
     # Clean up operator from memory
     del operator
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    
+
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
         try:
             wandb.alert(
                 title="✅ Consistency Distillation Complete",
                 text=f"Final loss: {best_loss:.6f} | Ready for steady prior training",
-                level=wandb.AlertLevel.INFO
+                level=wandb.AlertLevel.INFO,
             )
         except Exception:
             pass
@@ -1896,19 +2015,24 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
         return
 
     loader = dataset_loader(cfg)
-    prior = SteadyPrior(SteadyPriorConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2, num_steps=4))
+    prior = SteadyPrior(
+        SteadyPriorConfig(latent_dim=latent_dim, hidden_dim=latent_dim * 2, num_steps=4)
+    )
     optimizer = _create_optimizer(cfg, prior, "steady_prior")
     scheduler = _create_scheduler(optimizer, cfg, "steady_prior")
     patience = _get_patience(cfg, "steady_prior")
-    logger = TrainingLogger(cfg, stage="steady_prior", global_step=global_step, shared_run=shared_run)
+    logger = TrainingLogger(
+        cfg, stage="steady_prior", global_step=global_step, shared_run=shared_run
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     prior.to(device)
     best_loss = float("inf")
     best_state = copy.deepcopy(prior.state_dict())
     epochs_since_improve = 0
-    
+
     import time
+
     accum_steps = max(1, int(cfg.get("training", {}).get("accum_steps", 1)))
     for epoch in range(epochs):
         epoch_start = time.time()
@@ -1921,24 +2045,26 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
         for i, batch in enumerate(loader):
             z0, z1, cond = unpack_batch(batch)
             cond_device = {k: v.to(device) for k, v in cond.items()}
-            state = LatentState(z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device)
+            state = LatentState(
+                z=z0.to(device), t=torch.tensor(0.0, device=device), cond=cond_device
+            )
             refined = prior(state)
             loss = F.mse_loss(refined.z, z1.to(device))
             (loss / accum_steps).backward()
             do_step = ((i + 1) % accum_steps == 0) or ((i + 1) == num_batches)
             if do_step:
-                grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float('inf'))
+                grad_norm = torch.nn.utils.clip_grad_norm_(prior.parameters(), float("inf"))
                 total_grad_norm += grad_norm.item()
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
                 grad_steps += 1
             epoch_loss += loss.item()
             batches += 1
-        
+
         epoch_time = time.time() - epoch_start
         mean_loss = epoch_loss / max(batches, 1)
         mean_grad_norm = total_grad_norm / max(grad_steps, 1)
-        
+
         logger.log(
             epoch=epoch,
             loss=mean_loss,
@@ -1967,19 +2093,19 @@ def train_steady_prior(cfg: dict, shared_run=None, global_step: int = 0) -> None
     prior_path = checkpoint_dir / "steady_prior.pt"
     torch.save(prior.state_dict(), prior_path)
     print(f"Saved steady prior checkpoint to {prior_path}")
-    
+
     # Upload checkpoint to W&B
     if wandb is not None and wandb.run is not None:
         wandb.save(str(prior_path), base_path=str(checkpoint_dir.parent))
-        print(f"Uploaded steady prior checkpoint to W&B")
-    
+        print("Uploaded steady prior checkpoint to W&B")
+
     # Send W&B alert
     if wandb is not None and wandb.run is not None:
         try:
             wandb.alert(
                 title="🎉 All Training Stages Complete!",
                 text=f"Steady prior final loss: {best_loss:.6f} | Full pipeline ready for evaluation",
-                level=wandb.AlertLevel.SUCCESS
+                level=wandb.AlertLevel.SUCCESS,
             )
         except Exception:
             pass
@@ -1991,7 +2117,7 @@ def train_all_stages(cfg: dict) -> None:
     logging_cfg = cfg.get("logging", {})
     wandb_cfg = logging_cfg.get("wandb", {})
     shared_run = None
-    
+
     if wandb_cfg.get("enabled") and wandb is not None:
         shared_run = wandb.init(
             project=wandb_cfg.get("project", "universal-simulator"),
@@ -2012,9 +2138,10 @@ def train_all_stages(cfg: dict) -> None:
             wandb.define_metric("diffusion_residual/*", step_metric="global_step")
             wandb.define_metric("consistency_distill/*", step_metric="global_step")
             wandb.define_metric("steady_prior/*", step_metric="global_step")
-            
+
             # Log system info
             import torch
+
             if torch.cuda.is_available():
                 gpu_info = {
                     "gpu_name": torch.cuda.get_device_name(0),
@@ -2022,24 +2149,24 @@ def train_all_stages(cfg: dict) -> None:
                     "cuda_version": torch.version.cuda,
                 }
                 wandb.config.update(gpu_info)
-            
+
             # Watch gradients and model parameters (optional, can be heavy)
             # wandb.watch(models, log="all", log_freq=100)
-    
+
     global_step = 0
-    
+
     # Stage 1: Operator
     op_epochs = _stage_epochs(cfg, "operator")
     if op_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 1/7: Training Operator")
-        print("="*50)
+        print("=" * 50)
         train_operator(cfg, shared_run=shared_run, global_step=global_step)
         global_step += op_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 1/7: Skipping Operator (epochs<=0)")
-        print("="*50)
+        print("=" * 50)
 
     # Clear GPU cache between stages
     if torch.cuda.is_available():
@@ -2049,15 +2176,15 @@ def train_all_stages(cfg: dict) -> None:
     # Stage 2: Decoder
     decoder_epochs = _stage_epochs(cfg, "decoder")
     if decoder_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 2/7: Training Decoder")
-        print("="*50)
+        print("=" * 50)
         train_decoder(cfg, shared_run=shared_run, global_step=global_step)
         global_step += decoder_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 2/7: Skipping Decoder (epochs<=0)")
-        print("="*50)
+        print("=" * 50)
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -2066,15 +2193,15 @@ def train_all_stages(cfg: dict) -> None:
     # Stage 3: Decoded Operator Fine-tune
     operator_decoded_epochs = _stage_epochs(cfg, "operator_decoded")
     if operator_decoded_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 3/7: Decoded Operator Fine-tune")
-        print("="*50)
+        print("=" * 50)
         train_operator_decoded(cfg, shared_run=shared_run, global_step=global_step)
         global_step += operator_decoded_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 3/7: Skipping Decoded Operator Fine-tune (epochs<=0)")
-        print("="*50)
+        print("=" * 50)
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -2083,15 +2210,15 @@ def train_all_stages(cfg: dict) -> None:
     # Stage 4: Joint Codec/Operator Fine-tune
     joint_epochs = _stage_epochs(cfg, "joint_codec_operator")
     if joint_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 4/7: Joint Codec/Operator Fine-tune")
-        print("="*50)
+        print("=" * 50)
         train_joint_codec_operator(cfg, shared_run=shared_run, global_step=global_step)
         global_step += joint_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 4/7: Skipping Joint Codec/Operator Fine-tune (epochs<=0)")
-        print("="*50)
+        print("=" * 50)
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -2100,71 +2227,96 @@ def train_all_stages(cfg: dict) -> None:
     # Stage 5: Diffusion Residual
     diff_epochs = _stage_epochs(cfg, "diff_residual")
     if diff_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 5/7: Training Diffusion Residual")
-        print("="*50)
+        print("=" * 50)
         train_diffusion(cfg, shared_run=shared_run, global_step=global_step)
         global_step += diff_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 5/7: Skipping Diffusion Residual (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Clear GPU cache between stages
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print("✓ Cleared GPU cache")
-    
+
     # Stage 6: Consistency Distillation
     distill_epochs = _stage_epochs(cfg, "consistency_distill")
     if distill_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 6/7: Consistency Distillation")
-        print("="*50)
+        print("=" * 50)
         train_consistency(cfg, shared_run=shared_run, global_step=global_step)
         global_step += distill_epochs
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 6/7: Skipping Consistency Distillation (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Clear GPU cache between stages
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print("✓ Cleared GPU cache")
-    
+
     # Stage 7: Steady Prior
     steady_epochs = _stage_epochs(cfg, "steady_prior")
     if steady_epochs > 0:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 7/7: Training Steady Prior")
-        print("="*50)
+        print("=" * 50)
         train_steady_prior(cfg, shared_run=shared_run, global_step=global_step)
     else:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("STAGE 7/7: Skipping Steady Prior (epochs<=0)")
-        print("="*50)
-    
+        print("=" * 50)
+
     # Log final summary
     if shared_run:
         # Load final checkpoints to get model sizes
         checkpoint_dir = ensure_checkpoint_dir(cfg)
         import os
+
         summary = {
             "summary/total_training_complete": 1,
-            "summary/operator_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator.pt") / 1e6 if (checkpoint_dir / "operator.pt").exists() else 0,
-            "summary/decoder_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "decoder.pt") / 1e6 if (checkpoint_dir / "decoder.pt").exists() else 0,
-            "summary/operator_decoded_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator_decoded.pt") / 1e6 if (checkpoint_dir / "operator_decoded.pt").exists() else 0,
-            "summary/operator_joint_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "operator_joint.pt") / 1e6 if (checkpoint_dir / "operator_joint.pt").exists() else 0,
-            "summary/diffusion_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6 if (checkpoint_dir / "diffusion_residual.pt").exists() else 0,
-            "summary/steady_prior_checkpoint_size_mb": os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6 if (checkpoint_dir / "steady_prior.pt").exists() else 0,
+            "summary/operator_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "operator.pt") / 1e6
+                if (checkpoint_dir / "operator.pt").exists()
+                else 0
+            ),
+            "summary/decoder_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "decoder.pt") / 1e6
+                if (checkpoint_dir / "decoder.pt").exists()
+                else 0
+            ),
+            "summary/operator_decoded_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "operator_decoded.pt") / 1e6
+                if (checkpoint_dir / "operator_decoded.pt").exists()
+                else 0
+            ),
+            "summary/operator_joint_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "operator_joint.pt") / 1e6
+                if (checkpoint_dir / "operator_joint.pt").exists()
+                else 0
+            ),
+            "summary/diffusion_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "diffusion_residual.pt") / 1e6
+                if (checkpoint_dir / "diffusion_residual.pt").exists()
+                else 0
+            ),
+            "summary/steady_prior_checkpoint_size_mb": (
+                os.path.getsize(checkpoint_dir / "steady_prior.pt") / 1e6
+                if (checkpoint_dir / "steady_prior.pt").exists()
+                else 0
+            ),
         }
         shared_run.log(summary)
         shared_run.finish()
-    
-    print("\n" + "="*50)
+
+    print("\n" + "=" * 50)
     print("✅ All training stages complete!")
-    print("="*50)
+    print("=" * 50)
 
 
 def main() -> None:
@@ -2172,15 +2324,24 @@ def main() -> None:
     parser.add_argument("--config", default="configs/train_multi_pde.yaml")
     parser.add_argument(
         "--stage",
-        choices=["operator", "decoder", "operator_decoded", "joint_codec_operator", "diff_residual", "consistency_distill", "steady_prior", "all"],
+        choices=[
+            "operator",
+            "decoder",
+            "operator_decoded",
+            "joint_codec_operator",
+            "diff_residual",
+            "consistency_distill",
+            "steady_prior",
+            "all",
+        ],
         required=True,
-        help="Training stage to run, or 'all' to run full pipeline"
+        help="Training stage to run, or 'all' to run full pipeline",
     )
     args = parser.parse_args()
     cfg = load_config(args.config)
     set_seed(cfg)
     stage = args.stage
-    
+
     if stage == "all":
         train_all_stages(cfg)
     elif stage == "operator":

@@ -87,4 +87,3 @@ def test_run_persistence_baseline_writes_light_summary(tmp_path, monkeypatch):
     assert "decoded_rollout_nrmse" in summary["metrics"]
     assert summary["extra"]["promotion_passed"] is True
     assert (output_root / "results.tsv").exists()
-

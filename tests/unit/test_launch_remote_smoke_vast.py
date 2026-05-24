@@ -198,7 +198,7 @@ def test_launch_remote_smoke_vast_can_pass_experiment_pipeline_args(tmp_path):
             "SSH": "0",
             "INSTALL_MODE": "experiment",
             "EXTRA_PIPELINE_ARGS": (
-                "PREP_SHARDS=0 RUN_EXPERIMENTS=1 " "QUEUE_DRY_RUN=0 QUEUE_VARIANTS=current_best"
+                "PREP_SHARDS=0 RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0 QUEUE_VARIANTS=current_best"
             ),
         }
     )

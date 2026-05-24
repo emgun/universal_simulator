@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -37,18 +38,24 @@ def validate_plan(args: argparse.Namespace) -> dict[str, Any]:
     selected_paths = [str(path) for path in plan.get("selected_official_advection_train_files", [])]
     download_paths = _download_paths(plan)
     if plan.get("status") != "ready_for_explicit_hydration":
-        blockers.append(f"plan status is {plan.get('status')}, expected ready_for_explicit_hydration")
+        blockers.append(
+            f"plan status is {plan.get('status')}, expected ready_for_explicit_hydration"
+        )
     if not selected_paths:
         blockers.append("plan selects no official Advection train files")
     if selected_paths != download_paths:
-        blockers.append("download command paths do not match selected official Advection train files")
+        blockers.append(
+            "download command paths do not match selected official Advection train files"
+        )
     non_train_paths = [path for path in selected_paths if "1D/Advection/Train/" not in path]
     if non_train_paths:
         blockers.append(f"plan includes non-train or non-Advection paths: {non_train_paths}")
 
     estimated_bytes = int(plan.get("estimated_download_bytes") or 0)
     if estimated_bytes < int(args.min_download_bytes):
-        blockers.append(f"estimated download bytes {estimated_bytes} below expected minimum {args.min_download_bytes}")
+        blockers.append(
+            f"estimated download bytes {estimated_bytes} below expected minimum {args.min_download_bytes}"
+        )
 
     policy = plan.get("held_out_test_policy") or {}
     if policy.get("test_split_downloaded") is not False:
@@ -73,8 +80,12 @@ def validate_plan(args: argparse.Namespace) -> dict[str, Any]:
         blockers.append("build_light_train_val_shards command must set --test-count 0")
     if "--test-split" in str(commands.get("validate_without_test")):
         blockers.append("validate_without_test command must not pass --test-split")
-    if "REQUIRE_STATUS=literal-test-ready" not in str(commands.get("objective_audit_after_validation")):
-        blockers.append("objective_audit_after_validation must require literal-test-ready, not final achievement")
+    if "REQUIRE_STATUS=literal-test-ready" not in str(
+        commands.get("objective_audit_after_validation")
+    ):
+        blockers.append(
+            "objective_audit_after_validation must require literal-test-ready, not final achievement"
+        )
     if "reports/light_experiments" in json.dumps(plan):
         blockers.append("plan must not use synthetic report artifacts")
     if "The current workspace has not performed these downloads." not in plan.get("notes", []):

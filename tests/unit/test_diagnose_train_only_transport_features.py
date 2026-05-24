@@ -13,7 +13,9 @@ def _write_split(root, *, split: str, shifts: list[int], width: int = 16, steps:
     for sample_idx, shift in enumerate(shifts):
         data[sample_idx, 0, sample_idx % width, 0] = 1.0
         for step in range(1, steps):
-            data[sample_idx, step, :, 0] = torch.roll(data[sample_idx, step - 1, :, 0], shifts=shift, dims=-1)
+            data[sample_idx, step, :, 0] = torch.roll(
+                data[sample_idx, step - 1, :, 0], shifts=shift, dims=-1
+            )
     with h5py.File(root / f"advection1d_{split}.h5", "w") as handle:
         handle.create_dataset("data", data=data.numpy())
 

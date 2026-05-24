@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 from scripts.resolve_official_plan_urls import resolve_plan_urls
 
@@ -34,7 +34,9 @@ def test_resolve_plan_urls_persists_source_urls(monkeypatch, tmp_path):
         assert url == "https://darus.uni-stuttgart.de/api/access/datafile/1?format=original"
         return "https://s3.example/a.hdf5?signature=1"
 
-    monkeypatch.setattr("scripts.resolve_official_plan_urls._resolve_redirect_url_with_curl", fake_resolve)
+    monkeypatch.setattr(
+        "scripts.resolve_official_plan_urls._resolve_redirect_url_with_curl", fake_resolve
+    )
 
     record = resolve_plan_urls(
         Namespace(
@@ -54,7 +56,9 @@ def test_resolve_plan_urls_persists_source_urls(monkeypatch, tmp_path):
     assert resolved["remote_entries"][0]["resolved_from_url"] == (
         "https://darus.uni-stuttgart.de/api/access/datafile/1?format=original"
     )
-    assert resolved["commands"]["download_official_train_files"][0].startswith("PDEBENCH_DATAFILE_URL_TEMPLATE=")
+    assert resolved["commands"]["download_official_train_files"][0].startswith(
+        "PDEBENCH_DATAFILE_URL_TEMPLATE="
+    )
 
 
 def test_resolve_plan_urls_blocks_on_unresolved_entry(monkeypatch, tmp_path):
@@ -68,7 +72,9 @@ def test_resolve_plan_urls_blocks_on_unresolved_entry(monkeypatch, tmp_path):
     def fake_resolve(url, *, timeout, retries, retry_backoff):
         raise RuntimeError("dns failed")
 
-    monkeypatch.setattr("scripts.resolve_official_plan_urls._resolve_redirect_url_with_curl", fake_resolve)
+    monkeypatch.setattr(
+        "scripts.resolve_official_plan_urls._resolve_redirect_url_with_curl", fake_resolve
+    )
 
     record = resolve_plan_urls(
         Namespace(

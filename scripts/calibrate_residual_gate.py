@@ -8,8 +8,9 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 
 def _safe_alpha(alpha: float) -> str:
@@ -18,14 +19,18 @@ def _safe_alpha(alpha: float) -> str:
 
 def _alpha_override(kind: str, key: str, alpha: float) -> str:
     if kind == "family":
-        return f'evaluation.decoded_persistence_residual_alpha_by_family={{{json.dumps(key)}:{alpha:g}}}'
+        return f"evaluation.decoded_persistence_residual_alpha_by_family={{{json.dumps(key)}:{alpha:g}}}"
     if kind == "task":
-        return f'evaluation.decoded_persistence_residual_alpha_by_task={{{json.dumps(key)}:{alpha:g}}}'
+        return (
+            f"evaluation.decoded_persistence_residual_alpha_by_task={{{json.dumps(key)}:{alpha:g}}}"
+        )
     raise ValueError(f"Unsupported gate kind: {kind}")
 
 
 def _schedule_override(kind: str, key: str, schedule: dict[int, float]) -> str:
-    payload = {key: {str(int(horizon)): float(alpha) for horizon, alpha in sorted(schedule.items())}}
+    payload = {
+        key: {str(int(horizon)): float(alpha) for horizon, alpha in sorted(schedule.items())}
+    }
     encoded = json.dumps(payload, separators=(",", ":"))
     if kind == "family":
         return f"evaluation.decoded_persistence_residual_alpha_by_family_horizon={encoded}"
@@ -87,7 +92,10 @@ def _gate_candidates(args: argparse.Namespace) -> list[dict[str, Any] | None]:
     if feature_weights:
         base["feature_weights"] = feature_weights
     raw_candidates = args.gate_config_candidate or ["{}"]
-    return [_merge_gate_config(base, _parse_json_mapping(raw, setting="--gate-config-candidate")) for raw in raw_candidates]
+    return [
+        _merge_gate_config(base, _parse_json_mapping(raw, setting="--gate-config-candidate"))
+        for raw in raw_candidates
+    ]
 
 
 def _gate_suffix(index: int, total: int, gate_config: dict[str, Any] | None) -> str:
@@ -106,7 +114,9 @@ def _gate_overrides(primary_override: str, gate_config: dict[str, Any] | None) -
 def _read_metrics(summary_path: Path) -> dict[str, float]:
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     metrics = summary.get("metrics", {})
-    return {str(key): float(value) for key, value in metrics.items() if isinstance(value, (int, float))}
+    return {
+        str(key): float(value) for key, value in metrics.items() if isinstance(value, (int, float))
+    }
 
 
 def _read_metric(summary_path: Path, metric: str) -> float:
@@ -262,7 +272,9 @@ def _run_light_eval(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calibrate decoded residual gate alpha on validation data")
+    parser = argparse.ArgumentParser(
+        description="Calibrate decoded residual gate alpha on validation data"
+    )
     parser.add_argument("--config", default="configs/train_multitask_heterogeneous_light_best.yaml")
     parser.add_argument("--checkpoint-source", required=True)
     parser.add_argument("--data-root", default="data/pdebench")
@@ -271,8 +283,14 @@ def main() -> None:
     parser.add_argument("--kind", choices=("family", "task"), default="family")
     parser.add_argument("--key", default="transport")
     parser.add_argument("--default-alpha", type=float, default=0.0)
-    parser.add_argument("--alpha", action="append", type=float, default=None, help="Candidate alpha; repeatable")
-    parser.add_argument("--schedule-by-horizon", action="store_true", help="Select a validation-best alpha per rollout horizon")
+    parser.add_argument(
+        "--alpha", action="append", type=float, default=None, help="Candidate alpha; repeatable"
+    )
+    parser.add_argument(
+        "--schedule-by-horizon",
+        action="store_true",
+        help="Select a validation-best alpha per rollout horizon",
+    )
     parser.add_argument(
         "--schedule-min-relative-improvement",
         type=float,
@@ -299,7 +317,11 @@ def main() -> None:
         default=[],
         help="Feature weight as name=value; repeated entries populate decoded gate feature_weights",
     )
-    parser.add_argument("--reuse-existing", action="store_true", help="Reuse existing run summary files instead of rerunning them")
+    parser.add_argument(
+        "--reuse-existing",
+        action="store_true",
+        help="Reuse existing run summary files instead of rerunning them",
+    )
     parser.add_argument("--val-split", default="val")
     parser.add_argument("--test-split", default="test")
     parser.add_argument("--skip-test", action="store_true")
@@ -322,7 +344,10 @@ def main() -> None:
     parser.add_argument("--eval-override", action="append", default=[])
     parser.add_argument("--promotion-rule", action="append", default=["decoded_rollout_nrmse<=1.0"])
     parser.add_argument("--output-json", help="Calibration record path; defaults under output root")
-    parser.add_argument("--export-selected-gate-config", help="Optional JSON path for frozen selected override payload")
+    parser.add_argument(
+        "--export-selected-gate-config",
+        help="Optional JSON path for frozen selected override payload",
+    )
     args = parser.parse_args()
 
     alphas = args.alpha or [0.0, 0.1, 0.2, 0.3, 0.4, 0.42, 0.44, 0.5, 0.75, 1.0]
@@ -340,7 +365,9 @@ def main() -> None:
                 args=args,
                 name=name,
                 split=args.val_split,
-                gate_overrides=_gate_overrides(_alpha_override(args.kind, args.key, alpha), gate_config),
+                gate_overrides=_gate_overrides(
+                    _alpha_override(args.kind, args.key, alpha), gate_config
+                ),
                 report_all_horizon_metrics=args.schedule_by_horizon,
             )
             metrics = _read_metrics(summary_path)
@@ -360,7 +387,9 @@ def main() -> None:
     schedule: dict[int, float] | None = None
     schedule_selections: list[dict[str, Any]] | None = None
     if args.schedule_by_horizon:
-        schedule, schedule_selections = _select_horizon_schedule(rows, kind=args.kind, key=args.key, mode=args.mode)
+        schedule, schedule_selections = _select_horizon_schedule(
+            rows, kind=args.kind, key=args.key, mode=args.mode
+        )
     record: dict[str, Any] = {
         "config": args.config,
         "checkpoint_source": args.checkpoint_source,
@@ -380,12 +409,16 @@ def main() -> None:
             "schedule": {str(horizon): alpha for horizon, alpha in sorted(schedule.items())},
             "selections": schedule_selections,
         }
-        schedule_val_name = f"{args.run_prefix}_{args.val_split}_{args.kind}_{args.key}_horizon_schedule"
+        schedule_val_name = (
+            f"{args.run_prefix}_{args.val_split}_{args.kind}_{args.key}_horizon_schedule"
+        )
         schedule_val_summary = _run_light_eval(
             args=args,
             name=schedule_val_name,
             split=args.val_split,
-            gate_overrides=_gate_overrides(_schedule_override(args.kind, args.key, schedule), gate_candidates[0]),
+            gate_overrides=_gate_overrides(
+                _schedule_override(args.kind, args.key, schedule), gate_candidates[0]
+            ),
             report_all_horizon_metrics=True,
         )
         schedule_val_metrics = _read_metrics(schedule_val_summary)
@@ -413,10 +446,13 @@ def main() -> None:
             float(best[args.metric]),
             mode=args.mode,
         )
-        and float(record.get("schedule_relative_improvement", 0.0)) >= args.schedule_min_relative_improvement
+        and float(record.get("schedule_relative_improvement", 0.0))
+        >= args.schedule_min_relative_improvement
     )
     if use_schedule:
-        selected_overrides = _gate_overrides(_schedule_override(args.kind, args.key, schedule), gate_candidates[0])
+        selected_overrides = _gate_overrides(
+            _schedule_override(args.kind, args.key, schedule), gate_candidates[0]
+        )
         record["selected_validation_gate"] = {
             "selected_gate": "horizon_schedule",
             "schedule": {str(horizon): alpha for horizon, alpha in sorted(schedule.items())},
@@ -446,10 +482,14 @@ def main() -> None:
     if args.skip_test:
         record["test_skipped"] = {"reason": "--skip-test"}
     elif not record["selected_validation_gate"]["test_guard"]["passed"]:
-        record["test_skipped"] = {"reason": "selected validation gate did not pass held-out test guard"}
+        record["test_skipped"] = {
+            "reason": "selected validation gate did not pass held-out test guard"
+        }
     else:
         if use_schedule:
-            test_name = f"{args.run_prefix}_{args.test_split}_{args.kind}_{args.key}_horizon_schedule"
+            test_name = (
+                f"{args.run_prefix}_{args.test_split}_{args.kind}_{args.key}_horizon_schedule"
+            )
             test_summary = _run_light_eval(
                 args=args,
                 name=test_name,
@@ -457,7 +497,9 @@ def main() -> None:
                 gate_overrides=selected_overrides,
                 report_all_horizon_metrics=True,
             )
-            record["test_schedule"] = {str(horizon): alpha for horizon, alpha in sorted(schedule.items())}
+            record["test_schedule"] = {
+                str(horizon): alpha for horizon, alpha in sorted(schedule.items())
+            }
             test_alpha: float | dict[str, float] = record["test_schedule"]
             selected_gate = "horizon_schedule"
         else:
@@ -480,7 +522,11 @@ def main() -> None:
             "metrics": test_metrics,
         }
 
-    output_path = Path(args.output_json) if args.output_json else Path(args.output_root) / f"{args.run_prefix}_calibration.json"
+    output_path = (
+        Path(args.output_json)
+        if args.output_json
+        else Path(args.output_root) / f"{args.run_prefix}_calibration.json"
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
     if args.export_selected_gate_config:

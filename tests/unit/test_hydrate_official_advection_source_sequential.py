@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import hashlib
 import json
+from argparse import Namespace
 
 import h5py
 import numpy as np
@@ -39,7 +39,10 @@ def test_sequential_hydration_dry_run_records_one_file_at_a_time(tmp_path):
 
     assert record["status"] == "dry_run"
     assert record["samples_per_file"] == 4
-    assert record["disk_strategy"] == "download one official file, append sampled rows, optionally remove raw file"
+    assert (
+        record["disk_strategy"]
+        == "download one official file, append sampled rows, optionally remove raw file"
+    )
     assert [item["logical_path"] for item in record["records"]] == [
         "1D/Advection/Train/a.hdf5",
         "1D/Advection/Train/b.hdf5",
@@ -70,7 +73,9 @@ def test_sequential_hydration_initializes_source_paths_before_download(monkeypat
 
         return Completed()
 
-    monkeypatch.setattr("scripts.hydrate_official_advection_source_sequential.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "scripts.hydrate_official_advection_source_sequential.subprocess.run", fake_run
+    )
 
     record = hydrate_sequential(
         Namespace(
@@ -113,7 +118,9 @@ def test_sequential_hydration_can_use_existing_raw_without_download(monkeypatch,
     def fail_run(command, check):
         raise AssertionError("download subprocess should not run when use_existing_raw=True")
 
-    monkeypatch.setattr("scripts.hydrate_official_advection_source_sequential.subprocess.run", fail_run)
+    monkeypatch.setattr(
+        "scripts.hydrate_official_advection_source_sequential.subprocess.run", fail_run
+    )
 
     record = hydrate_sequential(
         Namespace(
@@ -145,9 +152,15 @@ def test_sequential_hydration_resume_skips_completed_sources(monkeypatch, tmp_pa
     out_path = tmp_path / "hydrated" / "advection1d_train.h5"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(out_path, "w") as handle:
-        handle.create_dataset("data", data=np.ones((2, 4, 8, 1), dtype=np.float32), maxshape=(None, 4, 8, 1))
-        handle.create_dataset("source_file_index", data=np.asarray([0, 0], dtype=np.int32), maxshape=(None,))
-        handle.create_dataset("source_sample_index", data=np.asarray([0, 1], dtype=np.int64), maxshape=(None,))
+        handle.create_dataset(
+            "data", data=np.ones((2, 4, 8, 1), dtype=np.float32), maxshape=(None, 4, 8, 1)
+        )
+        handle.create_dataset(
+            "source_file_index", data=np.asarray([0, 0], dtype=np.int32), maxshape=(None,)
+        )
+        handle.create_dataset(
+            "source_sample_index", data=np.asarray([0, 1], dtype=np.int64), maxshape=(None,)
+        )
     plan = {
         "raw_out": str(tmp_path / "raw"),
         "hydrated_source_root": str(tmp_path / "hydrated"),
@@ -168,7 +181,9 @@ def test_sequential_hydration_resume_skips_completed_sources(monkeypatch, tmp_pa
 
         return Completed()
 
-    monkeypatch.setattr("scripts.hydrate_official_advection_source_sequential.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "scripts.hydrate_official_advection_source_sequential.subprocess.run", fake_run
+    )
 
     record = hydrate_sequential(
         Namespace(

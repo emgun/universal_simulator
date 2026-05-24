@@ -5,13 +5,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import zarr
 
 from ups.data.convert_pdebench import convert_files
-
 
 DATASETS = {
     "burgers1d": {
@@ -54,7 +52,9 @@ def _glob_files(root: Path, pattern: str, limit: int | None) -> list[Path]:
     return files
 
 
-def convert_grid(pattern: str, out_path: Path, *, limit: int | None, samples: int | None, root: Path) -> int:
+def convert_grid(
+    pattern: str, out_path: Path, *, limit: int | None, samples: int | None, root: Path
+) -> int:
     files = _glob_files(root, pattern, limit)
     if not files:
         raise SystemExit(f"No files matched pattern: {root / pattern}")
@@ -81,7 +81,14 @@ def convert_npz(pattern: str, out_path: Path, *, limit: int | None, root: Path) 
             if keys is None:
                 keys = list(data.keys())
                 for key in keys:
-                    store.create_dataset(key, shape=(0, *data[key].shape), maxshape=(None, *data[key].shape), chunks=(1, *data[key].shape), dtype=data[key].dtype, compressor=compressor)
+                    store.create_dataset(
+                        key,
+                        shape=(0, *data[key].shape),
+                        maxshape=(None, *data[key].shape),
+                        chunks=(1, *data[key].shape),
+                        dtype=data[key].dtype,
+                        compressor=compressor,
+                    )
             else:
                 missing = set(keys) - set(data.keys())
                 if missing:
@@ -97,12 +104,20 @@ def convert_npz(pattern: str, out_path: Path, *, limit: int | None, root: Path) 
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Convert multiple PDEBench datasets into UPS format")
+    parser = argparse.ArgumentParser(
+        description="Convert multiple PDEBench datasets into UPS format"
+    )
     parser.add_argument("dataset", choices=DATASETS.keys(), help="Dataset key")
-    parser.add_argument("--root", default="data/pdebench/raw", help="Root directory containing raw PDEBench data")
-    parser.add_argument("--out", default="data/pdebench", help="Output directory for converted datasets")
+    parser.add_argument(
+        "--root", default="data/pdebench/raw", help="Root directory containing raw PDEBench data"
+    )
+    parser.add_argument(
+        "--out", default="data/pdebench", help="Output directory for converted datasets"
+    )
     parser.add_argument("--limit", type=int, default=None, help="Optional limit on number of files")
-    parser.add_argument("--samples", type=int, default=None, help="Optional limit on samples per file")
+    parser.add_argument(
+        "--samples", type=int, default=None, help="Optional limit on samples per file"
+    )
     return parser.parse_args()
 
 
@@ -114,7 +129,9 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / entry["out"]
     if entry["type"] == "grid":
-        written = convert_grid(entry["pattern"], out_path, limit=args.limit, samples=args.samples, root=root)
+        written = convert_grid(
+            entry["pattern"], out_path, limit=args.limit, samples=args.samples, root=root
+        )
     elif entry["type"] == "npz":
         written = convert_npz(entry["pattern"], out_path, limit=args.limit, root=root)
     else:

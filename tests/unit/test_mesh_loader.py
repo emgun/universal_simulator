@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.prepare_data import Config, SPLIT_RATIOS, main
+from scripts.prepare_data import SPLIT_RATIOS, Config, main
 
 
 def _load_laplacian(sample_group):

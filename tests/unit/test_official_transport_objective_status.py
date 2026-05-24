@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 
 def _write_json(path: Path, payload: str) -> None:
@@ -118,7 +118,7 @@ def test_official_transport_objective_status_executes_default_literal_check(tmp_
     _write_json(hydration_preflight, '{"status":"blocked_insufficient_disk"}')
     _write_json(hydration_storage, '{"status":"external_or_freed_space_required"}')
     _write_json(remote_hydration, '{"status":"ready_for_remote_hydration"}')
-    _write_json(official_hydrated_gate, '{}')
+    _write_json(official_hydrated_gate, "{}")
     env = os.environ.copy()
     env["CONSTANT_AUDIT_JSON"] = str(constant)
     env["CONTEXT_AUDIT_JSON"] = str(context)

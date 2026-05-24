@@ -2,15 +2,16 @@ from __future__ import annotations
 
 """Test-time computing (TTC) rollout utilities."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 import torch
 
 from ups.core.latent_state import LatentState
 from ups.eval.reward_models import AnalyticalRewardModel, AnalyticalRewardWeights, RewardModel
-from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.inference.rollout_transient import RolloutLog
+from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.logging import get_logger
 from ups.models.diffusion_residual import DiffusionResidual
 from ups.models.latent_operator import LatentOperator
@@ -23,19 +24,19 @@ class TTCConfig:
     candidates: int = 4
     beam_width: int = 1
     horizon: int = 1
-    tau_range: Tuple[float, float] = (0.3, 0.7)
+    tau_range: tuple[float, float] = (0.3, 0.7)
     noise_std: float = 0.0
-    residual_threshold: Optional[float] = None
-    max_evaluations: Optional[int] = None
-    early_stop_margin: Optional[float] = None
+    residual_threshold: float | None = None
+    max_evaluations: int | None = None
+    early_stop_margin: float | None = None
     gamma: float = 1.0
     device: torch.device | str = "cpu"
 
 
 @dataclass
 class TTCStepLog:
-    rewards: List[float] = field(default_factory=list)
-    totals: List[float] = field(default_factory=list)
+    rewards: list[float] = field(default_factory=list)
+    totals: list[float] = field(default_factory=list)
     chosen_index: int = 0
     beam_width: int = 1
     horizon: int = 1
@@ -51,10 +52,10 @@ def _copy_state(state: LatentState) -> LatentState:
 
 @dataclass
 class _EvalBudget:
-    max_evaluations: Optional[int]
+    max_evaluations: int | None
     used: int = 0
 
-    def remaining(self) -> Optional[int]:
+    def remaining(self) -> int | None:
         if self.max_evaluations is None:
             return None
         return max(self.max_evaluations - self.used, 0)
@@ -75,27 +76,27 @@ def ttc_rollout(
     operator: LatentOperator,
     reward_model: RewardModel,
     config: TTCConfig,
-    corrector: Optional[DiffusionResidual] = None,
-) -> Tuple[RolloutLog, List[TTCStepLog]]:
+    corrector: DiffusionResidual | None = None,
+) -> tuple[RolloutLog, list[TTCStepLog]]:
     logger = get_logger("ups.ttc")
     device = torch.device(config.device)
     state = initial_state.to(device)
     log = RolloutLog(states=[state.detach_clone()], corrections=[])
-    step_logs: List[TTCStepLog] = []
+    step_logs: list[TTCStepLog] = []
     dt_tensor = torch.tensor(config.dt, device=device)
     budget = _EvalBudget(config.max_evaluations)
 
     def sample_candidates(
         prev_state: LatentState,
         base_state: LatentState,
-    ) -> Tuple[List[LatentState], List[float]]:
+    ) -> tuple[list[LatentState], list[float]]:
         candidate_count = config.candidates
         remaining = budget.remaining()
         if remaining is not None:
             candidate_count = min(candidate_count, max(remaining, 1))
         budget.consume(candidate_count)
-        candidates: List[LatentState] = []
-        rewards: List[float] = []
+        candidates: list[LatentState] = []
+        rewards: list[float] = []
         for _ in range(candidate_count):
             candidate = _copy_state(base_state)
             if corrector is not None:
@@ -142,7 +143,11 @@ def ttc_rollout(
         need_lookahead = config.horizon > 1 and config.beam_width > 1
         if need_lookahead and candidates:
             order = sorted(range(len(rewards)), key=lambda idx: rewards[idx], reverse=True)
-            if config.early_stop_margin is not None and best_gap is not None and best_gap > config.early_stop_margin:
+            if (
+                config.early_stop_margin is not None
+                and best_gap is not None
+                and best_gap > config.early_stop_margin
+            ):
                 need_lookahead = False
             else:
                 top = order[: max(config.beam_width, 1)]
@@ -172,7 +177,7 @@ def ttc_rollout(
 
 
 def build_reward_model_from_config(
-    ttc_cfg: Dict[str, Any],
+    ttc_cfg: dict[str, Any],
     latent_dim: int,
     device: torch.device,
 ) -> RewardModel:

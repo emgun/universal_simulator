@@ -5,35 +5,30 @@ from __future__ import annotations
 
 import argparse
 import copy
-import json
-from pathlib import Path
-from typing import Dict, Optional
-
+import math
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
+import yaml
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader
-import yaml
-import math
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ups.baselines.models import BaselineConfig, build_baseline
-from ups.core.latent_state import LatentState
 from ups.data.latent_pairs import build_latent_pair_loader, unpack_batch
 from ups.utils.monitoring import init_monitoring_session
 
 
-def load_config(path: str) -> Dict:
+def load_config(path: str) -> dict:
     try:
         from ups.utils.config_loader import load_config_with_includes
 
         return load_config_with_includes(path)
     except ImportError:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             return yaml.safe_load(fh) or {}
 
 
@@ -45,22 +40,26 @@ def set_seed(seed: int) -> None:
 
 
 class TrainingLogger:
-    def __init__(self, cfg: Dict, baseline_name: str) -> None:
+    def __init__(self, cfg: dict, baseline_name: str) -> None:
         baseline_cfg = cfg.get("baseline", {})
         log_path = baseline_cfg.get("log_path", "reports/baseline_log.jsonl")
-        self.session = init_monitoring_session(cfg, component=f"baseline-{baseline_name}", file_path=log_path)
+        self.session = init_monitoring_session(
+            cfg, component=f"baseline-{baseline_name}", file_path=log_path
+        )
         self.stage = f"baseline_{baseline_name}"
         self.session.log({"stage": self.stage, "event": "config", "config": cfg})
 
     def log(self, epoch: int, loss: float, lr: float | None) -> None:
-        self.session.log({
-            "stage": self.stage,
-            "epoch": epoch,
-            "loss": loss,
-            "lr": lr,
-        })
+        self.session.log(
+            {
+                "stage": self.stage,
+                "epoch": epoch,
+                "loss": loss,
+                "lr": lr,
+            }
+        )
 
-    def log_eval(self, split: str, metrics: Dict[str, float]) -> None:
+    def log_eval(self, split: str, metrics: dict[str, float]) -> None:
         entry = {f"metric_{k}": v for k, v in metrics.items()}
         entry.update({"stage": self.stage, "event": f"eval_{split}", "split": split})
         self.session.log(entry)
@@ -69,14 +68,14 @@ class TrainingLogger:
         self.session.finish()
 
 
-def _create_optimizer(cfg: Dict, model: torch.nn.Module) -> torch.optim.Optimizer:
+def _create_optimizer(cfg: dict, model: torch.nn.Module) -> torch.optim.Optimizer:
     opt_cfg = cfg.get("optimizer", {})
     lr = opt_cfg.get("lr", 1e-3)
     weight_decay = opt_cfg.get("weight_decay", 0.0)
     return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
 
-def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: Dict):
+def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: dict):
     sched_cfg = cfg.get("scheduler")
     if not sched_cfg:
         return None
@@ -96,12 +95,16 @@ def _create_scheduler(optimizer: torch.optim.Optimizer, cfg: Dict):
     raise ValueError(f"Unsupported scheduler '{name}'")
 
 
-def _evaluate_split(model: torch.nn.Module, cfg: Dict, split: str) -> Dict[str, float]:
+def _evaluate_split(model: torch.nn.Module, cfg: dict, split: str) -> dict[str, float]:
     eval_cfg = copy.deepcopy(cfg)
     data_cfg = eval_cfg.setdefault("data", {})
     data_cfg["split"] = split
     loader = build_latent_pair_loader(eval_cfg)
-    device = next(model.parameters()).device if any(p.requires_grad for p in model.parameters()) else torch.device("cpu")
+    device = (
+        next(model.parameters()).device
+        if any(p.requires_grad for p in model.parameters())
+        else torch.device("cpu")
+    )
     model.eval()
     total_abs = 0.0
     total_sq = 0.0
@@ -123,13 +126,15 @@ def _evaluate_split(model: torch.nn.Module, cfg: Dict, split: str) -> Dict[str, 
     return {"mse": mse, "mae": mae, "rmse": rmse}
 
 
-def train_baseline(cfg: Dict, baseline_name: str) -> Path:
+def train_baseline(cfg: dict, baseline_name: str) -> Path:
     loader = build_latent_pair_loader(cfg)
     latent_cfg = cfg.get("latent", {})
-    baseline_cfg = BaselineConfig(latent_dim=latent_cfg.get("dim", 32), tokens=latent_cfg.get("tokens", 64))
+    baseline_cfg = BaselineConfig(
+        latent_dim=latent_cfg.get("dim", 32), tokens=latent_cfg.get("tokens", 64)
+    )
     model = build_baseline(baseline_name, baseline_cfg)
     params = list(model.parameters())
-    optimizer: Optional[torch.optim.Optimizer] = None
+    optimizer: torch.optim.Optimizer | None = None
     scheduler = None
     patience = cfg.get("baseline", {}).get("patience")
     epochs = cfg.get("baseline", {}).get("epochs", 3)

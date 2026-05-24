@@ -6,9 +6,7 @@ from ups.io import MeshParticleEncoder, MeshParticleEncoderConfig
 def make_graph(batch: int = 1, nodes: int = 12, features: int = 8):
     feats = torch.linspace(0, 1, steps=nodes * features).view(1, nodes, features)
     coords = torch.rand(nodes, 3)
-    edges = torch.stack(
-        [torch.arange(nodes - 1), torch.arange(1, nodes)], dim=1
-    )  # simple chain
+    edges = torch.stack([torch.arange(nodes - 1), torch.arange(1, nodes)], dim=1)  # simple chain
     return feats.repeat(batch, 1, 1), coords, edges
 
 

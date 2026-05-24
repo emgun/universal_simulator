@@ -1,7 +1,12 @@
 import h5py
 import torch
 
-from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, pdebench_equation_signature, pdebench_task_semantics
+from ups.data.pdebench import (
+    PDEBenchConfig,
+    PDEBenchDataset,
+    pdebench_equation_signature,
+    pdebench_task_semantics,
+)
 from ups.eval.pdebench_runner import evaluate_pdebench
 
 

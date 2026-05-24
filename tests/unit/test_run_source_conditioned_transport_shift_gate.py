@@ -16,7 +16,9 @@ def _write_source_shifted_split(path, *, split: str, source_shifts: list[tuple[i
     for sample_idx, (source_index, shift) in enumerate(source_shifts):
         data[sample_idx, 0, (sample_idx + 1) % 8, 0] = 1.0
         for step in range(1, data.shape[1]):
-            data[sample_idx, step, :, 0] = torch.roll(data[sample_idx, step - 1, :, 0], shifts=shift, dims=-1)
+            data[sample_idx, step, :, 0] = torch.roll(
+                data[sample_idx, step - 1, :, 0], shifts=shift, dims=-1
+            )
         source_file_index.append(source_index)
         source_sample_index.append(sample_idx)
     with h5py.File(path / f"advection1d_{split}.h5", "w") as handle:
@@ -48,7 +50,9 @@ def _args(tmp_path, *, reference: float = 1.0):
 
 
 def test_source_conditioned_gate_passes_mixed_train_val_sources(tmp_path):
-    _write_source_shifted_split(tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (1, 2), (1, 2)])
+    _write_source_shifted_split(
+        tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (1, 2), (1, 2)]
+    )
     _write_source_shifted_split(tmp_path, split="val", source_shifts=[(0, 1), (1, 2)])
 
     record = run_gate(_args(tmp_path))
@@ -74,7 +78,9 @@ def test_source_conditioned_gate_blocks_unsupported_validation_source(tmp_path):
 
 
 def test_source_conditioned_gate_measures_test_only_after_validation_passes(tmp_path):
-    _write_source_shifted_split(tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (1, 2), (1, 2)])
+    _write_source_shifted_split(
+        tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (1, 2), (1, 2)]
+    )
     _write_source_shifted_split(tmp_path, split="val", source_shifts=[(0, 1), (1, 2)])
     _write_source_shifted_split(tmp_path, split="test", source_shifts=[(0, 1), (1, 2)])
     args = _args(tmp_path)
@@ -88,7 +94,9 @@ def test_source_conditioned_gate_measures_test_only_after_validation_passes(tmp_
 
 
 def test_source_conditioned_gate_can_use_sample_mode_strategy(tmp_path):
-    _write_source_shifted_split(tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (0, 2), (1, 2)])
+    _write_source_shifted_split(
+        tmp_path, split="train", source_shifts=[(0, 1), (0, 1), (0, 2), (1, 2)]
+    )
     _write_source_shifted_split(tmp_path, split="val", source_shifts=[(0, 1), (1, 2)])
     args = _args(tmp_path)
     args.fit_strategy = "sample_mode"
@@ -102,7 +110,9 @@ def test_source_conditioned_gate_can_use_sample_mode_strategy(tmp_path):
 
 
 def test_source_conditioned_gate_refines_sample_mode_shift_from_coarse_grid(tmp_path):
-    _write_source_shifted_split(tmp_path, split="train", source_shifts=[(0, 3), (0, 3), (1, 1), (1, 1)])
+    _write_source_shifted_split(
+        tmp_path, split="train", source_shifts=[(0, 3), (0, 3), (1, 1), (1, 1)]
+    )
     _write_source_shifted_split(tmp_path, split="val", source_shifts=[(0, 3), (1, 1)])
     args = _args(tmp_path)
     args.shift = [0, 4]
@@ -127,9 +137,9 @@ def test_source_conditioned_gate_fractionally_refines_train_shift(tmp_path):
             x = np.arange(width, dtype=np.float32)
             data[sample_idx, 0, :, 0] = np.exp(-0.5 * ((x - (8 + sample_idx)) / 2.0) ** 2)
             for step in range(1, data.shape[1]):
-                data[sample_idx, step, :, 0] = _periodic_shift(data[sample_idx : sample_idx + 1, step - 1, :, 0], shift)[
-                    0
-                ]
+                data[sample_idx, step, :, 0] = _periodic_shift(
+                    data[sample_idx : sample_idx + 1, step - 1, :, 0], shift
+                )[0]
             source_file_index.append(source_index)
         with h5py.File(tmp_path / f"advection1d_{split}.h5", "w") as handle:
             handle.create_dataset("data", data=data)
@@ -160,9 +170,9 @@ def test_source_conditioned_gate_fractionally_refines_sample_mode_votes(tmp_path
             x = np.arange(width, dtype=np.float32)
             data[sample_idx, 0, :, 0] = np.exp(-0.5 * ((x - (8 + sample_idx)) / 2.0) ** 2)
             for step in range(1, data.shape[1]):
-                data[sample_idx, step, :, 0] = _periodic_shift(data[sample_idx : sample_idx + 1, step - 1, :, 0], shift)[
-                    0
-                ]
+                data[sample_idx, step, :, 0] = _periodic_shift(
+                    data[sample_idx : sample_idx + 1, step - 1, :, 0], shift
+                )[0]
             source_file_index.append(source_index)
         with h5py.File(tmp_path / f"advection1d_{split}.h5", "w") as handle:
             handle.create_dataset("data", data=data)
@@ -181,5 +191,8 @@ def test_source_conditioned_gate_fractionally_refines_sample_mode_votes(tmp_path
     assert record["fit"]["source_shift_map"] == {"0": 1.5, "1": -0.5}
     assert record["fit"]["train_groups"]["0"]["sample_votes"][0]["selected_shift"] == 1.5
     assert 1.5 in record["fit"]["train_groups"]["0"]["sample_votes"][0]["candidate_shifts"]
-    assert all(isinstance(shift, float) for shift in record["fit"]["train_groups"]["0"]["sample_votes"][0]["candidate_shifts"])
+    assert all(
+        isinstance(shift, float)
+        for shift in record["fit"]["train_groups"]["0"]["sample_votes"][0]["candidate_shifts"]
+    )
     assert record["fit"]["selected_validation"]["nrmse"] < 1e-5

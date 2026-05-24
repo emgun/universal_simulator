@@ -67,12 +67,14 @@ def recommend_storage(args: argparse.Namespace) -> dict[str, Any]:
     status = "storage_root_available" if viable else "external_or_freed_space_required"
     return {
         "status": status,
-        "blockers": []
-        if viable
-        else [
-            f"no candidate root has required free bytes {required_free_bytes}",
-            "free local disk space or provide a larger mounted volume and regenerate the hydration plan with that root",
-        ],
+        "blockers": (
+            []
+            if viable
+            else [
+                f"no candidate root has required free bytes {required_free_bytes}",
+                "free local disk space or provide a larger mounted volume and regenerate the hydration plan with that root",
+            ]
+        ),
         "plan_json": str(args.plan_json),
         "remaining_download_bytes": total_download_bytes,
         "largest_file_bytes": largest_file_bytes,
@@ -96,8 +98,12 @@ def recommend_storage(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Recommend storage for official Advection hydration")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser = argparse.ArgumentParser(
+        description="Recommend storage for official Advection hydration"
+    )
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument("--candidate-root", action="append", default=None)
     parser.add_argument("--safety-factor", type=float, default=1.15)
     parser.add_argument(

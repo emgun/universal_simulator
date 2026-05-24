@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from scripts.train import _decoded_field_loss
 from ups.training.losses import (
     LossBundle,
     compute_loss_bundle,
@@ -13,7 +14,6 @@ from ups.training.losses import (
     semigroup_consistency_loss,
     spectral_loss,
 )
-from scripts.train import _decoded_field_loss
 
 
 def test_individual_losses_shapes():

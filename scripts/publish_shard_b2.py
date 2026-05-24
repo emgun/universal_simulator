@@ -32,7 +32,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 
 def _load_env_file(path: Path) -> None:
@@ -56,7 +55,7 @@ def _load_env_file(path: Path) -> None:
             key = key.strip()
             # strip surrounding quotes if present
             v = val.strip()
-            if (v.startswith("\"") and v.endswith("\"")) or (v.startswith("'") and v.endswith("'")):
+            if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
                 v = v[1:-1]
             val = v
             if key and key not in os.environ:
@@ -66,12 +65,12 @@ def _load_env_file(path: Path) -> None:
         pass
 
 
-def _which(cmd: str) -> Optional[str]:
+def _which(cmd: str) -> str | None:
     path = shutil.which(cmd)
     return path
 
 
-def _run(cmd: List[str], *, env: Optional[dict] = None, dry_run: bool = False) -> None:
+def _run(cmd: list[str], *, env: dict | None = None, dry_run: bool = False) -> None:
     if dry_run:
         print("DRY_RUN:", " ".join(shlex.quote(c) for c in cmd))
         return
@@ -162,8 +161,8 @@ def _build_b2_refs(
     bucket: str,
     key: str,
     *,
-    s3_region: Optional[str],
-) -> Tuple[Optional[str], str]:
+    s3_region: str | None,
+) -> tuple[str | None, str]:
     """Return (public_url_if_known, opaque_uri)."""
     opaque = f"b2://{bucket}/{key}"
     if s3_region:
@@ -174,15 +173,31 @@ def _build_b2_refs(
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Publish dataset shard to B2 and log W&B reference artifact")
+    p = argparse.ArgumentParser(
+        description="Publish dataset shard to B2 and log W&B reference artifact"
+    )
     p.add_argument("paths", nargs="+", help="File(s) or directory to upload")
-    p.add_argument("--prefix", default=os.environ.get("B2_PREFIX", "pdebench"), help="Remote prefix inside the bucket")
-    p.add_argument("--bucket", default=os.environ.get("B2_BUCKET"), help="Target B2 bucket (env B2_BUCKET)")
-    p.add_argument("--artifact-name", default=None, help="W&B artifact name (default derives from first file)")
+    p.add_argument(
+        "--prefix",
+        default=os.environ.get("B2_PREFIX", "pdebench"),
+        help="Remote prefix inside the bucket",
+    )
+    p.add_argument(
+        "--bucket", default=os.environ.get("B2_BUCKET"), help="Target B2 bucket (env B2_BUCKET)"
+    )
+    p.add_argument(
+        "--artifact-name", default=None, help="W&B artifact name (default derives from first file)"
+    )
     p.add_argument("--artifact-type", default="dataset-shard", help="W&B artifact type")
-    p.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "universal-simulator"), help="W&B project")
+    p.add_argument(
+        "--project",
+        default=os.environ.get("WANDB_PROJECT", "universal-simulator"),
+        help="W&B project",
+    )
     p.add_argument("--entity", default=os.environ.get("WANDB_ENTITY"), help="W&B entity")
-    p.add_argument("--dry-run", action="store_true", help="Print commands and skip network and deletion")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Print commands and skip network and deletion"
+    )
     return p.parse_args()
 
 
@@ -204,7 +219,7 @@ def main() -> None:
 
     s3_region = os.environ.get("B2_S3_REGION")
 
-    inputs: List[Path] = [Path(p).expanduser().resolve() for p in args.paths]
+    inputs: list[Path] = [Path(p).expanduser().resolve() for p in args.paths]
     for p in inputs:
         if not p.exists():
             print(f"Missing path: {p}", file=sys.stderr)
@@ -217,7 +232,7 @@ def main() -> None:
         base = inputs[0].name
         art_name = base.replace(".tar.gz", "").replace(".tar", "")
 
-    uploaded: List[Tuple[Path, str, Optional[str], str]] = []
+    uploaded: list[tuple[Path, str, str | None, str]] = []
     # Each tuple: (local_path, remote_key, public_url, opaque_uri)
 
     for local in inputs:
@@ -227,7 +242,14 @@ def main() -> None:
         else:
             dest_key = f"{args.prefix.rstrip('/')}/{local.name}"
 
-        remote = _rclone_copyto(local, bucket, dest_key, b2_key_id=b2_key_id, b2_app_key=b2_app_key, dry_run=args.dry_run)
+        remote = _rclone_copyto(
+            local,
+            bucket,
+            dest_key,
+            b2_key_id=b2_key_id,
+            b2_app_key=b2_app_key,
+            dry_run=args.dry_run,
+        )
         public, opaque = _build_b2_refs(bucket, dest_key, s3_region=s3_region)
         print(f"Uploaded: {local} -> {remote}")
         uploaded.append((local, dest_key, public, opaque))
@@ -240,14 +262,20 @@ def main() -> None:
         sys.exit(2)
 
     if args.dry_run:
-        print(f"DRY_RUN: would log W&B artifact name={art_name} type={args.artifact_type} project={args.project}")
+        print(
+            f"DRY_RUN: would log W&B artifact name={art_name} type={args.artifact_type} project={args.project}"
+        )
     else:
         run = wandb.init(project=args.project, entity=args.entity, job_type="dataset-publish")
-        artifact = wandb.Artifact(name=art_name, type=args.artifact_type, metadata={
-            "storage": "b2",
-            "bucket": bucket,
-            "prefix": args.prefix,
-        })
+        artifact = wandb.Artifact(
+            name=art_name,
+            type=args.artifact_type,
+            metadata={
+                "storage": "b2",
+                "bucket": bucket,
+                "prefix": args.prefix,
+            },
+        )
         for local, dest_key, public, opaque in uploaded:
             ref = public or opaque
             artifact.add_reference(ref, name=Path(dest_key).name.rstrip("/"))
@@ -272,5 +300,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

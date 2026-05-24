@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 from scripts.plan_transport_official_hydration import create_plan
 from scripts.recommend_transport_hydration_storage import recommend_storage

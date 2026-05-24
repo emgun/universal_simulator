@@ -7,10 +7,9 @@ import argparse
 import glob
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
-
-import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -80,7 +79,12 @@ def readiness_payload(
             "expected_keys": expected_keys,
         }
     else:
-        manifest_status = {"ok": False, "path": str(manifest), "expected_key_count": 0, "expected_keys": []}
+        manifest_status = {
+            "ok": False,
+            "path": str(manifest),
+            "expected_key_count": 0,
+            "expected_keys": [],
+        }
         blockers.append(f"Manifest missing: {manifest}")
         next_steps.append("Create or restore docs/demo_data_manifest.yaml.")
 
@@ -92,18 +96,26 @@ def readiness_payload(
         b2_status["ok"] = b2_status["missing_count"] == 0
         if b2_status["missing_count"]:
             blockers.append(f"B2 missing {b2_status['missing_count']} expected demo shard keys.")
-            next_steps.append("Run scripts/run_remote_shard_prep_b2.sh on a remote/data-prep box, then re-check shards.")
+            next_steps.append(
+                "Run scripts/run_remote_shard_prep_b2.sh on a remote/data-prep box, then re-check shards."
+            )
     elif expected_keys:
-        next_steps.append("Run with --check-b2 after credentials are available to verify shard presence.")
+        next_steps.append(
+            "Run with --check-b2 after credentials are available to verify shard presence."
+        )
 
     summary_paths = _glob_paths(summary_patterns)
-    summary_status = _summary_status(summary_paths, baseline_run=baseline_run, candidate_run=candidate_run)
+    summary_status = _summary_status(
+        summary_paths, baseline_run=baseline_run, candidate_run=candidate_run
+    )
     if baseline_run and not summary_status["has_baseline"]:
         blockers.append(f"Missing baseline summary: {baseline_run}")
         next_steps.append("Run scripts/run_persistence_baseline.py on the held-out shards.")
     if candidate_run and not summary_status["has_candidate"]:
         blockers.append(f"Missing candidate summary: {candidate_run}")
-        next_steps.append("Run the UPS candidate via scripts/run_remote_light_promotion.sh or the generated queue.")
+        next_steps.append(
+            "Run the UPS candidate via scripts/run_remote_light_promotion.sh or the generated queue."
+        )
 
     report_ready = (
         manifest_status["ok"]
@@ -128,13 +140,19 @@ def readiness_payload(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check UPS demo readiness")
     parser.add_argument("--manifest", default="docs/demo_data_manifest.yaml")
-    parser.add_argument("--summary-glob", action="append", default=["reports/light_experiments_remote/*/summary.json"])
+    parser.add_argument(
+        "--summary-glob",
+        action="append",
+        default=["reports/light_experiments_remote/*/summary.json"],
+    )
     parser.add_argument("--baseline-run", default="persistence_light_v1_test")
     parser.add_argument("--candidate-run", default="ups_light_v1_task_signature_only")
     parser.add_argument("--check-b2", action="store_true")
     parser.add_argument("--env-file", default=os.environ.get("ENV_FILE", ".env"))
     parser.add_argument("--json", default="", help="Optional output JSON path")
-    parser.add_argument("--strict", action="store_true", help="Exit nonzero when readiness blockers remain")
+    parser.add_argument(
+        "--strict", action="store_true", help="Exit nonzero when readiness blockers remain"
+    )
     args = parser.parse_args()
 
     payload = readiness_payload(

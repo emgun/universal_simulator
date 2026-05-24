@@ -12,8 +12,9 @@ import argparse
 import hashlib
 import json
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import h5py
 import numpy as np
@@ -75,7 +76,11 @@ def _load_series_and_source(
     path = Path(root) / f"{task}_{split}.h5"
     if not path.exists():
         raise FileNotFoundError(path)
-    sample_slice = slice(0, _max_samples(max_samples)) if _max_samples(max_samples) is not None else slice(None)
+    sample_slice = (
+        slice(0, _max_samples(max_samples))
+        if _max_samples(max_samples) is not None
+        else slice(None)
+    )
     with h5py.File(path, "r") as handle:
         if "source_file_index" not in handle:
             raise KeyError(f"{path} does not contain source_file_index provenance")
@@ -84,7 +89,9 @@ def _load_series_and_source(
     if data.ndim == 4 and data.shape[-1] == 1:
         data = data[..., 0]
     if data.ndim != 3:
-        raise ValueError(f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
+        raise ValueError(
+            f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}"
+        )
     if data.shape[0] != source_file_index.shape[0]:
         raise ValueError(f"{path} data/source_file_index sample counts differ")
     return data, source_file_index
@@ -160,7 +167,9 @@ def _refined_shifts(base_shift: int, radius: int, *, width: int) -> list[int]:
     return refined
 
 
-def _fractional_refined_shifts(base_shift: float, radius: int, step: float, *, width: int) -> list[float]:
+def _fractional_refined_shifts(
+    base_shift: float, radius: int, step: float, *, width: int
+) -> list[float]:
     if radius <= 0 or step <= 0:
         return [float(base_shift)]
     count = int(round((2.0 * float(radius)) / float(step)))
@@ -202,7 +211,9 @@ def _fit_source_shift_map(
         if fit_strategy == "sample_mode":
             vote_scores: dict[float, list[float]] = {}
             for sample_idx in range(group_fields.shape[0]):
-                sample_rows = _candidate_scores(group_fields[sample_idx : sample_idx + 1], shifts, rollout_steps=rollout_steps)
+                sample_rows = _candidate_scores(
+                    group_fields[sample_idx : sample_idx + 1], shifts, rollout_steps=rollout_steps
+                )
                 sample_best = _select_best(sample_rows, metric)
                 shift = float(sample_best["shift"])
                 vote_scores.setdefault(shift, []).append(float(sample_best[metric]))
@@ -215,7 +226,12 @@ def _fit_source_shift_map(
                 )
             selected_shift = sorted(
                 vote_scores,
-                key=lambda shift: (-len(vote_scores[shift]), float(np.mean(vote_scores[shift])), abs(shift), shift),
+                key=lambda shift: (
+                    -len(vote_scores[shift]),
+                    float(np.mean(vote_scores[shift])),
+                    abs(shift),
+                    shift,
+                ),
             )[0]
             if refine_radius > 0:
                 refined_vote_scores: dict[float, list[float]] = {}
@@ -275,9 +291,13 @@ def _fit_source_shift_map(
                     width=int(group_fields.shape[-1]),
                 )
                 if fractional_refine_step > 0
-                else _refined_shifts(int(round(selected_shift)), refine_radius, width=int(group_fields.shape[-1]))
+                else _refined_shifts(
+                    int(round(selected_shift)), refine_radius, width=int(group_fields.shape[-1])
+                )
             )
-            refined_rows = _candidate_scores_periodic(group_fields, local_shifts, rollout_steps=rollout_steps)
+            refined_rows = _candidate_scores_periodic(
+                group_fields, local_shifts, rollout_steps=rollout_steps
+            )
             refined_best = _select_best(refined_rows, metric)
             selected_shift = float(refined_best["shift"])
         selected[source_index] = float(selected_shift)
@@ -327,9 +347,14 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
     blockers: list[str] = []
     selected_validation: dict[str, float] | None = None
     oracle_validation: dict[str, Any] | None = None
-    validation_guard = {"passed": False, "blockers": ["validation contains unsupported source_file_index"]}
+    validation_guard = {
+        "passed": False,
+        "blockers": ["validation contains unsupported source_file_index"],
+    }
     if unsupported_val_sources:
-        blockers.append(f"validation source_file_index values absent from train: {unsupported_val_sources}")
+        blockers.append(
+            f"validation source_file_index values absent from train: {unsupported_val_sources}"
+        )
     else:
         selected_validation = _score_locked_shifts(
             val_fields,
@@ -346,7 +371,9 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             mode="min",
         )
         if not bool(validation_guard["passed"]):
-            blockers.append("source-conditioned train-fitted validation metric did not pass the configured SOTA guard")
+            blockers.append(
+                "source-conditioned train-fitted validation metric did not pass the configured SOTA guard"
+            )
 
     test_eligible = bool(selected_validation and validation_guard["passed"] and not blockers)
     test_record = None
@@ -355,11 +382,17 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             root=args.data_root,
             task=args.task,
             split=args.test_split,
-            max_samples=args.test_max_samples if args.test_max_samples is not None else args.max_samples,
+            max_samples=(
+                args.test_max_samples if args.test_max_samples is not None else args.max_samples
+            ),
         )
-        unsupported_test_sources = sorted(set(int(value) for value in test_source.tolist()) - set(train_sources))
+        unsupported_test_sources = sorted(
+            set(int(value) for value in test_source.tolist()) - set(train_sources)
+        )
         if unsupported_test_sources:
-            blockers.append(f"test source_file_index values absent from train: {unsupported_test_sources}")
+            blockers.append(
+                f"test source_file_index values absent from train: {unsupported_test_sources}"
+            )
             test_eligible = False
         else:
             test_record = {
@@ -370,8 +403,12 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
                     source_shift_map,
                     rollout_steps=args.rollout_steps,
                 ),
-                "source_shift_map": {str(key): float(value) for key, value in source_shift_map.items()},
-                "source_shift_map_float": {str(key): float(value) for key, value in source_shift_map.items()},
+                "source_shift_map": {
+                    str(key): float(value) for key, value in source_shift_map.items()
+                },
+                "source_shift_map_float": {
+                    str(key): float(value) for key, value in source_shift_map.items()
+                },
             }
 
     source_splits = [args.train_split, args.val_split]
@@ -398,7 +435,9 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             "candidate_shifts": shifts,
             "source_shift_map": {str(key): float(value) for key, value in source_shift_map.items()},
             "train_groups": train_groups,
-            "selected_train_shift": {str(key): float(value) for key, value in source_shift_map.items()},
+            "selected_train_shift": {
+                str(key): float(value) for key, value in source_shift_map.items()
+            },
             "selected_validation": selected_validation,
             "oracle_validation": oracle_validation,
             "validation_gap_to_oracle": (
@@ -417,8 +456,14 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             "val_source_file_indices": val_sources,
             "unsupported_val_source_file_indices": unsupported_val_sources,
             "best_shifts": {
-                args.train_split: {str(key): float(value) for key, value in source_shift_map.items()},
-                args.val_split: {str(key): float(source_shift_map[key]) for key in val_sources if key in source_shift_map},
+                args.train_split: {
+                    str(key): float(value) for key, value in source_shift_map.items()
+                },
+                args.val_split: {
+                    str(key): float(source_shift_map[key])
+                    for key in val_sources
+                    if key in source_shift_map
+                },
             },
             "consistent_best_shift": not unsupported_val_sources,
         },
@@ -426,9 +471,13 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "test": test_record,
         "blockers": blockers,
         "next_action": (
-            "held-out test measured" if test_record else "run exactly one held-out test with locked source_shift_map"
-            if test_eligible and not test_record
-            else "do not run held-out test; hydrate/train source support or improve train-fitted conditional rule first"
+            "held-out test measured"
+            if test_record
+            else (
+                "run exactly one held-out test with locked source_shift_map"
+                if test_eligible and not test_record
+                else "do not run held-out test; hydrate/train source support or improve train-fitted conditional rule first"
+            )
         ),
         "notes": [
             "Fits only on train_split rows and source_file_index provenance.",
@@ -439,7 +488,9 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run source-conditioned train/val transport-shift gate")
+    parser = argparse.ArgumentParser(
+        description="Run source-conditioned train/val transport-shift gate"
+    )
     parser.add_argument("--data-root", default="data/pdebench")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
@@ -456,7 +507,10 @@ def main() -> None:
     parser.add_argument("--fractional-refine-step", type=float, default=0.0)
     parser.add_argument("--reference-metric-value", type=float, required=True)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
-    parser.add_argument("--output-json", default="reports/research/sota_loop/source_conditioned_transport_shift_gate.json")
+    parser.add_argument(
+        "--output-json",
+        default="reports/research/sota_loop/source_conditioned_transport_shift_gate.json",
+    )
     args = parser.parse_args()
 
     record = run_gate(args)

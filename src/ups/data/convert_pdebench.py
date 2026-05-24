@@ -112,7 +112,9 @@ def convert_files(
                             chunks=(chunk.shape[0],),
                         )
                         source_paths = [str(path) for path in files[:limit]]
-                        out_h5.attrs["source_paths"] = np.asarray(source_paths, dtype=h5py.string_dtype("utf-8"))
+                        out_h5.attrs["source_paths"] = np.asarray(
+                            source_paths, dtype=h5py.string_dtype("utf-8")
+                        )
                     elif chunk.shape[1:] != target_shape:
                         raise ValueError(
                             "Inconsistent sample shape: "
@@ -128,7 +130,9 @@ def convert_files(
                     source_sample_index_dset.resize(next_size, axis=0)
                     dset[total_written:next_size] = chunk
                     source_file_index_dset[total_written:next_size] = index
-                    source_sample_index_dset[total_written:next_size] = np.arange(start, end, dtype=np.int64)
+                    source_sample_index_dset[total_written:next_size] = np.arange(
+                        start, end, dtype=np.int64
+                    )
                     total_written = next_size
 
     if total_written == 0:

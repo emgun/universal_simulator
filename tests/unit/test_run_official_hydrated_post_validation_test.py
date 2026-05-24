@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 from scripts.run_official_hydrated_post_validation_test import run_post_validation_test
 
@@ -40,7 +40,9 @@ def _args(tmp_path, *, status: str, execute: bool = False, execute_test: bool = 
 
 
 def test_post_validation_test_runner_blocks_before_literal_test_ready(tmp_path):
-    record = run_post_validation_test(_args(tmp_path, status="literal_blocked", execute=True, execute_test=True))
+    record = run_post_validation_test(
+        _args(tmp_path, status="literal_blocked", execute=True, execute_test=True)
+    )
 
     assert record["status"] == "blocked"
     assert any("expected literal_test_ready" in blocker for blocker in record["blockers"])
@@ -60,7 +62,9 @@ def test_post_validation_test_runner_dry_run_requires_explicit_test_execution(tm
 
 
 def test_post_validation_test_runner_command_shape_is_gated(tmp_path):
-    record = run_post_validation_test(_args(tmp_path, status="literal_test_ready", execute_test=True))
+    record = run_post_validation_test(
+        _args(tmp_path, status="literal_test_ready", execute_test=True)
+    )
     commands = {row["stage"]: row["command"] for row in record["executed"]}
 
     assert record["status"] == "dry_run"
@@ -113,7 +117,9 @@ def test_post_validation_test_runner_requires_gate_artifact_test_result(monkeypa
 
         return Completed()
 
-    monkeypatch.setattr("scripts.run_official_hydrated_post_validation_test.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "scripts.run_official_hydrated_post_validation_test.subprocess.run", fake_run
+    )
 
     record = run_post_validation_test(args)
 
@@ -136,7 +142,9 @@ def test_post_validation_test_runner_blocks_if_gate_artifact_has_no_test(monkeyp
 
         return Completed()
 
-    monkeypatch.setattr("scripts.run_official_hydrated_post_validation_test.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "scripts.run_official_hydrated_post_validation_test.subprocess.run", fake_run
+    )
 
     record = run_post_validation_test(args)
 

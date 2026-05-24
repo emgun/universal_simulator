@@ -6,13 +6,15 @@ from __future__ import annotations
 import argparse
 import shutil
 from pathlib import Path
-from typing import Iterable, List
 
 import yaml
+
 try:
     import wandb
 except ImportError as exc:  # pragma: no cover - optional dependency for local dev
-    raise SystemExit("wandb is required for scripts/fetch_datasets.py. Install wandb or run via W&B-enabled environment") from exc
+    raise SystemExit(
+        "wandb is required for scripts/fetch_datasets.py. Install wandb or run via W&B-enabled environment"
+    ) from exc
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "docs" / "dataset_registry.yaml"
 
@@ -45,7 +47,9 @@ def fetch_artifact(
             manifest = candidate / "wandb_manifest.json"
             if manifest.exists() and artifact_id.replace(":", "_") in candidate.name:
                 return candidate
-    run = wandb.init(project=project or "dataset-fetch", entity=entity, job_type="dataset-fetch", reinit=True)
+    run = wandb.init(
+        project=project or "dataset-fetch", entity=entity, job_type="dataset-fetch", reinit=True
+    )
     artifact = run.use_artifact(artifact_id)
     output = artifact.download(root=None)
     run.finish()
@@ -61,7 +65,7 @@ def fetch_artifact(
 
 def copy_splits(source: Path, target_root: Path, entries: dict) -> None:
     import tarfile
-    
+
     # Check if source contains a tarball to extract first
     tarballs = list(source.glob("*.tar.gz")) + list(source.glob("*.tar"))
     if tarballs:
@@ -70,7 +74,7 @@ def copy_splits(source: Path, target_root: Path, entries: dict) -> None:
             tar.extractall(target_root)
         print(f"Extracted to {target_root}")
         return
-    
+
     # Otherwise copy individual files
     for split_key in ("train_split", "val_split", "test_split"):
         split_file = entries.get(split_key)
@@ -89,9 +93,13 @@ def copy_splits(source: Path, target_root: Path, entries: dict) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Fetch datasets listed in the registry")
-    parser.add_argument("datasets", nargs="+", help="Dataset keys to fetch (see docs/dataset_registry.yaml)")
+    parser.add_argument(
+        "datasets", nargs="+", help="Dataset keys to fetch (see docs/dataset_registry.yaml)"
+    )
     parser.add_argument("--root", default="data/pdebench", help="Destination root directory")
-    parser.add_argument("--cache", default=None, help="Optional cache directory for artifact downloads")
+    parser.add_argument(
+        "--cache", default=None, help="Optional cache directory for artifact downloads"
+    )
     parser.add_argument("--registry", default=str(REGISTRY_PATH), help="Custom registry path")
     parser.add_argument("--entity", default=None, help="W&B entity override")
     parser.add_argument("--project", default=None, help="W&B project override")
@@ -101,7 +109,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     datasets = load_registry(Path(args.registry))
-    missing: List[str] = []
+    missing: list[str] = []
     selected = {}
     for name in args.datasets:
         entry = datasets.get(name)

@@ -105,8 +105,12 @@ def preflight(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Preflight official Advection hydration disk state")
-    parser.add_argument("--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json")
+    parser = argparse.ArgumentParser(
+        description="Preflight official Advection hydration disk state"
+    )
+    parser.add_argument(
+        "--plan-json", default="reports/research/sota_loop/official_advection_hydration_plan.json"
+    )
     parser.add_argument("--raw-out", default="data/pdebench/raw")
     parser.add_argument("--disk-root")
     parser.add_argument("--safety-factor", type=float, default=1.15)

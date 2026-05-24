@@ -1,4 +1,8 @@
-from ups.eval.promotion import evaluate_promotion_rules, parse_promotion_rule, promotion_rules_from_config
+from ups.eval.promotion import (
+    evaluate_promotion_rules,
+    parse_promotion_rule,
+    promotion_rules_from_config,
+)
 
 
 def test_parse_promotion_rule():
@@ -40,7 +44,12 @@ def test_promotion_rules_from_config_supports_dict_and_string():
                 "promotion": {
                     "rules": [
                         "decoded_rollout_nrmse<=0.2",
-                        {"metric": "transfer_decoded_rollout_nrmse", "operator": "<=", "threshold": 0.3, "label": "transfer gate"},
+                        {
+                            "metric": "transfer_decoded_rollout_nrmse",
+                            "operator": "<=",
+                            "threshold": 0.3,
+                            "label": "transfer gate",
+                        },
                     ]
                 }
             }

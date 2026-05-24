@@ -2,7 +2,8 @@ from __future__ import annotations
 
 """Physical-space persistence baselines for demo scorecards."""
 
-from typing import Any, Dict, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ups.data.latent_pairs import infer_grid_shape
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
@@ -10,7 +11,7 @@ from ups.eval.pdebench_runner import _aggregate_chunk_metrics, _flatten_field_st
 from ups.eval.reports import MetricReport
 
 
-def _task_names(cfg: Dict[str, Any]) -> list[str]:
+def _task_names(cfg: dict[str, Any]) -> list[str]:
     task_cfg = cfg.get("data", {}).get("task")
     if isinstance(task_cfg, str):
         return [task_cfg]
@@ -36,7 +37,7 @@ def _add_rollout_metrics(
 
 
 def evaluate_persistence_decoded(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     *,
     rollout_steps: int | None = None,
     tasks: Sequence[str] | None = None,
@@ -168,4 +169,3 @@ def evaluate_persistence_decoded(
             "samples": len(total_pred),
         },
     )
-

@@ -7,20 +7,19 @@ import argparse
 import glob
 import shutil
 import subprocess
-from pathlib import Path
-
 import sys
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from ups.eval.demo_plots import write_scorecard_plots
 from ups.eval.demo_scorecard import (
     collect_scorecard,
     render_scorecard_html,
     write_scorecard_json,
     write_scorecard_tsv,
 )
-from ups.eval.demo_plots import write_scorecard_plots
 
 
 def _git_commit() -> str:
@@ -46,14 +45,22 @@ def _summary_paths(inputs: list[str], patterns: list[str]) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a static demo report")
     parser.add_argument("summaries", nargs="*", help="summary.json files")
-    parser.add_argument("--glob", action="append", default=[], help="Glob pattern for summary files")
+    parser.add_argument(
+        "--glob", action="append", default=[], help="Glob pattern for summary files"
+    )
     parser.add_argument("--output-dir", default="reports/demo/latest")
     parser.add_argument("--title", default="UPS Demo Scorecard")
     parser.add_argument("--data-manifest", default="")
-    parser.add_argument("--commit", default=None, help="Commit SHA to record; defaults to current HEAD")
+    parser.add_argument(
+        "--commit", default=None, help="Commit SHA to record; defaults to current HEAD"
+    )
     parser.add_argument("--promotion-rule", action="append", default=[])
     parser.add_argument("--baseline-run", default="", help="Run name to compare every row against")
-    parser.add_argument("--baseline-metric", default="", help="Metric for baseline comparison; defaults to row main metric")
+    parser.add_argument(
+        "--baseline-metric",
+        default="",
+        help="Metric for baseline comparison; defaults to row main metric",
+    )
     parser.add_argument("--baseline-min-improvement", type=float, default=0.2)
     parser.add_argument(
         "--cost-json",
@@ -61,7 +68,11 @@ def main() -> None:
         default=[],
         help="Optional cost.json files keyed by run_name or summary_json",
     )
-    parser.add_argument("--copy-summaries", action="store_true", help="Copy input summaries into output-dir/summaries")
+    parser.add_argument(
+        "--copy-summaries",
+        action="store_true",
+        help="Copy input summaries into output-dir/summaries",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)

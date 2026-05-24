@@ -1,11 +1,15 @@
 """Model-level modules for the Universal Physics Stack."""
 
-from .latent_operator import LatentOperator, LatentOperatorConfig
 from .diffusion_residual import DiffusionResidual, DiffusionResidualConfig
+from .latent_operator import LatentOperator, LatentOperatorConfig
+from .multiphysics_factor_graph import DomainNode, MultiphysicsFactorGraph, PortEdge
+from .particles_contacts import (
+    NeighborSearchConfig,
+    SymplecticIntegrator,
+    hierarchical_neighbor_search,
+)
+from .physics_guards import helmholtz_hodge_projection_grid, interface_flux_projection, positify
 from .steady_prior import SteadyPrior, SteadyPriorConfig, steady_residual_norm
-from .physics_guards import helmholtz_hodge_projection_grid, positify, interface_flux_projection
-from .multiphysics_factor_graph import MultiphysicsFactorGraph, DomainNode, PortEdge
-from .particles_contacts import NeighborSearchConfig, SymplecticIntegrator, hierarchical_neighbor_search
 
 __all__ = [
     "LatentOperator",

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import hashlib
 import json
 import subprocess
+from argparse import Namespace
 
 import h5py
 import torch
 
-from scripts.audit_observed_transport_shift_result import audit_observed_result, exit_code_for_status
+from scripts.audit_observed_transport_shift_result import (
+    audit_observed_result,
+    exit_code_for_status,
+)
 
 
 def _write_json(path, payload) -> None:
@@ -89,7 +92,10 @@ def test_observed_audit_marks_test_ready_when_validation_passes_without_test(tmp
 
 def test_observed_audit_flags_test_leakage(tmp_path):
     gate = tmp_path / "observed.json"
-    _write_json(gate, _add_sources(_base_gate(guard_passed=False, test_eligible=False, with_test=True), tmp_path))
+    _write_json(
+        gate,
+        _add_sources(_base_gate(guard_passed=False, test_eligible=False, with_test=True), tmp_path),
+    )
 
     record = audit_observed_result(_args(tmp_path, gate))
 

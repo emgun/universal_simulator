@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -38,7 +39,11 @@ def _test_result_count(gate: Mapping[str, Any] | None) -> int:
 def _record_tokens(status: str, gate: Mapping[str, Any] | None) -> list[str]:
     tokens = [status]
     validation_nrmse = ((gate or {}).get("validation") or {}).get("nrmse")
-    test_nrmse = ((gate or {}).get("test") or {}).get("nrmse") if isinstance((gate or {}).get("test"), Mapping) else None
+    test_nrmse = (
+        ((gate or {}).get("test") or {}).get("nrmse")
+        if isinstance((gate or {}).get("test"), Mapping)
+        else None
+    )
     for value in (validation_nrmse, test_nrmse):
         if value is not None:
             tokens.append(str(value))
@@ -55,9 +60,13 @@ def audit_context_result(args: argparse.Namespace) -> dict[str, Any]:
         _missing_required_identities(data_schema, expected_hashes) if require_all_identities else []
     )
     gate_source_mismatches = _gate_source_mismatches(gate, data_schema)
-    data_identity_blockers = [*missing_data_identities, *data_identity_mismatches, *gate_source_mismatches]
+    data_identity_blockers = [
+        *missing_data_identities,
+        *data_identity_mismatches,
+        *gate_source_mismatches,
+    ]
 
-    validation_guard = ((gate or {}).get("validation_guard") or {})
+    validation_guard = (gate or {}).get("validation_guard") or {}
     guard_passed = bool(validation_guard.get("passed"))
     test_eligible = bool((gate or {}).get("test_eligible"))
     test_result_count = _test_result_count(gate)
@@ -73,7 +82,9 @@ def audit_context_result(args: argparse.Namespace) -> dict[str, Any]:
         blockers = data_identity_blockers
     elif leaked_test_result:
         status = "invalid_test_leakage"
-        blockers = ["held-out test result is present even though validation did not authorize test evaluation"]
+        blockers = [
+            "held-out test result is present even though validation did not authorize test evaluation"
+        ]
     elif multiple_test_results:
         status = "invalid_multiple_tests"
         blockers = ["more than one held-out test result is present"]
@@ -94,7 +105,9 @@ def audit_context_result(args: argparse.Namespace) -> dict[str, Any]:
     require_result_records = bool(getattr(args, "require_result_records", False))
     required_record_tokens = _record_tokens(status, gate)
     result_record_mismatches = (
-        _result_record_mismatches(result_records, required_record_tokens) if require_result_records else []
+        _result_record_mismatches(result_records, required_record_tokens)
+        if require_result_records
+        else []
     )
     if result_record_mismatches and status not in {
         "missing_evidence",
@@ -155,7 +168,9 @@ def exit_code_for_status(status: str, mode: str) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit two-frame context transport-shift result evidence")
+    parser = argparse.ArgumentParser(
+        description="Audit two-frame context transport-shift result evidence"
+    )
     parser.add_argument(
         "--context-gate-json",
         default="reports/research/sota_loop/context_transport_shift_gate.json",

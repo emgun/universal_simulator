@@ -75,7 +75,9 @@ def _gate_test_result_count(path: str | Path) -> int:
 
 def _commands(args: argparse.Namespace) -> list[dict[str, str]]:
     test_start_index = int(args.train_count) + int(args.val_count)
-    split_block_size = int(getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count))
+    split_block_size = int(
+        getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count)
+    )
     test_block_offset = int(getattr(args, "test_block_offset", test_start_index))
     build_test = (
         "python scripts/make_light_hdf5_shards.py "
@@ -117,11 +119,15 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
     commands = _commands(args)
     measurement_key = _test_measurement_key(args, objective_status)
     test_start_index = int(args.train_count) + int(args.val_count)
-    split_block_size = int(getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count))
+    split_block_size = int(
+        getattr(args, "split_block_size", 0) or test_start_index + int(args.test_count)
+    )
     test_block_offset = int(getattr(args, "test_block_offset", test_start_index))
     blockers: list[str] = []
     if objective_status.get("status") != "literal_test_ready":
-        blockers.append(f"objective status is {objective_status.get('status')}, expected literal_test_ready")
+        blockers.append(
+            f"objective status is {objective_status.get('status')}, expected literal_test_ready"
+        )
     if not bool(args.execute_test):
         blockers.append("held-out test execution requires --execute-test")
     ledger_path = getattr(args, "test_ledger_json", None)
@@ -153,7 +159,9 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
             command_record["executed"] = True
             command_record["returncode"] = completed.returncode
             if completed.returncode != 0:
-                blockers.append(f"{row['stage']} command failed with exit code {completed.returncode}")
+                blockers.append(
+                    f"{row['stage']} command failed with exit code {completed.returncode}"
+                )
                 should_execute = False
         executed.append(command_record)
 
@@ -176,7 +184,11 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
             _write_test_ledger(ledger_path, ledger)
             test_ledger_recorded = True
 
-    status = "executed" if args.execute and not blockers else "dry_run" if not args.execute else "blocked"
+    status = (
+        "executed"
+        if args.execute and not blockers
+        else "dry_run" if not args.execute else "blocked"
+    )
     return {
         "status": status,
         "blockers": blockers,
@@ -203,9 +215,16 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run official hydrated held-out test after literal test readiness")
-    parser.add_argument("--objective-status-json", default="reports/research/sota_loop/transport_objective_status.json")
-    parser.add_argument("--hydrated-source-root", default="data/pdebench_official_advection_hydrated")
+    parser = argparse.ArgumentParser(
+        description="Run official hydrated held-out test after literal test readiness"
+    )
+    parser.add_argument(
+        "--objective-status-json",
+        default="reports/research/sota_loop/transport_objective_status.json",
+    )
+    parser.add_argument(
+        "--hydrated-source-root", default="data/pdebench_official_advection_hydrated"
+    )
     parser.add_argument("--hydrated-light-root", default="data/pdebench_official_advection_light")
     parser.add_argument("--output-root", default="reports/research/sota_loop")
     parser.add_argument(
@@ -221,7 +240,9 @@ def main() -> None:
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
-    parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode")
+    parser.add_argument(
+        "--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode"
+    )
     parser.add_argument("--refine-radius", type=int, default=4)
     parser.add_argument("--fractional-refine-step", type=float, default=0.5)
     parser.add_argument(
@@ -229,9 +250,13 @@ def main() -> None:
         default="reports/research/sota_loop/official_hydrated_transport_shift_test_ledger.json",
         help="Ledger that prevents measuring the same official hydrated held-out test more than once",
     )
-    parser.add_argument("--allow-repeat-test", action="store_true", help="Bypass the held-out test ledger guard")
+    parser.add_argument(
+        "--allow-repeat-test", action="store_true", help="Bypass the held-out test ledger guard"
+    )
     parser.add_argument("--execute", action="store_true", help="Execute the post-validation stages")
-    parser.add_argument("--execute-test", action="store_true", help="Allow creating/reading the held-out test shard")
+    parser.add_argument(
+        "--execute-test", action="store_true", help="Allow creating/reading the held-out test shard"
+    )
     parser.add_argument(
         "--output-json",
         default="reports/research/sota_loop/official_hydrated_post_validation_test_run.json",

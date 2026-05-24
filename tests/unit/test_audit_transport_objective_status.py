@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 from scripts.audit_transport_objective_status import audit_objective, exit_code_for_status
 
@@ -10,7 +10,9 @@ def _write_json(path, payload) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _args(tmp_path, *, accept_observed_context: bool = False, accept_context_transport: bool = False):
+def _args(
+    tmp_path, *, accept_observed_context: bool = False, accept_context_transport: bool = False
+):
     return Namespace(
         constant_audit_json=str(tmp_path / "constant.json"),
         observed_audit_json=str(tmp_path / "observed.json"),
@@ -34,11 +36,17 @@ def _args(tmp_path, *, accept_observed_context: bool = False, accept_context_tra
 
 
 def test_objective_audit_marks_literal_achieved_when_constant_audit_achieved(tmp_path):
-    _write_json(tmp_path / "constant.json", {"status": "achieved", "result_record_policy": {"passed": True}})
+    _write_json(
+        tmp_path / "constant.json", {"status": "achieved", "result_record_policy": {"passed": True}}
+    )
     _write_json(tmp_path / "observed.json", {"status": "achieved"})
     _write_json(tmp_path / "context.json", {"status": "achieved"})
-    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
-    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(
+        tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"}
+    )
+    _write_json(
+        tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"}
+    )
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
@@ -60,10 +68,18 @@ def test_objective_audit_keeps_observed_context_policy_explicit(tmp_path):
     _write_json(tmp_path / "context.json", {"status": "missing_evidence"})
     _write_json(
         tmp_path / "observed.json",
-        {"status": "achieved", "result_record_policy": {"passed": True}, "held_out_test_policy": {"test_result_count": 1}},
+        {
+            "status": "achieved",
+            "result_record_policy": {"passed": True},
+            "held_out_test_policy": {"test_result_count": 1},
+        },
     )
-    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
-    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(
+        tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"}
+    )
+    _write_json(
+        tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"}
+    )
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
@@ -88,10 +104,18 @@ def test_objective_audit_keeps_context_transport_policy_explicit(tmp_path):
     _write_json(tmp_path / "observed.json", {"status": "missing_evidence"})
     _write_json(
         tmp_path / "context.json",
-        {"status": "achieved", "result_record_policy": {"passed": True}, "held_out_test_policy": {"test_result_count": 1}},
+        {
+            "status": "achieved",
+            "result_record_policy": {"passed": True},
+            "held_out_test_policy": {"test_result_count": 1},
+        },
     )
-    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
-    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(
+        tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"}
+    )
+    _write_json(
+        tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"}
+    )
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
@@ -106,7 +130,9 @@ def test_objective_audit_keeps_context_transport_policy_explicit(tmp_path):
     accepted = audit_objective(_args(tmp_path, accept_context_transport=True))
 
     assert blocked["status"] == "literal_blocked"
-    assert "two-frame context transport result is achieved but not accepted" in blocked["blockers"][-1]
+    assert (
+        "two-frame context transport result is achieved but not accepted" in blocked["blockers"][-1]
+    )
     assert accepted["status"] == "context_transport_achieved"
     assert accepted["accept_context_transport"] is True
     assert any(
@@ -121,8 +147,12 @@ def test_objective_audit_reports_train_feature_blocker(tmp_path):
     _write_json(tmp_path / "constant.json", {"status": "blocked_incompatible_splits"})
     _write_json(tmp_path / "observed.json", {"status": "missing_evidence"})
     _write_json(tmp_path / "context.json", {"status": "missing_evidence"})
-    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
-    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(
+        tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"}
+    )
+    _write_json(
+        tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"}
+    )
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
@@ -145,15 +175,22 @@ def test_objective_audit_reports_train_feature_blocker(tmp_path):
     record = audit_objective(_args(tmp_path))
 
     assert record["status"] == "literal_blocked"
-    assert any("blocked_no_train_support_for_validation_shift" in blocker for blocker in record["blockers"])
-    assert any("blocked_underidentified_train_only_shift" in blocker for blocker in record["blockers"])
+    assert any(
+        "blocked_no_train_support_for_validation_shift" in blocker for blocker in record["blockers"]
+    )
+    assert any(
+        "blocked_underidentified_train_only_shift" in blocker for blocker in record["blockers"]
+    )
     assert any("remote_official_hydration_required" in blocker for blocker in record["blockers"])
     assert any("dry_run" in blocker for blocker in record["blockers"])
     assert any("blocked_insufficient_disk" in blocker for blocker in record["blockers"])
     assert any("external_or_freed_space_required" in blocker for blocker in record["blockers"])
     assert not any("ready_for_explicit_hydration" in blocker for blocker in record["blockers"])
     assert not any("ready_for_remote_hydration" in blocker for blocker in record["blockers"])
-    assert any("official execution readiness status is blocked" in blocker for blocker in record["blockers"])
+    assert any(
+        "official execution readiness status is blocked" in blocker
+        for blocker in record["blockers"]
+    )
     assert any("remote_launch blocker" in blocker for blocker in record["blockers"])
     assert record["evidence"]["execution_readiness_status"] == "blocked"
 
@@ -162,8 +199,12 @@ def test_objective_audit_reports_literal_test_ready_after_official_hydrated_vali
     _write_json(tmp_path / "constant.json", {"status": "blocked_incompatible_splits"})
     _write_json(tmp_path / "observed.json", {"status": "missing_evidence"})
     _write_json(tmp_path / "context.json", {"status": "missing_evidence"})
-    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
-    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(
+        tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"}
+    )
+    _write_json(
+        tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"}
+    )
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})
@@ -186,16 +227,28 @@ def test_objective_audit_reports_literal_test_ready_after_official_hydrated_vali
     assert record["status"] == "literal_test_ready"
     assert record["evidence"]["official_hydrated_validation_passed"] is True
     assert record["evidence"]["official_hydrated_test_result_count"] == 0
-    assert any(requirement["name"] == "validate_on_val_against_sota_guard" and requirement["status"] == "satisfied" for requirement in record["requirements"])
-    assert any(requirement["name"] == "exactly_one_held_out_test_only_after_validation" and requirement["status"] == "blocked" for requirement in record["requirements"])
+    assert any(
+        requirement["name"] == "validate_on_val_against_sota_guard"
+        and requirement["status"] == "satisfied"
+        for requirement in record["requirements"]
+    )
+    assert any(
+        requirement["name"] == "exactly_one_held_out_test_only_after_validation"
+        and requirement["status"] == "blocked"
+        for requirement in record["requirements"]
+    )
 
 
 def test_objective_audit_marks_literal_achieved_after_one_official_hydrated_test(tmp_path):
     _write_json(tmp_path / "constant.json", {"status": "blocked_incompatible_splits"})
     _write_json(tmp_path / "observed.json", {"status": "missing_evidence"})
     _write_json(tmp_path / "context.json", {"status": "missing_evidence"})
-    _write_json(tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"})
-    _write_json(tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"})
+    _write_json(
+        tmp_path / "features.json", {"conclusion": "blocked_no_train_support_for_validation_shift"}
+    )
+    _write_json(
+        tmp_path / "identifiability.json", {"status": "blocked_underidentified_train_only_shift"}
+    )
     _write_json(tmp_path / "hydration.json", {"status": "remote_official_hydration_required"})
     _write_json(tmp_path / "hydration_plan.json", {"status": "ready_for_explicit_hydration"})
     _write_json(tmp_path / "hydration_plan_validation.json", {"status": "valid"})

@@ -4,12 +4,11 @@ from __future__ import annotations
 import json
 import math
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple
-
-import numpy as np
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from numcodecs import Blosc
 
@@ -22,7 +21,9 @@ def _make_coords(H: int, W: int) -> np.ndarray:
     return coords
 
 
-def _diffusion2d(T: int, H: int, W: int, dt: float = 0.05, nu: float = 0.1, seed: int = 17) -> np.ndarray:
+def _diffusion2d(
+    T: int, H: int, W: int, dt: float = 0.05, nu: float = 0.1, seed: int = 17
+) -> np.ndarray:
     rng = np.random.default_rng(seed)
     u = rng.standard_normal((H, W)).astype(np.float32)
 
@@ -41,7 +42,9 @@ def _diffusion2d(T: int, H: int, W: int, dt: float = 0.05, nu: float = 0.1, seed
     return arr
 
 
-def _burgers_like(T: int, H: int, W: int, dt: float = 0.05, seed: int = 17) -> Tuple[np.ndarray, np.ndarray]:
+def _burgers_like(
+    T: int, H: int, W: int, dt: float = 0.05, seed: int = 17
+) -> tuple[np.ndarray, np.ndarray]:
     # Synthetic divergence-free-ish velocity field via time-varying Fourier modes
     rng = np.random.default_rng(seed)
     xs = np.linspace(0.0, 2 * math.pi, W, dtype=np.float32)
@@ -54,12 +57,12 @@ def _burgers_like(T: int, H: int, W: int, dt: float = 0.05, seed: int = 17) -> T
     U, V = [], []
     for t in range(T):
         phase = w * (t * dt)
-        u = sum(
-            float(amps[i]) * np.cos(kx[i] * X + ky[i] * Y + phase[i]) for i in range(3)
-        ).astype(np.float32)
-        v = sum(
-            float(amps[i]) * np.sin(kx[i] * X - ky[i] * Y - phase[i]) for i in range(3)
-        ).astype(np.float32)
+        u = sum(float(amps[i]) * np.cos(kx[i] * X + ky[i] * Y + phase[i]) for i in range(3)).astype(
+            np.float32
+        )
+        v = sum(float(amps[i]) * np.sin(kx[i] * X - ky[i] * Y - phase[i]) for i in range(3)).astype(
+            np.float32
+        )
         U.append(u)
         V.append(v)
     U = np.stack(U, axis=0)[..., None]
@@ -67,7 +70,9 @@ def _burgers_like(T: int, H: int, W: int, dt: float = 0.05, seed: int = 17) -> T
     return U, V
 
 
-def _kolmogorov_flow(T: int, H: int, W: int, dt: float = 0.05, k: int = 4) -> Tuple[np.ndarray, np.ndarray]:
+def _kolmogorov_flow(
+    T: int, H: int, W: int, dt: float = 0.05, k: int = 4
+) -> tuple[np.ndarray, np.ndarray]:
     ys = np.linspace(0.0, 2 * math.pi, H, dtype=np.float32)
     xs = np.linspace(0.0, 2 * math.pi, W, dtype=np.float32)
     X, Y = np.meshgrid(xs, ys, indexing="xy")
@@ -89,7 +94,9 @@ def _ensure_dir(p: str) -> None:
         os.makedirs(d, exist_ok=True)
 
 
-def _write_zarr(out_path: str, name: str, coords: np.ndarray, time: np.ndarray, fields: dict, dt: float) -> None:
+def _write_zarr(
+    out_path: str, name: str, coords: np.ndarray, time: np.ndarray, fields: dict, dt: float
+) -> None:
     import zarr
 
     store = zarr.open(out_path, mode="a")
@@ -101,7 +108,9 @@ def _write_zarr(out_path: str, name: str, coords: np.ndarray, time: np.ndarray, 
     g.attrs["H"] = int(H)
     g.attrs["W"] = int(W)
 
-    g.create_dataset("coords", data=coords.astype("f4"), chunks=(min(len(coords), 65536), 2), dtype="f4")
+    g.create_dataset(
+        "coords", data=coords.astype("f4"), chunks=(min(len(coords), 65536), 2), dtype="f4"
+    )
     g.create_dataset("time", data=time.astype("f4"), chunks=(min(len(time), 256),), dtype="f4")
 
     compressor = Blosc(cname="zstd", clevel=3, shuffle=Blosc.SHUFFLE)
@@ -194,9 +203,9 @@ def _cotangent_laplacian(coords: np.ndarray, cells: np.ndarray):
         _accumulate(j, k, 0.5 * cot_i)
         _accumulate(k, i, 0.5 * cot_j)
 
-    rows: List[int] = []
-    cols: List[int] = []
-    data: List[float] = []
+    rows: list[int] = []
+    cols: list[int] = []
+    data: list[float] = []
 
     for (u, v), w in edge_weights.items():
         rows.append(u)
@@ -212,7 +221,9 @@ def _cotangent_laplacian(coords: np.ndarray, cells: np.ndarray):
     return lap
 
 
-def _write_mesh_group(group, coords: np.ndarray, cells: np.ndarray, edges: np.ndarray, laplacian) -> None:
+def _write_mesh_group(
+    group, coords: np.ndarray, cells: np.ndarray, edges: np.ndarray, laplacian
+) -> None:
     group.attrs["kind"] = "mesh"
     group.attrs["num_nodes"] = int(coords.shape[0])
 
@@ -284,9 +295,9 @@ def _radius_graph(points: np.ndarray, radius: float):
     tree = cKDTree(points)
     neighbor_lists = tree.query_ball_point(points, r=radius)
 
-    indices: List[int] = []
-    indptr: List[int] = [0]
-    edge_set: set[Tuple[int, int]] = set()
+    indices: list[int] = []
+    indptr: list[int] = [0]
+    edge_set: set[tuple[int, int]] = set()
 
     for i, nbrs in enumerate(neighbor_lists):
         nbrs_sorted = sorted(j for j in nbrs if j != i)
@@ -337,7 +348,7 @@ def _write_particle_group(
     nbr_grp.create_dataset("edges", data=edges.astype("i4"), dtype="i4")
 
 
-def _assign_splits(num_records: int, seed: int = 17) -> List[str]:
+def _assign_splits(num_records: int, seed: int = 17) -> list[str]:
     """Assign deterministic dataset splits close to the desired ratios."""
 
     if num_records <= 0:
@@ -366,7 +377,7 @@ def _assign_splits(num_records: int, seed: int = 17) -> List[str]:
                 "Increase sample count (e.g., raise T)."
             )
 
-    split_list: List[str] = []
+    split_list: list[str] = []
     for split, count in zip(SPLITS, counts):
         split_list.extend([split] * count)
 
@@ -375,7 +386,7 @@ def _assign_splits(num_records: int, seed: int = 17) -> List[str]:
     return split_list
 
 
-def _write_metadata(path: str, records: Iterable[Dict[str, str]], seed: int) -> None:
+def _write_metadata(path: str, records: Iterable[dict[str, str]], seed: int) -> None:
     rows = list(records)
     if not rows:
         return
@@ -431,7 +442,9 @@ def main(cfg: Config) -> None:
         _write_zarr(cfg.out, "burgers2d", coords, time, {"u": bu, "v": bv}, cfg.dt)
         _write_zarr(cfg.out, "kolmogorov2d", coords, time, {"u": ku, "v": kv}, cfg.dt)
 
-        _save_grid_preview_png(cfg.preview_png, {"diffusion2d": diff, "burgers2d(u)": bu, "kolmogorov2d(u)": ku})
+        _save_grid_preview_png(
+            cfg.preview_png, {"diffusion2d": diff, "burgers2d(u)": bu, "kolmogorov2d(u)": ku}
+        )
         print(f"Wrote Zarr to {cfg.out} and preview {cfg.preview_png}")
 
         if cfg.write_metadata:
@@ -507,12 +520,16 @@ def main(cfg: Config) -> None:
         for sample_idx in range(cfg.particle_samples):
             num_particles = int(rng.integers(cfg.particle_num_min, cfg.particle_num_max + 1))
             sample_seed = int(rng.integers(0, 10_000_000))
-            positions, velocities = _advect_particles(num_particles, cfg.particle_steps, cfg.particle_dt, sample_seed)
+            positions, velocities = _advect_particles(
+                num_particles, cfg.particle_steps, cfg.particle_dt, sample_seed
+            )
             radius = cfg.particle_radius
             indices, indptr, edges = _radius_graph(positions[0], radius=radius)
 
             sample_group = particles_group.create_group(f"sample_{sample_idx:05d}", overwrite=True)
-            _write_particle_group(sample_group, positions, velocities, radius, indices, indptr, edges)
+            _write_particle_group(
+                sample_group, positions, velocities, radius, indices, indptr, edges
+            )
 
             if cfg.write_metadata:
                 records.append(
@@ -521,7 +538,9 @@ def main(cfg: Config) -> None:
                         "pde": "advection_particles",
                         "bc": "periodic",
                         "geom": "unit_cube",
-                        "units_json": json.dumps({"position": "unit", "velocity": "unit/s"}, sort_keys=True),
+                        "units_json": json.dumps(
+                            {"position": "unit", "velocity": "unit/s"}, sort_keys=True
+                        ),
                     }
                 )
 

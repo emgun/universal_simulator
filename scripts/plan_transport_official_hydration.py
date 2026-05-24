@@ -51,7 +51,9 @@ def _per_file_count(total: int, selected_entries: list[dict[str, Any]], label: s
         return 0
     per_file, remainder = divmod(int(total), len(selected_entries))
     if remainder:
-        raise ValueError(f"{label}={total} must be divisible by selected file count {len(selected_entries)}")
+        raise ValueError(
+            f"{label}={total} must be divisible by selected file count {len(selected_entries)}"
+        )
     return per_file
 
 
@@ -93,7 +95,11 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
     train_per_file = _per_file_count(args.train_count, entries, "train_count")
     val_per_file = _per_file_count(args.val_count, entries, "val_count")
     reserved_test_count = int(getattr(args, "reserved_test_count", 0))
-    test_per_file = _per_file_count(reserved_test_count, entries, "reserved_test_count") if reserved_test_count else 0
+    test_per_file = (
+        _per_file_count(reserved_test_count, entries, "reserved_test_count")
+        if reserved_test_count
+        else 0
+    )
     val_block_offset = train_per_file
     test_block_offset = train_per_file + val_per_file
     return {
@@ -162,10 +168,14 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plan official Advection hydration for the literal transport objective")
+    parser = argparse.ArgumentParser(
+        description="Plan official Advection hydration for the literal transport objective"
+    )
     parser.add_argument("--manifest", default="docs/pdebench_manifest.yaml")
     parser.add_argument("--raw-out", default="data/pdebench/raw")
-    parser.add_argument("--hydrated-source-root", default="data/pdebench_official_advection_hydrated")
+    parser.add_argument(
+        "--hydrated-source-root", default="data/pdebench_official_advection_hydrated"
+    )
     parser.add_argument("--hydrated-light-root", default="data/pdebench_official_advection_light")
     parser.add_argument("--output-root", default="reports/research/sota_loop")
     parser.add_argument("--train-count", type=int, default=256)
@@ -176,7 +186,9 @@ def main() -> None:
     parser.add_argument("--max-files", type=int)
     parser.add_argument("--reference-metric-value", type=float, default=0.30780652221851373)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
-    parser.add_argument("--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode")
+    parser.add_argument(
+        "--fit-strategy", choices=("aggregate", "sample_mode"), default="sample_mode"
+    )
     parser.add_argument("--refine-radius", type=int, default=4)
     parser.add_argument("--fractional-refine-step", type=float, default=0.5)
     parser.add_argument(

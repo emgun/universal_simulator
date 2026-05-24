@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 from scripts.plan_transport_official_hydration import create_plan
 from scripts.validate_transport_hydration_plan import validate_plan
@@ -36,9 +36,9 @@ def test_validate_hydration_plan_accepts_train_only_plan(tmp_path):
 
 def test_validate_hydration_plan_rejects_test_sharding(tmp_path):
     plan = create_plan(plan_args(tmp_path))
-    plan["commands"]["build_light_train_val_shards"] = plan["commands"]["build_light_train_val_shards"].replace(
-        "--test-count 0", "--test-count 4"
-    )
+    plan["commands"]["build_light_train_val_shards"] = plan["commands"][
+        "build_light_train_val_shards"
+    ].replace("--test-count 0", "--test-count 4")
     path = _write_plan(tmp_path, plan)
 
     record = validate_plan(_args(path))
@@ -49,9 +49,9 @@ def test_validate_hydration_plan_rejects_test_sharding(tmp_path):
 
 def test_validate_hydration_plan_rejects_download_path_mismatch(tmp_path):
     plan = create_plan(plan_args(tmp_path))
-    plan["commands"]["download_official_train_files"][0] = (
-        "python scripts/download_pdebench_file.py '1D/Advection/Test/test.hdf5' --out data/pdebench/raw"
-    )
+    plan["commands"]["download_official_train_files"][
+        0
+    ] = "python scripts/download_pdebench_file.py '1D/Advection/Test/test.hdf5' --out data/pdebench/raw"
     path = _write_plan(tmp_path, plan)
 
     record = validate_plan(_args(path))
@@ -62,7 +62,9 @@ def test_validate_hydration_plan_rejects_download_path_mismatch(tmp_path):
 
 def test_validate_hydration_plan_rejects_final_achievement_audit_after_train_val_only(tmp_path):
     plan = create_plan(plan_args(tmp_path))
-    plan["commands"]["objective_audit_after_validation"] = "bash scripts/run_official_transport_objective_status.sh"
+    plan["commands"][
+        "objective_audit_after_validation"
+    ] = "bash scripts/run_official_transport_objective_status.sh"
     path = _write_plan(tmp_path, plan)
 
     record = validate_plan(_args(path))

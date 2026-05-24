@@ -4,6 +4,7 @@ import json
 
 from scripts.build_demo_report import _summary_paths as report_summary_paths
 from scripts.collect_light_results import _summary_paths as collect_summary_paths
+from ups.eval.demo_plots import write_scorecard_plots
 from ups.eval.demo_scorecard import (
     collect_scorecard,
     load_cost_index,
@@ -11,7 +12,6 @@ from ups.eval.demo_scorecard import (
     write_scorecard_json,
     write_scorecard_tsv,
 )
-from ups.eval.demo_plots import write_scorecard_plots
 
 
 def _write_summary(path, *, run_name: str, decoded_rollout_nrmse: float, step1: float = 0.5):

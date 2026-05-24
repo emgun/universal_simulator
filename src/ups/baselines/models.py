@@ -3,7 +3,6 @@ from __future__ import annotations
 """Simple latent-space baseline models used for benchmarking."""
 
 from dataclasses import dataclass
-from typing import Dict
 
 import torch
 from torch import nn
@@ -21,7 +20,7 @@ class IdentityBaseline(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-    def forward(self, z0: torch.Tensor, _: Dict[str, torch.Tensor] | None = None) -> torch.Tensor:
+    def forward(self, z0: torch.Tensor, _: dict[str, torch.Tensor] | None = None) -> torch.Tensor:
         return z0
 
 
@@ -33,7 +32,7 @@ class LinearBaseline(nn.Module):
         self.cfg = cfg
         self.linear = nn.Linear(cfg.latent_dim, cfg.latent_dim)
 
-    def forward(self, z0: torch.Tensor, _: Dict[str, torch.Tensor] | None = None) -> torch.Tensor:
+    def forward(self, z0: torch.Tensor, _: dict[str, torch.Tensor] | None = None) -> torch.Tensor:
         B, T, D = z0.shape
         return self.linear(z0.view(B * T, D)).view(B, T, D)
 
@@ -50,7 +49,7 @@ class MLPBaseline(nn.Module):
             nn.Linear(hidden, cfg.latent_dim),
         )
 
-    def forward(self, z0: torch.Tensor, _: Dict[str, torch.Tensor] | None = None) -> torch.Tensor:
+    def forward(self, z0: torch.Tensor, _: dict[str, torch.Tensor] | None = None) -> torch.Tensor:
         B, T, D = z0.shape
         return self.mlp(z0.view(B * T, D)).view(B, T, D)
 

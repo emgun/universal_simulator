@@ -2,7 +2,6 @@
 """Download checkpoints from W&B artifacts or run files."""
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -28,7 +27,7 @@ def download_from_artifact(artifact_path: str, dest_dir: Path, filename: str) ->
         pt_files = list(artifact_path_obj.rglob("*.pt"))
 
         if not pt_files:
-            print(f"  No .pt files found in artifact", file=sys.stderr)
+            print("  No .pt files found in artifact", file=sys.stderr)
             return False
 
         # Copy the first .pt file to the destination
@@ -39,6 +38,7 @@ def download_from_artifact(artifact_path: str, dest_dir: Path, filename: str) ->
         print(f"  Copying to: {dest_file}", file=sys.stderr)
 
         import shutil
+
         shutil.copy2(src_file, dest_file)
 
         # Cleanup temp dir
@@ -62,7 +62,7 @@ def download_from_run_files(run_path: str, dest_dir: Path, pattern: str, filenam
         # Find matching files
         matching_files = []
         for f in run.files():
-            if pattern in f.name and f.name.endswith('.pt'):
+            if pattern in f.name and f.name.endswith(".pt"):
                 matching_files.append(f)
 
         if not matching_files:
@@ -99,11 +99,26 @@ def main():
     parser.add_argument("--dest", default="checkpoints/scale", help="Destination directory")
     parser.add_argument("--entity", default="emgun-morpheus-space", help="W&B entity")
     parser.add_argument("--project", default="universal-simulator", help="W&B project")
-    parser.add_argument("--operator-artifact", help="Operator artifact path (e.g., run-xxx-history:v0)")
-    parser.add_argument("--diffusion-artifact", help="Diffusion artifact path (e.g., run-xxx-history:v0)")
-    parser.add_argument("--consistency-artifact", help="Consistency/distill artifact path (e.g., run-xxx-history:v0)")
-    parser.add_argument("--operator-run", default="pru2jxc4", help="Operator run ID (default: pru2jxc4 - 512dim quality)")
-    parser.add_argument("--diffusion-run", default="pp0c2k31", help="Diffusion run ID (default: pp0c2k31 - diffusion residual)")
+    parser.add_argument(
+        "--operator-artifact", help="Operator artifact path (e.g., run-xxx-history:v0)"
+    )
+    parser.add_argument(
+        "--diffusion-artifact", help="Diffusion artifact path (e.g., run-xxx-history:v0)"
+    )
+    parser.add_argument(
+        "--consistency-artifact",
+        help="Consistency/distill artifact path (e.g., run-xxx-history:v0)",
+    )
+    parser.add_argument(
+        "--operator-run",
+        default="pru2jxc4",
+        help="Operator run ID (default: pru2jxc4 - 512dim quality)",
+    )
+    parser.add_argument(
+        "--diffusion-run",
+        default="pp0c2k31",
+        help="Diffusion run ID (default: pp0c2k31 - diffusion residual)",
+    )
 
     args = parser.parse_args()
 

@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import h5py
 import numpy as np
@@ -27,7 +28,9 @@ def _load_series(path: Path, *, max_samples: int | None, rollout_steps: int) -> 
     if data.ndim == 4 and data.shape[-1] == 1:
         data = data[..., 0]
     if data.ndim != 3:
-        raise ValueError(f"Expected 1D shard shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
+        raise ValueError(
+            f"Expected 1D shard shaped (samples, steps, width[, 1]), got {tuple(data.shape)}"
+        )
     if data.shape[1] <= 1:
         raise ValueError("Need at least two time steps to diagnose transport shift")
     return data
@@ -100,7 +103,9 @@ def diagnose(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Diagnose transport-shift consistency across PDEBench splits")
+    parser = argparse.ArgumentParser(
+        description="Diagnose transport-shift consistency across PDEBench splits"
+    )
     parser.add_argument("--data-root", default="data/pdebench")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--splits", default="train,val,test")
@@ -108,7 +113,9 @@ def main() -> None:
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--top-k", type=int, default=5)
-    parser.add_argument("--output-json", default="reports/research/sota_loop/transport_shift_split_diagnostic.json")
+    parser.add_argument(
+        "--output-json", default="reports/research/sota_loop/transport_shift_split_diagnostic.json"
+    )
     args = parser.parse_args()
 
     record = diagnose(args)

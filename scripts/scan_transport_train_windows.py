@@ -36,7 +36,9 @@ def _load_window(path: Path, *, start: int, count: int, rollout_steps: int) -> t
     if data.dim() == 4 and data.shape[-1] == 1:
         data = data[..., 0]
     if data.dim() != 3:
-        raise ValueError(f"Expected 1D data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
+        raise ValueError(
+            f"Expected 1D data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}"
+        )
     return data
 
 
@@ -58,7 +60,9 @@ def scan_windows(args: argparse.Namespace) -> dict[str, Any]:
     for start in starts:
         if start + args.min_samples > total_samples:
             break
-        fields = _load_window(path, start=start, count=args.window_size, rollout_steps=args.rollout_steps)
+        fields = _load_window(
+            path, start=start, count=args.window_size, rollout_steps=args.rollout_steps
+        )
         scores = _candidate_scores(fields, shifts, rollout_steps=args.rollout_steps)
         best = _select_best(scores, args.metric)
         rows.append(
@@ -95,7 +99,9 @@ def scan_windows(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Scan transport-shift regimes across source-train windows")
+    parser = argparse.ArgumentParser(
+        description="Scan transport-shift regimes across source-train windows"
+    )
     parser.add_argument("--data-root", default="data/pdebench")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--split", default="train")
@@ -108,7 +114,9 @@ def main() -> None:
     parser.add_argument("--shift", action="append", type=int, default=None)
     parser.add_argument("--metric", choices=("mse", "nrmse"), default="nrmse")
     parser.add_argument("--top-k", type=int, default=3)
-    parser.add_argument("--output-json", default="reports/research/sota_loop/transport_train_window_scan.json")
+    parser.add_argument(
+        "--output-json", default="reports/research/sota_loop/transport_train_window_scan.json"
+    )
     args = parser.parse_args()
 
     record = scan_windows(args)

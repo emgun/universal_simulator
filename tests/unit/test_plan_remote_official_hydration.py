@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 from pathlib import Path
 
 from scripts.plan_remote_official_hydration import create_remote_plan
@@ -67,7 +67,10 @@ def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
     assert "GIT_REF=codex/sota-learned-gate" in record["commands"]["actual_launcher"]
     assert "LAUNCH_RETRIES=3" in record["commands"]["actual_launcher"]
     assert "LAUNCH_RETRY_BACKOFF=10.0" in record["commands"]["actual_launcher"]
-    assert "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh" in record["commands"]["actual_launcher"]
+    assert (
+        "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh"
+        in record["commands"]["actual_launcher"]
+    )
     assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
     assert "SEQUENTIAL_HYDRATION=1" in record["commands"]["actual_launcher"]
     assert "SEQUENTIAL_CLEANUP_RAW=1" in record["commands"]["actual_launcher"]

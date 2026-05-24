@@ -168,7 +168,12 @@ def test_train_joint_codec_operator_runs_with_saved_codec(tmp_path):
         "stages": {
             "operator": {"epochs": 1},
             "decoder": {"epochs": 1},
-            "joint_codec_operator": {"epochs": 1, "rollout_steps": 2, "lambda_rollout": 0.5, "lambda_reconstruction": 0.25},
+            "joint_codec_operator": {
+                "epochs": 1,
+                "rollout_steps": 2,
+                "lambda_rollout": 0.5,
+                "lambda_reconstruction": 0.25,
+            },
         },
         "optimizer": {"lr": 1e-3},
         "data": {
@@ -207,7 +212,12 @@ def test_train_joint_codec_operator_runs_with_multitask_variable_grid_batch(tmp_
         "stages": {
             "operator": {"epochs": 1},
             "decoder": {"epochs": 1},
-            "joint_codec_operator": {"epochs": 1, "rollout_steps": 2, "lambda_rollout": 0.5, "lambda_reconstruction": 0.25},
+            "joint_codec_operator": {
+                "epochs": 1,
+                "rollout_steps": 2,
+                "lambda_rollout": 0.5,
+                "lambda_reconstruction": 0.25,
+            },
         },
         "optimizer": {"lr": 1e-3},
         "data": {

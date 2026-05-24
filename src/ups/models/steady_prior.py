@@ -2,12 +2,11 @@ from __future__ import annotations
 
 """Steady-state latent prior via conditional diffusion flow."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional
 
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 from ups.core.latent_state import LatentState
 
@@ -33,22 +32,29 @@ class SteadyPrior(nn.Module):
             nn.Linear(cfg.hidden_dim, cfg.latent_dim),
         )
 
-    def forward(self, state: LatentState, cond: Optional[Mapping[str, torch.Tensor]] = None) -> LatentState:
+    def forward(
+        self, state: LatentState, cond: Mapping[str, torch.Tensor] | None = None
+    ) -> LatentState:
         z = state.z
         B, T, D = z.shape
         current = z.clone()
         for step in range(self.cfg.num_steps):
-            tau = torch.full((B, T, 1), step / max(self.cfg.num_steps - 1, 1), device=current.device)
+            tau = torch.full(
+                (B, T, 1), step / max(self.cfg.num_steps - 1, 1), device=current.device
+            )
             inputs = [current, tau]
             if cond:
-                cond_tensor = torch.cat([v.view(B, 1, -1).expand(B, T, -1) for v in cond.values()], dim=-1)
+                cond_tensor = torch.cat(
+                    [v.view(B, 1, -1).expand(B, T, -1) for v in cond.values()], dim=-1
+                )
                 inputs.append(cond_tensor)
             drift = self.drift(torch.cat(inputs, dim=-1))
             current = current + drift
         return LatentState(z=current, t=state.t, cond=state.cond)
 
 
-def steady_residual_norm(prior: SteadyPrior, state: LatentState, cond: Optional[Mapping[str, torch.Tensor]] = None) -> torch.Tensor:
+def steady_residual_norm(
+    prior: SteadyPrior, state: LatentState, cond: Mapping[str, torch.Tensor] | None = None
+) -> torch.Tensor:
     refined = prior(state, cond)
     return (refined.z - state.z).norm(dim=-1).mean()
-

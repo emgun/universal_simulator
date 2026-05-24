@@ -1,5 +1,3 @@
-import sys
-
 import torch
 from torch.utils.data import DataLoader
 
@@ -38,13 +36,16 @@ def test_latent_trainer_runs_one_step():
     latent_dim = 16
     operator_cfg = LatentOperatorConfig(
         latent_dim=latent_dim,
-        pdet=PDETransformerConfig(input_dim=latent_dim, hidden_dim=32, depths=(1, 1, 1), group_size=8, num_heads=2),
+        pdet=PDETransformerConfig(
+            input_dim=latent_dim, hidden_dim=32, depths=(1, 1, 1), group_size=8, num_heads=2
+        ),
     )
     operator = LatentOperator(operator_cfg)
     optimizer = torch.optim.Adam(operator.parameters(), lr=1e-3)
     dataloader = DataLoader(DummyDataset(), batch_size=None)
-    curriculum = CurriculumConfig(stages=[{}], rollout_lengths=[1], max_steps=2, grad_clip=0.5, ema_decay=0.99)
+    curriculum = CurriculumConfig(
+        stages=[{}], rollout_lengths=[1], max_steps=2, grad_clip=0.5, ema_decay=0.99
+    )
 
     trainer = LatentTrainer(operator, optimizer, dataloader, curriculum)
     trainer.train()
-

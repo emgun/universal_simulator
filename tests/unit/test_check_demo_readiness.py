@@ -86,4 +86,7 @@ records: []
     assert payload["ready"] is True
     assert payload["summaries"]["has_baseline"] is True
     assert payload["summaries"]["has_candidate"] is True
-    assert "Build reports/demo/light_latest with scripts/build_demo_report.py." in payload["next_steps"]
+    assert (
+        "Build reports/demo/light_latest with scripts/build_demo_report.py."
+        in payload["next_steps"]
+    )

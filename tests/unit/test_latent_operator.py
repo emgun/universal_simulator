@@ -1,5 +1,3 @@
-import sys
-
 import torch
 
 from ups.core.blocks_pdet import PDETransformerConfig
@@ -18,7 +16,9 @@ def make_operator(latent_dim: int = 32):
             group_size=16,
             num_heads=4,
         ),
-        conditioning=ConditioningConfig(latent_dim=latent_dim, hidden_dim=latent_dim, sources={"params": 4}),
+        conditioning=ConditioningConfig(
+            latent_dim=latent_dim, hidden_dim=latent_dim, sources={"params": 4}
+        ),
         time_embed_dim=latent_dim,
     )
     return LatentOperator(cfg)
@@ -26,7 +26,9 @@ def make_operator(latent_dim: int = 32):
 
 def test_latent_operator_forward_residual_addition():
     op = make_operator()
-    state = LatentState(z=torch.randn(3, 64, 32), t=torch.tensor(0.0), cond={"params": torch.randn(3, 4)})
+    state = LatentState(
+        z=torch.randn(3, 64, 32), t=torch.tensor(0.0), cond={"params": torch.randn(3, 4)}
+    )
     next_state = op(state, torch.tensor(0.25))
     assert isinstance(next_state, LatentState)
     assert next_state.z.shape == state.z.shape
@@ -35,7 +37,9 @@ def test_latent_operator_forward_residual_addition():
 
 def test_latent_operator_gradients():
     op = make_operator(latent_dim=16)
-    state = LatentState(z=torch.randn(2, 40, 16, requires_grad=True), cond={"params": torch.randn(2, 4)})
+    state = LatentState(
+        z=torch.randn(2, 40, 16, requires_grad=True), cond={"params": torch.randn(2, 4)}
+    )
     residual = op.step(state, torch.tensor(0.1))
     assert residual.shape == state.z.shape
     loss = residual.pow(2).mean()

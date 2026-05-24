@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from argparse import Namespace
 import json
+from argparse import Namespace
 
 import h5py
 import numpy as np
@@ -10,7 +10,9 @@ import pytest
 from scripts.run_observed_transport_shift_gate import run_gate
 
 
-def _write_split(root, *, split: str, shift: int, samples: int = 2, steps: int = 5, width: int = 8) -> None:
+def _write_split(
+    root, *, split: str, shift: int, samples: int = 2, steps: int = 5, width: int = 8
+) -> None:
     path = root / f"advection1d_{split}.h5"
     base = np.zeros((samples, width), dtype=np.float32)
     base[:, 1] = 1.0

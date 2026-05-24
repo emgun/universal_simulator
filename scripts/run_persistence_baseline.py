@@ -9,8 +9,9 @@ import csv
 import json
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, Sequence
+from typing import Any
 
 import yaml
 
@@ -29,7 +30,7 @@ def _parse_override(text: str) -> tuple[str, Any]:
     return key.strip(), yaml.safe_load(raw)
 
 
-def _set_dotpath(cfg: Dict[str, Any], path: str, value: Any) -> None:
+def _set_dotpath(cfg: dict[str, Any], path: str, value: Any) -> None:
     cursor = cfg
     parts = [part for part in path.split(".") if part]
     if not parts:
@@ -41,7 +42,7 @@ def _set_dotpath(cfg: Dict[str, Any], path: str, value: Any) -> None:
     cursor[parts[-1]] = value
 
 
-def _apply_overrides(cfg: Dict[str, Any], overrides: Sequence[str]) -> Dict[str, Any]:
+def _apply_overrides(cfg: dict[str, Any], overrides: Sequence[str]) -> dict[str, Any]:
     updated = copy.deepcopy(cfg)
     for text in overrides:
         key, value = _parse_override(text)
@@ -49,7 +50,7 @@ def _apply_overrides(cfg: Dict[str, Any], overrides: Sequence[str]) -> Dict[str,
     return updated
 
 
-def _main_metric(metrics: Dict[str, float]) -> tuple[str, float]:
+def _main_metric(metrics: dict[str, float]) -> tuple[str, float]:
     for key in ("decoded_rollout_nrmse", "decoded_step1_nrmse", "mse"):
         if key in metrics:
             return key, float(metrics[key])
@@ -57,7 +58,7 @@ def _main_metric(metrics: Dict[str, float]) -> tuple[str, float]:
     return first_key, float(metrics[first_key])
 
 
-def _append_results_row(path: Path, row: Dict[str, Any]) -> None:
+def _append_results_row(path: Path, row: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "run_name",
@@ -72,7 +73,7 @@ def _append_results_row(path: Path, row: Dict[str, Any]) -> None:
         "main_metric_value",
         "summary_json",
     ]
-    row_map: Dict[str, Dict[str, Any]] = {}
+    row_map: dict[str, dict[str, Any]] = {}
     if path.exists():
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle, delimiter="\t")
@@ -92,10 +93,14 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     parser.add_argument("--name", required=True)
     parser.add_argument("--output-root", default="reports/light_experiments")
-    parser.add_argument("--override", action="append", default=[], help="Config override like data.root=...")
+    parser.add_argument(
+        "--override", action="append", default=[], help="Config override like data.root=..."
+    )
     parser.add_argument("--data-root", help="Override data.root")
     parser.add_argument("--split", help="Override data.split")
-    parser.add_argument("--task", action="append", default=[], help="Override data.task; repeat for multitask")
+    parser.add_argument(
+        "--task", action="append", default=[], help="Override data.task; repeat for multitask"
+    )
     parser.add_argument("--max-samples", type=int, help="Override data.max_samples")
     parser.add_argument("--rollout-steps", type=int, default=None)
     parser.add_argument("--promotion-rule", action="append", default=[])
@@ -161,9 +166,13 @@ def main() -> None:
             "summary_json": str(summary_path),
         },
     )
-    print(json.dumps({"summary": str(summary_path), "main_metric": {main_metric_name: main_metric_value}}, indent=2))
+    print(
+        json.dumps(
+            {"summary": str(summary_path), "main_metric": {main_metric_name: main_metric_value}},
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
     main()
-

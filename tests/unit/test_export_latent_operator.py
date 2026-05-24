@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
+import pytest
 import torch
 import yaml
 
-from export import export_latent_operator as export_mod
+export_mod = pytest.importorskip("export.export_latent_operator")
 
 
 def test_export_torchscript(tmp_path):

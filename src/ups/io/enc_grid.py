@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Dict, Iterable, Mapping, Optional, Tuple
 
 import torch
 from torch import nn
@@ -14,9 +14,9 @@ class GridEncoderConfig:
     latent_dim: int
     field_channels: Mapping[str, int]
     patch_size: int = 4
-    stem_width: Optional[int] = None
+    stem_width: int | None = None
     use_fourier_features: bool = True
-    fourier_frequencies: Tuple[float, ...] = (1.0, 2.0)
+    fourier_frequencies: tuple[float, ...] = (1.0, 2.0)
 
 
 class GridEncoder(nn.Module):
@@ -80,13 +80,13 @@ class GridEncoder(nn.Module):
 
     def forward(
         self,
-        fields: Dict[str, torch.Tensor],
+        fields: dict[str, torch.Tensor],
         coords: torch.Tensor,
         *,
-        params: Optional[Mapping[str, torch.Tensor]] = None,
-        bc: Optional[Mapping[str, torch.Tensor]] = None,
-        geom: Optional[Mapping[str, torch.Tensor]] = None,
-        meta: Optional[Mapping[str, object]] = None,
+        params: Mapping[str, torch.Tensor] | None = None,
+        bc: Mapping[str, torch.Tensor] | None = None,
+        geom: Mapping[str, torch.Tensor] | None = None,
+        meta: Mapping[str, object] | None = None,
     ) -> torch.Tensor:
         grid_shape = self._infer_grid_shape(meta)
         H, W = grid_shape
@@ -100,7 +100,9 @@ class GridEncoder(nn.Module):
             latent = self._adaptive_token_pool(latent, self.cfg.latent_len)
         return latent
 
-    def reconstruct(self, latent: torch.Tensor, meta: Mapping[str, object]) -> Dict[str, torch.Tensor]:
+    def reconstruct(
+        self, latent: torch.Tensor, meta: Mapping[str, object]
+    ) -> dict[str, torch.Tensor]:
         grid_shape = self._infer_grid_shape(meta)
         H, W = grid_shape
         Hp = H // self.patch
@@ -117,7 +119,7 @@ class GridEncoder(nn.Module):
             latent.shape[0], self._patch_channel_total, Hp, Wp
         )
 
-        outputs: Dict[str, torch.Tensor] = {}
+        outputs: dict[str, torch.Tensor] = {}
         channel_cursor = 0
         for name in self.field_order:
             ch = self.field_channels[name] * self.patch * self.patch
@@ -132,10 +134,10 @@ class GridEncoder(nn.Module):
 
     def _encode_fields(
         self,
-        fields: Dict[str, torch.Tensor],
+        fields: dict[str, torch.Tensor],
         coords: torch.Tensor,
-        grid_shape: Tuple[int, int],
-    ) -> Tuple[int, torch.Tensor]:
+        grid_shape: tuple[int, int],
+    ) -> tuple[int, torch.Tensor]:
         H, W = grid_shape
         processed = []
         B = None
@@ -150,7 +152,7 @@ class GridEncoder(nn.Module):
             batch, N, C = tensor.shape
             if N != H * W or C != self.field_channels[name]:
                 raise ValueError(
-                    f"Field '{name}' expected shape (B, {H*W}, {self.field_channels[name]}), "
+                    f"Field '{name}' expected shape (B, {H * W}, {self.field_channels[name]}), "
                     f"got {tensor.shape}"
                 )
             if B is None:
@@ -175,7 +177,7 @@ class GridEncoder(nn.Module):
         return tokens, encoded
 
     def _fourier_features(
-        self, coords: torch.Tensor, grid_shape: Tuple[int, int], batch: int
+        self, coords: torch.Tensor, grid_shape: tuple[int, int], batch: int
     ) -> torch.Tensor:
         H, W = grid_shape
         if coords.dim() == 2:
@@ -198,7 +200,7 @@ class GridEncoder(nn.Module):
         return pooled.transpose(1, 2)
 
     @staticmethod
-    def _infer_grid_shape(meta: Optional[Mapping[str, object]]) -> Tuple[int, int]:
+    def _infer_grid_shape(meta: Mapping[str, object] | None) -> tuple[int, int]:
         if meta is None or "grid_shape" not in meta:
             raise ValueError("GridEncoder requires meta['grid_shape'] to reshape fields")
         grid_shape = meta["grid_shape"]

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Adaptive Layer Normalisation (AdaLN) conditioning utilities."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional
 
 import torch
 from torch import nn
@@ -17,7 +17,9 @@ class ConditioningConfig:
 
     def __post_init__(self) -> None:
         if self.sources is None or len(self.sources) == 0:
-            raise ValueError("ConditioningConfig.sources must map at least one key to an input dimension")
+            raise ValueError(
+                "ConditioningConfig.sources must map at least one key to an input dimension"
+            )
 
 
 class AdaLNConditioner(nn.Module):
@@ -43,7 +45,9 @@ class AdaLNConditioner(nn.Module):
             nn.init.zeros_(out_proj.bias)
             self.embedders[name] = embed
             self.output_projs[name] = out_proj
-            self.set_poolers[name] = nn.MultiheadAttention(cfg.hidden_dim, num_heads=1, batch_first=True)
+            self.set_poolers[name] = nn.MultiheadAttention(
+                cfg.hidden_dim, num_heads=1, batch_first=True
+            )
             self.set_queries[name] = nn.Parameter(torch.zeros(1, 1, cfg.hidden_dim))
 
         self.register_buffer("_dummy", torch.zeros(1), persistent=False)
@@ -51,7 +55,7 @@ class AdaLNConditioner(nn.Module):
     def forward(self, cond: Mapping[str, torch.Tensor]) -> Mapping[str, torch.Tensor]:
         if not cond:
             cond = {}
-        total: Optional[torch.Tensor] = None
+        total: torch.Tensor | None = None
         batch = None
         for name, embed in self.embedders.items():
             if name not in cond:
@@ -60,7 +64,9 @@ class AdaLNConditioner(nn.Module):
             if tensor.dim() == 1:
                 tensor = tensor.unsqueeze(0)
             if tensor.dim() not in (2, 3):
-                raise ValueError(f"Condition tensor for '{name}' must have shape (batch, features) or (batch, nodes, features)")
+                raise ValueError(
+                    f"Condition tensor for '{name}' must have shape (batch, features) or (batch, nodes, features)"
+                )
             if tensor.size(-1) != embed[0].in_features:
                 raise ValueError(
                     f"Condition tensor for '{name}' expected last dim {embed[0].in_features}, got {tensor.size(-1)}"
@@ -72,7 +78,9 @@ class AdaLNConditioner(nn.Module):
                 flat = tensor.reshape(-1, tensor.size(-1))
                 node_hidden = embed(flat).view(batch, tensor.size(1), -1)
                 query = self.set_queries[name].expand(batch, -1, -1)
-                pooled, _ = self.set_poolers[name](query, node_hidden, node_hidden, need_weights=False)
+                pooled, _ = self.set_poolers[name](
+                    query, node_hidden, node_hidden, need_weights=False
+                )
                 contrib = self.output_projs[name](pooled.squeeze(1))
             total = contrib if total is None else total + contrib
 

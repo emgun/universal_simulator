@@ -66,7 +66,9 @@ def _is_transient_vast_cli_failure(stdout: str, stderr: str) -> bool:
     return any(marker in combined for marker in transient_markers)
 
 
-def preflight_vast_dns(host: str = VAST_API_HOST, *, retries: int = 0, retry_backoff: float = 5.0) -> bool:
+def preflight_vast_dns(
+    host: str = VAST_API_HOST, *, retries: int = 0, retry_backoff: float = 5.0
+) -> bool:
     attempts = max(1, int(retries) + 1)
     last_error: OSError | None = None
     for attempt in range(1, attempts + 1):

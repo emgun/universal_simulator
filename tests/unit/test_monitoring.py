@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from ups.utils import monitoring
 from ups.utils.monitoring import init_monitoring_session

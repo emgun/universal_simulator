@@ -2,9 +2,10 @@ from __future__ import annotations
 
 """Promotion-rule utilities for gating benchmark candidates."""
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fnmatch import fnmatch
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -41,9 +42,13 @@ def parse_promotion_rule(text: str) -> PromotionRule:
                         reducer = candidate
                         metric = metric[len(prefix) :].strip()
                         break
-                return PromotionRule(metric=metric, operator=operator, threshold=float(threshold), reducer=reducer)
+                return PromotionRule(
+                    metric=metric, operator=operator, threshold=float(threshold), reducer=reducer
+                )
             break
-    raise ValueError(f"Invalid promotion rule '{text}'. Expected forms like decoded_rollout_nrmse<=0.2")
+    raise ValueError(
+        f"Invalid promotion rule '{text}'. Expected forms like decoded_rollout_nrmse<=0.2"
+    )
 
 
 def promotion_rules_from_config(cfg: Mapping[str, Any]) -> list[PromotionRule]:
@@ -79,7 +84,9 @@ def _reduce_metric_values(values: Sequence[float], reducer: str) -> float:
     raise ValueError(f"Unsupported promotion reducer '{reducer}'")
 
 
-def _resolve_rule_values(metrics: Mapping[str, float], rule: PromotionRule) -> tuple[list[str], list[float]]:
+def _resolve_rule_values(
+    metrics: Mapping[str, float], rule: PromotionRule
+) -> tuple[list[str], list[float]]:
     if any(ch in rule.metric for ch in "*?[]"):
         keys = sorted(key for key in metrics if fnmatch(key, rule.metric))
     else:
@@ -88,14 +95,18 @@ def _resolve_rule_values(metrics: Mapping[str, float], rule: PromotionRule) -> t
     return keys, values
 
 
-def evaluate_promotion_rules(metrics: Mapping[str, float], rules: Sequence[PromotionRule]) -> PromotionResult:
+def evaluate_promotion_rules(
+    metrics: Mapping[str, float], rules: Sequence[PromotionRule]
+) -> PromotionResult:
     failed_rules: list[str] = []
     missing_metrics: list[str] = []
 
     for rule in rules:
         matched_keys, values = _resolve_rule_values(metrics, rule)
         if not values:
-            missing_metrics.append(rule.metric if rule.reducer == "value" else f"{rule.reducer}:{rule.metric}")
+            missing_metrics.append(
+                rule.metric if rule.reducer == "value" else f"{rule.reducer}:{rule.metric}"
+            )
             failed_rules.append(rule.describe())
             continue
         value = _reduce_metric_values(values, rule.reducer)

@@ -7,8 +7,9 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -49,7 +50,9 @@ def _read_metrics(summary_path: Path) -> dict[str, float]:
     metrics = summary.get("metrics", {})
     if not isinstance(metrics, Mapping):
         return {}
-    return {str(key): float(value) for key, value in metrics.items() if isinstance(value, (int, float))}
+    return {
+        str(key): float(value) for key, value in metrics.items() if isinstance(value, (int, float))
+    }
 
 
 def _run_light_eval(
@@ -107,7 +110,9 @@ def _run_light_eval(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Calibrate decoded periodic roll-shift correction on validation data")
+    parser = argparse.ArgumentParser(
+        description="Calibrate decoded periodic roll-shift correction on validation data"
+    )
     parser.add_argument("--config", default="configs/train_multitask_heterogeneous_light_best.yaml")
     parser.add_argument("--checkpoint-source", required=True)
     parser.add_argument("--data-root", default="data/pdebench")
@@ -117,15 +122,25 @@ def main() -> None:
     parser.add_argument("--kind", choices=("family", "task"), default="task")
     parser.add_argument("--key", default="advection1d")
     parser.add_argument("--default-alpha", type=float, default=0.0)
-    parser.add_argument("--shift", action="append", type=int, default=None, help="Candidate shift; repeatable")
-    parser.add_argument("--schedule-by-horizon", action="store_true", help="Select a validation-best shift per rollout horizon")
+    parser.add_argument(
+        "--shift", action="append", type=int, default=None, help="Candidate shift; repeatable"
+    )
+    parser.add_argument(
+        "--schedule-by-horizon",
+        action="store_true",
+        help="Select a validation-best shift per rollout horizon",
+    )
     parser.add_argument(
         "--schedule-min-relative-improvement",
         type=float,
         default=0.01,
         help="Minimum aggregate validation improvement required to select a horizon schedule over the best constant shift",
     )
-    parser.add_argument("--reuse-existing", action="store_true", help="Reuse existing run summary files instead of rerunning them")
+    parser.add_argument(
+        "--reuse-existing",
+        action="store_true",
+        help="Reuse existing run summary files instead of rerunning them",
+    )
     parser.add_argument("--val-split", default="val")
     parser.add_argument("--test-split", default="test")
     parser.add_argument("--skip-test", action="store_true")
@@ -140,7 +155,10 @@ def main() -> None:
     parser.add_argument("--eval-override", action="append", default=[])
     parser.add_argument("--promotion-rule", action="append", default=["decoded_rollout_nrmse<=1.0"])
     parser.add_argument("--output-json", help="Calibration record path; defaults under output root")
-    parser.add_argument("--export-selected-shift-config", help="Optional JSON path for frozen selected override payload")
+    parser.add_argument(
+        "--export-selected-shift-config",
+        help="Optional JSON path for frozen selected override payload",
+    )
     args = parser.parse_args()
 
     shifts = _candidate_shifts(args.shift)
@@ -170,7 +188,9 @@ def main() -> None:
     schedule: dict[int, int] | None = None
     schedule_selections: list[dict[str, Any]] | None = None
     if args.schedule_by_horizon:
-        schedule, schedule_selections = _select_horizon_schedule(rows, kind=args.kind, key=args.key, mode=args.mode)
+        schedule, schedule_selections = _select_horizon_schedule(
+            rows, kind=args.kind, key=args.key, mode=args.mode
+        )
 
     record: dict[str, Any] = {
         "config": args.config,
@@ -218,7 +238,8 @@ def main() -> None:
     use_schedule = (
         schedule is not None
         and validation_schedule is not None
-        and float(record.get("schedule_relative_improvement", 0.0)) >= args.schedule_min_relative_improvement
+        and float(record.get("schedule_relative_improvement", 0.0))
+        >= args.schedule_min_relative_improvement
     )
     if use_schedule:
         selected_override = _schedule_override(args.kind, args.key, schedule)
@@ -247,13 +268,17 @@ def main() -> None:
     if args.skip_test:
         record["test_skipped"] = {"reason": "--skip-test"}
     elif not record["selected_validation_shift"]["test_guard"]["passed"]:
-        record["test_skipped"] = {"reason": "selected validation shift did not pass held-out test guard"}
+        record["test_skipped"] = {
+            "reason": "selected validation shift did not pass held-out test guard"
+        }
     else:
         if use_schedule:
             test_name = f"{args.run_prefix}_horizon_schedule_{args.test_split}"
             test_shift: int | dict[str, int] = record["selected_validation_shift"]["schedule"]
         else:
-            test_name = f"{args.run_prefix}_shift_{_safe_shift(int(best['shift']))}_{args.test_split}"
+            test_name = (
+                f"{args.run_prefix}_shift_{_safe_shift(int(best['shift']))}_{args.test_split}"
+            )
             test_shift = int(best["shift"])
         test_summary = _run_light_eval(
             args=args,
@@ -272,7 +297,11 @@ def main() -> None:
             "metrics": test_metrics,
         }
 
-    output_path = Path(args.output_json) if args.output_json else Path(args.output_root) / f"{args.run_prefix}_calibration.json"
+    output_path = (
+        Path(args.output_json)
+        if args.output_json
+        else Path(args.output_root) / f"{args.run_prefix}_calibration.json"
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
     if args.export_selected_shift_config:
@@ -323,7 +352,10 @@ def _select_horizon_schedule(
     if not candidates:
         raise ValueError(f"No horizon metrics found for {kind} '{key}'")
     reverse = mode == "max"
-    selections = [sorted(rows, key=lambda row: row["value"], reverse=reverse)[0] for _, rows in sorted(candidates.items())]
+    selections = [
+        sorted(rows, key=lambda row: row["value"], reverse=reverse)[0]
+        for _, rows in sorted(candidates.items())
+    ]
     return {int(row["horizon"]): int(row["shift"]) for row in selections}, selections
 
 

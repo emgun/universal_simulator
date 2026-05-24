@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import h5py
 import numpy as np
@@ -76,7 +77,9 @@ def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.
             offset = 0
 
     if remaining > 0:
-        raise ValueError(f"Requested {count} samples from offset {start}, but source files ran short by {remaining}")
+        raise ValueError(
+            f"Requested {count} samples from offset {start}, but source files ran short by {remaining}"
+        )
 
     merged = {key: np.concatenate(values, axis=0) for key, values in chunks.items()}
     for key, values in attrs.items():
@@ -106,7 +109,11 @@ def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.nda
             if "data" not in handle:
                 raise KeyError(f"{path} does not contain a 'data' dataset")
             total = int(handle["data"].shape[0])
-            local_rows = [(index - base, position) for index, position in remaining if base <= index < base + total]
+            local_rows = [
+                (index - base, position)
+                for index, position in remaining
+                if base <= index < base + total
+            ]
             if local_rows:
                 keys = _dataset_keys(handle, total)
                 local_indices = [row for row, _ in local_rows]
@@ -118,7 +125,9 @@ def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.nda
                     attrs.setdefault(key, dict(dataset.attrs.items()))
                     for source_row, target_position in enumerate(order_positions):
                         slots[target_position] = selected[source_row : source_row + 1]
-            remaining = [(index, position) for index, position in remaining if index >= base + total]
+            remaining = [
+                (index, position) for index, position in remaining if index >= base + total
+            ]
             base += total
 
     if remaining:
@@ -161,9 +170,7 @@ def _stratified_indices(*, block_size: int, block_count: int, offset: int, count
     if remainder:
         # This helper is intentionally strict because the official Advection path
         # uses equal per-beta blocks; partial final blocks would silently skew beta mix.
-        raise ValueError(
-            f"Stratified count {count} is not divisible by block count {block_count}"
-        )
+        raise ValueError(f"Stratified count {count} is not divisible by block count {block_count}")
     if per_block <= 0 or offset + per_block > block_size:
         raise ValueError(
             f"Cannot take {count} rows with offset {offset} from block size {block_size}"
@@ -179,7 +186,11 @@ def _write_h5(path: Path, arrays: dict[str, np.ndarray], *, overwrite: bool) -> 
     if path.exists() and not overwrite:
         raise FileExistsError(f"{path} already exists; pass --overwrite to replace it")
     path.parent.mkdir(parents=True, exist_ok=True)
-    attrs = {key.removeprefix("__attrs__:"): value for key, value in arrays.items() if key.startswith("__attrs__:")}
+    attrs = {
+        key.removeprefix("__attrs__:"): value
+        for key, value in arrays.items()
+        if key.startswith("__attrs__:")
+    }
     file_attrs = arrays.get("__file_attrs__", {})
     with h5py.File(path, "w") as handle:
         for attr_key, attr_value in file_attrs.items():  # type: ignore[union-attr]
@@ -309,7 +320,9 @@ def build_task_shard_records(
         out_path = out_root / f"{task}_{split}.h5"
         _write_h5(out_path, arrays, overwrite=overwrite)
         summary = _h5_summary(out_path)
-        remote_key = f"{remote_prefix.rstrip('/')}/{task}/{out_path.name}" if remote_prefix else None
+        remote_key = (
+            f"{remote_prefix.rstrip('/')}/{task}/{out_path.name}" if remote_prefix else None
+        )
         records.append(
             {
                 "task": task,
@@ -319,7 +332,9 @@ def build_task_shard_records(
                 "derived_from_source_split": resolved_source != split,
                 "source_paths": [str(path) for path in paths],
                 "start_index": cursor,
-                "stratified_block_size": split_block_size if stratified_offset is not None else None,
+                "stratified_block_size": (
+                    split_block_size if stratified_offset is not None else None
+                ),
                 "stratified_block_offset": stratified_offset,
                 "stratified_indices": selected_indices,
                 "sample_count": summary["sample_count"],
@@ -372,11 +387,23 @@ def build_task_shards(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create small HDF5 train/val/test shards for cheap UPS experiments")
-    parser.add_argument("--root", default="data/pdebench", help="Directory containing source <task>_<split>.h5 files")
-    parser.add_argument("--out-root", default="data/pdebench_light", help="Directory to write small shards")
-    parser.add_argument("--tasks", nargs="+", required=True, help="Task names, e.g. burgers1d advection1d darcy2d")
-    parser.add_argument("--source-split", default="train", help="Source split to slice, default train")
+    parser = argparse.ArgumentParser(
+        description="Create small HDF5 train/val/test shards for cheap UPS experiments"
+    )
+    parser.add_argument(
+        "--root",
+        default="data/pdebench",
+        help="Directory containing source <task>_<split>.h5 files",
+    )
+    parser.add_argument(
+        "--out-root", default="data/pdebench_light", help="Directory to write small shards"
+    )
+    parser.add_argument(
+        "--tasks", nargs="+", required=True, help="Task names, e.g. burgers1d advection1d darcy2d"
+    )
+    parser.add_argument(
+        "--source-split", default="train", help="Source split to slice, default train"
+    )
     parser.add_argument(
         "--split-source",
         action="append",
@@ -400,14 +427,20 @@ def main() -> None:
         default=[],
         help="Optional stratified split offset like val=32. Requires --split-block-size.",
     )
-    parser.add_argument("--fallback-source-split", default="train", help="Fallback source split when native split is missing")
+    parser.add_argument(
+        "--fallback-source-split",
+        default="train",
+        help="Fallback source split when native split is missing",
+    )
     parser.add_argument("--train-count", type=int, default=16)
     parser.add_argument("--val-count", type=int, default=8)
     parser.add_argument("--test-count", type=int, default=8)
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--manifest", help="Optional YAML manifest path to write")
     parser.add_argument("--version", default="light-local", help="Manifest/data version label")
-    parser.add_argument("--remote-prefix", help="Optional remote key prefix to record for each output")
+    parser.add_argument(
+        "--remote-prefix", help="Optional remote key prefix to record for each output"
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -450,7 +483,10 @@ def main() -> None:
             "remote_prefix": args.remote_prefix,
             "tasks": [str(task) for task in args.tasks],
             "splits": {
-                "train": {"samples": args.train_count, "preferred_source_split": split_sources.get("train", args.source_split)},
+                "train": {
+                    "samples": args.train_count,
+                    "preferred_source_split": split_sources.get("train", args.source_split),
+                },
                 "val": {
                     "samples": args.val_count,
                     "preferred_source_split": split_sources.get("val", "val"),

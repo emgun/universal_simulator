@@ -33,4 +33,3 @@ def test_roundtrip_error():
     assert dp < 1e-6
     assert dRe < 1e-9
     assert dnu < 1e-12
-

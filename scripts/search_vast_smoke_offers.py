@@ -9,7 +9,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_FILTERS = [
     "gpu_name=RTX_4090",
     "num_gpus=1",
@@ -77,12 +76,16 @@ def write_tsv(rows: list[dict[str, Any]], path: Path) -> None:
     ]
     lines = ["\t".join(fields)]
     for row in rows:
-        lines.append("\t".join("" if row.get(field) is None else str(row.get(field)) for field in fields))
+        lines.append(
+            "\t".join("" if row.get(field) is None else str(row.get(field)) for field in fields)
+        )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Summarize cheap Vast offers for smoke pipeline runs")
+    parser = argparse.ArgumentParser(
+        description="Summarize cheap Vast offers for smoke pipeline runs"
+    )
     parser.add_argument("filters", nargs="*", default=DEFAULT_FILTERS, help="Vast search filters")
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--output-json", default="reports/demo/vast_smoke_offers.json")
@@ -94,7 +97,9 @@ def main() -> None:
     output_json = Path(args.output_json)
     output_tsv = Path(args.output_tsv)
     output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps({"filters": filters, "offers": rows}, indent=2, sort_keys=True), encoding="utf-8")
+    output_json.write_text(
+        json.dumps({"filters": filters, "offers": rows}, indent=2, sort_keys=True), encoding="utf-8"
+    )
     write_tsv(rows, output_tsv)
     print(output_json)
     print(output_tsv)

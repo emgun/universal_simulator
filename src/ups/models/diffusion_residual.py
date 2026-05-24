@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Few-step diffusion residual corrector for latent trajectories."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional
 
 import torch
 from torch import nn
@@ -37,19 +37,20 @@ class DiffusionResidual(nn.Module):
         state: LatentState,
         tau: torch.Tensor,
         *,
-        cond: Optional[Mapping[str, torch.Tensor]] = None,
-        decoded_residual: Optional[torch.Tensor] = None,
+        cond: Mapping[str, torch.Tensor] | None = None,
+        decoded_residual: torch.Tensor | None = None,
     ) -> torch.Tensor:
         z = state.z
         B, T, D = z.shape
         tau = tau.view(B, 1, 1).expand(B, T, 1)
         inputs = [z, tau]
         if cond and len(cond) > 0:
-            cond_tensor = torch.cat([v.view(B, 1, -1).expand(B, T, -1) for v in cond.values()], dim=-1)
+            cond_tensor = torch.cat(
+                [v.view(B, 1, -1).expand(B, T, -1) for v in cond.values()], dim=-1
+            )
             inputs.append(cond_tensor)
         model_in = torch.cat(inputs, dim=-1)
         drift = self.network(model_in)
         if decoded_residual is not None:
             drift = drift + self.cfg.residual_guidance_weight * decoded_residual
         return drift
-

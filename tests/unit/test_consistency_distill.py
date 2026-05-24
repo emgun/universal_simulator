@@ -29,4 +29,3 @@ def test_distillation_loss_normalization_toggle():
     loss_norm = distillation_loss(teacher, student, state, cfg_norm)
     loss_no_norm = distillation_loss(teacher, student, state, cfg_no_norm)
     assert loss_no_norm > loss_norm
-

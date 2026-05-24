@@ -47,7 +47,9 @@ def expected_keys_from_manifest(path: Path) -> list[str]:
         raise ValueError("Manifest must define remote_prefix or records[].remote_key")
     tasks = [str(task) for task in manifest.get("tasks", [])]
     splits_cfg = manifest.get("splits", {})
-    splits = [split for split, cfg in splits_cfg.items() if int((cfg or {}).get("samples", 0) or 0) > 0]
+    splits = [
+        split for split, cfg in splits_cfg.items() if int((cfg or {}).get("samples", 0) or 0) > 0
+    ]
     if not tasks or not splits:
         raise ValueError("Manifest must define tasks and non-empty splits")
     keys = []
@@ -59,7 +61,10 @@ def expected_keys_from_manifest(path: Path) -> list[str]:
 
 def configure_rclone_env(values: dict[str, str]) -> tuple[dict[str, str], str]:
     env = os.environ.copy()
-    merged = {**values, **{key: value for key, value in os.environ.items() if key.startswith("B2_")}}
+    merged = {
+        **values,
+        **{key: value for key, value in os.environ.items() if key.startswith("B2_")},
+    }
     bucket = merged.get("B2_BUCKET") or merged.get("B2_BUCKET_NAME")
     if not bucket:
         raise ValueError("B2_BUCKET must be set in env or --env-file")
@@ -84,7 +89,9 @@ def configure_rclone_env(values: dict[str, str]) -> tuple[dict[str, str], str]:
     return env, bucket
 
 
-def check_keys(keys: list[str], *, bucket: str, env: dict[str, str], dry_run: bool) -> dict[str, Any]:
+def check_keys(
+    keys: list[str], *, bucket: str, env: dict[str, str], dry_run: bool
+) -> dict[str, Any]:
     present: list[str] = []
     missing: list[str] = []
     for key in keys:
@@ -123,7 +130,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Check demo B2 shard availability")
     parser.add_argument("--manifest", default="docs/demo_data_manifest.yaml")
     parser.add_argument("--env-file", default=os.environ.get("ENV_FILE", ".env"))
-    parser.add_argument("--dry-run", action="store_true", help="Print expected keys without contacting B2")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print expected keys without contacting B2"
+    )
     parser.add_argument("--json", default=None, help="Optional output JSON path")
     args = parser.parse_args()
 

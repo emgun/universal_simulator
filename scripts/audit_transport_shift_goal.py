@@ -6,11 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import h5py
-
 
 REQUIREMENTS = (
     "real_light_v1_train_val_accessed",
@@ -78,7 +78,9 @@ def _inspect_hdf5_split(path: Path) -> dict[str, Any]:
         sample_aligned = [
             key
             for key, value in datasets.items()
-            if key != "data" and datasets.get("data") and value["shape"][:1] == datasets["data"]["shape"][:1]
+            if key != "data"
+            and datasets.get("data")
+            and value["shape"][:1] == datasets["data"]["shape"][:1]
         ]
         return {
             "path": str(path),
@@ -88,9 +90,8 @@ def _inspect_hdf5_split(path: Path) -> dict[str, Any]:
             "file_attrs": _json_safe_attrs(handle.attrs),
             "datasets": datasets,
             "sample_aligned_auxiliary_datasets": sample_aligned,
-            "has_parameter_metadata": bool(handle.attrs) or any(
-                key != "data" or bool(value["attrs"]) for key, value in datasets.items()
-            ),
+            "has_parameter_metadata": bool(handle.attrs)
+            or any(key != "data" or bool(value["attrs"]) for key, value in datasets.items()),
         }
 
 
@@ -108,7 +109,9 @@ def _inspect_data_schema(data_root: str, task: str, splits: list[str]) -> dict[s
         "task": task,
         "splits": split_records,
         "parameter_metadata_available": any(
-            bool(record.get("has_parameter_metadata")) for record in split_records.values() if record.get("exists")
+            bool(record.get("has_parameter_metadata"))
+            for record in split_records.values()
+            if record.get("exists")
         ),
     }
 
@@ -133,12 +136,16 @@ def _parse_expected_hashes(values: list[str] | None) -> dict[str, str]:
         split = split.strip()
         sha256 = sha256.strip().lower()
         if not split or len(sha256) != 64:
-            raise ValueError(f"Invalid --expected-data-sha256 '{item}'. Expected SPLIT=64_HEX_CHARS")
+            raise ValueError(
+                f"Invalid --expected-data-sha256 '{item}'. Expected SPLIT=64_HEX_CHARS"
+            )
         expected[split] = sha256
     return expected
 
 
-def _data_identity_mismatches(data_schema: Mapping[str, Any], expected_hashes: Mapping[str, str]) -> list[str]:
+def _data_identity_mismatches(
+    data_schema: Mapping[str, Any], expected_hashes: Mapping[str, str]
+) -> list[str]:
     mismatches: list[str] = []
     split_records = data_schema.get("splits", {})
     for split, expected in expected_hashes.items():
@@ -146,11 +153,15 @@ def _data_identity_mismatches(data_schema: Mapping[str, Any], expected_hashes: M
         actual = str(record.get("sha256", "")).lower()
         if actual != expected:
             path = record.get("path", f"<missing {split}>")
-            mismatches.append(f"{split} sha256 mismatch for {path}: expected {expected}, actual {actual or 'missing'}")
+            mismatches.append(
+                f"{split} sha256 mismatch for {path}: expected {expected}, actual {actual or 'missing'}"
+            )
     return mismatches
 
 
-def _missing_required_identities(data_schema: Mapping[str, Any], expected_hashes: Mapping[str, str]) -> list[str]:
+def _missing_required_identities(
+    data_schema: Mapping[str, Any], expected_hashes: Mapping[str, str]
+) -> list[str]:
     split_records = data_schema.get("splits", {})
     missing: list[str] = []
     for split, record in split_records.items():
@@ -159,7 +170,9 @@ def _missing_required_identities(data_schema: Mapping[str, Any], expected_hashes
     return missing
 
 
-def _gate_source_mismatches(gate: Mapping[str, Any] | None, data_schema: Mapping[str, Any]) -> list[str]:
+def _gate_source_mismatches(
+    gate: Mapping[str, Any] | None, data_schema: Mapping[str, Any]
+) -> list[str]:
     if not gate:
         return []
     data_sources = gate.get("data_sources") or {}
@@ -218,15 +231,21 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         _missing_required_identities(data_schema, expected_hashes) if require_all_identities else []
     )
     gate_source_mismatches = _gate_source_mismatches(gate, data_schema)
-    data_identity_blockers = [*missing_data_identities, *data_identity_mismatches, *gate_source_mismatches]
+    data_identity_blockers = [
+        *missing_data_identities,
+        *data_identity_mismatches,
+        *gate_source_mismatches,
+    ]
 
     missing_inputs = [
         message
         for message in (
             None if gate is not None else f"missing official gate JSON: {args.official_gate_json}",
-            None
-            if compatibility is not None
-            else f"missing compatibility JSON: {args.compatible_window_selection_json}",
+            (
+                None
+                if compatibility is not None
+                else f"missing compatibility JSON: {args.compatible_window_selection_json}"
+            ),
         )
         if message
     ]
@@ -253,7 +272,9 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     elif leaked_test_result:
         status = "invalid_test_leakage"
         test_allowed = False
-        blockers = ["held-out test result is present even though validation did not authorize test evaluation"]
+        blockers = [
+            "held-out test result is present even though validation did not authorize test evaluation"
+        ]
     elif multiple_test_results:
         status = "invalid_multiple_tests"
         test_allowed = False
@@ -283,7 +304,9 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
     require_result_records = bool(getattr(args, "require_result_records", False))
     required_record_tokens = _result_record_tokens(status, gate)
     result_record_mismatches = (
-        _result_record_mismatches(result_records, required_record_tokens) if require_result_records else []
+        _result_record_mismatches(result_records, required_record_tokens)
+        if require_result_records
+        else []
     )
     if result_record_mismatches and status not in {
         "missing_evidence",
@@ -303,7 +326,11 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _requirement(
             "train_only_shift_fit",
-            "satisfied" if gate and ((gate.get("fit") or {}).get("selected_train_shift") is not None) else "missing",
+            (
+                "satisfied"
+                if gate and ((gate.get("fit") or {}).get("selected_train_shift") is not None)
+                else "missing"
+            ),
             f"selected_train_shift={((gate or {}).get('fit') or {}).get('selected_train_shift')}",
         ),
         _requirement(
@@ -313,22 +340,34 @@ def audit_goal(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _requirement(
             "exactly_one_held_out_test_after_validation",
-            "satisfied" if has_test_result and test_eligible and test_result_count == 1 else "violated"
-            if leaked_test_result or multiple_test_results
-            else "blocked",
-            "one test result present after gate eligibility"
-            if has_test_result and test_eligible and test_result_count == 1
-            else "test result present before gate eligibility"
-            if leaked_test_result
-            else f"{test_result_count} held-out test results present"
-            if multiple_test_results
-            else "held-out test not run because gate did not pass",
+            (
+                "satisfied"
+                if has_test_result and test_eligible and test_result_count == 1
+                else "violated" if leaked_test_result or multiple_test_results else "blocked"
+            ),
+            (
+                "one test result present after gate eligibility"
+                if has_test_result and test_eligible and test_result_count == 1
+                else (
+                    "test result present before gate eligibility"
+                    if leaked_test_result
+                    else (
+                        f"{test_result_count} held-out test results present"
+                        if multiple_test_results
+                        else "held-out test not run because gate did not pass"
+                    )
+                )
+            ),
         ),
         _requirement(
             "results_recorded",
-            "satisfied"
-            if gate and compatibility and (not require_result_records or not result_record_mismatches)
-            else "partial",
+            (
+                "satisfied"
+                if gate
+                and compatibility
+                and (not require_result_records or not result_record_mismatches)
+                else "partial"
+            ),
             ", ".join(path for path in (gate_path, compatibility_path, *result_records) if path)
             or "missing result artifacts",
         ),
@@ -391,7 +430,9 @@ def exit_code_for_status(status: str, mode: str) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit benchmark-clean transport shift goal evidence")
+    parser = argparse.ArgumentParser(
+        description="Audit benchmark-clean transport shift goal evidence"
+    )
     parser.add_argument(
         "--official-gate-json",
         default="reports/research/sota_loop/transport_shift_gate.json",
@@ -402,7 +443,9 @@ def main() -> None:
         default="reports/research/sota_loop/remote_transport_shift_candidate_all_splits/compatible_window_selection.json",
         help="Result from scripts/select_transport_compatible_windows.py",
     )
-    parser.add_argument("--data-root", default="data/pdebench", help="Directory containing light-v1 HDF5 files")
+    parser.add_argument(
+        "--data-root", default="data/pdebench", help="Directory containing light-v1 HDF5 files"
+    )
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--schema-splits", nargs="+", default=["train", "val", "test"])
     parser.add_argument(

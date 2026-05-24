@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
 
 import torch
 from torch.utils.data import DataLoader, Subset
@@ -30,7 +29,7 @@ from ups.data.latent_pairs import (
 )
 
 
-def _maybe_tqdm(iterator: Iterable, total: Optional[int], *, desc: str) -> Iterable:
+def _maybe_tqdm(iterator: Iterable, total: int | None, *, desc: str) -> Iterable:
     if tqdm is None:
         return iterator
     return tqdm(iterator, total=total, desc=desc)
@@ -40,11 +39,11 @@ def _instantiate_dataset(
     *,
     task: str,
     split: str,
-    data_cfg: Dict[str, object],
-    latent_cfg: Dict[str, object],
+    data_cfg: dict[str, object],
+    latent_cfg: dict[str, object],
     device: torch.device,
-    cache_dir: Optional[Path],
-    cache_dtype: Optional[torch.dtype],
+    cache_dir: Path | None,
+    cache_dtype: torch.dtype | None,
 ) -> GridLatentPairDataset:
     ds_cfg = {
         **data_cfg,
@@ -102,7 +101,7 @@ def _iter_dataset(
         del batch
 
 
-def _summarise_cache(cache_dir: Path) -> Dict[str, float]:
+def _summarise_cache(cache_dir: Path) -> dict[str, float]:
     files = list(cache_dir.glob("sample_*.pt"))
     total_bytes = sum(f.stat().st_size for f in files)
     return {
@@ -111,7 +110,7 @@ def _summarise_cache(cache_dir: Path) -> Dict[str, float]:
     }
 
 
-def _load_config(path: Optional[str]) -> Dict[str, object]:
+def _load_config(path: str | None) -> dict[str, object]:
     if path is None:
         return {}
     cfg_path = Path(path)
@@ -123,21 +122,46 @@ def _load_config(path: Optional[str]) -> Dict[str, object]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Precompute latent caches for PDEBench tasks")
-    parser.add_argument("--config", default="configs/train_pdebench_scale.yaml", help="Training config to read defaults from")
-    parser.add_argument("--tasks", nargs="+", default=["burgers1d"], help="One or more PDEBench tasks to process")
-    parser.add_argument("--splits", nargs="+", default=["train"], help="Dataset splits to encode (train/val/test)")
+    parser.add_argument(
+        "--config",
+        default="configs/train_pdebench_scale.yaml",
+        help="Training config to read defaults from",
+    )
+    parser.add_argument(
+        "--tasks", nargs="+", default=["burgers1d"], help="One or more PDEBench tasks to process"
+    )
+    parser.add_argument(
+        "--splits", nargs="+", default=["train"], help="Dataset splits to encode (train/val/test)"
+    )
     parser.add_argument("--root", default=None, help="Override data root directory")
-    parser.add_argument("--cache-dir", default="data/latent_cache", help="Directory to write latent cache files")
-    parser.add_argument("--cache-dtype", default=None, help="Torch dtype for cached tensors (e.g. float16, float32)")
-    parser.add_argument("--latent-dim", type=int, default=None, help="Override latent dimensionality")
+    parser.add_argument(
+        "--cache-dir", default="data/latent_cache", help="Directory to write latent cache files"
+    )
+    parser.add_argument(
+        "--cache-dtype", default=None, help="Torch dtype for cached tensors (e.g. float16, float32)"
+    )
+    parser.add_argument(
+        "--latent-dim", type=int, default=None, help="Override latent dimensionality"
+    )
     parser.add_argument("--latent-len", type=int, default=None, help="Override latent token length")
     parser.add_argument("--device", default=None, help="Device to run encoders on (cuda, cpu)")
-    parser.add_argument("--batch-size", type=int, default=4, help="Batch size for worker prefetching")
+    parser.add_argument(
+        "--batch-size", type=int, default=4, help="Batch size for worker prefetching"
+    )
     parser.add_argument("--num-workers", type=int, default=4, help="Number of DataLoader workers")
     parser.add_argument("--pin-memory", action="store_true", help="Enable pin_memory in DataLoader")
-    parser.add_argument("--limit", type=int, default=0, help="Process at most this many samples per split (0 = full dataset)")
-    parser.add_argument("--overwrite", action="store_true", help="Recompute even if cache already exists")
-    parser.add_argument("--manifest", default=None, help="Optional path to write cache summary JSON")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Process at most this many samples per split (0 = full dataset)",
+    )
+    parser.add_argument(
+        "--overwrite", action="store_true", help="Recompute even if cache already exists"
+    )
+    parser.add_argument(
+        "--manifest", default=None, help="Optional path to write cache summary JSON"
+    )
     args = parser.parse_args()
 
     cfg = _load_config(args.config)
@@ -175,7 +199,7 @@ def main() -> None:
 
     torch.set_grad_enabled(False)
 
-    summary: Dict[str, Dict[str, float]] = {}
+    summary: dict[str, dict[str, float]] = {}
     start_time = time.time()
     for task in args.tasks:
         for split in args.splits:
@@ -218,10 +242,12 @@ def main() -> None:
             stats = _summarise_cache(ds_cache_dir)
             stats["elapsed_min"] = elapsed / 60.0
             summary[f"{task}_{split}"] = stats
-            print(f"[{task}:{split}] completed in {elapsed/60.0:.2f} min – {stats['num_samples']} samples cached")
+            print(
+                f"[{task}:{split}] completed in {elapsed / 60.0:.2f} min – {stats['num_samples']} samples cached"
+            )
 
     total_elapsed = time.time() - start_time
-    print(f"Latency precomputation finished in {total_elapsed/60.0:.2f} minutes")
+    print(f"Latency precomputation finished in {total_elapsed / 60.0:.2f} minutes")
 
     if args.manifest:
         manifest_path = Path(args.manifest)

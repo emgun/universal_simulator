@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 TIER_CAPS: dict[str, dict[str, Any]] = {
     "smoke": {
         "train_max_samples": 8,
@@ -228,7 +227,9 @@ def _shell_assignment(key: str, value: str | int) -> str:
     return f"{key}={shlex.quote(str(value))}"
 
 
-def _light_extra_args(variant: Variant, *, train_max_samples: int, eval_max_samples: int, rollout_steps: int) -> str:
+def _light_extra_args(
+    variant: Variant, *, train_max_samples: int, eval_max_samples: int, rollout_steps: int
+) -> str:
     args = [
         "--override",
         f"data.max_samples={train_max_samples}",
@@ -335,7 +336,9 @@ def write_tsv(rows: list[dict[str, Any]], path: str | Path) -> None:
         writer.writerows(rows)
 
 
-def write_shell(rows: list[dict[str, Any]], path: str | Path, *, wrapper: str, env_file: str, dry_run: int) -> None:
+def write_shell(
+    rows: list[dict[str, Any]], path: str | Path, *, wrapper: str, env_file: str, dry_run: int
+) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -357,12 +360,18 @@ def write_shell(rows: list[dict[str, Any]], path: str | Path, *, wrapper: str, e
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plan bounded UPS demo experiment queues")
     parser.add_argument("--tier", choices=sorted(TIER_CAPS), default="smoke")
-    parser.add_argument("--variant", action="append", default=None, help="Variant to include; repeat to subset")
-    parser.add_argument("--train-config", default="configs/train_multitask_heterogeneous_light_best.yaml")
+    parser.add_argument(
+        "--variant", action="append", default=None, help="Variant to include; repeat to subset"
+    )
+    parser.add_argument(
+        "--train-config", default="configs/train_multitask_heterogeneous_light_best.yaml"
+    )
     parser.add_argument("--tasks", default="burgers1d,advection1d,darcy2d")
     parser.add_argument("--output-root", default="reports/light_experiments_remote")
     parser.add_argument("--eval-split", default="test")
-    parser.add_argument("--stages", default="operator,decoder,operator_decoded,joint_codec_operator")
+    parser.add_argument(
+        "--stages", default="operator,decoder,operator_decoded,joint_codec_operator"
+    )
     parser.add_argument("--run-prefix", default="ups")
     parser.add_argument("--remote-b2-prefix", default=None)
     parser.add_argument("--required-gb", type=int, default=None)
@@ -388,7 +397,13 @@ def main() -> None:
     )
     write_jsonl(rows, args.output_jsonl)
     write_tsv(rows, args.output_tsv)
-    write_shell(rows, args.output_sh, wrapper=args.remote_wrapper, env_file=args.env_file, dry_run=args.dry_run_value)
+    write_shell(
+        rows,
+        args.output_sh,
+        wrapper=args.remote_wrapper,
+        env_file=args.env_file,
+        dry_run=args.dry_run_value,
+    )
     print(args.output_jsonl)
     print(args.output_tsv)
     print(args.output_sh)

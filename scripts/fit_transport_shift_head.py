@@ -6,8 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import h5py
 import numpy as np
@@ -35,11 +36,17 @@ def _load_series(
     if data.ndim == 4 and data.shape[-1] == 1:
         data = data[..., 0]
     if data.ndim != 3:
-        raise ValueError(f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}")
+        raise ValueError(
+            f"Expected 1D task data shaped (samples, steps, width[, 1]), got {tuple(data.shape)}"
+        )
     return data
 
 
-def _candidate_scores(fields: np.ndarray, shifts: Sequence[int], *, rollout_steps: int) -> list[dict[str, float | int]]:
+def _candidate_scores(
+    fields: np.ndarray, shifts: Sequence[int], *, rollout_steps: int
+) -> list[dict[str, float | int]]:
+    if not isinstance(fields, np.ndarray):
+        fields = np.asarray(fields, dtype=np.float32)
     if rollout_steps <= 0:
         raise ValueError("rollout_steps must be positive")
     steps = min(int(rollout_steps), fields.shape[1] - 1)
@@ -65,10 +72,16 @@ def _select_best(rows: Sequence[Mapping[str, Any]], metric: str) -> dict[str, An
 
 def fit_and_validate(args: argparse.Namespace) -> dict[str, Any]:
     if args.train_split == args.val_split and not args.allow_same_split_smoke:
-        raise ValueError("--train-split and --val-split must differ unless --allow-same-split-smoke is set")
+        raise ValueError(
+            "--train-split and --val-split must differ unless --allow-same-split-smoke is set"
+        )
     shifts = _candidate_shifts(args.shift)
-    train_fields = _load_series(root=args.data_root, task=args.task, split=args.train_split, max_samples=args.max_samples)
-    val_fields = _load_series(root=args.data_root, task=args.task, split=args.val_split, max_samples=args.max_samples)
+    train_fields = _load_series(
+        root=args.data_root, task=args.task, split=args.train_split, max_samples=args.max_samples
+    )
+    val_fields = _load_series(
+        root=args.data_root, task=args.task, split=args.val_split, max_samples=args.max_samples
+    )
     train_rows = _candidate_scores(train_fields, shifts, rollout_steps=args.rollout_steps)
     val_rows = _candidate_scores(val_fields, shifts, rollout_steps=args.rollout_steps)
     selected_train = _select_best(train_rows, args.metric)
@@ -114,7 +127,9 @@ def fit_and_validate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fit a train-split periodic transport shift and validate it")
+    parser = argparse.ArgumentParser(
+        description="Fit a train-split periodic transport shift and validate it"
+    )
     parser.add_argument("--data-root", default="data/pdebench")
     parser.add_argument("--task", default="advection1d")
     parser.add_argument("--train-split", default="train")
@@ -128,7 +143,9 @@ def main() -> None:
     parser.add_argument("--reference-metric-value", type=float)
     parser.add_argument("--val-min-relative-improvement", type=float)
     parser.add_argument("--allow-same-split-smoke", action="store_true")
-    parser.add_argument("--output-json", default="reports/research/sota_loop/transport_head_fit/fit_record.json")
+    parser.add_argument(
+        "--output-json", default="reports/research/sota_loop/transport_head_fit/fit_record.json"
+    )
     parser.add_argument("--export-selected-config")
     args = parser.parse_args()
 
