@@ -1858,3 +1858,12 @@ Inferred context transport successor:
 - Best train/val-only inferred setting: `context_transitions=8`, `refine_radius=4`, `fractional_refine_step=0.025`, validation `nrmse=0.00029621962142020844`.
 - Exactly one held-out test was run for the locked inferred estimator and recorded in `reports/research/sota_loop/inferred_transport_head/inferred_transport_test_ledger.json`: test `nrmse=0.0001883979016384957`.
 - Status: promote as the new best narrow official Advection transport result. The next universal-SOTA step is to test whether this context-inferred mechanism transfers beyond Advection or can be integrated into the broader UPS latent operator scorecard.
+
+Inferred transport transfer scorecard:
+
+- `scripts/run_inferred_transport_transfer_scorecard.py` now applies the inferred context transport gate to local train/validation splits only. It passes no held-out test split to task gates and records `held_out_policy=train/val only; no held-out test split is passed to task gates`.
+- Live scorecard output at `reports/research/sota_loop/inferred_transfer_scorecard/scorecard.json` reports `status=partial_transfer_validated`, `evaluated_task_count=2`, `skipped_task_count=1`, and `mean_validation_nrmse=0.00303644300924271`.
+- Advection transfer validation: `nrmse=0.0002474825485253347`, train `nrmse=0.000021722591109190475`, `test_touched=false`.
+- Burgers transfer validation: `nrmse=0.0058254034699600854`, train `nrmse=0.062408372798664555`, `test_touched=false`.
+- Darcy is skipped in the live local scorecard because `data/pdebench/darcy2d_train.h5` is absent. The scorecard also explicitly rejects non-`1d` tasks when splits exist, because this mechanism is a 1D transport gate rather than a static 2D operator.
+- Status: this is the next credible transfer signal after the official Advection result, not a universal SOTA claim. It supports continuing toward a broader scorecard, but it does not yet demonstrate general PDE-family SOTA or foundation-model behavior.

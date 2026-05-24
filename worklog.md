@@ -2620,3 +2620,11 @@ Inferred context transport successor (2026-05-24):
 - Train/val-only sweep found the best inferred setting at `context_transitions=8`, `refine_radius=4`, `fractional_refine_step=0.025`, with validation `nrmse=0.00029621962142020844`.
 - Because that validation result beat the current beta-conditioned validation baseline and passed the guard, ran exactly one held-out test using `reports/research/sota_loop/inferred_transport_head/inferred_transport_test_ledger.json`; held-out test `nrmse=0.0001883979016384957`.
 - This is the strongest narrow official Advection transport result so far and removes explicit beta conditioning, but it still depends on observed early-context frames and is not yet broad universal SOTA across PDE families.
+
+Inferred transport transfer scorecard (2026-05-24):
+- Added `scripts/run_inferred_transport_transfer_scorecard.py` to run the inferred context transport gate across local train/validation splits without passing any held-out test split to the task gates.
+- Live scorecard output at `reports/research/sota_loop/inferred_transfer_scorecard/scorecard.json` reports `status=partial_transfer_validated`, `evaluated_task_count=2`, `skipped_task_count=1`, and `mean_validation_nrmse=0.00303644300924271`.
+- Advection train/validation-only transfer result: validation `nrmse=0.0002474825485253347`, train `nrmse=0.000021722591109190475`, `test_touched=false`.
+- Burgers train/validation-only transfer result: validation `nrmse=0.0058254034699600854`, train `nrmse=0.062408372798664555`, `test_touched=false`.
+- Darcy was skipped with `missing train split: data/pdebench/darcy2d_train.h5`; the scorecard also now explicitly rejects non-`1d` tasks even if static splits are present, because this gate is a 1D transport mechanism rather than a general PDE operator.
+- This is real transfer evidence beyond the official Advection-only result, but it is still a narrow 1D transport scorecard. It does not close the universal SOTA goal, which still requires broader PDE-family, resolution, and baseline comparisons.
