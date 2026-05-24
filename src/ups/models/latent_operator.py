@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Latent space evolution operator driven by the PDE-Transformer core."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional
 
 import torch
 from torch import nn
@@ -17,7 +17,7 @@ from ups.core.latent_state import LatentState
 class LatentOperatorConfig:
     latent_dim: int
     pdet: PDETransformerConfig
-    conditioning: Optional[ConditioningConfig] = None
+    conditioning: ConditioningConfig | None = None
     time_embed_dim: int = 64
 
 
@@ -85,7 +85,9 @@ class LatentOperator(nn.Module):
         residual = self.output_norm(residual)
         return residual
 
-    def apply_conditioning(self, tokens: torch.Tensor, cond: Mapping[str, torch.Tensor]) -> torch.Tensor:
+    def apply_conditioning(
+        self, tokens: torch.Tensor, cond: Mapping[str, torch.Tensor]
+    ) -> torch.Tensor:
         normed = torch.nn.functional.layer_norm(tokens, tokens.shape[-1:])
         assert self.conditioner is not None
         return self.conditioner.modulate(normed, cond)

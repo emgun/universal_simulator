@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Predictor–corrector rollout utilities for transient simulations."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 import torch
 
@@ -12,8 +12,8 @@ from ups.logging import get_logger
 from ups.models.diffusion_residual import DiffusionResidual
 from ups.models.latent_operator import LatentOperator
 
-
 GateFn = Callable[[LatentState, LatentState], bool]
+
 
 @dataclass
 class RolloutConfig:
@@ -21,25 +21,25 @@ class RolloutConfig:
     dt: float
     correct_every: int = 1
     corrector_tau: float = 0.5
-    residual_threshold: Optional[float] = None
+    residual_threshold: float | None = None
     device: torch.device | str = "cpu"
 
 
 @dataclass
 class RolloutLog:
-    states: List[LatentState] = field(default_factory=list)
-    corrections: List[bool] = field(default_factory=list)
-    metrics: Dict[str, List[float]] = field(default_factory=lambda: {"residual_norm": []})
+    states: list[LatentState] = field(default_factory=list)
+    corrections: list[bool] = field(default_factory=list)
+    metrics: dict[str, list[float]] = field(default_factory=lambda: {"residual_norm": []})
 
 
 def rollout_transient(
-     *,
-     initial_state: LatentState,
-     operator: LatentOperator,
-     corrector: Optional[DiffusionResidual] = None,
-     config: RolloutConfig,
-     gate_fn: Optional[GateFn] = None,
- ) -> RolloutLog:
+    *,
+    initial_state: LatentState,
+    operator: LatentOperator,
+    corrector: DiffusionResidual | None = None,
+    config: RolloutConfig,
+    gate_fn: GateFn | None = None,
+) -> RolloutLog:
     logger = get_logger("ups.rollout")
     device = torch.device(config.device)
     state = initial_state.to(device)
@@ -56,7 +56,10 @@ def rollout_transient(
             if gate_fn is not None:
                 should_correct = gate_fn(state, predicted)
             else:
-                if config.residual_threshold is not None and residual_norm > config.residual_threshold:
+                if (
+                    config.residual_threshold is not None
+                    and residual_norm > config.residual_threshold
+                ):
                     should_correct = True
                 if (step + 1) % max(config.correct_every, 1) == 0:
                     should_correct = True

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Particle neighbor search and symplectic integration primitives."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Optional, Tuple
 
 import torch
 
@@ -14,10 +14,12 @@ class NeighborSearchConfig:
     max_neighbors: int = 128
 
 
-def _hash_cells(positions: torch.Tensor, cell_size: float) -> Tuple[Dict[Tuple[int, int, int], torch.Tensor], float]:
+def _hash_cells(
+    positions: torch.Tensor, cell_size: float
+) -> tuple[dict[tuple[int, int, int], torch.Tensor], float]:
     inv = 1.0 / cell_size
     cell_coords = torch.floor(positions * inv).to(torch.long)
-    buckets: Dict[Tuple[int, int, int], torch.Tensor] = {}
+    buckets: dict[tuple[int, int, int], torch.Tensor] = {}
     for idx, cell in enumerate(cell_coords):
         key = tuple(cell.tolist())
         if key not in buckets:
@@ -30,7 +32,7 @@ def _hash_cells(positions: torch.Tensor, cell_size: float) -> Tuple[Dict[Tuple[i
 def hierarchical_neighbor_search(
     positions: torch.Tensor,
     radii: torch.Tensor,
-    cfg: Optional[NeighborSearchConfig] = None,
+    cfg: NeighborSearchConfig | None = None,
 ) -> torch.Tensor:
     if cfg is None:
         cfg = NeighborSearchConfig()
@@ -39,7 +41,10 @@ def hierarchical_neighbor_search(
     N = positions.shape[0]
     buckets, inv_cell = _hash_cells(positions, cfg.cell_size)
     edges = []
-    offsets = torch.tensor([(dx, dy, dz) for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1)], device=positions.device)
+    offsets = torch.tensor(
+        [(dx, dy, dz) for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1)],
+        device=positions.device,
+    )
     for key, idxs in buckets.items():
         cell_center = torch.tensor(key, device=positions.device)
         for offset in offsets:
@@ -64,11 +69,11 @@ def hierarchical_neighbor_search(
     return edges_tensor
 
 
-ConstraintFn = Callable[[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor]]
+ConstraintFn = Callable[[torch.Tensor, torch.Tensor], tuple[torch.Tensor, torch.Tensor]]
 
 
 class SymplecticIntegrator:
-    def __init__(self, constraint: Optional[ConstraintFn] = None) -> None:
+    def __init__(self, constraint: ConstraintFn | None = None) -> None:
         self.constraint = constraint
 
     def step(
@@ -78,7 +83,7 @@ class SymplecticIntegrator:
         forces_fn: Callable[[torch.Tensor], torch.Tensor],
         masses: torch.Tensor,
         dt: float,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         inv_mass = (1.0 / masses).view(-1, 1)
         accel = forces_fn(positions) * inv_mass
         velocities_half = velocities + 0.5 * dt * accel
@@ -88,4 +93,3 @@ class SymplecticIntegrator:
         new_accel = forces_fn(new_positions) * inv_mass
         new_velocities = velocities_half + 0.5 * dt * new_accel
         return new_positions, new_velocities
-

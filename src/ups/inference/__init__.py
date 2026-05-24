@@ -1,7 +1,7 @@
 """Inference utilities for latent assimilation and control."""
 
-from .da_latent import EnKFConfig, latent_enkf
 from .control_safe import MPCConfig, safe_mpc
+from .da_latent import EnKFConfig, latent_enkf
 from .rollout_transient import RolloutConfig, rollout_transient
 from .rollout_ttc import TTCConfig, ttc_rollout
 

@@ -1,10 +1,9 @@
 import math
-import os
 
 import pandas as pd
 import pytest
 
-from scripts.prepare_data import Config, SPLIT_RATIOS, main
+from scripts.prepare_data import SPLIT_RATIOS, Config, main
 
 
 def test_metadata_written_with_expected_schema(tmp_path):

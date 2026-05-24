@@ -24,5 +24,11 @@ def test_convert_1d_stack(tmp_path: Path):
 
     with h5py.File(out, "r") as h5:
         arr = h5["data"][...]
+        source_file_index = h5["source_file_index"][...]
+        source_sample_index = h5["source_sample_index"][...]
+        source_paths = list(h5.attrs["source_paths"])
     assert written == 20
     assert arr.shape == (20, 4, 6, 1)
+    assert source_file_index.tolist() == [0] * 10 + [1] * 10
+    assert source_sample_index.tolist() == list(range(10)) + list(range(10))
+    assert source_paths == [str(f1), str(f2)]

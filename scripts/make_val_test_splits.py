@@ -9,7 +9,9 @@ from pathlib import Path
 import h5py
 
 
-def slice_dataset(src_path: Path, val_path: Path, test_path: Path, val_count: int, test_count: int) -> None:
+def slice_dataset(
+    src_path: Path, val_path: Path, test_path: Path, val_count: int, test_count: int
+) -> None:
     if not src_path.exists():
         raise FileNotFoundError(src_path)
 
@@ -19,7 +21,9 @@ def slice_dataset(src_path: Path, val_path: Path, test_path: Path, val_count: in
         data = src_file["data"]
         total = data.shape[0]
         if total < val_count + test_count:
-            raise ValueError(f"Need at least {val_count + test_count} samples, found {total} in {src_path}.")
+            raise ValueError(
+                f"Need at least {val_count + test_count} samples, found {total} in {src_path}."
+            )
 
         val_data = data[:val_count]
         test_data = data[val_count : val_count + test_count]
@@ -37,15 +41,21 @@ def slice_dataset(src_path: Path, val_path: Path, test_path: Path, val_count: in
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate val/test splits from a Burgers1D train shard.")
+    parser = argparse.ArgumentParser(
+        description="Generate val/test splits from a Burgers1D train shard."
+    )
     parser.add_argument("--train", required=True, help="Path to burgers1d_train_000.h5")
     parser.add_argument("--val", required=True, help="Output path for burgers1d_val.h5")
     parser.add_argument("--test", required=True, help="Output path for burgers1d_test.h5")
-    parser.add_argument("--val-count", type=int, default=200, help="Number of validation trajectories")
+    parser.add_argument(
+        "--val-count", type=int, default=200, help="Number of validation trajectories"
+    )
     parser.add_argument("--test-count", type=int, default=200, help="Number of test trajectories")
     args = parser.parse_args()
 
-    slice_dataset(Path(args.train), Path(args.val), Path(args.test), args.val_count, args.test_count)
+    slice_dataset(
+        Path(args.train), Path(args.val), Path(args.test), args.val_count, args.test_count
+    )
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 def load_config(path: str):
     import yaml
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -50,7 +50,9 @@ def main() -> None:
     ttc_cfg = cfg.get("ttc")
     if ttc_cfg and ttc_cfg.get("enabled"):
         device = torch.device(rollout_cfg.device)
-        reward_model = build_reward_model_from_config(ttc_cfg, operator_cfg.latent_dim, device).to(device)
+        reward_model = build_reward_model_from_config(ttc_cfg, operator_cfg.latent_dim, device).to(
+            device
+        )
         sampler_cfg = ttc_cfg.get("sampler", {})
         tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
         ttc_runtime = TTCConfig(
@@ -74,7 +76,9 @@ def main() -> None:
             f"mode={args.mode} TTC rollout steps: {len(rollout_log.states)} | best rewards per step: {[max(log.rewards) for log in step_logs]}"
         )
     else:
-        rollout_log = rollout_transient(initial_state=initial, operator=operator, corrector=corrector, config=rollout_cfg)
+        rollout_log = rollout_transient(
+            initial_state=initial, operator=operator, corrector=corrector, config=rollout_cfg
+        )
         print(
             f"mode={args.mode} rollout steps: {len(rollout_log.states)} | corrections applied: {sum(rollout_log.corrections)}"
         )

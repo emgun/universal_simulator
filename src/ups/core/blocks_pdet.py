@@ -9,8 +9,8 @@ normalised queries/keys. The class is intentionally lightweight so it can be
 stacked repeatedly inside the latent operator.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence, Tuple
 
 import torch
 from torch import nn
@@ -79,7 +79,9 @@ class ChannelSeparatedSelfAttention(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C = x.shape
         x_groups = x.view(B, T, self.groups, self.group_size)
-        x_groups = x_groups.permute(0, 2, 1, 3).contiguous().view(B * self.groups, T, self.group_size)
+        x_groups = (
+            x_groups.permute(0, 2, 1, 3).contiguous().view(B * self.groups, T, self.group_size)
+        )
 
         q = self.q_proj(self.q_norm(x_groups))
         k = self.k_proj(self.k_norm(x_groups))
@@ -101,7 +103,9 @@ class ChannelSeparatedSelfAttention(nn.Module):
         attn_out = attn_out.transpose(1, 2).contiguous().view(B_groups, T, self.group_size)
         attn_out = self.out_proj(attn_out)
 
-        attn_out = attn_out.view(B, self.groups, T, self.group_size).permute(0, 2, 1, 3).contiguous()
+        attn_out = (
+            attn_out.view(B, self.groups, T, self.group_size).permute(0, 2, 1, 3).contiguous()
+        )
         attn_out = attn_out.view(B, T, C)
         return attn_out
 
@@ -209,7 +213,7 @@ class PDETransformerBlock(nn.Module):
         if x.dim() != 3:
             raise ValueError("Expected tensor shaped (batch, tokens, features)")
         x = self.input_proj(x)
-        skips: List[torch.Tensor] = []
+        skips: list[torch.Tensor] = []
 
         for layer_pack in self.down_layers:
             blocks, proj = layer_pack

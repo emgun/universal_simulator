@@ -21,4 +21,3 @@ def test_temperature_scaler_learning():
     calibrated = scaler.calibrate(logits)
     probs = torch.softmax(calibrated, dim=-1)
     assert torch.all(probs[:, 0] > 0.5)
-

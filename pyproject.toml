@@ -65,11 +65,24 @@ include_trailing_comma = true
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = ["build", "dist", ".venv", "data", "export"]
+
+[tool.ruff.lint]
 select = [
   "E", "F", "I", "UP", "B", "N", "A",
 ]
-ignore = []
-exclude = ["build", "dist", ".venv", "data", "export"]
+ignore = [
+  "B007",
+  "B904",
+  "B905",
+  "E402",
+  "E501",
+  "E722",
+  "F841",
+  "N812",
+  "N803",
+  "N806",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"

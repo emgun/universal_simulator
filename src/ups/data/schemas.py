@@ -4,7 +4,6 @@ from typing import Any, Dict, Literal, Optional, TypedDict
 
 import torch
 
-
 Kind = Literal["grid", "mesh", "particles"]
 
 
@@ -52,7 +51,12 @@ REQUIRED_KEYS = {
 
 
 def _is_float_tensor(x: torch.Tensor) -> bool:
-    return torch.is_tensor(x) and x.dtype in (torch.float16, torch.bfloat16, torch.float32, torch.float64)
+    return torch.is_tensor(x) and x.dtype in (
+        torch.float16,
+        torch.bfloat16,
+        torch.float32,
+        torch.float64,
+    )
 
 
 def _is_int_tensor(x: torch.Tensor) -> bool:
@@ -115,4 +119,3 @@ def validate_sample(sample: Dict[str, Any]) -> None:
     meta = sample["meta"]
     if not isinstance(meta, dict):
         raise ValueError("meta must be a dict[str, Any]")
-

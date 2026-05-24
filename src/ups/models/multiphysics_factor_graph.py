@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """Multiphysics factor graph for coupling domain nodes and ports."""
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Optional
 
 import torch
 from torch import nn
@@ -23,14 +23,20 @@ class PortEdge:
 
 
 class MultiphysicsFactorGraph(nn.Module):
-    def __init__(self, nodes: Dict[str, DomainNode], edges: Iterable[PortEdge], max_iters: int = 8, tol: float = 1e-4) -> None:
+    def __init__(
+        self,
+        nodes: dict[str, DomainNode],
+        edges: Iterable[PortEdge],
+        max_iters: int = 8,
+        tol: float = 1e-4,
+    ) -> None:
         super().__init__()
         self.nodes = nodes
         self.edges = list(edges)
         self.max_iters = max_iters
         self.tol = tol
 
-    def forward(self) -> Dict[str, torch.Tensor]:
+    def forward(self) -> dict[str, torch.Tensor]:
         for _ in range(self.max_iters):
             max_res = 0.0
             for edge in self.edges:
@@ -45,4 +51,3 @@ class MultiphysicsFactorGraph(nn.Module):
             if max_res < self.tol:
                 break
         return {name: node.state for name, node in self.nodes.items()}
-

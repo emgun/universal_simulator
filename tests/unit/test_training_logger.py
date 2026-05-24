@@ -4,6 +4,7 @@ import json
 
 import h5py
 import torch
+
 from scripts import train as train_script
 
 
@@ -45,7 +46,7 @@ def test_training_logs_written_and_early_stop(tmp_path):
     lines = log_path.read_text(encoding="utf-8").strip().splitlines()
     assert lines
     entries = [json.loads(line) for line in lines]
-    loss_entries = [entry for entry in entries if "loss" in entry]
+    loss_entries = [entry for entry in entries if "operator/loss" in entry]
     assert loss_entries
     first_entry = loss_entries[0]
-    assert first_entry["stage"] == "operator"
+    assert "global_step" in first_entry

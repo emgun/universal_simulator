@@ -5,7 +5,6 @@ import time
 import numpy as np
 import pytest
 
-
 zarr = pytest.importorskip("zarr")
 
 
@@ -15,8 +14,10 @@ def _write_minimal_zarr(path: str):
     root = _z.open(path, mode="a")
     g = root.create_group("diffusion2d", overwrite=True)
     H, W, T = 32, 32, 3
-    coords = np.stack(np.meshgrid(np.linspace(0, 1, W), np.linspace(0, 1, H), indexing="xy"), axis=-1).reshape(H * W, 2).astype(
-        "f4"
+    coords = (
+        np.stack(np.meshgrid(np.linspace(0, 1, W), np.linspace(0, 1, H), indexing="xy"), axis=-1)
+        .reshape(H * W, 2)
+        .astype("f4")
     )
     time_arr = (np.arange(T, dtype="f4") * 0.1).astype("f4")
     g.attrs["kind"] = "grid"

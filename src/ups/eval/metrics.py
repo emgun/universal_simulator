@@ -9,7 +9,7 @@ def nrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.
     """Normalised root mean squared error."""
 
     mse = torch.mean((pred - target) ** 2)
-    denom = torch.mean(target ** 2) + eps
+    denom = torch.mean(target**2) + eps
     return torch.sqrt(mse / denom)
 
 
@@ -38,4 +38,4 @@ def mse(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
 
 
 def relative_rrmse(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
-    return torch.sqrt(torch.mean((pred - target) ** 2) / (torch.mean(target ** 2) + eps))
+    return torch.sqrt(torch.mean((pred - target) ** 2) / (torch.mean(target**2) + eps))

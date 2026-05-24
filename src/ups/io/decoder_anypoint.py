@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 
 def _fourier_encode(coords: torch.Tensor, frequencies: Sequence[float]) -> torch.Tensor:
@@ -39,13 +38,15 @@ class AnyPointDecoderConfig:
     hidden_dim: int = 128
     num_layers: int = 2
     num_heads: int = 4
-    frequencies: Tuple[float, ...] = (1.0, 2.0, 4.0)
+    frequencies: tuple[float, ...] = (1.0, 2.0, 4.0)
     mlp_hidden_dim: int = 128
     output_channels: Mapping[str, int] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.output_channels is None or len(self.output_channels) == 0:
-            raise ValueError("output_channels must specify at least one field name -> channel count")
+            raise ValueError(
+                "output_channels must specify at least one field name -> channel count"
+            )
         if self.hidden_dim % self.num_heads != 0:
             raise ValueError("hidden_dim must be divisible by num_heads for multi-head attention")
 
@@ -63,7 +64,9 @@ class AnyPointDecoder(nn.Module):
     def __init__(self, cfg: AnyPointDecoderConfig):
         super().__init__()
         self.cfg = cfg
-        self.query_embed = nn.Linear(cfg.query_dim + 2 * len(cfg.frequencies) * cfg.query_dim, cfg.hidden_dim)
+        self.query_embed = nn.Linear(
+            cfg.query_dim + 2 * len(cfg.frequencies) * cfg.query_dim, cfg.hidden_dim
+        )
         self.latent_proj = nn.Linear(cfg.latent_dim, cfg.hidden_dim)
 
         self.layers = nn.ModuleList()
@@ -91,8 +94,8 @@ class AnyPointDecoder(nn.Module):
         points: torch.Tensor,
         latent_tokens: torch.Tensor,
         *,
-        conditioning: Optional[Mapping[str, torch.Tensor]] = None,
-    ) -> Dict[str, torch.Tensor]:
+        conditioning: Mapping[str, torch.Tensor] | None = None,
+    ) -> dict[str, torch.Tensor]:
         """Decode latent tokens at arbitrary coordinates.
 
         Parameters
@@ -128,7 +131,7 @@ class AnyPointDecoder(nn.Module):
             ff_out = ff(queries)
             queries = ln_ff(queries + ff_out)
 
-        outputs: Dict[str, torch.Tensor] = {}
+        outputs: dict[str, torch.Tensor] = {}
         for name, head in self.heads.items():
             outputs[name] = head(queries)
         return outputs

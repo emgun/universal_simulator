@@ -15,4 +15,3 @@ def periodic_gate(step: int, every: int) -> bool:
     if every <= 0:
         return False
     return (step + 1) % every == 0
-

@@ -5,7 +5,9 @@ from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualCo
 
 
 def test_diffusion_residual_shapes_and_guidance():
-    cfg = DiffusionResidualConfig(latent_dim=24, hidden_dim=48, cond_dim=4, residual_guidance_weight=0.5)
+    cfg = DiffusionResidualConfig(
+        latent_dim=24, hidden_dim=48, cond_dim=4, residual_guidance_weight=0.5
+    )
     model = DiffusionResidual(cfg)
     state = LatentState(z=torch.randn(3, 10, 24))
     tau = torch.full((3,), 0.3)

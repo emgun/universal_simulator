@@ -1,6 +1,10 @@
 import torch
 
-from ups.models.particles_contacts import NeighborSearchConfig, SymplecticIntegrator, hierarchical_neighbor_search
+from ups.models.particles_contacts import (
+    NeighborSearchConfig,
+    SymplecticIntegrator,
+    hierarchical_neighbor_search,
+)
 
 
 def test_hierarchical_neighbor_search_returns_edges():

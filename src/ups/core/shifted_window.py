@@ -14,14 +14,14 @@ plotting utilities. It can be generalised to higher dimensions if required by
 future milestones.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Tuple
 
 import torch
 from torch import nn
 
 
-def _to_2tuple(value: Iterable[int] | int) -> Tuple[int, int]:
+def _to_2tuple(value: Iterable[int] | int) -> tuple[int, int]:
     if isinstance(value, Iterable):
         value = tuple(value)
         if len(value) != 2:
@@ -38,15 +38,15 @@ class WindowPartitionInfo:
     height: int
     width: int
     channels: int
-    window_size: Tuple[int, int]
-    shift_size: Tuple[int, int]
+    window_size: tuple[int, int]
+    shift_size: tuple[int, int]
 
 
 def partition_windows(
     tensor: torch.Tensor,
     window_size: Iterable[int] | int,
     shift_size: Iterable[int] | int = (0, 0),
-) -> Tuple[torch.Tensor, WindowPartitionInfo]:
+) -> tuple[torch.Tensor, WindowPartitionInfo]:
     """Slice a ``(B, H, W, C)`` tensor into flattened windows.
 
     Parameters
@@ -120,7 +120,9 @@ def merge_windows(windows: torch.Tensor, info: WindowPartitionInfo) -> torch.Ten
 
     window_area = window_size[0] * window_size[1]
     if windows.shape[-1] != C or windows.shape[1] != window_area:
-        raise ValueError("Window tensor shape is incompatible with the provided WindowPartitionInfo")
+        raise ValueError(
+            "Window tensor shape is incompatible with the provided WindowPartitionInfo"
+        )
 
     h_windows = H // window_size[0]
     w_windows = W // window_size[1]

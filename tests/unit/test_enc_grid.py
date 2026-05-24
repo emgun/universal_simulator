@@ -1,5 +1,3 @@
-import math
-
 import torch
 
 from ups.io import GridEncoder, GridEncoderConfig
@@ -9,11 +7,16 @@ def make_sample(batch: int = 2, height: int = 16, width: int = 16):
     N = height * width
     u = torch.linspace(0, 1, N).view(1, N, 1).repeat(batch, 1, 1)
     v = torch.linspace(1, 2, N).view(1, N, 1).repeat(batch, 1, 1)
-    coords = torch.stack(torch.meshgrid(
-        torch.linspace(0, 1, height),
-        torch.linspace(0, 1, width),
-        indexing="ij"
-    ), dim=-1).reshape(1, N, 2).repeat(batch, 1, 1)
+    coords = (
+        torch.stack(
+            torch.meshgrid(
+                torch.linspace(0, 1, height), torch.linspace(0, 1, width), indexing="ij"
+            ),
+            dim=-1,
+        )
+        .reshape(1, N, 2)
+        .repeat(batch, 1, 1)
+    )
     fields = {"u": u, "v": v}
     meta = {"grid_shape": (height, width)}
     return fields, coords, meta

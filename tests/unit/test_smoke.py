@@ -5,4 +5,3 @@ def test_imports():
 
     # Optional heavy deps should import when installed
     import torch  # noqa: F401
-

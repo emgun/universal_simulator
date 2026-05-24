@@ -2,8 +2,9 @@ from __future__ import annotations
 
 """Latent state container used throughout the simulator."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional
+from typing import Any
 
 import torch
 
@@ -24,8 +25,8 @@ class LatentState:
     """
 
     z: torch.Tensor
-    t: Optional[torch.Tensor] = None
-    cond: Dict[str, torch.Tensor] = field(default_factory=dict)
+    t: torch.Tensor | None = None
+    cond: dict[str, torch.Tensor] = field(default_factory=dict)
 
     def to(self, device: torch.device | str) -> LatentState:
         device_t = torch.device(device)
@@ -40,8 +41,8 @@ class LatentState:
         cond = {k: v.detach().clone() for k, v in self.cond.items()}
         return LatentState(z=z, t=t, cond=cond)
 
-    def serialize(self) -> Dict[str, Any]:
-        data: Dict[str, Any] = {"z": self.z}
+    def serialize(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"z": self.z}
         if self.t is not None:
             data["t"] = self.t
         data["cond"] = self.cond

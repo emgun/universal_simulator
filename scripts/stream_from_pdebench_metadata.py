@@ -15,13 +15,11 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import List
 
 import h5py
 import requests
 
 from ups.data.convert_pdebench import convert_files
-
 
 DEFAULT_METADATA = (
     "https://raw.githubusercontent.com/pdebench/PDEBench/main/"
@@ -50,7 +48,11 @@ def _download_file(url: str, dst: Path, max_retries: int = 3) -> None:
             size_mb = int(cl) / (1024 * 1024)
     except Exception:
         pass
-    _log(f"Downloading: {url} ({size_mb:.1f} MB) -> {dst.name}" if size_mb else f"Downloading: {url} -> {dst.name}")
+    _log(
+        f"Downloading: {url} ({size_mb:.1f} MB) -> {dst.name}"
+        if size_mb
+        else f"Downloading: {url} -> {dst.name}"
+    )
 
     for attempt in range(max_retries):
         try:
@@ -68,7 +70,9 @@ def _download_file(url: str, dst: Path, max_retries: int = 3) -> None:
                         if bytes_done - last_report >= report_step:
                             mb = bytes_done / (1024 * 1024)
                             if size_mb:
-                                _log(f"  downloaded {mb:.1f}/{size_mb:.1f} MB ({mb/size_mb*100:.1f}%)")
+                                _log(
+                                    f"  downloaded {mb:.1f}/{size_mb:.1f} MB ({mb / size_mb * 100:.1f}%)"
+                                )
                             else:
                                 _log(f"  downloaded {mb:.1f} MB")
                             last_report = bytes_done
@@ -77,7 +81,7 @@ def _download_file(url: str, dst: Path, max_retries: int = 3) -> None:
         except Exception as e:
             _log(f"Download attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
-                _log(f"Retrying in 5 seconds...")
+                _log("Retrying in 5 seconds...")
                 time.sleep(5)
             else:
                 raise
@@ -86,6 +90,7 @@ def _download_file(url: str, dst: Path, max_retries: int = 3) -> None:
 def _estimate_tokens_per_sample(h5_path: Path) -> int:
     best = 0
     with h5py.File(h5_path, "r") as f:
+
         def _visit(_, obj):
             nonlocal best
             if isinstance(obj, h5py.Dataset) and obj.dtype.kind in ("f", "i") and obj.ndim >= 2:
@@ -93,6 +98,7 @@ def _estimate_tokens_per_sample(h5_path: Path) -> int:
                 for dim in obj.shape[1:]:
                     best_val *= int(dim)
                 best = max(best, best_val)
+
         f.visititems(_visit)
     if best == 0:
         raise ValueError(f"Could not estimate tokens per sample from {h5_path}")
@@ -137,14 +143,14 @@ def stream_from_metadata(
     else:
         raise SystemExit(f"Unsupported dataset: {dataset}")
 
-    urls: List[str] = []
+    urls: list[str] = []
     with meta_csv.open("r", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
         for row in reader:
             text = " ".join(str(v) for v in row.values()).lower()
             if all(tok in text for tok in base_tokens) and split in text:
                 # Find any URL-like cell, prefer .hdf5/.h5
-                candidates: List[str] = []
+                candidates: list[str] = []
                 for v in row.values():
                     s = str(v).strip()
                     if s.startswith("http"):
@@ -170,10 +176,10 @@ def stream_from_metadata(
     target_tokens = int(tokens_per_param_ratio * _count_model_params(latent_dim, tokens))
 
     for i in range(0, len(urls), batch_size):
-        batch_urls = urls[i:i + batch_size]
+        batch_urls = urls[i : i + batch_size]
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
-            local_files: List[Path] = []
+            local_files: list[Path] = []
             for u in batch_urls:
                 fname = u.split("/")[-1]
                 dst = tmp / fname
@@ -183,7 +189,7 @@ def stream_from_metadata(
             if not local_files:
                 continue
 
-            shard_name = f"{dataset}_{split}_{i//batch_size:03d}.h5"
+            shard_name = f"{dataset}_{split}_{i // batch_size:03d}.h5"
             out_path = out_dir / shard_name
             _log(f"Converting {len(local_files)} files -> {out_path}")
             written = convert_files(local_files, out_path, sample_size=samples_per_file)
@@ -191,9 +197,15 @@ def stream_from_metadata(
 
             tps = _estimate_tokens_per_sample(out_path)
             total_tokens = total_samples * tps
-            _log(f"Estimated {tps} tokens/sample; cumulative samples {total_samples}; total tokens {total_tokens}")
+            _log(
+                f"Estimated {tps} tokens/sample; cumulative samples {total_samples}; total tokens {total_tokens}"
+            )
 
-            remote = f"UPSB2:{bucket}/{prefix}/{shard_name}" if prefix else f"UPSB2:{bucket}/{shard_name}"
+            remote = (
+                f"UPSB2:{bucket}/{prefix}/{shard_name}"
+                if prefix
+                else f"UPSB2:{bucket}/{shard_name}"
+            )
             _log(f"Uploading shard to {remote}")
             subprocess.run(["rclone", "copyto", str(out_path), remote, "-P"], check=True, env=b2env)
             _log(f"Uploaded and removing local shard {out_path}")
@@ -205,17 +217,23 @@ def stream_from_metadata(
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Stream PDEBench URLs → H5 shards → upload to B2 → delete")
+    p = argparse.ArgumentParser(
+        description="Stream PDEBench URLs → H5 shards → upload to B2 → delete"
+    )
     p.add_argument("--dataset", choices=["burgers1d", "advection1d"], required=True)
     p.add_argument("--split", default="train")
     p.add_argument("--metadata-url", default=DEFAULT_METADATA, help="URL to metadata CSV")
-    p.add_argument("--out", default="data/pdebench", help="Temp output dir for shards before upload")
+    p.add_argument(
+        "--out", default="data/pdebench", help="Temp output dir for shards before upload"
+    )
     p.add_argument("--tokens-per-param-ratio", type=float, default=20.0)
     p.add_argument("--latent-dim", type=int, default=128)
     p.add_argument("--tokens", type=int, default=64)
     p.add_argument("--bucket", default=os.environ.get("B2_BUCKET"))
     p.add_argument("--prefix", default="pdebench/full")
-    p.add_argument("--batch-size", type=int, default=6, help="Number of raw files to stream per shard")
+    p.add_argument(
+        "--batch-size", type=int, default=6, help="Number of raw files to stream per shard"
+    )
     p.add_argument("--samples-per-file", type=int, default=None)
     p.add_argument("--log-file", help="Optional log file path")
     return p.parse_args()

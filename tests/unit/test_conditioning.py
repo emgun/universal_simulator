@@ -24,6 +24,15 @@ def test_modulate_applies_scale_shift_gate():
     cond = {"geom": torch.zeros(2, 3)}
     out = conditioner.modulate(normed, cond)
     assert out.shape == normed.shape
-    # With zero conditioning, modulation should be a constant scaling factor.
-    expected = torch.sigmoid(torch.tensor(2.0)) * torch.ones_like(out)
-    assert torch.allclose(out, expected)
+    # Zero-initialized projections must make conditioning an exact no-op.
+    assert torch.allclose(out, normed)
+
+
+def test_adaln_conditioner_accepts_set_structured_sources():
+    cfg = ConditioningConfig(latent_dim=12, hidden_dim=8, sources={"equation_nodes": 5})
+    conditioner = AdaLNConditioner(cfg)
+    cond = {"equation_nodes": torch.randn(3, 4, 5)}
+    mods = conditioner(cond)
+    assert mods["scale"].shape == (3, 12)
+    assert mods["shift"].shape == (3, 12)
+    assert mods["gate"].shape == (3, 12)

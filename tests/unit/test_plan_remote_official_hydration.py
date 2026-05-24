@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+import json
+from argparse import Namespace
+from pathlib import Path
+
+from scripts.plan_remote_official_hydration import create_remote_plan
+
+
+def _write_json(path, payload):
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _args(tmp_path):
+    hydration = _write_json(
+        tmp_path / "hydration.json",
+        {
+            "estimated_download_gib": 61.34,
+            "remote_entries": [
+                {"path": "1D/Advection/Train/a.hdf5", "size_bytes": 8 * 1024**3},
+                {"path": "1D/Advection/Train/b.hdf5", "size_bytes": 7 * 1024**3},
+            ],
+            "held_out_test_policy": {"test_split_downloaded": False, "test_split_sharded": False},
+        },
+    )
+    preflight = _write_json(tmp_path / "preflight.json", {"status": "blocked_insufficient_disk"})
+    storage = _write_json(tmp_path / "storage.json", {"status": "external_or_freed_space_required"})
+    return Namespace(
+        hydration_plan_json=str(hydration),
+        preflight_json=str(preflight),
+        storage_json=str(storage),
+        remote_plan_json="reports/plan.json",
+        remote_validation_json="reports/validation.json",
+        remote_run_json="reports/run.json",
+        remote_post_validation_test_json="reports/post_validation_test.json",
+        min_disk_gb=120,
+        disk_multiplier=1.3,
+        disk_padding_gb=40,
+        sequential_min_disk_gb=32,
+        sequential_disk_padding_gb=16,
+        download_workers=8,
+        download_part_size_mib=128,
+        download_retries=6,
+        download_part_timeout=180,
+        download_retry_backoff=20.0,
+        download_split_after_retries=2,
+        download_min_split_size_mib=8,
+        sequential_hydration=True,
+        git_ref="codex/sota-learned-gate",
+        launch_retries=3,
+        launch_retry_backoff=10.0,
+        offer_id="",
+        output_json=str(tmp_path / "remote.json"),
+    )
+
+
+def test_remote_plan_is_ready_when_local_disk_is_blocked(tmp_path):
+    record = create_remote_plan(_args(tmp_path))
+
+    assert record["status"] == "ready_for_remote_hydration"
+    assert record["sequential_hydration"] is True
+    assert record["git_ref"] == "codex/sota-learned-gate"
+    assert record["required_disk_gb"] == 32
+    assert "DRY_RUN=1" in record["commands"]["dry_run_launcher"]
+    assert "DRY_RUN=0" in record["commands"]["actual_launcher"]
+    assert "GIT_REF=codex/sota-learned-gate" in record["commands"]["actual_launcher"]
+    assert "LAUNCH_RETRIES=3" in record["commands"]["actual_launcher"]
+    assert "LAUNCH_RETRY_BACKOFF=10.0" in record["commands"]["actual_launcher"]
+    assert (
+        "REMOTE_SCRIPT=scripts/run_remote_official_hydration.sh"
+        in record["commands"]["actual_launcher"]
+    )
+    assert "EXECUTE_DOWNLOADS=1" in record["commands"]["actual_launcher"]
+    assert "SEQUENTIAL_HYDRATION=1" in record["commands"]["actual_launcher"]
+    assert "SEQUENTIAL_CLEANUP_RAW=1" in record["commands"]["actual_launcher"]
+    assert "RUN_POST_VALIDATION_TEST=1" in record["commands"]["actual_launcher"]
+    assert "EXECUTE_TEST=1" in record["commands"]["actual_launcher"]
+    assert "PUBLISH_ARTIFACTS=1" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_PART_SIZE_MIB=128" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_RETRIES=6" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_PART_TIMEOUT=180" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_RETRY_BACKOFF=20.0" in record["commands"]["actual_launcher"]
+    assert "PDEBENCH_DOWNLOAD_SPLIT_AFTER_RETRIES=2" in record["commands"]["actual_launcher"]
+    assert record["download_runtime"]["part_size_mib"] == 128
+    assert record["launch_runtime"]["retries"] == 3
+    assert record["preferred_offer_id"] is None
+    assert record["remote_post_validation_test_json"] == "reports/post_validation_test.json"
+    assert record["held_out_test_policy"]["test_split_downloaded"] is False
+
+
+def test_remote_plan_can_pin_preferred_offer_id(tmp_path):
+    args = _args(tmp_path)
+    args.offer_id = "36151271"
+
+    record = create_remote_plan(args)
+
+    assert record["preferred_offer_id"] == "36151271"
+    assert "OFFER_ID=36151271" in record["commands"]["actual_launcher"]
+    assert "DRY_RUN=0 OFFER_ID=36151271" in record["commands"]["actual_launcher"]
+
+
+def test_remote_plan_notes_when_remote_not_needed(tmp_path):
+    args = _args(tmp_path)
+    _write_json(Path(args.preflight_json), {"status": "ready_for_download"})
+
+    record = create_remote_plan(args)
+
+    assert record["status"] == "blocked_remote_plan_not_needed"
+    assert record["blockers"]

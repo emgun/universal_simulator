@@ -2,7 +2,6 @@ import torch
 
 from ups.core import (
     LogSpacedRelativePositionBias,
-    WindowPartitionInfo,
     merge_windows,
     partition_windows,
 )

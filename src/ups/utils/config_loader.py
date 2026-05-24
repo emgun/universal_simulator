@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
 
-def load_config_with_includes(path: str | Path, _visited: set[Path] | None = None) -> Dict[str, Any]:
+def load_config_with_includes(
+    path: str | Path, _visited: set[Path] | None = None
+) -> dict[str, Any]:
     """Load a YAML config file with support for include directives.
 
     Recursively resolves `include: path` directives by loading and merging
@@ -37,7 +39,7 @@ def load_config_with_includes(path: str | Path, _visited: set[Path] | None = Non
     _visited.add(config_path)
 
     # Load current config
-    with open(config_path, "r", encoding="utf-8") as fh:
+    with open(config_path, encoding="utf-8") as fh:
         config = yaml.safe_load(fh) or {}
 
     # Check for include directive
@@ -53,7 +55,9 @@ def load_config_with_includes(path: str | Path, _visited: set[Path] | None = Non
         include_full_path = include_full_path.with_suffix(".yaml")
 
     if not include_full_path.exists():
-        raise FileNotFoundError(f"Included config not found: {include_full_path} (from {config_path})")
+        raise FileNotFoundError(
+            f"Included config not found: {include_full_path} (from {config_path})"
+        )
 
     # Recursively load the included config
     base_config = load_config_with_includes(include_full_path, _visited)
@@ -64,7 +68,7 @@ def load_config_with_includes(path: str | Path, _visited: set[Path] | None = Non
     return merged
 
 
-def _deep_merge(base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Deep merge two dictionaries, with overlay taking precedence.
 
     Args:

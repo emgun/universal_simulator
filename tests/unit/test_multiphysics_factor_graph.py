@@ -15,4 +15,3 @@ def test_factor_graph_converges():
     graph = MultiphysicsFactorGraph(nodes, [PortEdge("A", "B", transfer)], max_iters=10, tol=1e-5)
     result = graph()
     assert torch.allclose(result["A"], result["B"], atol=1e-3)
-

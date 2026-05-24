@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Orchestrate the cheapest remote UPS demo loop:
+# 1. Check smoke shard readiness in B2.
+# 2. Prepare/publish smoke shards if they are missing and PREP_SHARDS=1.
+# 3. Generate a bounded smoke experiment queue.
+# 4. Optionally run that queue when RUN_EXPERIMENTS=1.
+#
+# Defaults are safe: dry-run shard prep, dry-run generated queue, and no
+# training. Set DRY_RUN=0 to publish shards. Set RUN_EXPERIMENTS=1 and
+# QUEUE_DRY_RUN=0 only on a remote box with enough scratch space and after
+# reviewing the generated queue.
+
+apply_cli_assignments() {
+  local assignment
+  for assignment in "$@"; do
+    case "$assignment" in
+      *=*) export "$assignment" ;;
+      "")
+        ;;
+      *)
+        echo "Unexpected argument '${assignment}'. Pass options as KEY=VALUE assignments." >&2
+        exit 2
+        ;;
+    esac
+  done
+}
+
+apply_cli_assignments "$@"
+
+normalize_list() {
+  echo "$1" | tr ',' ' '
+}
+
+ENV_FILE=${ENV_FILE:-.env}
+PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
+SMOKE_MANIFEST=${SMOKE_MANIFEST:-docs/demo_smoke_data_manifest.yaml}
+SUMMARY_GLOB=${SUMMARY_GLOB:-reports/light_experiments_remote/*/summary.json}
+QUEUE_VARIANTS=${QUEUE_VARIANTS:-"current_best no_conditioning task_signature_only"}
+QUEUE_DIR=${QUEUE_DIR:-$PIPELINE_ROOT/queue}
+OUTPUT_ROOT=${OUTPUT_ROOT:-reports/light_experiments_remote}
+PREP_SHARDS=${PREP_SHARDS:-1}
+RUN_EXPERIMENTS=${RUN_EXPERIMENTS:-0}
+DRY_RUN=${DRY_RUN:-1}
+QUEUE_DRY_RUN=${QUEUE_DRY_RUN:-1}
+RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-ups}
+CHECK_B2=${CHECK_B2:-1}
+ALLOW_UNCHECKED_LIVE_QUEUE=${ALLOW_UNCHECKED_LIVE_QUEUE:-0}
+PUBLISH_PIPELINE_ARTIFACTS=${PUBLISH_PIPELINE_ARTIFACTS:-0}
+PIPELINE_ARTIFACT_PREFIX=${PIPELINE_ARTIFACT_PREFIX:-remote-runs/smoke}
+
+mkdir -p "$PIPELINE_ROOT" "$QUEUE_DIR"
+
+readiness_json="$PIPELINE_ROOT/readiness_before.json"
+readiness_after_json="$PIPELINE_ROOT/readiness_after.json"
+prep_log="$PIPELINE_ROOT/smoke_shard_prep.log"
+queue_log="$PIPELINE_ROOT/smoke_queue.log"
+
+configure_artifact_rclone() {
+  : "${B2_KEY_ID:?Set B2_KEY_ID to publish pipeline artifacts}"
+  : "${B2_APP_KEY:?Set B2_APP_KEY to publish pipeline artifacts}"
+  : "${B2_BUCKET:?Set B2_BUCKET to publish pipeline artifacts}"
+  if ! command -v rclone >/dev/null 2>&1; then
+    echo "rclone is required to publish pipeline artifacts." >&2
+    exit 1
+  fi
+  if [ -n "${B2_S3_ENDPOINT:-}" ] || [ -n "${B2_S3_REGION:-}" ]; then
+    export RCLONE_CONFIG_UPSB2_TYPE=s3
+    export RCLONE_CONFIG_UPSB2_PROVIDER=Other
+    export RCLONE_CONFIG_UPSB2_ACCESS_KEY_ID="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_SECRET_ACCESS_KEY="${B2_APP_KEY}"
+    [ -n "${B2_S3_ENDPOINT:-}" ] && export RCLONE_CONFIG_UPSB2_ENDPOINT="${B2_S3_ENDPOINT}"
+    [ -n "${B2_S3_REGION:-}" ] && export RCLONE_CONFIG_UPSB2_REGION="${B2_S3_REGION}"
+  else
+    export RCLONE_CONFIG_UPSB2_TYPE=b2
+    export RCLONE_CONFIG_UPSB2_ACCOUNT="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_KEY="${B2_APP_KEY}"
+  fi
+}
+
+publish_pipeline_artifacts() {
+  local stamp artifact_name artifact_path remote_key
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  artifact_name=${PIPELINE_ARTIFACT_NAME:-remote_smoke_${stamp}.tar.gz}
+  artifact_path="/tmp/${artifact_name}"
+  remote_key="${PIPELINE_ARTIFACT_PREFIX%/}/${artifact_name}"
+
+  tar -czf "$artifact_path" "$PIPELINE_ROOT" "$OUTPUT_ROOT"
+  configure_artifact_rclone
+  rclone copyto "$artifact_path" "UPSB2:${B2_BUCKET}/${remote_key}"
+  echo "Published pipeline artifacts: b2://${B2_BUCKET}/${remote_key}"
+}
+
+check_readiness() {
+  local output_json="$1"
+  local -a args=(
+    python scripts/check_demo_readiness.py
+    --manifest "$SMOKE_MANIFEST" \
+    --summary-glob "$SUMMARY_GLOB" \
+    --baseline-run "" \
+    --candidate-run "" \
+    --env-file "$ENV_FILE" \
+    --json "$output_json"
+  )
+  if [ "$CHECK_B2" -eq 1 ]; then
+    args+=(--check-b2)
+  fi
+  "${args[@]}"
+}
+
+shards_ready() {
+  local path="$1"
+  python - "$path" <<'PY'
+import json
+import sys
+
+payload = json.loads(open(sys.argv[1], encoding="utf-8").read())
+b2 = payload.get("b2") or {}
+sys.exit(0 if b2.get("ok") else 1)
+PY
+}
+
+echo "Checking smoke shard readiness..."
+if check_readiness "$readiness_json"; then
+  readiness_status=0
+else
+  readiness_status=$?
+fi
+
+shard_status_json="$readiness_json"
+shards_are_ready=0
+if shards_ready "$readiness_json"; then
+  shards_are_ready=1
+  echo "Smoke shards are already ready."
+else
+  echo "Smoke shards are not ready."
+  if [ "$PREP_SHARDS" -eq 1 ]; then
+    echo "Running smoke shard prep. Log: ${prep_log}"
+    (
+      DRY_RUN="$DRY_RUN" \
+      ENV_FILE="$ENV_FILE" \
+      MANIFEST="$SMOKE_MANIFEST" \
+      bash scripts/run_smoke_shard_prep_b2.sh
+    ) 2>&1 | tee "$prep_log"
+    if [ "$DRY_RUN" -eq 0 ]; then
+      echo "Re-checking smoke shard readiness after prep..."
+      if check_readiness "$readiness_after_json"; then
+        readiness_status=0
+      else
+        readiness_status=$?
+      fi
+      if ! shards_ready "$readiness_after_json"; then
+        readiness_status=1
+      else
+        shards_are_ready=1
+        shard_status_json="$readiness_after_json"
+      fi
+    else
+      echo "DRY_RUN=1: skipping post-prep readiness enforcement."
+    fi
+  else
+    echo "PREP_SHARDS=0: leaving smoke shards missing."
+  fi
+fi
+
+if [ "$RUN_EXPERIMENTS" -eq 1 ] && [ "$QUEUE_DRY_RUN" -eq 0 ] && [ "$CHECK_B2" -eq 1 ] && [ "$shards_are_ready" -ne 1 ]; then
+  echo "Refusing live smoke experiments because smoke shards are not ready. See ${shard_status_json}." >&2
+  exit 1
+fi
+
+if [ "$RUN_EXPERIMENTS" -eq 1 ] && [ "$QUEUE_DRY_RUN" -eq 0 ] && [ "$CHECK_B2" -ne 1 ] && [ "$ALLOW_UNCHECKED_LIVE_QUEUE" -ne 1 ]; then
+  echo "Refusing live smoke experiments without CHECK_B2=1. Set ALLOW_UNCHECKED_LIVE_QUEUE=1 only for controlled test environments." >&2
+  exit 1
+fi
+
+variant_args=()
+for variant in $(normalize_list "$QUEUE_VARIANTS"); do
+  variant_args+=(--variant "$variant")
+done
+
+queue_jsonl="$QUEUE_DIR/smoke_queue.jsonl"
+queue_tsv="$QUEUE_DIR/smoke_queue.tsv"
+queue_sh="$QUEUE_DIR/run_smoke_queue.sh"
+
+python scripts/plan_demo_experiments.py \
+  --tier smoke \
+  "${variant_args[@]}" \
+  --env-file "$ENV_FILE" \
+  --dry-run-value "$QUEUE_DRY_RUN" \
+  --run-prefix "$RUN_NAME_PREFIX" \
+  --output-root "$OUTPUT_ROOT" \
+  --output-jsonl "$queue_jsonl" \
+  --output-tsv "$queue_tsv" \
+  --output-sh "$queue_sh"
+
+echo "Smoke queue generated:"
+echo "  ${queue_jsonl}"
+echo "  ${queue_tsv}"
+echo "  ${queue_sh}"
+
+if [ "$RUN_EXPERIMENTS" -eq 1 ]; then
+  echo "Running smoke experiment queue. Log: ${queue_log}"
+  bash "$queue_sh" 2>&1 | tee "$queue_log"
+else
+  echo "RUN_EXPERIMENTS=0: generated queue only."
+fi
+
+if [ "$readiness_status" -ne 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+  echo "Smoke readiness is still failing after requested actions." >&2
+  exit "$readiness_status"
+fi
+
+if [ "$PUBLISH_PIPELINE_ARTIFACTS" -eq 1 ]; then
+  publish_pipeline_artifacts
+fi
+
+echo "Remote smoke pipeline complete."

@@ -4,24 +4,38 @@ from __future__ import annotations
 """Evaluate latent operator checkpoints on PDEBench datasets."""
 
 import argparse
+import copy
 import json
-from pathlib import Path
-from typing import Any, Dict
-
 import sys
+from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import yaml
 import torch.multiprocessing as mp
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ups.core.blocks_pdet import PDETransformerConfig
-from ups.eval.pdebench_runner import evaluate_latent_operator
+from ups.core.conditioning import ConditioningConfig
+from ups.data.latent_pairs import (
+    conditioning_source_dims_from_sample,
+    infer_channel_count,
+    infer_grid_shape,
+)
+from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
+from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
+from ups.eval.promotion import (
+    evaluate_promotion_rules,
+    parse_promotion_rule,
+    promotion_rules_from_config,
+)
 from ups.eval.reports import MetricReport
 from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
+from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
+from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
 from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
 from ups.utils.monitoring import init_monitoring_session
@@ -33,12 +47,14 @@ except RuntimeError:
     pass
 
 
-def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to_strip: str = "_orig_mod.") -> None:
+def _load_state_dict_compat(
+    model: torch.nn.Module, ckpt_path: str, *, prefix_to_strip: str = "_orig_mod."
+) -> None:
     """Load a checkpoint while stripping an optional prefix from keys (e.g., from torch.compile()).
 
     This makes loading robust across compiled/non-compiled training runs.
     """
-    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     if isinstance(ckpt, dict) and "state_dict" in ckpt:
         state_dict = ckpt["state_dict"]
     elif isinstance(ckpt, dict):
@@ -58,18 +74,19 @@ def _load_state_dict_compat(model: torch.nn.Module, ckpt_path: str, *, prefix_to
     model.load_state_dict(state_dict)
 
 
-def load_config(path: str) -> Dict[str, Any]:
+def load_config(path: str) -> dict[str, Any]:
     """Load config with support for include directives."""
     try:
         from ups.utils.config_loader import load_config_with_includes
+
         return load_config_with_includes(path)
     except ImportError:
         # Fallback to basic loading if config_loader not available
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             return yaml.safe_load(fh) or {}
 
 
-def make_operator(cfg: Dict[str, Any]) -> LatentOperator:
+def make_operator(cfg: dict[str, Any]) -> LatentOperator:
     latent_cfg = cfg.get("latent", {})
     dim = latent_cfg.get("dim", 32)
     pdet_cfg = cfg.get("operator", {}).get("pdet", {})
@@ -81,21 +98,150 @@ def make_operator(cfg: Dict[str, Any]) -> LatentOperator:
             "group_size": max(dim // 2, 4),
             "num_heads": 4,
         }
+    conditioning = None
+    conditioning_cfg = cfg.get("operator", {}).get("conditioning", {})
+    sources = conditioning_cfg.get("sources")
+    if sources:
+        conditioning = ConditioningConfig(
+            latent_dim=dim,
+            hidden_dim=int(conditioning_cfg.get("hidden_dim", max(dim * 2, 64))),
+            sources={str(key): int(value) for key, value in sources.items()},
+        )
+    elif bool(cfg.get("training", {}).get("auto_conditioning", False)):
+        data_cfg = cfg.get("data", {})
+        task_cfg = data_cfg.get("task")
+        task_names = [task_cfg] if isinstance(task_cfg, str) else [str(task) for task in task_cfg]
+        task_vocab = tuple(task_names) if len(task_names) > 1 else None
+        param_vocab = tuple(data_cfg.get("param_keys", ()))
+        bc_vocab = tuple(data_cfg.get("bc_keys", ()))
+        auto_sources: dict[str, int] = {}
+        for task_name in task_names:
+            dataset = PDEBenchDataset(
+                PDEBenchConfig(
+                    task=task_name,
+                    split=data_cfg.get("split", "train"),
+                    root=data_cfg.get("root"),
+                    param_keys=tuple(data_cfg.get("param_keys", ())),
+                    bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                    max_samples=data_cfg.get("max_samples"),
+                )
+            )
+            sample = dataset[0]
+            grid_shape = infer_grid_shape(sample["fields"])
+            sample_sources = conditioning_source_dims_from_sample(
+                sample,
+                grid_shape=grid_shape,
+                task_name=task_name,
+                task_vocab=task_vocab,
+                param_vocab=param_vocab,
+                bc_vocab=bc_vocab,
+            )
+            for key, dim_value in sample_sources.items():
+                auto_sources[key] = max(auto_sources.get(key, 0), int(dim_value))
+        conditioning = ConditioningConfig(
+            latent_dim=dim,
+            hidden_dim=int(conditioning_cfg.get("hidden_dim", max(dim * 2, 64))),
+            sources=auto_sources,
+        )
+
     config = LatentOperatorConfig(
         latent_dim=dim,
         pdet=PDETransformerConfig(**pdet_cfg),
+        conditioning=conditioning,
         time_embed_dim=dim,
     )
     return LatentOperator(config)
 
 
-def make_diffusion(cfg: Dict[str, Any]) -> DiffusionResidual:
+def make_diffusion(cfg: dict[str, Any]) -> DiffusionResidual:
     latent_dim = cfg.get("latent", {}).get("dim", 32)
     hidden_dim = cfg.get("diffusion", {}).get("hidden_dim", latent_dim * 2)
     return DiffusionResidual(DiffusionResidualConfig(latent_dim=latent_dim, hidden_dim=hidden_dim))
-def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], details: Dict[str, Any]) -> Dict[str, Path]:
+
+
+def _pdebench_grid_spec(cfg: dict[str, Any]) -> tuple[tuple[int, int], int, str]:
+    data_cfg = cfg.get("data", {})
+    task_cfg = data_cfg.get("task")
+    if isinstance(task_cfg, str):
+        task_names = [task_cfg]
+    elif (
+        isinstance(task_cfg, (list, tuple))
+        and task_cfg
+        and all(isinstance(task, str) for task in task_cfg)
+    ):
+        task_names = [str(task) for task in task_cfg]
+    else:
+        raise ValueError(
+            "Decoded evaluation requires one PDEBench task or a non-empty list of task names"
+        )
+
+    channels = None
+    grid_shape = None
+    for task in task_names:
+        dataset = PDEBenchDataset(
+            PDEBenchConfig(
+                task=task,
+                split=data_cfg.get("split", "train"),
+                root=data_cfg.get("root"),
+                param_keys=tuple(data_cfg.get("param_keys", ())),
+                bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                max_samples=data_cfg.get("max_samples"),
+            )
+        )
+        sample_fields = dataset.fields[0]
+        task_grid_shape = infer_grid_shape(sample_fields)
+        task_channels = infer_channel_count(sample_fields, task_grid_shape)
+        if channels is None:
+            channels = task_channels
+            grid_shape = task_grid_shape
+        elif task_channels != channels:
+            raise ValueError(
+                "Decoded evaluation currently requires all tasks to share the same channel count"
+            )
+
+    field_name = data_cfg.get("field_name", "u")
+    assert grid_shape is not None and channels is not None
+    return grid_shape, channels, field_name
+
+
+def make_encoder(cfg: dict[str, Any]) -> GridEncoder:
+    _, channels, field_name = _pdebench_grid_spec(cfg)
+    latent_cfg = cfg.get("latent", {})
+    data_cfg = cfg.get("data", {})
+    return GridEncoder(
+        GridEncoderConfig(
+            patch_size=data_cfg.get("patch_size", 4),
+            latent_dim=latent_cfg.get("dim", 32),
+            latent_len=latent_cfg.get("tokens", 16),
+            field_channels={field_name: channels},
+        )
+    )
+
+
+def make_decoder(cfg: dict[str, Any]) -> AnyPointDecoder:
+    _, channels, field_name = _pdebench_grid_spec(cfg)
+    latent_dim = cfg.get("latent", {}).get("dim", 32)
+    decoder_cfg = cfg.get("decoder", {})
+    hidden_dim = decoder_cfg.get("hidden_dim", max(latent_dim * 2, 64))
+    return AnyPointDecoder(
+        AnyPointDecoderConfig(
+            latent_dim=latent_dim,
+            query_dim=2,
+            hidden_dim=hidden_dim,
+            num_layers=decoder_cfg.get("num_layers", 2),
+            num_heads=decoder_cfg.get("num_heads", 4),
+            frequencies=tuple(decoder_cfg.get("frequencies", (1.0, 2.0, 4.0))),
+            mlp_hidden_dim=decoder_cfg.get("mlp_hidden_dim", hidden_dim),
+            output_channels={field_name: channels},
+        )
+    )
+
+
+def _write_outputs(
+    report: MetricReport, prefix: Path, cfg: dict[str, Any], details: dict[str, Any]
+) -> dict[str, Path]:
     prefix.parent.mkdir(parents=True, exist_ok=True)
-    paths: Dict[str, Path] = {}
+    paths: dict[str, Path] = {}
 
     config_path = prefix.parent / f"{prefix.name}.config.yaml"
     config_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
@@ -126,7 +272,9 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
         paths["ttc_logs"] = logs_path
         steps = list(range(len(ttc_logs)))
         best_totals = [max(entry["totals"]) if entry["totals"] else None for entry in ttc_logs]
-        chosen_totals = [entry["totals"][entry["chosen"]] if entry["totals"] else None for entry in ttc_logs]
+        chosen_totals = [
+            entry["totals"][entry["chosen"]] if entry["totals"] else None for entry in ttc_logs
+        ]
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.plot(steps, best_totals, label="Best total reward", marker="o")
         ax.plot(steps, chosen_totals, label="Chosen total reward", marker="x")
@@ -142,12 +290,14 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
 
     html_path = prefix.with_suffix(".html")
     metrics_rows = "\n".join(
-        f"        <tr><td>{key}</td><td>{value:.6g}</td></tr>" for key, value in report.metrics.items()
+        f"        <tr><td>{key}</td><td>{value:.6g}</td></tr>"
+        for key, value in report.metrics.items()
     )
     extras_rows = ""
     if report.extra:
         extras_rows = "\n".join(
-            f"        <tr><td>{key}</td><td>{value}</td></tr>" for key, value in report.extra.items()
+            f"        <tr><td>{key}</td><td>{value}</td></tr>"
+            for key, value in report.extra.items()
         )
     top_rows = ""
     if details.get("per_sample_mse"):
@@ -248,7 +398,9 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
         ax.set_xticks(range(len(labels)))
         ax.set_xticklabels(labels, rotation=45, ha="right")
         for bar, value in zip(bars, values):
-            ax.text(bar.get_x() + bar.get_width() / 2, value, f"{value:.3g}", ha="center", va="bottom")
+            ax.text(
+                bar.get_x() + bar.get_width() / 2, value, f"{value:.3g}", ha="center", va="bottom"
+            )
         fig.tight_layout()
         plot_path = prefix.parent / f"{prefix.name}_metrics.png"
         fig.savefig(plot_path, dpi=150)
@@ -305,9 +457,18 @@ def _write_outputs(report: MetricReport, prefix: Path, cfg: Dict[str, Any], deta
     return paths
 
 
-def _print_report(report: MetricReport, paths: Dict[str, Path], as_json: bool) -> None:
+def _print_report(report: MetricReport, paths: dict[str, Path], as_json: bool) -> None:
     if as_json:
-        print(json.dumps({"metrics": report.metrics, "extra": report.extra, "outputs": {k: str(v) for k, v in paths.items()}}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "metrics": report.metrics,
+                    "extra": report.extra,
+                    "outputs": {k: str(v) for k, v in paths.items()},
+                },
+                indent=2,
+            )
+        )
         return
 
     print("Evaluation metrics:")
@@ -322,16 +483,78 @@ def _print_report(report: MetricReport, paths: Dict[str, Path], as_json: bool) -
         print(f"  {kind}: {path}")
 
 
+def _clone_eval_cfg(
+    cfg: dict[str, Any],
+    *,
+    tasks: list[str] | None = None,
+    split: str | None = None,
+) -> dict[str, Any]:
+    eval_cfg = copy.deepcopy(cfg)
+    data_cfg = eval_cfg.setdefault("data", {})
+    if tasks:
+        data_cfg["task"] = tasks[0] if len(tasks) == 1 else tasks
+    if split is not None:
+        data_cfg["split"] = split
+    return eval_cfg
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate latent operator checkpoints on PDEBench data")
-    parser.add_argument("--config", default="configs/train_multi_pde.yaml", help="Config file describing data/latent setup")
+    parser = argparse.ArgumentParser(
+        description="Evaluate latent operator checkpoints on PDEBench data"
+    )
+    parser.add_argument(
+        "--config",
+        default="configs/train_multi_pde.yaml",
+        help="Config file describing data/latent setup",
+    )
     parser.add_argument("--operator", required=True, help="Path to operator checkpoint")
     parser.add_argument("--diffusion", help="Optional diffusion residual checkpoint")
-    parser.add_argument("--tau", type=float, default=0.5, help="Tau value used when applying diffusion residual")
+    parser.add_argument(
+        "--tau", type=float, default=0.5, help="Tau value used when applying diffusion residual"
+    )
     parser.add_argument("--device", default="cpu", help="Device for evaluation")
-    parser.add_argument("--output-prefix", default="reports/evaluation", help="Prefix (without extension) for saved reports")
-    parser.add_argument("--log-path", default="reports/eval_log.jsonl", help="Where to append evaluation logs")
-    parser.add_argument("--print-json", action="store_true", help="Print metrics and file paths as JSON")
+    parser.add_argument(
+        "--encoder", help="Optional encoder checkpoint for decoded physical-space evaluation"
+    )
+    parser.add_argument(
+        "--decoder", help="Optional decoder checkpoint for decoded physical-space evaluation"
+    )
+    parser.add_argument(
+        "--decoded", action="store_true", help="Also compute decoded physical-space metrics"
+    )
+    parser.add_argument(
+        "--decoded-rollout-steps",
+        type=int,
+        help="Optional maximum rollout depth for decoded evaluation",
+    )
+    parser.add_argument(
+        "--transfer-tasks",
+        nargs="+",
+        help="Optional held-out PDEBench tasks to evaluate with transfer_* metrics",
+    )
+    parser.add_argument("--transfer-split", help="Optional split override for transfer evaluation")
+    parser.add_argument(
+        "--promotion-rule",
+        action="append",
+        default=[],
+        help="Promotion rule like decoded_rollout_nrmse<=0.2 or max:family_*_decoded_rollout_nrmse<=0.3; can be repeated",
+    )
+    parser.add_argument(
+        "--fail-on-promotion",
+        action="store_true",
+        help="Exit with code 2 if any promotion rule fails",
+    )
+    parser.add_argument(
+        "--output-prefix",
+        default="reports/evaluation",
+        help="Prefix (without extension) for saved reports",
+    )
+    parser.add_argument(
+        "--log-path", default="reports/eval_log.jsonl", help="Where to append evaluation logs"
+    )
+    parser.add_argument(
+        "--print-json", action="store_true", help="Print metrics and file paths as JSON"
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -349,7 +572,9 @@ def main() -> None:
     ttc_cfg = cfg.get("ttc")
     if ttc_cfg and ttc_cfg.get("enabled"):
         device = torch.device(args.device)
-        reward_model = build_reward_model_from_config(ttc_cfg, cfg.get("latent", {}).get("dim", 32), device).to(device)
+        reward_model = build_reward_model_from_config(
+            ttc_cfg, cfg.get("latent", {}).get("dim", 32), device
+        ).to(device)
         sampler_cfg = ttc_cfg.get("sampler", {})
         tau_range = sampler_cfg.get("tau_range", [0.3, 0.7])
         ttc_runtime_cfg = TTCConfig(
@@ -379,12 +604,95 @@ def main() -> None:
     )
     report, details = result  # type: ignore[misc]
 
+    if args.decoded:
+        operator_path = Path(args.operator)
+        encoder_ckpt = args.encoder or str(operator_path.with_name("encoder.pt"))
+        decoder_ckpt = args.decoder or str(operator_path.with_name("decoder.pt"))
+        if not Path(encoder_ckpt).exists():
+            raise FileNotFoundError(
+                f"Decoded evaluation requires encoder checkpoint: {encoder_ckpt}"
+            )
+        if not Path(decoder_ckpt).exists():
+            raise FileNotFoundError(
+                f"Decoded evaluation requires decoder checkpoint: {decoder_ckpt}"
+            )
+
+        encoder = make_encoder(cfg)
+        decoder = make_decoder(cfg)
+        _load_state_dict_compat(encoder, encoder_ckpt, prefix_to_strip="")
+        _load_state_dict_compat(decoder, decoder_ckpt, prefix_to_strip="")
+        decoded_report = evaluate_decoded_operator(
+            cfg,
+            encoder,
+            operator,
+            decoder,
+            device=args.device,
+            rollout_steps=args.decoded_rollout_steps,
+        )
+        report.metrics.update(decoded_report.metrics)
+        if report.extra is None:
+            report.extra = {}
+        if decoded_report.extra:
+            report.extra.update({f"decoded_{k}": v for k, v in decoded_report.extra.items()})
+
+    if args.transfer_tasks:
+        transfer_cfg = _clone_eval_cfg(
+            cfg, tasks=[str(task) for task in args.transfer_tasks], split=args.transfer_split
+        )
+        transfer_report = evaluate_latent_operator(
+            transfer_cfg,
+            operator,
+            diffusion=diffusion_model,
+            tau=args.tau,
+            device=args.device,
+            return_details=False,
+            ttc_config=ttc_runtime_cfg,
+            reward_model=reward_model,
+        )
+        report.metrics.update(
+            {f"transfer_{key}": value for key, value in transfer_report.metrics.items()}
+        )
+        if report.extra is None:
+            report.extra = {}
+        report.extra["transfer_tasks"] = args.transfer_tasks
+        report.extra["transfer_split"] = transfer_cfg.get("data", {}).get("split")
+        if args.decoded:
+            encoder = make_encoder(transfer_cfg)
+            decoder = make_decoder(transfer_cfg)
+            _load_state_dict_compat(encoder, encoder_ckpt, prefix_to_strip="")
+            _load_state_dict_compat(decoder, decoder_ckpt, prefix_to_strip="")
+            transfer_decoded_report = evaluate_decoded_operator(
+                transfer_cfg,
+                encoder,
+                operator,
+                decoder,
+                device=args.device,
+                rollout_steps=args.decoded_rollout_steps,
+            )
+            report.metrics.update(
+                {f"transfer_{key}": value for key, value in transfer_decoded_report.metrics.items()}
+            )
+
+    promotion_rules = promotion_rules_from_config(cfg)
+    promotion_rules.extend(parse_promotion_rule(rule) for rule in args.promotion_rule)
+    promotion_failed = False
+    if promotion_rules:
+        promotion_result = evaluate_promotion_rules(report.metrics, promotion_rules)
+        if report.extra is None:
+            report.extra = {}
+        report.extra["promotion_passed"] = promotion_result.passed
+        report.extra["promotion_rule_count"] = len(promotion_rules)
+        report.extra["promotion_failed_rules"] = promotion_result.failed_rules
+        report.extra["promotion_missing_metrics"] = promotion_result.missing_metrics
+        promotion_failed = not promotion_result.passed
+
     output_prefix = Path(args.output_prefix)
     outputs = _write_outputs(report, output_prefix, cfg, details)
-    
+
     # Upload all report files to W&B
     try:
         import wandb
+
         if wandb.run is not None:
             for output_type, output_path in outputs.items():
                 wandb.save(str(output_path), base_path=str(output_path.parent.parent))
@@ -393,18 +701,16 @@ def main() -> None:
         print(f"Note: Could not upload reports to W&B: {e}")
 
     session = init_monitoring_session(cfg, component="evaluation", file_path=args.log_path)
-    
+
     # Log metrics with eval/ prefix for better organization
-    eval_metrics = {
-        f"eval/{k}": v for k, v in report.metrics.items()
-    }
+    eval_metrics = {f"eval/{k}": v for k, v in report.metrics.items()}
     session.log(eval_metrics)
-    
+
     # Log extra info
     if report.extra:
         eval_extra = {f"eval/{k}": v for k, v in report.extra.items()}
         session.log(eval_extra)
-    
+
     # Log images with eval/ prefix
     if "plot_mse" in outputs:
         session.log_image("eval/mse_histogram", outputs["plot_mse"])
@@ -426,6 +732,8 @@ def main() -> None:
     session.finish()
 
     _print_report(report, outputs, args.print_json)
+    if args.fail_on_promotion and promotion_failed:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

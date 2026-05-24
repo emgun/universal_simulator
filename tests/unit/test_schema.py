@@ -35,4 +35,3 @@ def test_required_fields_missing():
 def test_good_sample_validates():
     s = make_good_sample()
     validate_sample(s)
-

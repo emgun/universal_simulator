@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import os
+import subprocess
+from pathlib import Path
+
+
+def _write_json(path: Path, payload: str) -> None:
+    path.write_text(payload, encoding="utf-8")
+
+
+def test_official_transport_objective_status_dry_run_defaults_to_literal_release_check():
+    env = os.environ.copy()
+    env["DRY_RUN"] = "1"
+    proc = subprocess.run(
+        ["bash", "scripts/run_official_transport_objective_status.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "aggregate transport objective status" in proc.stdout
+    assert "transport_shift_goal_audit.json" in proc.stdout
+    assert "context_transport_shift_goal_audit.json" in proc.stdout
+    assert "observed_transport_shift_goal_audit.json" in proc.stdout
+    assert "train_only_transport_feature_diagnostic_full.json" in proc.stdout
+    assert "train_only_transport_identifiability_audit.json" in proc.stdout
+    assert "transport_data_hydration_options.json" in proc.stdout
+    assert "official_advection_hydration_plan.json" in proc.stdout
+    assert "official_advection_hydration_plan_validation.json" in proc.stdout
+    assert "official_advection_hydration_plan_run.json" in proc.stdout
+    assert "official_advection_hydration_preflight.json" in proc.stdout
+    assert "official_advection_hydration_storage_recommendation.json" in proc.stdout
+    assert "remote_official_advection_hydration_plan.json" in proc.stdout
+    assert "official_execution_readiness.json" in proc.stdout
+    assert "official_hydrated_transport_shift_gate.json" in proc.stdout
+    assert "require_status=literal-achieved" in proc.stdout
+    assert "accept_context_transport=0" in proc.stdout
+    assert "accept_observed_context=0" in proc.stdout
+
+
+def test_official_transport_objective_status_dry_run_reports_observed_policy_acceptance():
+    env = os.environ.copy()
+    env["DRY_RUN"] = "1"
+    env["ACCEPT_OBSERVED_CONTEXT"] = "1"
+    env["REQUIRE_STATUS"] = "observed-accepted"
+    proc = subprocess.run(
+        ["bash", "scripts/run_official_transport_objective_status.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "require_status=observed-accepted" in proc.stdout
+    assert "accept_observed_context=1" in proc.stdout
+
+
+def test_official_transport_objective_status_dry_run_reports_context_policy_acceptance():
+    env = os.environ.copy()
+    env["DRY_RUN"] = "1"
+    env["ACCEPT_CONTEXT_TRANSPORT"] = "1"
+    env["REQUIRE_STATUS"] = "context-accepted"
+    proc = subprocess.run(
+        ["bash", "scripts/run_official_transport_objective_status.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "require_status=context-accepted" in proc.stdout
+    assert "accept_context_transport=1" in proc.stdout
+
+
+def test_official_context_transport_objective_status_wrapper_dry_run():
+    env = os.environ.copy()
+    env["DRY_RUN"] = "1"
+    proc = subprocess.run(
+        ["bash", "scripts/run_official_context_transport_objective_status.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "aggregate transport objective status" in proc.stdout
+    assert "require_status=context-accepted" in proc.stdout
+    assert "accept_context_transport=1" in proc.stdout
+    assert "transport_objective_status_context_accepted.json" in proc.stdout
+
+
+def test_official_transport_objective_status_executes_default_literal_check(tmp_path):
+    constant = tmp_path / "constant.json"
+    context = tmp_path / "context.json"
+    observed = tmp_path / "observed.json"
+    features = tmp_path / "features.json"
+    identifiability = tmp_path / "identifiability.json"
+    hydration = tmp_path / "hydration.json"
+    hydration_plan = tmp_path / "hydration_plan.json"
+    hydration_plan_validation = tmp_path / "hydration_plan_validation.json"
+    hydration_plan_run = tmp_path / "hydration_plan_run.json"
+    hydration_preflight = tmp_path / "hydration_preflight.json"
+    hydration_storage = tmp_path / "hydration_storage.json"
+    remote_hydration = tmp_path / "remote_hydration.json"
+    official_hydrated_gate = tmp_path / "official_hydrated_gate.json"
+    output = tmp_path / "objective.json"
+    _write_json(constant, '{"status":"blocked_incompatible_splits"}')
+    _write_json(context, '{"status":"achieved","result_record_policy":{"passed":true}}')
+    _write_json(observed, '{"status":"achieved","result_record_policy":{"passed":true}}')
+    _write_json(features, '{"conclusion":"blocked_no_train_support_for_validation_shift"}')
+    _write_json(identifiability, '{"status":"blocked_underidentified_train_only_shift"}')
+    _write_json(hydration, '{"status":"remote_official_hydration_required"}')
+    _write_json(hydration_plan, '{"status":"ready_for_explicit_hydration"}')
+    _write_json(hydration_plan_validation, '{"status":"valid"}')
+    _write_json(hydration_plan_run, '{"status":"dry_run"}')
+    _write_json(hydration_preflight, '{"status":"blocked_insufficient_disk"}')
+    _write_json(hydration_storage, '{"status":"external_or_freed_space_required"}')
+    _write_json(remote_hydration, '{"status":"ready_for_remote_hydration"}')
+    _write_json(official_hydrated_gate, "{}")
+    env = os.environ.copy()
+    env["CONSTANT_AUDIT_JSON"] = str(constant)
+    env["CONTEXT_AUDIT_JSON"] = str(context)
+    env["OBSERVED_AUDIT_JSON"] = str(observed)
+    env["TRAIN_FEATURE_DIAGNOSTIC_JSON"] = str(features)
+    env["TRAIN_IDENTIFIABILITY_AUDIT_JSON"] = str(identifiability)
+    env["HYDRATION_OPTIONS_JSON"] = str(hydration)
+    env["HYDRATION_PLAN_JSON"] = str(hydration_plan)
+    env["HYDRATION_PLAN_VALIDATION_JSON"] = str(hydration_plan_validation)
+    env["HYDRATION_PLAN_RUN_JSON"] = str(hydration_plan_run)
+    env["HYDRATION_PREFLIGHT_JSON"] = str(hydration_preflight)
+    env["HYDRATION_STORAGE_JSON"] = str(hydration_storage)
+    env["REMOTE_HYDRATION_PLAN_JSON"] = str(remote_hydration)
+    env["OFFICIAL_HYDRATED_GATE_JSON"] = str(official_hydrated_gate)
+    env["OBJECTIVE_STATUS_JSON"] = str(output)
+    env["REQUIRE_STATUS"] = "report"
+
+    proc = subprocess.run(
+        ["bash", "scripts/run_official_transport_objective_status.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert '"status": "literal_blocked"' in proc.stdout
+    assert output.exists()

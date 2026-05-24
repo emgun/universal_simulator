@@ -9,11 +9,19 @@ from ups.data.convert_pdebench import convert_files
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert PDEBench HDF5 shards into UPS-ready HDF5 file.")
+    parser = argparse.ArgumentParser(
+        description="Convert PDEBench HDF5 shards into UPS-ready HDF5 file."
+    )
     parser.add_argument("--pattern", required=True, help="Glob pattern for input HDF5 files")
-    parser.add_argument("--out", required=True, help="Output HDF5 path (e.g. data/pdebench/burgers1d_train.h5)")
-    parser.add_argument("--limit", type=int, default=None, help="Optional limit on number of files to include")
-    parser.add_argument("--samples", type=int, default=None, help="Number of solutions to take from each file")
+    parser.add_argument(
+        "--out", required=True, help="Output HDF5 path (e.g. data/pdebench/burgers1d_train.h5)"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Optional limit on number of files to include"
+    )
+    parser.add_argument(
+        "--samples", type=int, default=None, help="Number of solutions to take from each file"
+    )
     args = parser.parse_args()
 
     files = sorted(glob(args.pattern))

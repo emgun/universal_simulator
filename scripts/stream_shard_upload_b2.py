@@ -16,13 +16,10 @@ Usage example:
 """
 
 import argparse
-import math
 import os
-import shutil
 import subprocess
 from glob import glob
 from pathlib import Path
-from typing import Iterable, List
 
 import h5py
 import numpy as np
@@ -34,12 +31,14 @@ def estimate_tokens_per_sample(h5_path: Path) -> int:
     with h5py.File(h5_path, "r") as f:
         # Heuristic: largest numeric dataset size is proxy for tokens
         best = 0
+
         def _visit(_, obj):
             nonlocal best
             if isinstance(obj, h5py.Dataset) and obj.dtype.kind in ("f", "i") and obj.ndim >= 2:
                 # Per-sample tokens approximated by np.prod(shape[1:])
                 tps = int(np.prod(obj.shape[1:]))
                 best = max(best, tps)
+
         f.visititems(_visit)
         if best == 0:
             raise ValueError(f"No numeric dataset in {h5_path}")
@@ -65,7 +64,7 @@ def shard_and_upload(
     b2_key_id: str,
     b2_app_key: str,
     samples_per_file: int | None,
-) -> List[Path]:
+) -> list[Path]:
     patterns = {
         "burgers1d": "1D/Burgers/Train/*.hdf5",
         "advection1d": "1D/Advection/Train/*.hdf5",
@@ -82,7 +81,7 @@ def shard_and_upload(
     est_samples_needed = max(1, target_tokens // max(1, tokens_per_sample))
 
     # Convert in shards of N files at a time until we exceed target tokens
-    written_files: List[Path] = []
+    written_files: list[Path] = []
     total_samples = 0
     suffix = dataset_key.replace("1d", "1d").replace(" ", "_")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -90,7 +89,7 @@ def shard_and_upload(
     batch_index = 0
     index = 0
     while total_samples < est_samples_needed and index < len(files):
-        batch = files[index:index + 8]  # stream in small batches of 8 files
+        batch = files[index : index + 8]  # stream in small batches of 8 files
         index += len(batch)
         out_path = out_dir / f"{dataset_key}_train_{batch_index:03d}.h5"
         print(f"Converting {len(batch)} files -> {out_path}")
@@ -108,12 +107,16 @@ def shard_and_upload(
         written_files.append(out_path)
         batch_index += 1
 
-    print(f"Finished {dataset_key}: ~{total_samples} samples (~{total_samples * tokens_per_sample} tokens) vs target {target_tokens}")
+    print(
+        f"Finished {dataset_key}: ~{total_samples} samples (~{total_samples * tokens_per_sample} tokens) vs target {target_tokens}"
+    )
     return written_files
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Stream raw 1D PDEBench, shard to H5, upload to B2, delete local")
+    p = argparse.ArgumentParser(
+        description="Stream raw 1D PDEBench, shard to H5, upload to B2, delete local"
+    )
     p.add_argument("dataset", choices=["burgers1d", "advection1d"])
     p.add_argument("--raw-root", default="data/pdebench/raw", help="Root containing raw PDEBench")
     p.add_argument("--out", default="data/pdebench", help="Local temporary output directory")
@@ -122,7 +125,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tokens", type=int, default=64)
     p.add_argument("--bucket", default=os.environ.get("B2_BUCKET"), required=False)
     p.add_argument("--prefix", default="pdebench/full", help="Remote prefix inside bucket")
-    p.add_argument("--samples-per-file", type=int, default=None, help="Optional subsampling per raw file")
+    p.add_argument(
+        "--samples-per-file", type=int, default=None, help="Optional subsampling per raw file"
+    )
     return p.parse_args()
 
 
@@ -150,5 +155,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

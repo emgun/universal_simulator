@@ -4,18 +4,17 @@ from __future__ import annotations
 """Download W&B run metrics via the public API for offline analysis."""
 
 import argparse
-import sys
 from pathlib import Path
 
 try:
     import pandas as pd
 except ImportError as exc:  # pragma: no cover - optional dependency
-    raise SystemExit("pandas is required. Install with `pip install pandas`." ) from exc
+    raise SystemExit("pandas is required. Install with `pip install pandas`.") from exc
 
 try:
     import wandb
 except ImportError as exc:  # pragma: no cover
-    raise SystemExit("wandb is required. Install with `pip install wandb`." ) from exc
+    raise SystemExit("wandb is required. Install with `pip install wandb`.") from exc
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,7 +23,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--entity", default=None, help="W&B entity (defaults to current login)")
     parser.add_argument("--project", required=True, help="W&B project name")
     parser.add_argument("--metrics", nargs="*", help="Optional subset of metric columns to keep")
-    parser.add_argument("--out", default=None, help="Output CSV path (default: reports/wandb_<run>.csv)")
+    parser.add_argument(
+        "--out", default=None, help="Output CSV path (default: reports/wandb_<run>.csv)"
+    )
     parser.add_argument("--max_rows", type=int, default=None, help="Optional limit on history rows")
     return parser.parse_args()
 
@@ -42,7 +43,9 @@ def fetch_history(run_path: str, metrics: list[str] | None, max_rows: int | None
 def main() -> None:
     args = parse_args()
     project = args.project
-    entity = args.entity or wandb.env.get_entity() or getattr(wandb.env, "get_username", lambda: None)()
+    entity = (
+        args.entity or wandb.env.get_entity() or getattr(wandb.env, "get_username", lambda: None)()
+    )
     if entity is None:
         raise SystemExit(
             "Could not determine W&B entity. Pass --entity explicitly, set WANDB_ENTITY, or run `wandb login`."

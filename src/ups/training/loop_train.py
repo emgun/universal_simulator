@@ -3,14 +3,12 @@ from __future__ import annotations
 """Training loop and curriculum utilities for the latent operator."""
 
 import itertools
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Optional
 
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 
-from ups.core.latent_state import LatentState
 from ups.models.latent_operator import LatentOperator
 from ups.training.losses import LossBundle, compute_loss_bundle
 
@@ -20,8 +18,8 @@ class CurriculumConfig:
     stages: Iterable[Mapping[str, torch.Tensor]]
     rollout_lengths: Iterable[int]
     max_steps: int
-    grad_clip: Optional[float] = None
-    ema_decay: Optional[float] = None
+    grad_clip: float | None = None
+    ema_decay: float | None = None
 
 
 class LatentTrainer:
@@ -68,7 +66,9 @@ class LatentTrainer:
             self.optimizer.zero_grad()
             loss_bundle.total.backward()
             if self.curriculum.grad_clip is not None:
-                torch.nn.utils.clip_grad_norm_(self.operator.parameters(), self.curriculum.grad_clip)
+                torch.nn.utils.clip_grad_norm_(
+                    self.operator.parameters(), self.curriculum.grad_clip
+                )
             self.optimizer.step()
             self._apply_ema()
             step_iter += 1
