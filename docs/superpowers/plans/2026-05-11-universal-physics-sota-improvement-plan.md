@@ -1841,3 +1841,11 @@ Official hydrated benchmark achieved:
 - `reports/research/sota_loop/official_hydrated_transport_shift_gate.json` passed validation with `nrmse=0.0028383232393941124` against reference `0.30780652221851373`; the locked train-fitted source shift map is `{0: 1.0, 1: 2.0, 2: 4.0, 3: 7.0, 4: 10.0, 5: 20.5, 6: 41.0, 7: 71.5}`.
 - Exactly one held-out test was then run after `literal_test_ready`; `reports/research/sota_loop/official_hydrated_post_validation_test_run.json` records `test_result_count=1` and test `nrmse=0.0017648902922571088`.
 - `reports/research/sota_loop/transport_objective_status.json` now reports `status=literal_achieved` with no blockers. Do not rerun the held-out test unless a future plan explicitly changes the ledger policy and benchmark protocol.
+
+Parameter-conditioned transport successor:
+
+- `scripts/run_parameter_conditioned_transport_shift_gate.py` fits a train-only linear rule from parsed official Advection `beta` metadata to periodic shift. It uses `source_file_index` only to join rows to their source beta, not as the learned shift key.
+- Fresh source-conditioned validation baseline on official `light-v1`: `nrmse=0.0028383232393941124`, no held-out test rerun.
+- Parameter-conditioned validation result: `nrmse=0.001981674036057911`, fitted `shift = 10.236877359639507 * beta - 0.08098891730605368`, guard passed against reference `0.30780652221851373`.
+- Exactly one held-out test was run for the locked beta-conditioned estimator and recorded in `reports/research/sota_loop/causal_transport_head/parameter_conditioned_test_ledger.json`: test `nrmse=0.001232006631009314`.
+- Status: promote as the new best narrow official Advection transport result and the next cleaner G2.5 step. Do not call this universal SOTA; it is still parameterized Advection transport, not a general learned simulator across PDE families.
