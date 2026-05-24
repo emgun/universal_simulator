@@ -2613,3 +2613,10 @@ Parameter-conditioned transport successor (2026-05-24):
 - Ran the parameter-conditioned validation gate on official `light-v1` train/val with the same fractional refinement envelope; validation improved to `nrmse=0.001981674036057911` with fitted `shift = 10.236877359639507 * beta - 0.08098891730605368`.
 - Because validation passed the guard against reference `0.30780652221851373`, ran exactly one new held-out test for this locked estimator using `reports/research/sota_loop/causal_transport_head/parameter_conditioned_test_ledger.json`; held-out test `nrmse=0.001232006631009314`.
 - This is a stronger narrow transport result and a cleaner step toward the universal SOTA goal than the source-conditioned map, but it is still an Advection-specific parameterized mechanism rather than a general learned physics simulator.
+
+Inferred context transport successor (2026-05-24):
+- Added `scripts/run_inferred_transport_shift_gate.py`, which infers a per-sample transport shift from early observed context and calibrates that inferred shift on train only. It does not use `source_file_index` or parsed `beta` as the learned key.
+- Re-ran the beta-conditioned validation baseline on the merged branch: validation `nrmse=0.001981674036057911`.
+- Train/val-only sweep found the best inferred setting at `context_transitions=8`, `refine_radius=4`, `fractional_refine_step=0.025`, with validation `nrmse=0.00029621962142020844`.
+- Because that validation result beat the current beta-conditioned validation baseline and passed the guard, ran exactly one held-out test using `reports/research/sota_loop/inferred_transport_head/inferred_transport_test_ledger.json`; held-out test `nrmse=0.0001883979016384957`.
+- This is the strongest narrow official Advection transport result so far and removes explicit beta conditioning, but it still depends on observed early-context frames and is not yet broad universal SOTA across PDE families.

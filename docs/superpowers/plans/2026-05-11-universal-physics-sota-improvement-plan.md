@@ -1849,3 +1849,12 @@ Parameter-conditioned transport successor:
 - Parameter-conditioned validation result: `nrmse=0.001981674036057911`, fitted `shift = 10.236877359639507 * beta - 0.08098891730605368`, guard passed against reference `0.30780652221851373`.
 - Exactly one held-out test was run for the locked beta-conditioned estimator and recorded in `reports/research/sota_loop/causal_transport_head/parameter_conditioned_test_ledger.json`: test `nrmse=0.001232006631009314`.
 - Status: promote as the new best narrow official Advection transport result and the next cleaner G2.5 step. Do not call this universal SOTA; it is still parameterized Advection transport, not a general learned simulator across PDE families.
+
+Inferred context transport successor:
+
+- `scripts/run_inferred_transport_shift_gate.py` infers each sample's transport shift from early observed context and fits only a train-split linear calibration from inferred context shift to rollout shift.
+- It does not use explicit `beta` metadata or `source_file_index` as the learned key. The benchmark tradeoff is that it uses observed context frames, so it is a causal online estimator rather than a zero-context simulator.
+- Beta-conditioned baseline on this branch: validation `nrmse=0.001981674036057911`.
+- Best train/val-only inferred setting: `context_transitions=8`, `refine_radius=4`, `fractional_refine_step=0.025`, validation `nrmse=0.00029621962142020844`.
+- Exactly one held-out test was run for the locked inferred estimator and recorded in `reports/research/sota_loop/inferred_transport_head/inferred_transport_test_ledger.json`: test `nrmse=0.0001883979016384957`.
+- Status: promote as the new best narrow official Advection transport result. The next universal-SOTA step is to test whether this context-inferred mechanism transfers beyond Advection or can be integrated into the broader UPS latent operator scorecard.
