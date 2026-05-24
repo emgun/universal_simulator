@@ -776,7 +776,7 @@ def collate_latent_pairs_with_sequences(batch_items: Iterable[LatentPair]) -> Di
 
 
 def _build_pdebench_dataset(
-    data_cfg: Dict[str, Any]
+    data_cfg: Dict[str, Any],
 ) -> Tuple[Dataset, GridEncoder, Tuple[int, int], str]:
     dataset = PDEBenchDataset(
         PDEBenchConfig(

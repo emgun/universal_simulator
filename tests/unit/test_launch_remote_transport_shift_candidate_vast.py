@@ -11,8 +11,7 @@ def test_official_remote_launcher_blocks_before_vast_when_readiness_fails(tmp_pa
     fake_bin.mkdir()
     fake_python = fake_bin / "python"
     fake_python.write_text(
-        textwrap.dedent(
-            """\
+        textwrap.dedent("""\
             #!/usr/bin/env python3
             import json
             import sys
@@ -37,8 +36,7 @@ def test_official_remote_launcher_blocks_before_vast_when_readiness_fails(tmp_pa
                 raise SystemExit(0)
 
             raise SystemExit("unexpected python invocation: " + " ".join(sys.argv))
-            """
-        ),
+            """),
         encoding="utf-8",
     )
     fake_python.chmod(fake_python.stat().st_mode | stat.S_IXUSR)

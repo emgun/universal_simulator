@@ -4,7 +4,6 @@ from typing import Any, Dict, Literal, Optional, TypedDict
 
 import torch
 
-
 Kind = Literal["grid", "mesh", "particles"]
 
 
