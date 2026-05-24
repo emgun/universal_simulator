@@ -22,7 +22,7 @@ jobs:
         run: |
           ruff --version
           ruff check .
-          black --check --line-length 100 .
+          black --check --line-length 100 --target-version py310 .
       - name: Unit tests
         run: |
           pytest -q tests/unit
