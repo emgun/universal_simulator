@@ -2628,3 +2628,12 @@ Inferred transport transfer scorecard (2026-05-24):
 - Burgers train/validation-only transfer result: validation `nrmse=0.0058254034699600854`, train `nrmse=0.062408372798664555`, `test_touched=false`.
 - Darcy was skipped with `missing train split: data/pdebench/darcy2d_train.h5`; the scorecard also now explicitly rejects non-`1d` tasks even if static splits are present, because this gate is a 1D transport mechanism rather than a general PDE operator.
 - This is real transfer evidence beyond the official Advection-only result, but it is still a narrow 1D transport scorecard. It does not close the universal SOTA goal, which still requires broader PDE-family, resolution, and baseline comparisons.
+
+Universal SOTA status audit (2026-05-26):
+- Added `scripts/audit_universal_sota_status.py` to combine the light-v1 demo scorecard, official transport objective status, and inferred transfer scorecard into one fail-closed readiness artifact.
+- Live output at `reports/research/sota_loop/universal_sota_status.json` reports `status=not_sota_ready` and `sota_ready=false`.
+- The narrow official transport objective is still recognized as achieved: `transport status=literal_achieved`.
+- The transfer signal is recognized as present: `transfer status=partial_transfer_validated`, `evaluated_task_count=2`.
+- The best overall light-v1 row is `ups_light_observed_shift_estimator_test` with decoded rollout `nrmse=0.20177292896682064`, but the audit excludes diagnostic fragments `roll_shift`, `observed_shift`, `transport_gate`, and `transport_horizon_gate` from universal-SOTA claim eligibility.
+- Current claim-eligible light-v1 candidate count is `0`, so the universal SOTA blockers are the claim-eligible light-v1 improvement gate, medium-or-larger confirmation, strong baseline comparison, scorecard completeness for an eligible row, W&B/artifact handles, and exact claim documentation.
+- Next best path: train or evaluate a learned general PDE operator/refiner gate, then rerun this audit only after it appears in the light-v1 scorecard as a claim-eligible candidate.
