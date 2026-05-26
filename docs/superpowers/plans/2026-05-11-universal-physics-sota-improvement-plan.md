@@ -1941,3 +1941,11 @@ Compact Vast bootstrap route:
   - `python -m black --check scripts/vast_launch.py tests/unit/test_vast_launch.py tests/unit/test_launch_remote_smoke_vast.py`
   - `bash -n scripts/vast_remote_bootstrap.sh scripts/launch_remote_smoke_vast.sh scripts/launch_remote_transport_shift_candidate_vast.sh`
 - Status: this creates a smaller falsifiable Vast retry path, but it must be pushed to a branch before a live worker can fetch the tracked bootstrap script. No held-out test was run.
+
+Compact Vast bootstrap live smoke:
+
+- Branch `codex/vast-tracked-bootstrap` was pushed so Vast could fetch `scripts/vast_remote_bootstrap.sh` from GitHub raw content.
+- Vast contract `37963841` launched with `--args-mode`, `--bootstrap-mode tracked-script`, `--git-ref codex/vast-tracked-bootstrap`, and a dry smoke dispatch: `DRY_RUN=1 PREP_SHARDS=0 RUN_EXPERIMENTS=0 CHECK_B2=0 PIPELINE_ROOT=reports/demo/remote_bootstrap_smoke`.
+- The container reached user code, downloaded the branch by GitHub zip fallback because `git` was unavailable, installed the package with the `smoke` install profile, generated the smoke queue, printed `Remote smoke pipeline complete`, and exited with `REMOTE_BOOTSTRAP_EXIT_STATUS=0`.
+- The contract was destroyed after log verification, and a cleanup check returned no active Vast instances: `vastai show instances --raw` returned `[]`.
+- Status: the previous provider/container bootstrap blocker is cleared for the compact args-mode route. The next live step can use this same branch/ref and tracked bootstrap shape for the validation-only learned-capacity queue; held-out test execution remains unauthorized until the validation guard clears.
