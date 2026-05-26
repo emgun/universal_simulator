@@ -72,6 +72,7 @@ def test_universal_sota_audit_fails_closed_when_light_gate_is_below_threshold(tm
             strong_baseline_compared=False,
             artifact_handles_confirmed=False,
             documentation_confirmed=False,
+            candidate_summary_glob=[],
             output_json=tmp_path / "out.json",
         )
     )
@@ -116,6 +117,7 @@ def test_universal_sota_audit_marks_ready_only_when_all_claim_criteria_pass(tmp_
             strong_baseline_compared=True,
             artifact_handles_confirmed=True,
             documentation_confirmed=True,
+            candidate_summary_glob=[],
             output_json="",
         )
     )
@@ -124,3 +126,71 @@ def test_universal_sota_audit_marks_ready_only_when_all_claim_criteria_pass(tmp_
     assert record["sota_ready"] is True
     assert record["blocking_reasons"] == []
     assert all(check["passed"] for check in record["readiness_checks"])
+
+
+def test_universal_sota_audit_can_scan_candidate_summaries_not_in_scorecard(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard([_row("persistence_light_v1_test", 1.0)]),
+    )
+    summary_dir = tmp_path / "reports" / "ups_light_task_signature_trained_residual"
+    summary_dir.mkdir(parents=True)
+    _write_json(
+        summary_dir / "summary.json",
+        {
+            "run_name": "ups_light_task_signature_trained_residual",
+            "duration_sec": 2.0,
+            "metrics": {
+                "decoded_rollout_nrmse": 0.8,
+                "task_advection1d_decoded_rollout_nrmse": 0.9,
+                "task_burgers1d_decoded_rollout_nrmse": 0.7,
+                "task_darcy2d_decoded_rollout_nrmse": 0.6,
+                "decoded_rollout_spectral_energy_error": 0.1,
+            },
+        },
+    )
+    diagnostic_dir = tmp_path / "reports" / "ups_light_gate_hook_transport_base_val"
+    diagnostic_dir.mkdir(parents=True)
+    _write_json(
+        diagnostic_dir / "summary.json",
+        {
+            "run_name": "ups_light_gate_hook_transport_base_val",
+            "duration_sec": 1.0,
+            "metrics": {
+                "decoded_rollout_nrmse": 0.1,
+                "task_advection1d_decoded_rollout_nrmse": 0.1,
+                "task_burgers1d_decoded_rollout_nrmse": 0.1,
+                "task_darcy2d_decoded_rollout_nrmse": 0.1,
+                "decoded_rollout_spectral_energy_error": 0.1,
+            },
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "partial_transfer_validated", "evaluated_task_count": 2},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=False,
+            strong_baseline_compared=False,
+            artifact_handles_confirmed=False,
+            documentation_confirmed=False,
+            candidate_summary_glob=[str(tmp_path / "reports" / "ups_light*" / "summary.json")],
+            output_json="",
+        )
+    )
+
+    assert record["light_v1"]["best_run_name"] == "ups_light_task_signature_trained_residual"
+    assert record["light_v1"]["best_metric_value"] == 0.8
+    assert record["light_v1"]["claim_eligible_run_count"] == 1
+    assert record["light_v1"]["passes_min_improvement_gate"] is False

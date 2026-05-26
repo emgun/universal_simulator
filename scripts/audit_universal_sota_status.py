@@ -4,16 +4,20 @@ from __future__ import annotations
 """Audit whether current UPS evidence is ready for a universal SOTA claim."""
 
 import argparse
+import glob
 import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 DEFAULT_DIAGNOSTIC_RUN_FRAGMENTS = (
+    "gate_hook",
+    "residual_alpha",
     "roll_shift",
     "observed_shift",
     "transport_gate",
     "transport_horizon_gate",
+    "transport_residual_gate",
 )
 
 
@@ -46,6 +50,52 @@ def _rows(scorecard: Mapping[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         return []
     return [dict(row) for row in rows if isinstance(row, Mapping)]
+
+
+def _wandb_urls(summary: Mapping[str, Any]) -> str:
+    tracking = summary.get("tracking", {})
+    wandb = tracking.get("wandb", {}) if isinstance(tracking, Mapping) else {}
+    runs = wandb.get("runs", []) if isinstance(wandb, Mapping) else []
+    if not isinstance(runs, list):
+        return ""
+    urls = [str(run.get("url", "")) for run in runs if isinstance(run, Mapping) and run.get("url")]
+    return ",".join(urls)
+
+
+def _row_from_summary(summary: Mapping[str, Any], summary_path: Path) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "run_name": summary.get("run_name", summary_path.parent.name),
+        "summary_json": str(summary_path),
+        "duration_sec": summary.get("duration_sec"),
+        "tracking_wandb_urls": _wandb_urls(summary),
+    }
+    metrics = summary.get("metrics", {})
+    if isinstance(metrics, Mapping):
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)):
+                row[f"metric:{key}"] = float(value)
+    return row
+
+
+def _summary_rows(patterns: tuple[str, ...]) -> list[dict[str, Any]]:
+    rows = []
+    for pattern in patterns:
+        for item in sorted(glob.glob(pattern)):
+            path = Path(item)
+            if not path.exists():
+                continue
+            rows.append(_row_from_summary(_load_json(path), path))
+    return rows
+
+
+def _dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        run_name = str(row.get("run_name", ""))
+        if not run_name:
+            continue
+        by_name[run_name] = row
+    return list(by_name.values())
 
 
 def _best_row(rows: list[dict[str, Any]], metric_name: str) -> dict[str, Any] | None:
@@ -138,7 +188,8 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     transport_status = _maybe_load_json(args.transport_status_json)
     transfer_scorecard = _maybe_load_json(args.transfer_scorecard_json)
 
-    rows = _rows(light_scorecard)
+    candidate_summary_globs = tuple(getattr(args, "candidate_summary_glob", None) or ())
+    rows = _dedupe_rows([*_rows(light_scorecard), *_summary_rows(candidate_summary_globs)])
     baseline = _baseline_row(rows, args.baseline_run_name)
     diagnostic_fragments = tuple(
         getattr(args, "exclude_diagnostic_fragment", None) or DEFAULT_DIAGNOSTIC_RUN_FRAGMENTS
@@ -249,6 +300,7 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         },
         "light_v1": {
             "scorecard_json": str(args.light_scorecard_json),
+            "candidate_summary_globs": list(candidate_summary_globs),
             "baseline_run_name": args.baseline_run_name,
             "baseline_metric_name": args.metric_name,
             "baseline_metric_value": baseline_value,
@@ -321,6 +373,12 @@ def main() -> None:
             "Run-name fragment to exclude from universal-SOTA claim eligibility. "
             "Defaults to known diagnostic transport sidecars."
         ),
+    )
+    parser.add_argument(
+        "--candidate-summary-glob",
+        action="append",
+        default=["reports/light_experiments_remote/ups_light*/summary.json"],
+        help="Optional summary.json glob for additional light-v1 claim candidates.",
     )
     parser.add_argument(
         "--output-json",
