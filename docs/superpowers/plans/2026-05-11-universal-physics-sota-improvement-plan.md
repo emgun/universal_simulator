@@ -1895,3 +1895,10 @@ Train-confirmed residual gate calibration:
 - The frozen train-selected gate validated on the full local validation split at decoded rollout `nrmse=0.3685752310100123`, failing the guard against reference `0.3567910081081011` with relative improvement `-0.03302836291866644`.
 - No held-out test was run and no test ledger was created for `reports/research/sota_loop/train_confirmed_residual_gate/`.
 - Status: residual alpha schedules are now negative under stricter train-selection/validation-confirmation policy. The next universal-SOTA work should move to learned operator/refiner training or data/model capacity, not further scalar residual schedule search.
+
+Local train substrate readiness audit:
+
+- `scripts/check_demo_readiness.py --check-local-data` now audits manifest-required local source HDF5 shards under `source_root` before full-task train selection or learned-operator work proceeds.
+- Live local audit output at `reports/research/sota_loop/local_light_data_readiness.json` reports `local_data.ok=false`, `expected_count=9`, `present_count=8`, `missing_count=1`, and missing `data/pdebench/darcy2d_train.h5` with `required_samples=128`.
+- Local B2 hydration is not currently executable in this worktree: `.env` is absent and `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, `B2_BUCKET_NAME`, `B2_PREFIX`, `B2_S3_ENDPOINT`, and `B2_S3_REGION` are unset.
+- Status: do not use `evaluation.skip_missing_tasks=true` as support for a universal-SOTA claim. It remains acceptable for partial diagnostics only; full-task train selection and learned operator/refiner promotion are blocked locally until the missing Darcy train shard is hydrated or regenerated.
