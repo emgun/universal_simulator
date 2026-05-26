@@ -115,6 +115,45 @@ def test_vast_launch_experiment_mode_installs_wandb():
     assert "pip install h5py numpy PyYAML matplotlib wandb" in proc.stdout
 
 
+def test_vast_launch_tracked_bootstrap_keeps_onstart_small_and_secret_free():
+    proc = subprocess.run(
+        [
+            "python",
+            "scripts/vast_launch.py",
+            "launch",
+            "--dry-run",
+            "--repo-url",
+            "https://github.com/example/universal_simulator.git",
+            "--remote-script",
+            "scripts/run_remote_light_promotion.sh",
+            "--git-ref",
+            "main",
+            "--bootstrap-mode",
+            "tracked-script",
+            "--script-args",
+            "DRY_RUN=0 LIGHT_EXTRA_ARGS='--override x={\"task_id\":3}'",
+            "--b2-key-id",
+            "secret-key-id",
+            "--b2-app-key",
+            "secret-app-key",
+            "--wandb-api-key",
+            "secret-wandb-key",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "secret-key-id" not in proc.stdout
+    assert "secret-app-key" not in proc.stdout
+    assert "secret-wandb-key" not in proc.stdout
+    assert "scripts/vast_remote_bootstrap.sh" in proc.stdout
+    assert "UPS_SCRIPT_ARGS_B64=" in proc.stdout
+    assert "LIGHT_EXTRA_ARGS" not in proc.stdout
+    assert "pip install h5py numpy PyYAML matplotlib wandb" not in proc.stdout
+    assert "rclone-current-linux-amd64.zip" not in proc.stdout
+
+
 def test_run_can_display_redacted_command_without_changing_executed_command(monkeypatch, capsys):
     vast_launch = load_vast_launch_module()
     executed = []
