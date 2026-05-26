@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 import pytest
 
+import scripts.calibrate_residual_gate as calibrator
 from scripts.calibrate_residual_gate import (
     _alpha_override,
     _gate_candidates,
@@ -43,6 +45,7 @@ def _ledger_args() -> argparse.Namespace:
         override=['operator.conditioning.sources={"task_id":3}'],
         promotion_rule=["decoded_rollout_nrmse<=1.0"],
         reference_metric_value=0.3567910081081011,
+        selection_split="val",
         test_min_relative_improvement=0.01,
         test_split="test",
         val_split="val",
@@ -201,10 +204,18 @@ def test_test_measurement_key_is_stable_and_tracks_selected_gate():
         ],
         selected_gate=selected_gate,
     )
+    split_changed_args = argparse.Namespace(**vars(args))
+    split_changed_args.selection_split = "train"
+    split_changed = _test_measurement_key(
+        args=split_changed_args,
+        selected_overrides=selected_overrides,
+        selected_gate=selected_gate,
+    )
 
     assert len(key) == 64
     assert repeat == key
     assert changed != key
+    assert split_changed != key
 
 
 def test_guard_test_measurement_blocks_repeated_key(tmp_path):
@@ -327,4 +338,77 @@ def test_select_horizon_schedule_uses_global_horizon_metrics():
     assert [selection["metric"] for selection in selections] == [
         "decoded_h1_nrmse",
         "decoded_h2_nrmse",
+    ]
+
+
+def test_main_selects_on_selection_split_and_confirms_on_validation(tmp_path, monkeypatch):
+    calls: list[tuple[str, str, tuple[str, ...]]] = []
+
+    def fake_run_light_eval(*, args, name, split, gate_overrides, **kwargs):
+        calls.append((name, split, tuple(gate_overrides)))
+        return tmp_path / name / "summary.json"
+
+    def fake_read_metrics(summary_path):
+        run_name = summary_path.parent.name
+        if "_train_" in run_name and "alpha0p1" in run_name:
+            return {"decoded_rollout_nrmse": 0.4}
+        if "_train_" in run_name and "alpha0" in run_name:
+            return {"decoded_rollout_nrmse": 0.9}
+        if "_val_" in run_name:
+            return {"decoded_rollout_nrmse": 0.6}
+        raise AssertionError(f"unexpected summary read: {summary_path}")
+
+    output_json = tmp_path / "calibration.json"
+    monkeypatch.setattr(calibrator, "_run_light_eval", fake_run_light_eval)
+    monkeypatch.setattr(calibrator, "_read_metrics", fake_read_metrics)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "calibrate_residual_gate.py",
+            "--checkpoint-source",
+            "reports/light_experiments_remote/best",
+            "--output-root",
+            str(tmp_path),
+            "--run-prefix",
+            "selection_confirm",
+            "--kind",
+            "global",
+            "--key",
+            "all",
+            "--selection-split",
+            "train",
+            "--val-split",
+            "val",
+            "--test-split",
+            "test",
+            "--alpha",
+            "0.0",
+            "--alpha",
+            "0.1",
+            "--reference-metric-value",
+            "0.5",
+            "--test-min-relative-improvement",
+            "0.1",
+            "--output-json",
+            str(output_json),
+        ],
+    )
+
+    calibrator.main()
+
+    record = json.loads(output_json.read_text(encoding="utf-8"))
+    assert record["selection_split"] == "train"
+    assert record["val_split"] == "val"
+    assert record["best_selection"]["alpha"] == 0.1
+    assert record["selected_validation_gate"]["selection"]["alpha"] == 0.1
+    assert record["selected_validation_gate"]["validation"]["decoded_rollout_nrmse"] == 0.6
+    assert record["selected_validation_gate"]["test_guard"]["passed"] is False
+    assert record["test_skipped"]["reason"] == (
+        "selected validation gate did not pass held-out test guard"
+    )
+    assert [(name, split) for name, split, _ in calls] == [
+        ("selection_confirm_train_global_all_alpha0", "train"),
+        ("selection_confirm_train_global_all_alpha0p1", "train"),
+        ("selection_confirm_val_global_all_alpha0p1_validation_confirmation", "val"),
     ]

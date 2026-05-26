@@ -1886,3 +1886,12 @@ Global residual gate calibration:
 - Held-out test decoded rollout was `nrmse=0.5383591367287355`, with per-task rollout `advection1d=0.7686066115389052`, `burgers1d=0.13556008026444324`, and `darcy2d=0.21900255465784269`.
 - A repeat of the same guarded command failed before measurement with `held-out test measurement already recorded for this residual gate`, confirming the no-repeat guard.
 - Status: do not promote this gate. It improved validation but regressed held-out test versus the current claim-eligible light row `0.530536668470072`, so it is evidence of validation overfit in the global residual schedule rather than universal SOTA progress.
+
+Train-confirmed residual gate calibration:
+
+- `scripts/calibrate_residual_gate.py` now supports `--selection-split`, so candidate gates can be selected on a training split and then independently confirmed on validation before a held-out test is authorized.
+- `evaluation.skip_missing_tasks=true` is now honored by latent loader construction, decoded evaluation, and decoded grid-spec inference. This lets local train-selection probes use available train shards while preserving the full checkpoint task vocabulary; in the current local data, `darcy2d_train.h5` is absent and the train selector skips Darcy explicitly.
+- Train selection on available `burgers1d` and `advection1d` train shards selected constant residual alpha `0.0` with train decoded rollout `nrmse=0.10786857080851395`.
+- The frozen train-selected gate validated on the full local validation split at decoded rollout `nrmse=0.3685752310100123`, failing the guard against reference `0.3567910081081011` with relative improvement `-0.03302836291866644`.
+- No held-out test was run and no test ledger was created for `reports/research/sota_loop/train_confirmed_residual_gate/`.
+- Status: residual alpha schedules are now negative under stricter train-selection/validation-confirmation policy. The next universal-SOTA work should move to learned operator/refiner training or data/model capacity, not further scalar residual schedule search.

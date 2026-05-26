@@ -217,6 +217,7 @@ def _test_measurement_key(
         "override": list(args.override),
         "promotion_rule": list(args.promotion_rule),
         "reference_metric_value": args.reference_metric_value,
+        "selection_split": getattr(args, "selection_split", args.val_split),
         "selected_gate": selected_gate.get("selected_gate"),
         "selected_gate_alpha": selected_gate.get("alpha"),
         "selected_gate_schedule": selected_gate.get("schedule"),
@@ -399,7 +400,7 @@ def _run_light_eval(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Calibrate decoded residual gate alpha on validation data"
+        description="Calibrate decoded residual gate alpha on a selection split, then validate and test once"
     )
     parser.add_argument("--config", default="configs/train_multitask_heterogeneous_light_best.yaml")
     parser.add_argument("--checkpoint-source", required=True)
@@ -449,6 +450,10 @@ def main() -> None:
         help="Reuse existing run summary files instead of rerunning them",
     )
     parser.add_argument("--val-split", default="val")
+    parser.add_argument(
+        "--selection-split",
+        help="Split used to select candidate gates; defaults to --val-split for backward compatibility",
+    )
     parser.add_argument("--test-split", default="test")
     parser.add_argument("--skip-test", action="store_true")
     parser.add_argument("--metric", default="decoded_rollout_nrmse")
@@ -484,6 +489,7 @@ def main() -> None:
         help="Optional JSON path for frozen selected override payload",
     )
     args = parser.parse_args()
+    args.selection_split = args.selection_split or args.val_split
 
     alphas = args.alpha or [0.0, 0.1, 0.2, 0.3, 0.4, 0.42, 0.44, 0.5, 0.75, 1.0]
     gate_candidates = _gate_candidates(args)
@@ -493,13 +499,13 @@ def main() -> None:
     for alpha in alphas:
         for gate_index, gate_config in enumerate(gate_candidates):
             name = (
-                f"{args.run_prefix}_{args.val_split}_{args.kind}_{args.key}_alpha{_safe_alpha(alpha)}"
+                f"{args.run_prefix}_{args.selection_split}_{args.kind}_{args.key}_alpha{_safe_alpha(alpha)}"
                 f"{_gate_suffix(gate_index, len(gate_candidates), gate_config)}"
             )
             summary_path = _run_light_eval(
                 args=args,
                 name=name,
-                split=args.val_split,
+                split=args.selection_split,
                 gate_overrides=_gate_overrides(
                     _alpha_override(args.kind, args.key, alpha), gate_config
                 ),
@@ -534,37 +540,44 @@ def main() -> None:
         "default_alpha": args.default_alpha,
         "metric": args.metric,
         "mode": args.mode,
+        "selection_split": args.selection_split,
         "val_split": args.val_split,
         "test_split": args.test_split,
-        "validation": rows,
-        "best_validation": best,
+        "selection": rows,
+        "best_selection": best,
     }
+    if args.selection_split == args.val_split:
+        record["validation"] = rows
+        record["best_validation"] = best
     if schedule is not None and schedule_selections is not None:
-        record["best_validation_schedule"] = {
+        record["best_selection_schedule"] = {
             "schedule": {str(horizon): alpha for horizon, alpha in sorted(schedule.items())},
             "selections": schedule_selections,
         }
         schedule_val_name = (
-            f"{args.run_prefix}_{args.val_split}_{args.kind}_{args.key}_horizon_schedule"
+            f"{args.run_prefix}_{args.selection_split}_{args.kind}_{args.key}_horizon_schedule"
         )
         schedule_val_summary = _run_light_eval(
             args=args,
             name=schedule_val_name,
-            split=args.val_split,
+            split=args.selection_split,
             gate_overrides=_gate_overrides(
                 _schedule_override(args.kind, args.key, schedule), gate_candidates[0]
             ),
             report_all_horizon_metrics=True,
         )
         schedule_val_metrics = _read_metrics(schedule_val_summary)
-        record["validation_schedule"] = {
+        record["selection_schedule"] = {
             "run_name": schedule_val_name,
             "summary": str(schedule_val_summary),
             args.metric: schedule_val_metrics[args.metric],
             "metrics": schedule_val_metrics,
         }
         if gate_candidates[0] is not None:
-            record["validation_schedule"]["gate_config"] = gate_candidates[0]
+            record["selection_schedule"]["gate_config"] = gate_candidates[0]
+        if args.selection_split == args.val_split:
+            record["best_validation_schedule"] = record["best_selection_schedule"]
+            record["validation_schedule"] = record["selection_schedule"]
         record["schedule_min_relative_improvement"] = args.schedule_min_relative_improvement
         record["schedule_relative_improvement"] = _relative_improvement(
             float(schedule_val_metrics[args.metric]),
@@ -572,12 +585,12 @@ def main() -> None:
             mode=args.mode,
         )
 
-    validation_schedule = record.get("validation_schedule")
+    selection_schedule = record.get("selection_schedule")
     use_schedule = (
         schedule is not None
-        and validation_schedule is not None
+        and selection_schedule is not None
         and _is_better(
-            float(validation_schedule[args.metric]),
+            float(selection_schedule[args.metric]),
             float(best[args.metric]),
             mode=args.mode,
         )
@@ -592,7 +605,7 @@ def main() -> None:
             "selected_gate": "horizon_schedule",
             "schedule": {str(horizon): alpha for horizon, alpha in sorted(schedule.items())},
             "overrides": selected_overrides,
-            "validation": validation_schedule,
+            "selection": selection_schedule,
         }
     else:
         selected_gate_config = best.get("gate_config")
@@ -604,9 +617,47 @@ def main() -> None:
             "selected_gate": "constant_alpha",
             "alpha": float(best["alpha"]),
             "overrides": selected_overrides,
-            "validation": best,
+            "selection": best,
         }
-    selected_metric_value = float(record["selected_validation_gate"]["validation"][args.metric])
+    if args.selection_split == args.val_split:
+        validation_confirmation = record["selected_validation_gate"]["selection"]
+    elif use_schedule:
+        validation_name = f"{args.run_prefix}_{args.val_split}_{args.kind}_{args.key}_horizon_schedule_validation_confirmation"
+        validation_summary = _run_light_eval(
+            args=args,
+            name=validation_name,
+            split=args.val_split,
+            gate_overrides=selected_overrides,
+            report_all_horizon_metrics=True,
+        )
+        validation_metrics = _read_metrics(validation_summary)
+        validation_confirmation = {
+            "run_name": validation_name,
+            "summary": str(validation_summary),
+            args.metric: validation_metrics[args.metric],
+            "metrics": validation_metrics,
+        }
+    else:
+        validation_name = (
+            f"{args.run_prefix}_{args.val_split}_{args.kind}_{args.key}_alpha"
+            f"{_safe_alpha(float(best['alpha']))}_validation_confirmation"
+        )
+        validation_summary = _run_light_eval(
+            args=args,
+            name=validation_name,
+            split=args.val_split,
+            gate_overrides=selected_overrides,
+        )
+        validation_metrics = _read_metrics(validation_summary)
+        validation_confirmation = {
+            "run_name": validation_name,
+            "summary": str(validation_summary),
+            args.metric: validation_metrics[args.metric],
+            "metrics": validation_metrics,
+        }
+    record["validation_confirmation"] = validation_confirmation
+    record["selected_validation_gate"]["validation"] = validation_confirmation
+    selected_metric_value = float(validation_confirmation[args.metric])
     record["selected_validation_gate"]["test_guard"] = _test_guard_result(
         value=selected_metric_value,
         reference=args.reference_metric_value,
