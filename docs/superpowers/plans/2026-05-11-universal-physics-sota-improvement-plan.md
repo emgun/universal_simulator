@@ -1960,3 +1960,14 @@ Remote checkpoint-source hydration support:
   - `python -m black --check scripts/vast_launch.py tests/unit/test_vast_launch.py tests/unit/test_launch_remote_smoke_vast.py tests/unit/test_run_remote_light_promotion.py`
   - `bash -n scripts/vast_remote_bootstrap.sh scripts/launch_remote_smoke_vast.sh scripts/launch_remote_transport_shift_candidate_vast.sh scripts/run_remote_light_promotion.sh`
 - Status: the learned-capacity validation-only remote command can now be launched with `CHECKPOINT_SOURCE_B2_KEY=remote-runs/checkpoints/ups_light_task_signature_trained_residual_20260526T1928Z.tar.gz`.
+
+Learned capacity compact remote validation result:
+
+- Vast contract `37964694` launched the validation-only `task_signature_rollout4_residual_ft2` queue on RTX 4090 offer `25999740` with `--args-mode`, `--bootstrap-mode tracked-script`, branch `codex/vast-tracked-bootstrap`, and `CHECKPOINT_SOURCE_B2_KEY=remote-runs/checkpoints/ups_light_task_signature_trained_residual_20260526T1928Z.tar.gz`.
+- The run hydrated `light-v1` train/val shards, restored the checkpoint archive, ran two `joint_codec_operator` fine-tune epochs, evaluated on `EVAL_SPLIT=val`, and published `remote-runs/light/ups_capacity_light_task_signature_rollout4_residual_ft2_remote_val_20260526T1932Z.tar.gz`.
+- Local artifact copy: `/tmp/ups_remote_result/ups_capacity_light_task_signature_rollout4_residual_ft2_remote_val_20260526T1932Z.tar.gz`; extracted local ignored report: `reports/light_experiments_remote/ups_capacity_light_task_signature_rollout4_residual_ft2_remote_val/summary.json`.
+- Validation decoded rollout `nrmse=0.3588558525102544`, with task metrics `advection1d=0.49909280391418825`, `burgers1d=0.14738121133726986`, and `darcy2d=0.18897951477635447`.
+- Against the clean validation reference `0.3567910081081011`, the relative change is `-0.005787265808917782`; this fails the strict `1%` held-out-test authorization guard.
+- The args-mode contract restarted after the first successful publication, so it was destroyed immediately after log/artifact verification. A cleanup check returned no active Vast instances: `vastai show instances --raw` returned `[]`.
+- `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
+- No held-out test was run. Status: the compact remote execution path is now proven, but this learned-capacity recipe should not be promoted.
