@@ -237,9 +237,7 @@ def test_checkpoint_capacity_finetune_variant_generates_remote_recipe(tmp_path):
     assert row["stages"] == "joint_codec_operator"
     assert "stages.joint_codec_operator.epochs=2" in row["light_extra_args"]
     assert "stages.joint_codec_operator.rollout_steps=4" in row["light_extra_args"]
-    assert "stages.joint_codec_operator.lambda_persistence_residual=0.5" in row[
-        "light_extra_args"
-    ]
+    assert "stages.joint_codec_operator.lambda_persistence_residual=0.5" in row["light_extra_args"]
     assert (
         'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.18}'
         in row["light_extra_args"]
