@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+import json
+from argparse import Namespace
+
+from scripts.audit_universal_sota_status import run_audit
+
+
+def _write_json(path, payload):
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _scorecard(rows):
+    return {"rows": rows, "metric_keys": sorted({key for row in rows for key in row})}
+
+
+def _row(
+    run_name: str,
+    metric: float,
+    *,
+    advection: float = 0.7,
+    burgers: float = 0.2,
+    darcy: float = 0.3,
+    spectral: float = 0.1,
+    duration_sec: float | None = 1.0,
+    wandb_urls: str = "",
+):
+    return {
+        "run_name": run_name,
+        "duration_sec": duration_sec,
+        "tracking_wandb_urls": wandb_urls,
+        "metric:decoded_rollout_nrmse": metric,
+        "metric:task_advection1d_decoded_rollout_nrmse": advection,
+        "metric:task_burgers1d_decoded_rollout_nrmse": burgers,
+        "metric:task_darcy2d_decoded_rollout_nrmse": darcy,
+        "metric:decoded_rollout_spectral_energy_error": spectral,
+    }
+
+
+def test_universal_sota_audit_fails_closed_when_light_gate_is_below_threshold(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard(
+            [
+                _row("persistence_light_v1_test", 0.570),
+                _row("candidate", 0.528),
+            ]
+        ),
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {
+            "status": "partial_transfer_validated",
+            "evaluated_task_count": 2,
+            "skipped_task_count": 1,
+        },
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=False,
+            strong_baseline_compared=False,
+            artifact_handles_confirmed=False,
+            documentation_confirmed=False,
+            output_json=tmp_path / "out.json",
+        )
+    )
+
+    assert record["status"] == "not_sota_ready"
+    assert record["transport_objective"]["literal_achieved"] is True
+    assert record["light_v1"]["best_run_name"] == "candidate"
+    assert record["light_v1"]["passes_min_improvement_gate"] is False
+    assert "light_v1_min_improvement" in record["blocking_reasons"]
+    assert record["transfer"]["status"] == "partial_transfer_validated"
+    assert "learned general PDE operator" in record["next_recommended_path"]
+    assert json.loads((tmp_path / "out.json").read_text())["status"] == "not_sota_ready"
+
+
+def test_universal_sota_audit_marks_ready_only_when_all_claim_criteria_pass(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard(
+            [
+                _row("persistence_light_v1_test", 1.0),
+                _row("candidate", 0.7, wandb_urls="https://wandb.example/run"),
+            ]
+        ),
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "transfer_validated", "evaluated_task_count": 3, "skipped_task_count": 0},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=True,
+            strong_baseline_compared=True,
+            artifact_handles_confirmed=True,
+            documentation_confirmed=True,
+            output_json="",
+        )
+    )
+
+    assert record["status"] == "sota_ready"
+    assert record["sota_ready"] is True
+    assert record["blocking_reasons"] == []
+    assert all(check["passed"] for check in record["readiness_checks"])

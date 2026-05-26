@@ -1867,3 +1867,11 @@ Inferred transport transfer scorecard:
 - Burgers transfer validation: `nrmse=0.0058254034699600854`, train `nrmse=0.062408372798664555`, `test_touched=false`.
 - Darcy is skipped in the live local scorecard because `data/pdebench/darcy2d_train.h5` is absent. The scorecard also explicitly rejects non-`1d` tasks when splits exist, because this mechanism is a 1D transport gate rather than a static 2D operator.
 - Status: this is the next credible transfer signal after the official Advection result, not a universal SOTA claim. It supports continuing toward a broader scorecard, but it does not yet demonstrate general PDE-family SOTA or foundation-model behavior.
+
+Universal SOTA status audit:
+
+- `scripts/audit_universal_sota_status.py` now produces `reports/research/sota_loop/universal_sota_status.json` from the light-v1 demo scorecard, official transport objective status, and inferred transfer scorecard.
+- Live status is `not_sota_ready`: official transport is achieved and transfer evidence is present, but the broader universal SOTA claim still fails closed.
+- The best overall light-v1 row in the local ignored scorecard is `ups_light_observed_shift_estimator_test` with decoded rollout `nrmse=0.20177292896682064`; the audit records it as best overall but excludes diagnostic run fragments such as `roll_shift`, `observed_shift`, `transport_gate`, and `transport_horizon_gate` from claim eligibility.
+- Current claim-eligible light-v1 candidate count is `0`, so the remaining blockers are not just scale/reporting. The next implementation gate must create a learned general PDE operator/refiner candidate that can enter the scorecard without diagnostic transport-sidecar exclusion.
+- The audit also requires medium-or-larger split confirmation, a strong neural baseline comparison, W&B or artifact handles, and exact claim documentation before any SOTA-style claim is allowed.
