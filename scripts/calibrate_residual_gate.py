@@ -4,6 +4,7 @@ from __future__ import annotations
 """Calibrate decoded persistence-residual gates on validation data, then test once."""
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -18,6 +19,8 @@ def _safe_alpha(alpha: float) -> str:
 
 
 def _alpha_override(kind: str, key: str, alpha: float) -> str:
+    if kind == "global":
+        return f"evaluation.decoded_persistence_residual_alpha={alpha:g}"
     if kind == "family":
         return f"evaluation.decoded_persistence_residual_alpha_by_family={{{json.dumps(key)}:{alpha:g}}}"
     if kind == "task":
@@ -28,6 +31,12 @@ def _alpha_override(kind: str, key: str, alpha: float) -> str:
 
 
 def _schedule_override(kind: str, key: str, schedule: dict[int, float]) -> str:
+    if kind == "global":
+        encoded = json.dumps(
+            {str(int(horizon)): float(alpha) for horizon, alpha in sorted(schedule.items())},
+            separators=(",", ":"),
+        )
+        return f"evaluation.decoded_persistence_residual_alpha_by_horizon={encoded}"
     payload = {
         key: {str(int(horizon)): float(alpha) for horizon, alpha in sorted(schedule.items())}
     }
@@ -169,8 +178,122 @@ def _test_guard_result(
     }
 
 
+def _load_test_ledger(path: str | None) -> dict[str, Any]:
+    if not path:
+        return {"measurements": []}
+    ledger_path = Path(path)
+    if not ledger_path.exists():
+        return {"measurements": []}
+    return json.loads(ledger_path.read_text(encoding="utf-8"))
+
+
+def _write_test_ledger(path: str | None, ledger: dict[str, Any]) -> None:
+    if not path:
+        return
+    ledger_path = Path(path)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(json.dumps(ledger, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _test_measurement_key(
+    *,
+    args: argparse.Namespace,
+    selected_overrides: Sequence[str],
+    selected_gate: Mapping[str, Any],
+) -> str:
+    payload = {
+        "calibrator": "decoded_persistence_residual_gate",
+        "checkpoint_source": args.checkpoint_source,
+        "config": args.config,
+        "data_root": args.data_root,
+        "decoded_rollout_steps": args.decoded_rollout_steps,
+        "default_alpha": args.default_alpha,
+        "eval_max_samples": args.eval_max_samples,
+        "eval_override": list(args.eval_override),
+        "kind": args.kind,
+        "key": args.key,
+        "metric": args.metric,
+        "mode": args.mode,
+        "override": list(args.override),
+        "promotion_rule": list(args.promotion_rule),
+        "reference_metric_value": args.reference_metric_value,
+        "selected_gate": selected_gate.get("selected_gate"),
+        "selected_gate_alpha": selected_gate.get("alpha"),
+        "selected_gate_schedule": selected_gate.get("schedule"),
+        "selected_overrides": list(selected_overrides),
+        "test_min_relative_improvement": args.test_min_relative_improvement,
+        "test_split": args.test_split,
+        "val_split": args.val_split,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _guard_test_measurement(
+    *,
+    ledger_path: str | None,
+    measurement_key: str,
+    allow_repeat_test: bool,
+) -> dict[str, Any]:
+    ledger = _load_test_ledger(ledger_path)
+    existing_keys = {
+        str(entry.get("measurement_key"))
+        for entry in ledger.get("measurements", [])
+        if isinstance(entry, dict)
+    }
+    already_recorded = measurement_key in existing_keys
+    if already_recorded and not allow_repeat_test:
+        raise RuntimeError(
+            "held-out test measurement already recorded for this residual gate; "
+            "set --allow-repeat-test only for explicit debugging"
+        )
+    return {
+        "allow_repeat_test": allow_repeat_test,
+        "ledger_path": ledger_path,
+        "measurement_key": measurement_key,
+        "recorded": False,
+        "already_recorded": already_recorded,
+    }
+
+
+def _record_test_measurement(
+    *,
+    ledger_path: str | None,
+    measurement_key: str,
+    allow_repeat_test: bool,
+    metric: str,
+    test_metric_value: float,
+    validation_metric_value: float,
+    test_split: str,
+    selected_gate: str,
+    selected_overrides: Sequence[str],
+    run_name: str,
+    summary: str,
+) -> bool:
+    if not ledger_path or allow_repeat_test:
+        return False
+    ledger = _load_test_ledger(ledger_path)
+    ledger.setdefault("measurements", []).append(
+        {
+            "measurement_key": measurement_key,
+            "metric": metric,
+            "run_name": run_name,
+            "selected_gate": selected_gate,
+            "selected_overrides": list(selected_overrides),
+            "summary": summary,
+            "test_metric_value": test_metric_value,
+            "test_split": test_split,
+            "validation_metric_value": validation_metric_value,
+        }
+    )
+    _write_test_ledger(ledger_path, ledger)
+    return True
+
+
 def _horizon_metric_pattern(kind: str, key: str) -> re.Pattern[str]:
-    if kind == "family":
+    if kind == "global":
+        prefix = "decoded_h"
+    elif kind == "family":
         prefix = f"family_{re.escape(key)}_decoded_h"
     elif kind == "task":
         prefix = f"task_{re.escape(key)}_decoded_h"
@@ -225,9 +348,12 @@ def _run_light_eval(
     split: str,
     gate_overrides: Sequence[str],
     report_all_horizon_metrics: bool = False,
+    reuse_existing: bool | None = None,
 ) -> Path:
     summary_path = Path(args.output_root) / name / "summary.json"
-    if args.reuse_existing and summary_path.exists():
+    if (
+        args.reuse_existing if reuse_existing is None else reuse_existing
+    ) and summary_path.exists():
         return summary_path
     cmd = [
         sys.executable,
@@ -280,7 +406,7 @@ def main() -> None:
     parser.add_argument("--data-root", default="data/pdebench")
     parser.add_argument("--output-root", default="reports/light_experiments_remote")
     parser.add_argument("--run-prefix", default="ups_light_transport_gate_calibrated")
-    parser.add_argument("--kind", choices=("family", "task"), default="family")
+    parser.add_argument("--kind", choices=("global", "family", "task"), default="family")
     parser.add_argument("--key", default="transport")
     parser.add_argument("--default-alpha", type=float, default=0.0)
     parser.add_argument(
@@ -336,6 +462,15 @@ def main() -> None:
         "--test-min-relative-improvement",
         type=float,
         help="Skip held-out test unless selected validation metric improves over reference by this fraction",
+    )
+    parser.add_argument(
+        "--test-ledger-json",
+        help="Optional ledger that prevents measuring the same guarded held-out test more than once",
+    )
+    parser.add_argument(
+        "--allow-repeat-test",
+        action="store_true",
+        help="Bypass the held-out test ledger guard for explicit debugging repeats",
     )
     parser.add_argument("--eval-max-samples", type=int, default=32)
     parser.add_argument("--decoded-rollout-steps", type=int, default=16)
@@ -478,6 +613,13 @@ def main() -> None:
         min_relative_improvement=args.test_min_relative_improvement,
         mode=args.mode,
     )
+    record["held_out_test_policy"] = {
+        "allow_repeat_test": args.allow_repeat_test,
+        "ledger_path": args.test_ledger_json,
+        "measurement_key": None,
+        "recorded": False,
+        "already_recorded": False,
+    }
 
     if args.skip_test:
         record["test_skipped"] = {"reason": "--skip-test"}
@@ -486,6 +628,16 @@ def main() -> None:
             "reason": "selected validation gate did not pass held-out test guard"
         }
     else:
+        test_measurement_key = _test_measurement_key(
+            args=args,
+            selected_overrides=selected_overrides,
+            selected_gate=record["selected_validation_gate"],
+        )
+        record["held_out_test_policy"] = _guard_test_measurement(
+            ledger_path=args.test_ledger_json,
+            measurement_key=test_measurement_key,
+            allow_repeat_test=args.allow_repeat_test,
+        )
         if use_schedule:
             test_name = (
                 f"{args.run_prefix}_{args.test_split}_{args.kind}_{args.key}_horizon_schedule"
@@ -496,6 +648,7 @@ def main() -> None:
                 split=args.test_split,
                 gate_overrides=selected_overrides,
                 report_all_horizon_metrics=True,
+                reuse_existing=False,
             )
             record["test_schedule"] = {
                 str(horizon): alpha for horizon, alpha in sorted(schedule.items())
@@ -509,6 +662,7 @@ def main() -> None:
                 name=test_name,
                 split=args.test_split,
                 gate_overrides=selected_overrides,
+                reuse_existing=False,
             )
             test_alpha = float(best["alpha"])
             selected_gate = "constant_alpha"
@@ -521,6 +675,19 @@ def main() -> None:
             args.metric: test_metrics[args.metric],
             "metrics": test_metrics,
         }
+        record["held_out_test_policy"]["recorded"] = _record_test_measurement(
+            ledger_path=args.test_ledger_json,
+            measurement_key=test_measurement_key,
+            allow_repeat_test=args.allow_repeat_test,
+            metric=args.metric,
+            test_metric_value=float(test_metrics[args.metric]),
+            validation_metric_value=selected_metric_value,
+            test_split=args.test_split,
+            selected_gate=selected_gate,
+            selected_overrides=selected_overrides,
+            run_name=test_name,
+            summary=str(test_summary),
+        )
 
     output_path = (
         Path(args.output_json)

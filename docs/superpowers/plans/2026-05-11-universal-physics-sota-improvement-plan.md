@@ -1876,3 +1876,13 @@ Universal SOTA status audit:
 - The best current claim-eligible light-v1 row is `ups_light_task_signature_trained_residual` with decoded rollout `nrmse=0.530536668470072`, only `0.06950056206815583` better than persistence `0.5701633411507036`; this fails the required `0.2` improvement gate.
 - The next implementation gate must therefore improve the learned general PDE operator/refiner path itself, not just repackage diagnostic transport-sidecar wins.
 - The audit also requires medium-or-larger split confirmation, a strong neural baseline comparison, W&B or artifact handles, and exact claim documentation before any SOTA-style claim is allowed.
+
+Global residual gate calibration:
+
+- `scripts/calibrate_residual_gate.py` now supports `--kind global`, a global per-horizon decoded residual schedule, and `--test-ledger-json` / `--allow-repeat-test` held-out test controls.
+- Validation selected a global horizon schedule: horizon 1 uses residual alpha `0.4`; horizons 2-16 use `0.1`.
+- Validation decoded rollout improved to `nrmse=0.3526528527726788`, a `0.011598261282886628` relative gain over clean reference `0.3567910081081011`, so the guarded held-out test was eligible.
+- Exactly one held-out test was run and recorded in `reports/research/sota_loop/global_residual_gate/test_ledger.json` with measurement key `6cbf489a964e67ec50bc2f2ea44355cdeed0b90976e5d75d2f09e47819740762`.
+- Held-out test decoded rollout was `nrmse=0.5383591367287355`, with per-task rollout `advection1d=0.7686066115389052`, `burgers1d=0.13556008026444324`, and `darcy2d=0.21900255465784269`.
+- A repeat of the same guarded command failed before measurement with `held-out test measurement already recorded for this residual gate`, confirming the no-repeat guard.
+- Status: do not promote this gate. It improved validation but regressed held-out test versus the current claim-eligible light row `0.530536668470072`, so it is evidence of validation overfit in the global residual schedule rather than universal SOTA progress.
