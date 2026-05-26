@@ -1870,8 +1870,9 @@ Inferred transport transfer scorecard:
 
 Universal SOTA status audit:
 
-- `scripts/audit_universal_sota_status.py` now produces `reports/research/sota_loop/universal_sota_status.json` from the light-v1 demo scorecard, official transport objective status, and inferred transfer scorecard.
+- `scripts/audit_universal_sota_status.py` now produces `reports/research/sota_loop/universal_sota_status.json` from the light-v1 demo scorecard, official transport objective status, inferred transfer scorecard, and optional `reports/light_experiments_remote/ups_light*/summary.json` candidate summaries.
 - Live status is `not_sota_ready`: official transport is achieved and transfer evidence is present, but the broader universal SOTA claim still fails closed.
-- The best overall light-v1 row in the local ignored scorecard is `ups_light_observed_shift_estimator_test` with decoded rollout `nrmse=0.20177292896682064`; the audit records it as best overall but excludes diagnostic run fragments such as `roll_shift`, `observed_shift`, `transport_gate`, and `transport_horizon_gate` from claim eligibility.
-- Current claim-eligible light-v1 candidate count is `0`, so the remaining blockers are not just scale/reporting. The next implementation gate must create a learned general PDE operator/refiner candidate that can enter the scorecard without diagnostic transport-sidecar exclusion.
+- The best overall light-v1 row in the local ignored scorecard is `ups_light_observed_shift_estimator_test` with decoded rollout `nrmse=0.20177292896682064`; the audit records it as best overall but excludes diagnostic run fragments such as `gate_hook`, `residual_alpha`, `roll_shift`, `observed_shift`, `transport_gate`, `transport_horizon_gate`, and `transport_residual_gate` from claim eligibility.
+- The best current claim-eligible light-v1 row is `ups_light_task_signature_trained_residual` with decoded rollout `nrmse=0.530536668470072`, only `0.06950056206815583` better than persistence `0.5701633411507036`; this fails the required `0.2` improvement gate.
+- The next implementation gate must therefore improve the learned general PDE operator/refiner path itself, not just repackage diagnostic transport-sidecar wins.
 - The audit also requires medium-or-larger split confirmation, a strong neural baseline comparison, W&B or artifact handles, and exact claim documentation before any SOTA-style claim is allowed.
