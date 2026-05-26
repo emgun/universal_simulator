@@ -42,6 +42,8 @@ class Variant:
     description: str
     overrides: tuple[str, ...] = ()
     priority: int = 100
+    stages: str | None = None
+    requires_checkpoint_source: bool = False
 
 
 VARIANTS: tuple[Variant, ...] = (
@@ -161,6 +163,26 @@ VARIANTS: tuple[Variant, ...] = (
         priority=40,
     ),
     Variant(
+        name="task_signature_rollout4_residual_ft2",
+        description=(
+            "Checkpoint fine-tune using two joint rollout-4 epochs, decoded residual losses, "
+            "and validation-selected transport alpha 0.18."
+        ),
+        overrides=(
+            'operator.conditioning.sources={"task_id":3,"equation_signature":15}',
+            "stages.joint_codec_operator.epochs=2",
+            "stages.joint_codec_operator.rollout_steps=4",
+            "stages.joint_codec_operator.lambda_rollout=1.0",
+            "stages.joint_codec_operator.lambda_persistence_residual=0.5",
+            "stages.joint_codec_operator.lambda_persistence_residual_spectral=0.05",
+            "evaluation.decoded_persistence_residual_alpha=0.0",
+            'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.18}',
+        ),
+        priority=41,
+        stages="joint_codec_operator",
+        requires_checkpoint_source=True,
+    ),
+    Variant(
         name="task_signature_transport_residual_gate",
         description="Eval-only blend that uses validation-calibrated UPS residual only for the transport/advection family.",
         overrides=(
@@ -259,6 +281,8 @@ def _command(row: dict[str, Any], *, wrapper: str, env_file: str, dry_run: int) 
         _shell_assignment("OUTPUT_ROOT", row["output_root"]),
         _shell_assignment("LIGHT_EXTRA_ARGS", row["light_extra_args"]),
     ]
+    if row.get("checkpoint_source"):
+        assignments.append(_shell_assignment("CHECKPOINT_SOURCE", row["checkpoint_source"]))
     return " ".join(assignments + ["bash", shlex.quote(wrapper)])
 
 
@@ -274,6 +298,7 @@ def build_rows(
     run_prefix: str,
     remote_b2_prefix: str | None,
     required_gb: int | None,
+    checkpoint_source: str | None = None,
 ) -> list[dict[str, Any]]:
     caps = TIER_CAPS[tier]
     selected = sorted(VARIANTS, key=lambda item: item.priority)
@@ -286,6 +311,8 @@ def build_rows(
 
     rows: list[dict[str, Any]] = []
     for variant in selected:
+        if variant.requires_checkpoint_source and not checkpoint_source:
+            raise SystemExit(f"Variant {variant.name} requires --checkpoint-source")
         run_name = f"{run_prefix}_{tier}_{variant.name}"
         light_extra_args = _light_extra_args(
             variant,
@@ -304,7 +331,8 @@ def build_rows(
                 "tasks": tasks,
                 "output_root": output_root,
                 "eval_split": eval_split,
-                "stages": stages,
+                "stages": variant.stages or stages,
+                "checkpoint_source": checkpoint_source or "",
                 "remote_b2_prefix": remote_b2_prefix or str(caps["remote_b2_prefix"]),
                 "required_gb": required_gb if required_gb is not None else int(caps["required_gb"]),
                 "train_max_samples": caps["train_max_samples"],
@@ -372,6 +400,11 @@ def main() -> None:
     parser.add_argument(
         "--stages", default="operator,decoder,operator_decoded,joint_codec_operator"
     )
+    parser.add_argument(
+        "--checkpoint-source",
+        default=None,
+        help="Optional checkpoint source passed through to remote runs as CHECKPOINT_SOURCE",
+    )
     parser.add_argument("--run-prefix", default="ups")
     parser.add_argument("--remote-b2-prefix", default=None)
     parser.add_argument("--required-gb", type=int, default=None)
@@ -394,6 +427,7 @@ def main() -> None:
         run_prefix=args.run_prefix,
         remote_b2_prefix=args.remote_b2_prefix,
         required_gb=args.required_gb,
+        checkpoint_source=args.checkpoint_source,
     )
     write_jsonl(rows, args.output_jsonl)
     write_tsv(rows, args.output_tsv)

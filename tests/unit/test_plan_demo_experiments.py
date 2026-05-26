@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from scripts.plan_demo_experiments import build_rows, write_shell
 
 
@@ -195,3 +197,64 @@ def test_task_signature_advection_roll_shift_variant_adds_shift_override():
     assert rows[0]["variant"] == "task_signature_advection_roll_shift40"
     assert 'evaluation.decoded_roll_shift_by_task={"advection1d":40}' in rows[0]["light_extra_args"]
     assert "evaluation.decoded_persistence_residual_alpha=0.0" in rows[0]["light_extra_args"]
+
+
+def test_checkpoint_required_capacity_finetune_variant_fails_closed_without_source():
+    with pytest.raises(SystemExit, match="requires --checkpoint-source"):
+        build_rows(
+            tier="light",
+            variants=["task_signature_rollout4_residual_ft2"],
+            train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+            tasks="burgers1d,advection1d,darcy2d",
+            output_root="reports/light_experiments_remote",
+            eval_split="val",
+            stages="operator,decoder,operator_decoded,joint_codec_operator",
+            run_prefix="ups",
+            remote_b2_prefix=None,
+            required_gb=None,
+        )
+
+
+def test_checkpoint_capacity_finetune_variant_generates_remote_recipe(tmp_path):
+    checkpoint_source = "reports/light_experiments_remote/ups_light_task_signature_trained_residual"
+    rows = build_rows(
+        tier="light",
+        variants=["task_signature_rollout4_residual_ft2"],
+        train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+        tasks="burgers1d,advection1d,darcy2d",
+        output_root="reports/light_experiments_remote",
+        eval_split="val",
+        stages="operator,decoder,operator_decoded,joint_codec_operator",
+        run_prefix="ups",
+        remote_b2_prefix=None,
+        required_gb=None,
+        checkpoint_source=checkpoint_source,
+    )
+
+    row = rows[0]
+    assert row["variant"] == "task_signature_rollout4_residual_ft2"
+    assert row["checkpoint_source"] == checkpoint_source
+    assert row["stages"] == "joint_codec_operator"
+    assert "stages.joint_codec_operator.epochs=2" in row["light_extra_args"]
+    assert "stages.joint_codec_operator.rollout_steps=4" in row["light_extra_args"]
+    assert "stages.joint_codec_operator.lambda_persistence_residual=0.5" in row[
+        "light_extra_args"
+    ]
+    assert (
+        'evaluation.decoded_persistence_residual_alpha_by_family={"transport":0.18}'
+        in row["light_extra_args"]
+    )
+    assert "evaluation.decoded_persistence_residual_alpha=0.0" in row["light_extra_args"]
+
+    output = tmp_path / "queue.sh"
+    write_shell(
+        rows,
+        output,
+        wrapper="scripts/run_remote_light_promotion.sh",
+        env_file="/workspace/.env",
+        dry_run=1,
+    )
+    text = output.read_text(encoding="utf-8")
+
+    assert f"CHECKPOINT_SOURCE={checkpoint_source}" in text
+    assert "STAGES=joint_codec_operator" in text
