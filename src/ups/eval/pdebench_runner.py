@@ -721,6 +721,9 @@ def evaluate_decoded_operator(
         eval_cfg.get("decoded_prediction_roll_shift_estimator")
     )
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
+    skip_missing_tasks = bool(
+        eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
+    )
 
     total_pred = []
     total_target = []
@@ -744,20 +747,27 @@ def evaluate_decoded_operator(
     per_family_step1_target: dict[str, list[torch.Tensor]] = {}
     per_family_horizon_pred: dict[str, dict[int, list[torch.Tensor]]] = {}
     per_family_horizon_target: dict[str, dict[int, list[torch.Tensor]]] = {}
+    skipped_missing_tasks: list[str] = []
 
     with torch.no_grad():
         for task_name in task_names:
             task_family = get_pdebench_spec(task_name).family
-            dataset = PDEBenchDataset(
-                PDEBenchConfig(
-                    task=task_name,
-                    split=data_cfg.get("split", "train"),
-                    root=data_cfg.get("root"),
-                    param_keys=tuple(data_cfg.get("param_keys", ())),
-                    bc_keys=tuple(data_cfg.get("bc_keys", ())),
-                    max_samples=data_cfg.get("max_samples"),
+            try:
+                dataset = PDEBenchDataset(
+                    PDEBenchConfig(
+                        task=task_name,
+                        split=data_cfg.get("split", "train"),
+                        root=data_cfg.get("root"),
+                        param_keys=tuple(data_cfg.get("param_keys", ())),
+                        bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                        max_samples=data_cfg.get("max_samples"),
+                    )
                 )
-            )
+            except FileNotFoundError:
+                if not skip_missing_tasks:
+                    raise
+                skipped_missing_tasks.append(task_name)
+                continue
             if len(dataset) == 0:
                 continue
             sample_fields = dataset.fields[0]
@@ -1071,6 +1081,8 @@ def evaluate_decoded_operator(
             "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
             "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
             "report_all_horizon_metrics": report_all_horizon_metrics,
+            "skip_missing_tasks": skip_missing_tasks,
+            "skipped_missing_tasks": skipped_missing_tasks,
         },
     )
 

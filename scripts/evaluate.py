@@ -161,6 +161,10 @@ def make_diffusion(cfg: dict[str, Any]) -> DiffusionResidual:
 
 def _pdebench_grid_spec(cfg: dict[str, Any]) -> tuple[tuple[int, int], int, str]:
     data_cfg = cfg.get("data", {})
+    eval_cfg = cfg.get("evaluation", {})
+    skip_missing_tasks = bool(
+        eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
+    )
     task_cfg = data_cfg.get("task")
     if isinstance(task_cfg, str):
         task_names = [task_cfg]
@@ -178,16 +182,21 @@ def _pdebench_grid_spec(cfg: dict[str, Any]) -> tuple[tuple[int, int], int, str]
     channels = None
     grid_shape = None
     for task in task_names:
-        dataset = PDEBenchDataset(
-            PDEBenchConfig(
-                task=task,
-                split=data_cfg.get("split", "train"),
-                root=data_cfg.get("root"),
-                param_keys=tuple(data_cfg.get("param_keys", ())),
-                bc_keys=tuple(data_cfg.get("bc_keys", ())),
-                max_samples=data_cfg.get("max_samples"),
+        try:
+            dataset = PDEBenchDataset(
+                PDEBenchConfig(
+                    task=task,
+                    split=data_cfg.get("split", "train"),
+                    root=data_cfg.get("root"),
+                    param_keys=tuple(data_cfg.get("param_keys", ())),
+                    bc_keys=tuple(data_cfg.get("bc_keys", ())),
+                    max_samples=data_cfg.get("max_samples"),
+                )
             )
-        )
+        except FileNotFoundError:
+            if not skip_missing_tasks:
+                raise
+            continue
         sample_fields = dataset.fields[0]
         task_grid_shape = infer_grid_shape(sample_fields)
         task_channels = infer_channel_count(sample_fields, task_grid_shape)
@@ -200,7 +209,10 @@ def _pdebench_grid_spec(cfg: dict[str, Any]) -> tuple[tuple[int, int], int, str]
             )
 
     field_name = data_cfg.get("field_name", "u")
-    assert grid_shape is not None and channels is not None
+    if grid_shape is None or channels is None:
+        raise FileNotFoundError(
+            "No PDEBench task shards found for grid spec inference with skip_missing_tasks=true"
+        )
     return grid_shape, channels, field_name
 
 

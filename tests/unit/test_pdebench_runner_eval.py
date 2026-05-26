@@ -43,6 +43,46 @@ def test_evaluate_latent_operator_runs(tmp_path):
     assert report.metrics["mse"] >= 0.0
 
 
+def test_evaluate_latent_operator_can_skip_missing_tasks(tmp_path):
+    _write_minimal_hdf5(tmp_path)
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1, "num_workers": 0},
+        "evaluation": {"skip_missing_tasks": True},
+        "latent": {"dim": 8, "tokens": 4},
+        "data": {
+            "task": ["burgers1d", "darcy2d"],
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+        },
+    }
+
+    operator = train_script.make_operator(cfg)
+    report = evaluate_latent_operator(cfg, operator)
+
+    assert "mse" in report.metrics
+    assert report.metrics["mse"] >= 0.0
+
+
+def test_make_encoder_can_skip_missing_grid_spec_tasks(tmp_path):
+    _write_minimal_hdf5(tmp_path)
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {"skip_missing_tasks": True},
+        "latent": {"dim": 8, "tokens": 4},
+        "data": {
+            "task": ["burgers1d", "darcy2d"],
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+        },
+    }
+
+    encoder = evaluate_script.make_encoder(cfg)
+
+    assert encoder is not None
+
+
 class _DummyEncoder(torch.nn.Module):
     def forward(self, fields, coords, *, meta=None, params=None, bc=None, geom=None):
         return fields["u"]
@@ -221,6 +261,37 @@ def test_evaluate_decoded_operator_can_apply_task_specific_residual_alpha(tmp_pa
     )
     assert report.metrics["task_advection1d_decoded_rollout_nrmse"] > 0.0
     assert report.extra["decoded_persistence_residual_alpha_by_task"] == {"advection1d": 1.0}
+
+
+def test_evaluate_decoded_operator_can_skip_missing_tasks(tmp_path):
+    data = torch.tensor([[[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]]], dtype=torch.float32)
+    file_path = tmp_path / "burgers1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {"skip_missing_tasks": True},
+        "data": {
+            "task": ["burgers1d", "darcy2d"],
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+        rollout_steps=1,
+    )
+
+    assert "task_burgers1d_decoded_rollout_nrmse" in report.metrics
+    assert "task_darcy2d_decoded_rollout_nrmse" not in report.metrics
+    assert report.extra["skipped_missing_tasks"] == ["darcy2d"]
 
 
 def test_evaluate_decoded_operator_can_apply_task_horizon_residual_alpha(tmp_path):

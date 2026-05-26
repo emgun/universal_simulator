@@ -809,6 +809,7 @@ def build_latent_pair_loader(
     """Construct a DataLoader that yields latent pairs from data config."""
 
     data_cfg = cfg.get("data", {})
+    eval_cfg = cfg.get("evaluation", {})
     latent_cfg = cfg.get("latent", {})
     train_cfg = cfg.get("training", {})
     batch = train_cfg.get("batch_size", 16)
@@ -847,18 +848,26 @@ def build_latent_pair_loader(
     tasks = data_cfg.get("task")
     if tasks:
         auto_conditioning = bool(train_cfg.get("auto_conditioning", False))
+        skip_missing_tasks = bool(
+            eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
+        )
         if isinstance(tasks, (list, tuple)):
             datasets: List[Dataset] = []
             task_vocab = tuple(str(task_name) for task_name in tasks)
             for task_name in tasks:
                 ds_cfg = {**data_cfg, "task": task_name}
-                dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
-                    {
-                        **ds_cfg,
-                        "latent_dim": latent_cfg.get("dim", 32),
-                        "latent_len": latent_cfg.get("tokens", 16),
-                    }
-                )
+                try:
+                    dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
+                        {
+                            **ds_cfg,
+                            "latent_dim": latent_cfg.get("dim", 32),
+                            "latent_len": latent_cfg.get("tokens", 16),
+                        }
+                    )
+                except FileNotFoundError:
+                    if not skip_missing_tasks:
+                        raise
+                    continue
                 if encoder_override is not None:
                     encoder = encoder_override
                 encoder = encoder.to(device)
@@ -884,6 +893,10 @@ def build_latent_pair_loader(
                     time_stride=time_stride,
                 )
                 datasets.append(latent_ds)
+            if not datasets:
+                raise FileNotFoundError(
+                    f"No PDEBench task shards found for split '{split_name}' with skip_missing_tasks=true"
+                )
             mixed = ConcatDataset(datasets)
             return DataLoader(mixed, **loader_kwargs)
         else:
