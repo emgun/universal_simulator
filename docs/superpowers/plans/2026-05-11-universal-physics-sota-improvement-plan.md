@@ -1916,3 +1916,28 @@ Learned capacity validation probe:
 - Validation-only alpha sweep on that fine-tuned checkpoint found the best result at transport-family alpha `0.18`: decoded rollout `nrmse=0.35376568397505964`, with task metrics `advection1d=0.4912554112347586`, `burgers1d=0.14738121412908425`, and `darcy2d=0.188979512124482`.
 - A larger local probe with `data.max_samples=64` and `stages.joint_codec_operator.epochs=4` regressed to decoded rollout `nrmse=0.35417606099874893` at the same transport-family alpha `0.18`.
 - Status: this is the first learned-capacity validation improvement over the clean transport reference `0.3567910081081011`, but the relative validation improvement is only about `0.00848`, below the strict `0.01` held-out-test authorization guard. No held-out test was run. The next run should scale the successful two-epoch joint fine-tune recipe remotely or add a true learned transport/refiner head; do not spend held-out test budget on the current local checkpoint.
+
+Learned capacity remote execution wrap-up:
+
+- The reproducible remote queue variant for `task_signature_rollout4_residual_ft2` is merged on `main`; it requires `--checkpoint-source`, forces `STAGES=joint_codec_operator`, and uses the validation-selected transport-family residual alpha `0.18`.
+- Because the checkpoint source under `reports/light_experiments_remote/ups_light_task_signature_trained_residual` is ignored by git, a tarball copy was staged to B2 at `remote-runs/checkpoints/ups_light_task_signature_trained_residual_20260526T1928Z.tar.gz` before Vast execution attempts.
+- Vast contracts `37956109` and `37956442` both remained in `loading` with no Docker container or logs and were destroyed.
+- Vast contract `37956640` used the on-start file route but stopped before container creation; logs reported `No such container: C.37956640`, and the contract was destroyed.
+- Vast contract `37957089` used the corrected documented shape, `--ssh --direct --onstart --cancel-unavail`, but stopped before benchmark execution with status `docker_build() error writing dockerfile`; it was destroyed.
+- A live cleanup check after the final destroy returned no active Vast instances: `vastai show instances --raw` returned `[]`.
+- B2 does not contain the intended validation artifact `remote-runs/light/ups_capacity_light_task_signature_rollout4_residual_ft2_remote_val_20260526T1932Z.tar.gz`; no remote validation metric was produced.
+- The ignored local Vast startup script now requires secrets via environment variables instead of hardcoding them.
+- No held-out test was run. The learned-capacity path remains validation-only, and the strict `1%` guard is still not cleared.
+- Status: current repo and CI are ready, but this specific Vast execution path is blocked at provider/container bootstrap. The next remote attempt should avoid Vast's Dockerfile-injection startup path, either by using a prebuilt image/template that already contains the runner bootstrap or by moving the exact queue to another GPU environment with ordinary Docker/SSH control.
+
+Compact Vast bootstrap route:
+
+- `scripts/vast_launch.py` now supports `--bootstrap-mode tracked-script`, which writes a small onstart shim that downloads `scripts/vast_remote_bootstrap.sh` from the requested Git ref and decodes the long remote script arguments from `UPS_SCRIPT_ARGS_B64`.
+- `scripts/vast_remote_bootstrap.sh` owns the full remote setup: clone or GitHub zip fallback, rclone install, dependency install profile, optional prefetch, remote script execution, and auto-shutdown trapping.
+- `scripts/launch_remote_smoke_vast.sh` and `scripts/launch_remote_transport_shift_candidate_vast.sh` expose this as `BOOTSTRAP_MODE=tracked-script`.
+- A learned-capacity dry run with `--bootstrap-mode tracked-script`, `--git-ref codex/vast-tracked-bootstrap`, and the full `task_signature_rollout4_residual_ft2` validation command produced a `3223` byte `.vast/onstart.sh` with no literal B2 or W&B secrets.
+- Verification:
+  - `python -m pytest tests/unit/test_vast_launch.py tests/unit/test_launch_remote_smoke_vast.py tests/unit/test_launch_remote_transport_shift_candidate_vast.py -q` -> `17 passed`
+  - `python -m black --check scripts/vast_launch.py tests/unit/test_vast_launch.py tests/unit/test_launch_remote_smoke_vast.py`
+  - `bash -n scripts/vast_remote_bootstrap.sh scripts/launch_remote_smoke_vast.sh scripts/launch_remote_transport_shift_candidate_vast.sh`
+- Status: this creates a smaller falsifiable Vast retry path, but it must be pushed to a branch before a live worker can fetch the tracked bootstrap script. No held-out test was run.

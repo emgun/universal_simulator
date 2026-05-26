@@ -22,6 +22,7 @@ AUTO_SHUTDOWN=${AUTO_SHUTDOWN:-1}
 SSH=${SSH:-1}
 ARGS_MODE=${ARGS_MODE:-0}
 INSTALL_MODE=${INSTALL_MODE:-smoke}
+BOOTSTRAP_MODE=${BOOTSTRAP_MODE:-inline}
 EXTRA_PIPELINE_ARGS=${EXTRA_PIPELINE_ARGS:-}
 
 read_env_key() {
@@ -68,6 +69,7 @@ args=(
   --remote-script "$REMOTE_SCRIPT"
   --skip-prefetch
   --install-mode "$INSTALL_MODE"
+  --bootstrap-mode "$BOOTSTRAP_MODE"
   --script-args "DRY_RUN=0 ENV_FILE=.env PIPELINE_ROOT=$PIPELINE_ROOT $EXTRA_PIPELINE_ARGS"
 )
 

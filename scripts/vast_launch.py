@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import os
 import re
 import shlex
@@ -147,9 +148,56 @@ def ensure_onstart(
     b2_s3_endpoint: str | None,
     b2_s3_region: str | None,
     install_mode: str,
+    bootstrap_mode: str,
 ) -> Path:
     ONSTART_DIR.mkdir(exist_ok=True)
     script_path = ONSTART_DIR / "onstart.sh"
+    combined_args = " ".join(part for part in (overrides, script_args) if part)
+    if bootstrap_mode == "tracked-script":
+        script_args_b64 = base64.b64encode(combined_args.encode("utf-8")).decode("ascii")
+        repo_ref = git_ref or "main"
+        lines = [
+            "#!/bin/bash",
+            "set -euo pipefail",
+            "export DEBIAN_FRONTEND=noninteractive",
+            f"export UPS_REPO_URL={shlex.quote(repo_url)}",
+            f"export UPS_GIT_REF={shlex.quote(repo_ref)}",
+            f"export UPS_WORKDIR={shlex.quote(workdir)}",
+            f"export UPS_REMOTE_SCRIPT={shlex.quote(remote_script)}",
+            f"export UPS_SCRIPT_ARGS_B64={shlex.quote(script_args_b64)}",
+            f"export UPS_SKIP_PREFETCH={'1' if skip_prefetch else '0'}",
+            f"export UPS_AUTO_SHUTDOWN={'1' if auto_shutdown else '0'}",
+            f"export UPS_INSTALL_MODE={shlex.quote(install_mode)}",
+            'export UPS_BOOTSTRAP_PATH="${UPS_BOOTSTRAP_PATH:-/tmp/ups_vast_remote_bootstrap.sh}"',
+            "\"${PYTHON_BIN:-$(command -v python3 || command -v python)}\" - <<'PY'",
+            "from pathlib import Path",
+            "import os",
+            "import urllib.parse",
+            "import urllib.request",
+            "",
+            'repo_url = os.environ["UPS_REPO_URL"].removesuffix(".git")',
+            'marker = "github.com/"',
+            "if repo_url.startswith('git@github.com:'):",
+            "    repo_path = repo_url.split(':', 1)[1]",
+            "elif marker in repo_url:",
+            "    repo_path = repo_url.split(marker, 1)[1]",
+            "else:",
+            "    raise SystemExit('tracked-script bootstrap requires a GitHub repository URL')",
+            "repo_path = repo_path.strip('/')",
+            'ref = urllib.parse.quote(os.environ.get("UPS_GIT_REF") or "main", safe="")',
+            'bootstrap_url = f"https://raw.githubusercontent.com/{repo_path}/{ref}/scripts/vast_remote_bootstrap.sh"',
+            'target = Path(os.environ["UPS_BOOTSTRAP_PATH"])',
+            "target.parent.mkdir(parents=True, exist_ok=True)",
+            "urllib.request.urlretrieve(bootstrap_url, target)",
+            "PY",
+            'chmod +x "$UPS_BOOTSTRAP_PATH"',
+            'bash "$UPS_BOOTSTRAP_PATH"',
+        ]
+        script_path.write_text("\n".join(lines))
+        script_path.chmod(0o755)
+        return script_path
+    if bootstrap_mode != "inline":
+        raise SystemExit(f"Unsupported bootstrap mode: {bootstrap_mode}")
     datasets_export = (
         f'export WANDB_DATASETS="{datasets}"' if datasets else "# WANDB_DATASETS optional"
     )
@@ -167,7 +215,6 @@ def ensure_onstart(
         if skip_prefetch
         else 'if [ -n "$WANDB_DATASETS" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi'
     )
-    combined_args = " ".join(part for part in (overrides, script_args) if part)
     remote_cmd = "bash " + shlex.quote(remote_script)
     if combined_args:
         remote_cmd += " " + combined_args
@@ -354,6 +401,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.b2_s3_endpoint,
         args.b2_s3_region,
         args.install_mode,
+        args.bootstrap_mode,
     )
 
     env_parts = []
@@ -522,6 +570,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Remote dependency install profile. 'smoke' avoids full Torch/CUDA dev deps; "
             "'experiment' adds lightweight plotting/eval deps without upgrading Torch."
+        ),
+    )
+    p_launch.add_argument(
+        "--bootstrap-mode",
+        choices=("inline", "tracked-script"),
+        default="inline",
+        help=(
+            "How to build the Vast startup payload. 'tracked-script' keeps the onstart "
+            "script small by downloading scripts/vast_remote_bootstrap.sh from the "
+            "requested git ref."
         ),
     )
     p_launch.add_argument(
