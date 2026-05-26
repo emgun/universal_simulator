@@ -1949,3 +1949,14 @@ Compact Vast bootstrap live smoke:
 - The container reached user code, downloaded the branch by GitHub zip fallback because `git` was unavailable, installed the package with the `smoke` install profile, generated the smoke queue, printed `Remote smoke pipeline complete`, and exited with `REMOTE_BOOTSTRAP_EXIT_STATUS=0`.
 - The contract was destroyed after log verification, and a cleanup check returned no active Vast instances: `vastai show instances --raw` returned `[]`.
 - Status: the previous provider/container bootstrap blocker is cleared for the compact args-mode route. The next live step can use this same branch/ref and tracked bootstrap shape for the validation-only learned-capacity queue; held-out test execution remains unauthorized until the validation guard clears.
+
+Remote checkpoint-source hydration support:
+
+- `scripts/run_remote_light_promotion.sh` now accepts `CHECKPOINT_SOURCE_B2_KEY` for ignored checkpoint-source archives that are not present in fresh remote checkouts.
+- When `CHECKPOINT_SOURCE` is missing, `DRY_RUN=0`, and `CHECKPOINT_SOURCE_B2_KEY` is set, the runner configures B2 rclone, copies the archive to `/tmp`, extracts it into `dirname "$CHECKPOINT_SOURCE"`, and fails closed if the expected source path is still absent.
+- This replaces the ad hoc onstart prelude used in the failed learned-capacity Vast attempts, so the compact tracked bootstrap can run the validation queue without embedding checkpoint copy/extract logic in the launch payload.
+- Verification:
+  - `python -m pytest tests/unit/test_vast_launch.py tests/unit/test_launch_remote_smoke_vast.py tests/unit/test_launch_remote_transport_shift_candidate_vast.py tests/unit/test_run_remote_light_promotion.py -q` -> `18 passed`
+  - `python -m black --check scripts/vast_launch.py tests/unit/test_vast_launch.py tests/unit/test_launch_remote_smoke_vast.py tests/unit/test_run_remote_light_promotion.py`
+  - `bash -n scripts/vast_remote_bootstrap.sh scripts/launch_remote_smoke_vast.sh scripts/launch_remote_transport_shift_candidate_vast.sh scripts/run_remote_light_promotion.sh`
+- Status: the learned-capacity validation-only remote command can now be launched with `CHECKPOINT_SOURCE_B2_KEY=remote-runs/checkpoints/ups_light_task_signature_trained_residual_20260526T1928Z.tar.gz`.

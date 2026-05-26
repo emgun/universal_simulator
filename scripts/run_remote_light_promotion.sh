@@ -140,6 +140,33 @@ ensure_rclone() {
   exit 1
 }
 
+hydrate_checkpoint_source() {
+  [ -n "$CHECKPOINT_SOURCE" ] || return 0
+  [ -n "$CHECKPOINT_SOURCE_B2_KEY" ] || return 0
+  if [ -e "$CHECKPOINT_SOURCE" ]; then
+    echo "Checkpoint source already exists: ${CHECKPOINT_SOURCE}"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "DRY_RUN=1: would hydrate checkpoint source from b2://${B2_BUCKET:-<bucket>}/${CHECKPOINT_SOURCE_B2_KEY}"
+    return 0
+  fi
+
+  ensure_rclone
+  configure_artifact_rclone
+  local archive_path extract_root
+  archive_path="${CHECKPOINT_SOURCE_ARCHIVE_PATH:-/tmp/$(basename "$CHECKPOINT_SOURCE_B2_KEY")}"
+  extract_root="$(dirname "$CHECKPOINT_SOURCE")"
+  mkdir -p "$extract_root"
+  echo "Hydrating checkpoint source from b2://${B2_BUCKET}/${CHECKPOINT_SOURCE_B2_KEY}"
+  rclone copyto "UPSB2:${B2_BUCKET}/${CHECKPOINT_SOURCE_B2_KEY}" "$archive_path"
+  tar -xzf "$archive_path" -C "$extract_root"
+  if [ ! -e "$CHECKPOINT_SOURCE" ]; then
+    echo "Checkpoint archive did not produce expected source path: ${CHECKPOINT_SOURCE}" >&2
+    exit 1
+  fi
+}
+
 apply_cli_assignments "$@"
 
 ENV_FILE=${ENV_FILE:-.env}
@@ -168,6 +195,7 @@ PUBLISH_PROMOTION_ARTIFACTS=${PUBLISH_PROMOTION_ARTIFACTS:-0}
 PROMOTION_ARTIFACT_PREFIX=${PROMOTION_ARTIFACT_PREFIX:-remote-runs/light}
 SKIP_TRAINING=${SKIP_TRAINING:-0}
 CHECKPOINT_SOURCE=${CHECKPOINT_SOURCE:-}
+CHECKPOINT_SOURCE_B2_KEY=${CHECKPOINT_SOURCE_B2_KEY:-}
 
 mkdir -p "$DATA_ROOT" "$OUTPUT_ROOT"
 
@@ -242,6 +270,8 @@ if [ "$CHECK_DATA" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
     exit 1
   fi
 fi
+
+hydrate_checkpoint_source
 
 cmd=(
   python scripts/run_light_experiment.py
