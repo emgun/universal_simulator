@@ -8,6 +8,7 @@ import h5py
 
 from scripts import run_light_experiment as runner_script
 from scripts import train as train_script
+from ups.eval.reports import MetricReport
 
 
 def test_train_load_config_supports_include():
@@ -146,6 +147,56 @@ def test_run_light_experiment_can_reuse_checkpoints_for_eval_only(tmp_path, monk
     assert summary["checkpoint_source"].endswith("trained_operator")
     assert (run_dir / "checkpoints" / "operator.pt").exists()
     assert "metrics" in summary
+
+
+def test_run_light_experiment_evaluates_checkpoint_from_last_operator_stage(tmp_path, monkeypatch):
+    output_root = tmp_path / "light_runs"
+    source_dir = tmp_path / "source" / "checkpoints"
+    source_dir.mkdir(parents=True)
+    for name in ("operator_joint.pt", "operator_decoded.pt", "operator.pt"):
+        (source_dir / name).write_text(f"source {name}", encoding="utf-8")
+
+    loaded_checkpoints = []
+
+    def fake_operator_decoded(cfg):
+        checkpoint_dir = Path(cfg["checkpoint"]["dir"])
+        (checkpoint_dir / "operator_decoded.pt").write_text("new decoded", encoding="utf-8")
+        (checkpoint_dir / "operator.pt").write_text("new decoded", encoding="utf-8")
+
+    def fake_load_state_dict_compat(_model, path, *, prefix_to_strip=""):
+        loaded_checkpoints.append(path)
+
+    def fake_evaluate_latent_operator(_cfg, _operator, **_kwargs):
+        return MetricReport(metrics={"mse": 0.0}, extra={}), {"loaded": loaded_checkpoints[-1]}
+
+    monkeypatch.setitem(runner_script.STAGE_FUNCTIONS, "operator_decoded", fake_operator_decoded)
+    monkeypatch.setattr(runner_script.evaluate_script, "make_operator", lambda _cfg: object())
+    monkeypatch.setattr(
+        runner_script.evaluate_script, "_load_state_dict_compat", fake_load_state_dict_compat
+    )
+    monkeypatch.setattr(runner_script, "evaluate_latent_operator", fake_evaluate_latent_operator)
+
+    args = [
+        "run_light_experiment",
+        "--config",
+        "configs/train_burgers_light_operator.yaml",
+        "--name",
+        "decoded_after_joint",
+        "--output-root",
+        str(output_root),
+        "--checkpoint-source",
+        str(source_dir.parent),
+        "--stage",
+        "operator_decoded",
+    ]
+    monkeypatch.setattr(sys, "argv", args)
+
+    runner_script.main()
+
+    summary = json.loads(
+        (output_root / "decoded_after_joint" / "summary.json").read_text(encoding="utf-8")
+    )
+    assert Path(summary["checkpoints"]["operator"]).name == "operator_decoded.pt"
 
 
 def test_run_light_experiment_logs_benchmark_summary_to_wandb(tmp_path, monkeypatch):

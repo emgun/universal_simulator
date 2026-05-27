@@ -45,6 +45,19 @@ STAGE_FUNCTIONS = {
     "steady_prior": train_script.train_steady_prior,
 }
 
+DEFAULT_OPERATOR_CHECKPOINTS = ("operator_joint.pt", "operator_decoded.pt", "operator.pt")
+
+
+def _operator_checkpoint_names_for_stages(stages: Sequence[str]) -> tuple[str, ...]:
+    for stage in reversed(stages):
+        if stage == "joint_codec_operator":
+            return DEFAULT_OPERATOR_CHECKPOINTS
+        if stage == "operator_decoded":
+            return ("operator_decoded.pt", "operator.pt", "operator_joint.pt")
+        if stage == "operator":
+            return ("operator.pt", "operator_decoded.pt", "operator_joint.pt")
+    return DEFAULT_OPERATOR_CHECKPOINTS
+
 
 def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(base)
@@ -425,6 +438,7 @@ def _evaluate_once(
     cfg: dict[str, Any],
     *,
     checkpoint_dir: Path,
+    operator_checkpoint_names: Sequence[str],
     decoded: bool,
     device: str,
     decoded_rollout_steps: int | None,
@@ -432,9 +446,7 @@ def _evaluate_once(
     transfer_split: str | None,
     cli_promotion_rules: Sequence[str],
 ) -> dict[str, Any]:
-    operator_ckpt = _preferred_checkpoint(
-        checkpoint_dir, ("operator_joint.pt", "operator_decoded.pt", "operator.pt")
-    )
+    operator_ckpt = _preferred_checkpoint(checkpoint_dir, operator_checkpoint_names)
     if operator_ckpt is None:
         raise FileNotFoundError(f"No operator checkpoint found in {checkpoint_dir}")
 
@@ -800,6 +812,7 @@ def main() -> None:
     summary = _evaluate_once(
         eval_cfg,
         checkpoint_dir=checkpoint_dir,
+        operator_checkpoint_names=_operator_checkpoint_names_for_stages(stages),
         decoded=args.decoded,
         device=args.device,
         decoded_rollout_steps=args.decoded_rollout_steps,
@@ -823,6 +836,7 @@ def main() -> None:
         split_summary = _evaluate_once(
             split_cfg,
             checkpoint_dir=checkpoint_dir,
+            operator_checkpoint_names=_operator_checkpoint_names_for_stages(stages),
             decoded=args.decoded,
             device=args.device,
             decoded_rollout_steps=args.decoded_rollout_steps,
