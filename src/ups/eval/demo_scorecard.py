@@ -23,6 +23,7 @@ MAIN_METRIC_ORDER = (
 BASE_FIELDS = (
     "run_name",
     "summary_json",
+    "split",
     "config",
     "eval_config",
     "stages",
@@ -265,6 +266,7 @@ def scorecard_row_from_summary(
             "run_name", Path(str(summary.get("_summary_json", ""))).parent.name
         ),
         "summary_json": summary.get("_summary_json", ""),
+        "split": summary.get("split", summary.get("eval_split", "")),
         "config": summary.get("config", ""),
         "eval_config": summary.get("eval_config", ""),
         "stages": ",".join(str(stage) for stage in summary.get("stages", [])),

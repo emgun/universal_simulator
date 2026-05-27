@@ -14,12 +14,20 @@ from ups.eval.demo_scorecard import (
 )
 
 
-def _write_summary(path, *, run_name: str, decoded_rollout_nrmse: float, step1: float = 0.5):
+def _write_summary(
+    path,
+    *,
+    run_name: str,
+    decoded_rollout_nrmse: float,
+    step1: float = 0.5,
+    split: str = "test",
+):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             {
                 "run_name": run_name,
+                "split": split,
                 "stages": ["operator", "decoder"],
                 "config": "resolved_train.yaml",
                 "eval_config": "resolved_eval.yaml",
@@ -72,6 +80,7 @@ def test_collect_scorecard_rows_and_promotion_rules(tmp_path):
     assert scorecard.rows[1]["promotion_passed"] is False
     assert scorecard.rows[0]["data_manifest"] == "docs/demo_data_manifest.yaml"
     assert scorecard.rows[0]["commit"] == "abc123"
+    assert scorecard.rows[0]["split"] == "test"
     assert scorecard.rows[0]["tracking_wandb_run_ids"] == "run_a-id"
     assert scorecard.rows[0]["tracking_wandb_urls"].endswith("/run_a-id")
 
