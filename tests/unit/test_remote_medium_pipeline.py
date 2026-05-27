@@ -130,3 +130,57 @@ def test_remote_medium_pipeline_fetches_checkpoint_archive(tmp_path):
         encoding="utf-8"
     )
     assert f"--checkpoint-source {checkpoint_source}" in python_log.read_text(encoding="utf-8")
+
+
+def test_remote_medium_pipeline_publishes_artifacts_when_requested(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    rclone_log = tmp_path / "rclone.log"
+    fake_rclone = fake_bin / "rclone"
+    fake_rclone.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                'echo "$@" >> "$RCLONE_LOG"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    fake_rclone.chmod(fake_rclone.stat().st_mode | stat.S_IXUSR)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+            "RCLONE_LOG": str(rclone_log),
+            "B2_KEY_ID": "key-id",
+            "B2_APP_KEY": "app-key",
+            "B2_BUCKET": "bucket",
+            "DRY_RUN": "0",
+            "CHECK_B2": "0",
+            "ALLOW_UNCHECKED_LIVE_RUNS": "1",
+            "PREP_SHARDS": "0",
+            "FETCH_DATA": "0",
+            "RUN_CANDIDATE": "0",
+            "RUN_PERSISTENCE": "0",
+            "PUBLISH_MEDIUM_ARTIFACTS": "1",
+            "MEDIUM_ARTIFACT_PREFIX": "remote-runs/medium",
+            "PIPELINE_ROOT": str(tmp_path / "pipeline"),
+            "OUTPUT_ROOT": str(tmp_path / "medium_runs"),
+            "DATA_ROOT": str(tmp_path / "data"),
+        }
+    )
+
+    proc = subprocess.run(
+        ["bash", "scripts/run_remote_medium_confirmation.sh"],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+    assert "Published medium artifacts: b2://bucket/remote-runs/medium/" in proc.stdout
+    rclone_output = rclone_log.read_text(encoding="utf-8")
+    assert "copyto /tmp/" in rclone_output
+    assert "UPSB2:bucket/remote-runs/medium/" in rclone_output
