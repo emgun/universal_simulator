@@ -55,6 +55,7 @@ def test_universal_sota_audit_fails_closed_when_light_gate_is_below_threshold(tm
         tmp_path / "transfer_scorecard.json",
         {
             "status": "partial_transfer_validated",
+            "calibration_scope": "shared_1d_transport",
             "evaluated_task_count": 2,
             "skipped_task_count": 1,
         },
@@ -83,6 +84,7 @@ def test_universal_sota_audit_fails_closed_when_light_gate_is_below_threshold(tm
     assert record["light_v1"]["passes_min_improvement_gate"] is False
     assert "light_v1_min_improvement" in record["blocking_reasons"]
     assert record["transfer"]["status"] == "partial_transfer_validated"
+    assert record["transfer"]["calibration_scope"] == "shared_1d_transport"
     assert "learned general PDE operator" in record["next_recommended_path"]
     assert json.loads((tmp_path / "out.json").read_text())["status"] == "not_sota_ready"
 

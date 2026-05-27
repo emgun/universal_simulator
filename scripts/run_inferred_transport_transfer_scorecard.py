@@ -10,11 +10,20 @@ from pathlib import Path
 from typing import Any
 
 import h5py
+import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.run_inferred_transport_shift_gate import run_gate
+from scripts.calibrate_residual_gate import _test_guard_result
+from scripts.run_inferred_transport_shift_gate import (
+    _candidate_shifts,
+    _fit_linear_calibrator,
+    _load_series,
+    _sample_shift_pairs,
+    _score_inferred_transport,
+    run_gate,
+)
 
 
 def _split_path(data_root: str | Path, task: str, split: str) -> Path:
@@ -74,29 +83,188 @@ def _mean(values: list[float]) -> float | None:
     return sum(values) / len(values) if values else None
 
 
-def run_scorecard(args: argparse.Namespace) -> dict[str, Any]:
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+def _task_support(
+    args: argparse.Namespace, output_dir: Path
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     tasks: dict[str, dict[str, Any]] = {}
-    validation_values: list[float] = []
+    supported_tasks: list[str] = []
     for task in args.tasks:
         reason = _support_status(args.data_root, task, args.train_split, args.val_split)
         if reason:
             tasks[task] = {"status": "skipped", "reason": reason}
             continue
-        output_json = output_dir / f"{task}_transfer_gate.json"
-        record = run_gate(_gate_args(args, task, output_json))
-        output_json.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
-        validation_nrmse = float(record["fit"]["selected_validation"]["nrmse"])
+        supported_tasks.append(task)
+        tasks[task] = {
+            "status": "pending",
+            "gate_json": str(output_dir / f"{task}_transfer_gate.json"),
+        }
+    return tasks, supported_tasks
+
+
+def _run_shared_calibrator(
+    args: argparse.Namespace,
+    *,
+    output_dir: Path,
+    tasks: dict[str, dict[str, Any]],
+    supported_tasks: list[str],
+) -> list[float]:
+    shifts = _candidate_shifts(args.shift)
+    inferred_groups: list[np.ndarray] = []
+    target_groups: list[np.ndarray] = []
+    train_pair_summaries: dict[str, dict[str, Any]] = {}
+    for task in supported_tasks:
+        train_fields = _load_series(
+            root=args.data_root,
+            task=task,
+            split=args.train_split,
+            max_samples=args.max_samples,
+        )
+        inferred, targets, records = _sample_shift_pairs(
+            train_fields,
+            shifts,
+            context_transitions=args.context_transitions,
+            rollout_steps=args.rollout_steps,
+            metric=args.metric,
+            refine_radius=args.refine_radius,
+            fractional_refine_step=args.fractional_refine_step,
+        )
+        inferred_groups.append(inferred)
+        target_groups.append(targets)
+        train_pair_summaries[task] = {
+            "count": len(records),
+            "context_shift_mean": float(np.mean(inferred)),
+            "context_shift_std": float(np.std(inferred)),
+            "target_shift_mean": float(np.mean(targets)),
+            "target_shift_std": float(np.std(targets)),
+        }
+
+    coefficients = _fit_linear_calibrator(
+        np.concatenate(inferred_groups),
+        np.concatenate(target_groups),
+        fit_intercept=bool(args.fit_intercept),
+    )
+    shared_fit = {
+        "model": "shared_linear_context_shift_calibrator",
+        "calibration_scope": "shared_1d_transport",
+        "fit_kind": args.fit_kind,
+        "fit_intercept": bool(args.fit_intercept),
+        "context_transitions": int(args.context_transitions),
+        "refine_radius": int(args.refine_radius),
+        "fractional_refine_step": float(args.fractional_refine_step),
+        "candidate_shifts": shifts,
+        "coefficients": coefficients,
+        "train_task_count": len(supported_tasks),
+        "train_tasks": supported_tasks,
+        "train_shift_pair_summaries": train_pair_summaries,
+    }
+    shared_fit_path = output_dir / "shared_1d_transport_calibrator.json"
+    shared_fit_path.write_text(json.dumps(shared_fit, indent=2, sort_keys=True), encoding="utf-8")
+
+    validation_values: list[float] = []
+    for task in supported_tasks:
+        train_fields = _load_series(
+            root=args.data_root,
+            task=task,
+            split=args.train_split,
+            max_samples=args.max_samples,
+        )
+        val_fields = _load_series(
+            root=args.data_root,
+            task=task,
+            split=args.val_split,
+            max_samples=args.max_samples,
+        )
+        selected_train = _score_inferred_transport(
+            train_fields,
+            shifts,
+            coefficients,
+            context_transitions=args.context_transitions,
+            rollout_steps=args.rollout_steps,
+            metric=args.metric,
+            refine_radius=args.refine_radius,
+            fractional_refine_step=args.fractional_refine_step,
+        )
+        selected_validation = _score_inferred_transport(
+            val_fields,
+            shifts,
+            coefficients,
+            context_transitions=args.context_transitions,
+            rollout_steps=args.rollout_steps,
+            metric=args.metric,
+            refine_radius=args.refine_radius,
+            fractional_refine_step=args.fractional_refine_step,
+        )
+        validation_nrmse = float(selected_validation["nrmse"])
         validation_values.append(validation_nrmse)
+        validation_guard = _test_guard_result(
+            value=float(selected_validation[args.metric]),
+            reference=args.reference_metric_value,
+            min_relative_improvement=args.val_min_relative_improvement,
+            mode="min",
+        )
+        task_record = {
+            "task": task,
+            "calibration_scope": "shared_1d_transport",
+            "train_split": args.train_split,
+            "val_split": args.val_split,
+            "metric": args.metric,
+            "fit": {
+                "shared_calibrator_json": str(shared_fit_path),
+                "coefficients": coefficients,
+                "train": selected_train,
+                "selected_validation": selected_validation,
+                "validation_guard": validation_guard,
+            },
+            "validation_guard": validation_guard,
+            "test": None,
+            "test_eligible": False,
+            "held_out_test_policy": (
+                "No held-out test split is passed by the shared transfer scorecard."
+            ),
+        }
+        output_json = output_dir / f"{task}_transfer_gate.json"
+        output_json.write_text(json.dumps(task_record, indent=2, sort_keys=True), encoding="utf-8")
         tasks[task] = {
             "status": "validated",
+            "calibration_scope": "shared_1d_transport",
             "gate_json": str(output_json),
-            "train_nrmse": float(record["fit"]["train"]["nrmse"]),
+            "train_nrmse": float(selected_train["nrmse"]),
             "validation_nrmse": validation_nrmse,
-            "validation_guard_passed": bool(record["validation_guard"]["passed"]),
-            "test_touched": record.get("test") is not None,
+            "validation_guard_passed": bool(validation_guard["passed"]),
+            "test_touched": False,
         }
+    return validation_values
+
+
+def run_scorecard(args: argparse.Namespace) -> dict[str, Any]:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    tasks, supported_tasks = _task_support(args, output_dir)
+    validation_values: list[float] = []
+    shared_calibrator = bool(getattr(args, "shared_calibrator", False))
+    if supported_tasks and shared_calibrator:
+        validation_values = _run_shared_calibrator(
+            args,
+            output_dir=output_dir,
+            tasks=tasks,
+            supported_tasks=supported_tasks,
+        )
+    else:
+        for task in supported_tasks:
+            output_json = output_dir / f"{task}_transfer_gate.json"
+            record = run_gate(_gate_args(args, task, output_json))
+            output_json.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
+            validation_nrmse = float(record["fit"]["selected_validation"]["nrmse"])
+            validation_values.append(validation_nrmse)
+            tasks[task] = {
+                "status": "validated",
+                "calibration_scope": "per_task_1d_transport",
+                "gate_json": str(output_json),
+                "train_nrmse": float(record["fit"]["train"]["nrmse"]),
+                "validation_nrmse": validation_nrmse,
+                "validation_guard_passed": bool(record["validation_guard"]["passed"]),
+                "test_touched": record.get("test") is not None,
+            }
 
     evaluated_task_count = sum(1 for payload in tasks.values() if payload["status"] == "validated")
     skipped_task_count = sum(1 for payload in tasks.values() if payload["status"] == "skipped")
@@ -116,12 +284,18 @@ def run_scorecard(args: argparse.Namespace) -> dict[str, Any]:
         "rollout_steps": int(args.rollout_steps),
         "refine_radius": int(args.refine_radius),
         "fractional_refine_step": float(args.fractional_refine_step),
+        "calibration_scope": (
+            "shared_1d_transport" if shared_calibrator else "per_task_1d_transport"
+        ),
         "evaluated_task_count": evaluated_task_count,
         "skipped_task_count": skipped_task_count,
         "mean_validation_nrmse": _mean(validation_values),
         "tasks": tasks,
         "held_out_policy": "train/val only; no held-out test split is passed to task gates",
     }
+    shared_fit_path = output_dir / "shared_1d_transport_calibrator.json"
+    if shared_calibrator and shared_fit_path.exists():
+        scorecard["shared_fit"] = json.loads(shared_fit_path.read_text(encoding="utf-8"))
     (output_dir / "scorecard.json").write_text(
         json.dumps(scorecard, indent=2, sort_keys=True), encoding="utf-8"
     )
@@ -145,6 +319,11 @@ def main() -> None:
     parser.add_argument("--fractional-refine-step", type=float, default=0.025)
     parser.add_argument("--reference-metric-value", type=float, default=1.0)
     parser.add_argument("--val-min-relative-improvement", type=float, default=0.0)
+    parser.add_argument(
+        "--shared-calibrator",
+        action="store_true",
+        help="Fit one shared linear context-shift calibrator across all supported 1D tasks.",
+    )
     parser.add_argument(
         "--output-dir",
         default="reports/research/sota_loop/inferred_transfer_scorecard",

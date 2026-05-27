@@ -321,6 +321,7 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         "transfer": {
             "scorecard_json": str(args.transfer_scorecard_json),
             "status": transfer_scorecard.get("status", "missing"),
+            "calibration_scope": transfer_scorecard.get("calibration_scope", ""),
             "evaluated_task_count": transfer_scorecard.get("evaluated_task_count", 0),
             "skipped_task_count": transfer_scorecard.get("skipped_task_count", 0),
             "mean_validation_nrmse": transfer_scorecard.get("mean_validation_nrmse"),
