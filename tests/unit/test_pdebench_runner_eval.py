@@ -560,6 +560,60 @@ def test_evaluate_decoded_operator_can_estimate_prediction_roll_shift(tmp_path):
     assert report.extra["decoded_prediction_roll_shift_estimator"]["mode"] == "roll_persistence"
 
 
+def test_evaluate_decoded_operator_can_apply_context_calibrated_roll_shift(tmp_path):
+    data = torch.tensor(
+        [
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ],
+        dtype=torch.float32,
+    )
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_context_roll_shift_estimator": {
+                "candidate_shifts": [-1, 0, 1],
+                "context_transitions": 1,
+                "coefficients": {"slope": 1.0, "intercept": 0.0},
+                "tasks": ["advection1d"],
+                "mode": "roll_persistence",
+            },
+            "report_all_horizon_metrics": True,
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+        rollout_steps=3,
+    )
+
+    assert report.metrics["task_advection1d_decoded_h2_nrmse"] == 0.0
+    assert report.metrics["task_advection1d_decoded_h3_nrmse"] == 0.0
+    assert report.metrics["decoded_context_roll_shift_mean"] == 1.0
+    assert report.extra["decoded_context_roll_shift_estimator"]["calibration_scope"] == (
+        "shared_1d_transport"
+    )
+
+
 def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
     for task_name in ("burgers1d", "advection1d"):
         data = torch.ones(1, 3, 4, dtype=torch.float32)

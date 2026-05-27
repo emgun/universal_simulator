@@ -252,9 +252,10 @@ def _resolve_roll_shift(
 
 
 def _roll_flattened_grid(
-    field: torch.Tensor, grid_shape: tuple[int, int], *, shift_x: int
+    field: torch.Tensor, grid_shape: tuple[int, int], *, shift_x: float
 ) -> torch.Tensor:
-    if shift_x == 0:
+    shift_value = float(shift_x)
+    if shift_value == 0.0:
         return field
     if field.dim() != 3:
         raise ValueError(
@@ -267,7 +268,17 @@ def _roll_flattened_grid(
             f"Flattened grid has {nodes} nodes, expected {H * W} for grid shape {grid_shape}"
         )
     grid = field.transpose(1, 2).reshape(batch, channels, H, W)
-    rolled = torch.roll(grid, shifts=int(shift_x), dims=-1)
+    if abs(shift_value - round(shift_value)) < 1e-9:
+        rolled = torch.roll(grid, shifts=int(round(shift_value)), dims=-1)
+    else:
+        frequencies = torch.fft.fftfreq(W, device=grid.device, dtype=grid.dtype)
+        phase = torch.exp(
+            -2j
+            * torch.tensor(math.pi, device=grid.device, dtype=grid.dtype)
+            * frequencies
+            * shift_value
+        )
+        rolled = torch.fft.ifft(torch.fft.fft(grid, dim=-1) * phase, dim=-1).real
     return rolled.reshape(batch, channels, H * W).transpose(1, 2).contiguous()
 
 
@@ -299,6 +310,54 @@ def _roll_shift_estimator_config(raw: Any) -> dict[str, Any]:
     cfg["min_horizon"] = int(cfg.get("min_horizon", 2))
     if cfg["min_horizon"] <= 0:
         raise ValueError("decoded observed roll-shift estimator min_horizon must be positive")
+    return cfg
+
+
+def _context_roll_shift_estimator_config(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError("evaluation.decoded_context_roll_shift_estimator must be a mapping")
+    cfg = dict(raw)
+    candidate_shifts = cfg.get(
+        "candidate_shifts",
+        [-64, -48, -40, -32, -24, -16, -8, -4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64],
+    )
+    if not isinstance(candidate_shifts, Sequence) or isinstance(candidate_shifts, (str, bytes)):
+        raise ValueError("decoded context roll-shift estimator candidate_shifts must be a sequence")
+    cfg["candidate_shifts"] = [float(shift) for shift in candidate_shifts]
+    cfg["enabled"] = bool(cfg.get("enabled", True))
+    for key in ("tasks", "families"):
+        values = cfg.get(key, ())
+        if values is None:
+            values = ()
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, Sequence):
+            raise ValueError(f"decoded context roll-shift estimator {key} must be a sequence")
+        cfg[key] = [str(value) for value in values]
+    context_transitions = int(cfg.get("context_transitions", 1))
+    if context_transitions <= 0:
+        raise ValueError(
+            "decoded context roll-shift estimator context_transitions must be positive"
+        )
+    cfg["context_transitions"] = context_transitions
+    cfg["min_horizon"] = int(cfg.get("min_horizon", context_transitions + 1))
+    if cfg["min_horizon"] <= context_transitions:
+        raise ValueError(
+            "decoded context roll-shift estimator min_horizon must be greater than context_transitions"
+        )
+    coefficients = cfg.get("coefficients", {})
+    if coefficients is None:
+        coefficients = {}
+    if not isinstance(coefficients, Mapping):
+        raise ValueError("decoded context roll-shift estimator coefficients must be a mapping")
+    cfg["coefficients"] = {
+        "slope": float(coefficients.get("slope", cfg.get("slope", 1.0))),
+        "intercept": float(coefficients.get("intercept", cfg.get("intercept", 0.0))),
+    }
+    cfg["mode"] = _roll_shift_estimator_mode(cfg)
+    cfg["calibration_scope"] = str(cfg.get("calibration_scope", "shared_1d_transport"))
     return cfg
 
 
@@ -369,6 +428,37 @@ def _estimate_prediction_roll_shift(
             best_shift = int(shift)
             best_mse = mse_value
     return best_shift
+
+
+def _estimate_context_roll_shift(
+    *,
+    fields: torch.Tensor,
+    grid_shape: tuple[int, int],
+    candidate_shifts: Sequence[float],
+    context_transitions: int,
+    coefficients: Mapping[str, float],
+) -> float:
+    if not candidate_shifts:
+        return 0.0
+    steps = min(int(context_transitions), int(fields.shape[0]) - 1)
+    if steps <= 0:
+        return 0.0
+    best_shift = float(candidate_shifts[0])
+    best_mse = math.inf
+    for shift in candidate_shifts:
+        total_mse = 0.0
+        for step in range(steps):
+            previous_field = _flatten_field_step(fields[step], grid_shape).cpu()
+            current_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
+            shifted = _roll_flattened_grid(previous_field, grid_shape, shift_x=float(shift))
+            total_mse += float((shifted - current_field).pow(2).mean().item())
+        mean_mse = total_mse / max(float(steps), 1.0)
+        if mean_mse < best_mse:
+            best_shift = float(shift)
+            best_mse = mean_mse
+    return best_shift * float(coefficients.get("slope", 1.0)) + float(
+        coefficients.get("intercept", 0.0)
+    )
 
 
 def _logit(value: float, *, eps: float = 1e-6) -> float:
@@ -720,6 +810,9 @@ def evaluate_decoded_operator(
     prediction_roll_shift_cfg = _roll_shift_estimator_config(
         eval_cfg.get("decoded_prediction_roll_shift_estimator")
     )
+    context_roll_shift_cfg = _context_roll_shift_estimator_config(
+        eval_cfg.get("decoded_context_roll_shift_estimator")
+    )
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
     skip_missing_tasks = bool(
         eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
@@ -799,6 +892,20 @@ def evaluate_decoded_operator(
                 if max_steps <= 0:
                     continue
                 steps = max_steps if rollout_steps is None else min(max_steps, int(rollout_steps))
+                context_roll_shift = 0.0
+                if context_roll_shift_cfg and _roll_shift_estimator_applies(
+                    cfg=context_roll_shift_cfg,
+                    task_name=task_name,
+                    task_family=task_family,
+                    horizon=int(context_roll_shift_cfg["min_horizon"]),
+                ):
+                    context_roll_shift = _estimate_context_roll_shift(
+                        fields=fields,
+                        grid_shape=grid_shape,
+                        candidate_shifts=context_roll_shift_cfg.get("candidate_shifts", ()),
+                        context_transitions=int(context_roll_shift_cfg["context_transitions"]),
+                        coefficients=context_roll_shift_cfg.get("coefficients", {}),
+                    )
                 initial_cond = pdebench_condition_step(
                     params,
                     bc,
@@ -956,6 +1063,31 @@ def evaluate_decoded_operator(
                             == "roll_persistence"
                         ):
                             pred_field = persistence_field
+                    if roll_shift == 0 and _roll_shift_estimator_applies(
+                        cfg=context_roll_shift_cfg,
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=horizon,
+                    ):
+                        roll_shift = context_roll_shift
+                        _append_stat(shift_stats, "decoded_context_roll_shift", float(roll_shift))
+                        _append_stat(
+                            shift_stats,
+                            f"task_{task_name}_decoded_context_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"family_{task_family}_decoded_context_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"decoded_context_roll_shift_h{horizon}",
+                            float(roll_shift),
+                        )
+                        if _roll_shift_estimator_mode(context_roll_shift_cfg) == "roll_persistence":
+                            pred_field = persistence_field
                     pred_field = _roll_flattened_grid(pred_field, grid_shape, shift_x=roll_shift)
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
@@ -1080,6 +1212,7 @@ def evaluate_decoded_operator(
             "decoded_roll_shift_by_family_horizon": roll_shift_by_family_horizon,
             "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
             "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
+            "decoded_context_roll_shift_estimator": context_roll_shift_cfg,
             "report_all_horizon_metrics": report_all_horizon_metrics,
             "skip_missing_tasks": skip_missing_tasks,
             "skipped_missing_tasks": skipped_missing_tasks,
