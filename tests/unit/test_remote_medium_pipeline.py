@@ -34,6 +34,7 @@ def test_remote_medium_pipeline_dry_run_emits_medium_confirmation_commands(tmp_p
     assert "TRAIN_COUNT=512" in proc.stdout
     assert "VAL_COUNT=128" in proc.stdout
     assert "TEST_COUNT=128" in proc.stdout
+    assert "SHARD_PREP_REQUIRED_GB=120" in proc.stdout
     assert "REMOTE_B2_PREFIX=medium-v1" in proc.stdout
     assert "RUN_NAME=ups_medium_shared_context_transport" in proc.stdout
     assert "evaluation.decoded_context_roll_shift_estimator" in proc.stdout

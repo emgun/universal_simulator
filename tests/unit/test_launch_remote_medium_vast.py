@@ -43,7 +43,7 @@ def test_launch_remote_medium_vast_dry_run_targets_medium_pipeline(tmp_path):
     assert "secret-key-id" not in proc.stdout
     assert "secret-app-key" not in proc.stdout
     assert "vastai create instance 123456" in proc.stdout
-    assert "--disk 80" in proc.stdout
+    assert "--disk 160" in proc.stdout
     assert "--entrypoint bash --args -lc" in proc.stdout
     assert "scripts/run_remote_medium_confirmation.sh" in proc.stdout
     assert "DRY_RUN=0 ENV_FILE=.env PIPELINE_ROOT=reports/demo/remote_medium_pipeline" in (
