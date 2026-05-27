@@ -24,6 +24,49 @@ apply_cli_assignments() {
 
 apply_cli_assignments "$@"
 
+read_env_key() {
+  local file="$1"; shift
+  local key="$1"; shift || true
+  if [ ! -f "$file" ]; then
+    return 1
+  fi
+  local line
+  while IFS= read -r line; do
+    line="${line#${line%%[![:space:]]*}}"
+    [ -z "$line" ] && continue
+    [ "${line:0:1}" = "#" ] && continue
+    if [[ "$line" =~ ^[[:space:]]*$key[[:space:]]*[:=][[:space:]]*(.*)$ ]]; then
+      local val="${BASH_REMATCH[1]}"
+      if [[ "$val" =~ ^"(.*)"$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+      elif [[ "$val" =~ ^'(.*)'$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+      else
+        echo "$val"
+      fi
+      return 0
+    fi
+  done < "$file"
+  return 1
+}
+
+load_optional_env() {
+  local env_file="$1"
+  [ -f "$env_file" ] || return 0
+  : "${WANDB_API_KEY:=$(read_env_key "$env_file" WANDB_API_KEY || true)}"
+  : "${WANDB_PROJECT:=$(read_env_key "$env_file" WANDB_PROJECT || true)}"
+  : "${WANDB_ENTITY:=$(read_env_key "$env_file" WANDB_ENTITY || true)}"
+  : "${WANDB_GROUP:=$(read_env_key "$env_file" WANDB_GROUP || true)}"
+  : "${WANDB_TAGS:=$(read_env_key "$env_file" WANDB_TAGS || true)}"
+  : "${WANDB_JOB_TYPE:=$(read_env_key "$env_file" WANDB_JOB_TYPE || true)}"
+  : "${B2_KEY_ID:=$(read_env_key "$env_file" B2_KEY_ID || read_env_key "$env_file" B2_ACCOUNT_ID || true)}"
+  : "${B2_APP_KEY:=$(read_env_key "$env_file" B2_APP_KEY || read_env_key "$env_file" B2_APPLICATION_KEY || true)}"
+  : "${B2_BUCKET:=$(read_env_key "$env_file" B2_BUCKET || read_env_key "$env_file" B2_BUCKET_NAME || true)}"
+  : "${B2_S3_ENDPOINT:=$(read_env_key "$env_file" B2_S3_ENDPOINT || true)}"
+  : "${B2_S3_REGION:=$(read_env_key "$env_file" B2_S3_REGION || true)}"
+  export WANDB_API_KEY WANDB_PROJECT WANDB_ENTITY WANDB_GROUP WANDB_TAGS WANDB_JOB_TYPE B2_KEY_ID B2_APP_KEY B2_BUCKET B2_S3_ENDPOINT B2_S3_REGION
+}
+
 normalize_list() {
   echo "$1" | tr ',' ' '
 }
@@ -58,7 +101,76 @@ run_or_echo() {
   fi
 }
 
+ensure_rclone() {
+  if command -v rclone >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ "${INSTALL_RCLONE:-1}" -ne 1 ]; then
+    echo "rclone is required for B2 hydration; set INSTALL_RCLONE=1 or preinstall rclone." >&2
+    exit 1
+  fi
+  if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y rclone
+    return 0
+  fi
+  echo "rclone is required for B2 hydration and automatic install is only implemented for apt-get hosts." >&2
+  exit 1
+}
+
+configure_checkpoint_rclone() {
+  : "${B2_KEY_ID:?Set B2_KEY_ID to hydrate checkpoint source}"
+  : "${B2_APP_KEY:?Set B2_APP_KEY to hydrate checkpoint source}"
+  : "${B2_BUCKET:?Set B2_BUCKET to hydrate checkpoint source}"
+  if ! command -v rclone >/dev/null 2>&1; then
+    echo "rclone is required to hydrate checkpoint source." >&2
+    exit 1
+  fi
+  if [ -n "${B2_S3_ENDPOINT:-}" ] || [ -n "${B2_S3_REGION:-}" ]; then
+    export RCLONE_CONFIG_UPSB2_TYPE=s3
+    export RCLONE_CONFIG_UPSB2_PROVIDER=Other
+    export RCLONE_CONFIG_UPSB2_ACCESS_KEY_ID="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_SECRET_ACCESS_KEY="${B2_APP_KEY}"
+    [ -n "${B2_S3_ENDPOINT:-}" ] && export RCLONE_CONFIG_UPSB2_ENDPOINT="${B2_S3_ENDPOINT}"
+    [ -n "${B2_S3_REGION:-}" ] && export RCLONE_CONFIG_UPSB2_REGION="${B2_S3_REGION}"
+  else
+    export RCLONE_CONFIG_UPSB2_TYPE=b2
+    export RCLONE_CONFIG_UPSB2_ACCOUNT="${B2_KEY_ID}"
+    export RCLONE_CONFIG_UPSB2_KEY="${B2_APP_KEY}"
+  fi
+}
+
+hydrate_checkpoint_source() {
+  [ -n "$CHECKPOINT_SOURCE" ] || return 0
+  [ -n "$CHECKPOINT_SOURCE_B2_KEY" ] || return 0
+  if [ -e "$CHECKPOINT_SOURCE" ]; then
+    echo "Checkpoint source already exists: ${CHECKPOINT_SOURCE}"
+    return 0
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "DRY_RUN=1: would hydrate checkpoint source from b2://${B2_BUCKET:-<bucket>}/${CHECKPOINT_SOURCE_B2_KEY}"
+    return 0
+  fi
+
+  ensure_rclone
+  configure_checkpoint_rclone
+  local archive_path extract_root
+  archive_path="${CHECKPOINT_SOURCE_ARCHIVE_PATH:-/tmp/$(basename "$CHECKPOINT_SOURCE_B2_KEY")}"
+  extract_root="$(dirname "$CHECKPOINT_SOURCE")"
+  mkdir -p "$extract_root"
+  echo "Hydrating checkpoint source from b2://${B2_BUCKET}/${CHECKPOINT_SOURCE_B2_KEY}"
+  rclone copyto "UPSB2:${B2_BUCKET}/${CHECKPOINT_SOURCE_B2_KEY}" "$archive_path"
+  tar -xzf "$archive_path" -C "$extract_root"
+  if [ ! -e "$CHECKPOINT_SOURCE" ]; then
+    echo "Checkpoint archive did not produce expected source path: ${CHECKPOINT_SOURCE}" >&2
+    exit 1
+  fi
+}
+
 ENV_FILE=${ENV_FILE:-.env}
+load_optional_env "$ENV_FILE"
+
 VERSION=${VERSION:-medium-v1}
 REMOTE_PREFIX=${REMOTE_PREFIX:-$VERSION}
 MEDIUM_MANIFEST=${MEDIUM_MANIFEST:-docs/demo_medium_v1_data_manifest.yaml}
@@ -84,6 +196,7 @@ ALLOW_UNCHECKED_LIVE_RUNS=${ALLOW_UNCHECKED_LIVE_RUNS:-0}
 ALLOW_WANDB=${ALLOW_WANDB:-0}
 SKIP_TRAINING=${SKIP_TRAINING:-0}
 CHECKPOINT_SOURCE=${CHECKPOINT_SOURCE:-}
+CHECKPOINT_SOURCE_B2_KEY=${CHECKPOINT_SOURCE_B2_KEY:-}
 CANDIDATE_RUN_NAME=${CANDIDATE_RUN_NAME:-ups_medium_shared_context_transport}
 PERSISTENCE_RUN_NAME=${PERSISTENCE_RUN_NAME:-persistence_medium_v1_test}
 CANDIDATE_PROMOTION_RULE=${CANDIDATE_PROMOTION_RULE:-decoded_rollout_nrmse<=1.0}
@@ -170,6 +283,10 @@ if { [ "$RUN_CANDIDATE" -eq 1 ] || [ "$RUN_PERSISTENCE" -eq 1 ]; } && [ "$FETCH_
     CLEAN_OLD_SPLITS=0 \
     DRY_RUN="$DRY_RUN" \
     bash scripts/fetch_datasets_b2.sh $FETCH_KEYS
+fi
+
+if [ "$RUN_CANDIDATE" -eq 1 ]; then
+  hydrate_checkpoint_source
 fi
 
 candidate_cmd=(
