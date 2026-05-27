@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -63,6 +64,7 @@ def test_run_light_experiment_bootstraps_and_records_results(tmp_path, monkeypat
 
 def test_run_light_experiment_applies_eval_overrides_without_eval_config(tmp_path, monkeypatch):
     output_root = tmp_path / "light_runs"
+    ledger_path = tmp_path / "test_ledger.json"
     args = [
         "run_light_experiment",
         "--config",
@@ -78,6 +80,10 @@ def test_run_light_experiment_applies_eval_overrides_without_eval_config(tmp_pat
         "data.split=val",
         "--extra-eval-split",
         "test",
+        "--promotion-rule",
+        "mse>=0.0",
+        "--held-out-test-ledger-json",
+        str(ledger_path),
         "--synthetic-samples",
         "3",
         "--synthetic-steps",
@@ -93,12 +99,51 @@ def test_run_light_experiment_applies_eval_overrides_without_eval_config(tmp_pat
     assert "split: val" in (run_dir / "resolved_eval.yaml").read_text(encoding="utf-8")
     assert (run_dir / "summary_test.json").exists()
     assert summary["extra_evaluations"]["test"]["summary"].endswith("summary_test.json")
+    test_summary = json.loads((run_dir / "summary_test.json").read_text(encoding="utf-8"))
+    assert test_summary["duration_sec"] >= 0.0
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    assert len(ledger["measurements"]) == 1
+    assert ledger["measurements"][0]["test_split"] == "test"
+    assert ledger["measurements"][0]["validation_metric_name"] == "mse"
+    assert ledger["measurements"][0]["test_metric_name"] == "mse"
     assert (run_dir / "synthetic_pdebench" / "burgers1d_val.h5").exists()
     assert (run_dir / "synthetic_pdebench" / "burgers1d_test.h5").exists()
     with h5py.File(run_dir / "synthetic_pdebench" / "burgers1d_val.h5", "r") as handle:
         assert handle["data"].shape == (3, 5, 8)
     with h5py.File(run_dir / "synthetic_pdebench" / "burgers1d_test.h5", "r") as handle:
         assert handle["data"].shape == (3, 5, 8)
+
+
+def test_held_out_measurement_key_ignores_cosmetic_run_name():
+    args = argparse.Namespace(
+        checkpoint_source="checkpoints/source",
+        config="configs/train.yaml",
+        decoded=True,
+        decoded_rollout_steps=16,
+        eval_config=None,
+        eval_override=["evaluation.foo=1"],
+        extra_eval_split=["test"],
+        name="first_name",
+        override=["data.max_samples=32"],
+        promotion_rule=["decoded_rollout_nrmse<=0.35"],
+        skip_training=True,
+        stage=None,
+    )
+    split_cfg = {"data": {"split": "test", "max_samples": 32}}
+
+    first_key = runner_script._held_out_measurement_key(
+        args=args,
+        split_name="test",
+        split_cfg=split_cfg,
+    )
+    args.name = "second_name"
+    second_key = runner_script._held_out_measurement_key(
+        args=args,
+        split_name="test",
+        split_cfg=split_cfg,
+    )
+
+    assert first_key == second_key
 
 
 def test_run_light_experiment_can_reuse_checkpoints_for_eval_only(tmp_path, monkeypatch):

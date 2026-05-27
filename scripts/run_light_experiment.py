@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import copy
 import csv
+import hashlib
 import json
 import math
 import os
@@ -588,6 +589,116 @@ def _append_results_row(path: Path, row: dict[str, Any]) -> None:
         writer.writerows(row_map[name] for name in sorted(row_map))
 
 
+def _load_test_ledger(path: str | Path | None) -> dict[str, Any]:
+    if not path:
+        return {"measurements": []}
+    ledger_path = Path(path)
+    if not ledger_path.exists():
+        return {"measurements": []}
+    payload = json.loads(ledger_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Held-out test ledger must be an object: {ledger_path}")
+    payload.setdefault("measurements", [])
+    if not isinstance(payload["measurements"], list):
+        raise ValueError(f"Held-out test ledger measurements must be a list: {ledger_path}")
+    return payload
+
+
+def _write_test_ledger(path: str | Path, ledger: dict[str, Any]) -> None:
+    ledger_path = Path(path)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(json.dumps(ledger, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _held_out_measurement_key(
+    *,
+    args: argparse.Namespace,
+    split_name: str,
+    split_cfg: dict[str, Any],
+) -> str:
+    payload = {
+        "checkpoint_source": args.checkpoint_source,
+        "config": args.config,
+        "decoded": bool(args.decoded),
+        "decoded_rollout_steps": args.decoded_rollout_steps,
+        "eval_config": args.eval_config,
+        "eval_override": list(args.eval_override),
+        "extra_eval_split": split_name,
+        "override": list(args.override),
+        "promotion_rule": list(args.promotion_rule),
+        "resolved_eval_cfg": split_cfg,
+        "skip_training": bool(args.skip_training),
+        "stage": list(args.stage or []),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _guard_held_out_extra_eval(
+    *,
+    args: argparse.Namespace,
+    validation_summary: dict[str, Any],
+    split_name: str,
+    split_cfg: dict[str, Any],
+) -> str | None:
+    ledger_path = getattr(args, "held_out_test_ledger_json", None)
+    if split_name != "test" or not ledger_path:
+        return None
+    if validation_summary.get("extra", {}).get("promotion_passed") is not True:
+        raise RuntimeError(
+            "held-out test extra evaluation requires validation promotion_passed=true"
+        )
+    measurement_key = _held_out_measurement_key(
+        args=args,
+        split_name=split_name,
+        split_cfg=split_cfg,
+    )
+    ledger = _load_test_ledger(ledger_path)
+    existing_keys = {
+        str(entry.get("measurement_key"))
+        for entry in ledger.get("measurements", [])
+        if isinstance(entry, dict)
+    }
+    if measurement_key in existing_keys and not bool(args.allow_repeat_held_out_test):
+        raise RuntimeError(
+            "held-out test measurement already recorded for this light experiment; "
+            "set --allow-repeat-held-out-test only for explicit debugging"
+        )
+    return measurement_key
+
+
+def _record_held_out_extra_eval(
+    *,
+    args: argparse.Namespace,
+    measurement_key: str | None,
+    split_name: str,
+    validation_summary: dict[str, Any],
+    test_summary: dict[str, Any],
+    summary_path: Path,
+) -> None:
+    ledger_path = getattr(args, "held_out_test_ledger_json", None)
+    if not measurement_key or not ledger_path:
+        return
+    validation_metric_name, validation_metric_value = _main_metric(validation_summary["metrics"])
+    test_metric_name, test_metric_value = _main_metric(test_summary["metrics"])
+    ledger = _load_test_ledger(ledger_path)
+    ledger.setdefault("measurements", []).append(
+        {
+            "measurement_key": measurement_key,
+            "run_name": args.name,
+            "test_split": split_name,
+            "summary_json": str(summary_path),
+            "validation_metric_name": validation_metric_name,
+            "validation_metric_value": validation_metric_value,
+            "test_metric_name": test_metric_name,
+            "test_metric_value": test_metric_value,
+        }
+    )
+    _write_test_ledger(ledger_path, ledger)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run lightweight UPS experiments with resolved configs and summaries"
@@ -634,6 +745,18 @@ def main() -> None:
         action="append",
         default=[],
         help="Additional data split to evaluate with the same trained checkpoints; can be repeated",
+    )
+    parser.add_argument(
+        "--held-out-test-ledger-json",
+        help=(
+            "Optional ledger that makes --extra-eval-split test fail closed unless validation "
+            "promotion passed and prevents repeat measurements."
+        ),
+    )
+    parser.add_argument(
+        "--allow-repeat-held-out-test",
+        action="store_true",
+        help="Allow repeating a held-out test measurement already present in the ledger.",
     )
     parser.add_argument(
         "--transfer-task",
@@ -833,6 +956,13 @@ def main() -> None:
     for split in args.extra_eval_split:
         split_name = str(split)
         split_cfg = _clone_eval_cfg(eval_cfg, split=split_name)
+        held_out_measurement_key = _guard_held_out_extra_eval(
+            args=args,
+            validation_summary=summary,
+            split_name=split_name,
+            split_cfg=split_cfg,
+        )
+        split_started = time.time()
         split_summary = _evaluate_once(
             split_cfg,
             checkpoint_dir=checkpoint_dir,
@@ -849,8 +979,17 @@ def main() -> None:
         split_summary["stages"] = stages
         split_summary["config"] = str(train_cfg_path)
         split_summary["eval_config"] = str(eval_cfg_path)
+        split_summary["duration_sec"] = time.time() - split_started
         split_path = run_dir / f"summary_{_safe_artifact_name(split_name)}.json"
         split_path.write_text(json.dumps(split_summary, indent=2), encoding="utf-8")
+        _record_held_out_extra_eval(
+            args=args,
+            measurement_key=held_out_measurement_key,
+            split_name=split_name,
+            validation_summary=summary,
+            test_summary=split_summary,
+            summary_path=split_path,
+        )
         extra_evaluations[split_name] = {
             "summary": str(split_path),
             "metrics": split_summary["metrics"],
