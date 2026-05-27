@@ -1990,3 +1990,14 @@ Operator-decoded refiner probe and harness correction:
 - The same `operator_decoded.pt` with residual alpha disabled still reports decoded rollout `nrmse=0.3685752310100123`, so the learned operator alone did not clear the reference. The remaining useful signal is still coming from residual blending plus a small operator update, not from a standalone learned refiner.
 - `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
 - No held-out test was run. Status: keep the harness fix, do not promote this operator-decoded recipe, and move to a real learned residual/refiner head or a stronger joint-capacity variant rather than more scalar residual scheduling.
+
+Train-fitted decoded residual gate:
+
+- Added `scripts/fit_decoded_residual_gate.py`, which collects train-split decoded rollout rows, projects each target onto the persistence-to-UPS residual direction to produce an optimal per-row alpha, fits a logistic gate over existing decoded gate features, exports a JSON `evaluation.decoded_persistence_residual_gate` config, and validates the frozen gate on `val`.
+- Unit coverage: `tests/unit/test_fit_decoded_residual_gate.py` covers least-squares alpha projection, logistic feature-weight export, and CLI override JSON shape.
+- Probe command used checkpoint source `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, `train_split=train`, `val_split=val`, `data.max_samples=32`, decoded rollout steps `16`, checkpoint-compatible conditioning `{"task_id":3,"equation_signature":15}`, reference `0.3567910081081011`, and validation guard `0.01`.
+- Output: `reports/research/sota_loop/learned_residual_gate/fit_record.json`; selected config: `reports/research/sota_loop/learned_residual_gate/selected_gate_config.json`.
+- The train fit used `1536` rows and learned a low mean alpha (`target_alpha_mean=0.02755736063701215`, `predicted_alpha_mean=0.02770230621897582`, `train_mse=0.007576902574471213`).
+- Frozen validation decoded rollout was `nrmse=0.3636878653661531`; relative improvement against reference was `-0.019330244040125535`, so the held-out-test guard failed.
+- `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
+- No held-out test was run. Status: train-fitted alpha gates also collapse toward persistence and do not explain the validation-only `alpha=0.18` gain; the next viable path is a true decoded residual/refiner model or stronger joint operator capacity, not more scalar/feature alpha gates.
