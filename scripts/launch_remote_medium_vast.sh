@@ -9,7 +9,7 @@ set -euo pipefail
 ENV_FILE=${ENV_FILE:-.env}
 DRY_RUN=${DRY_RUN:-1}
 GIT_REF=${GIT_REF:-$(git rev-parse --abbrev-ref HEAD)}
-DISK_GB=${DISK_GB:-80}
+DISK_GB=${DISK_GB:-160}
 GPU=${GPU:-RTX_4090}
 NUM_GPUS=${NUM_GPUS:-1}
 ORDER=${ORDER:-dph_total}
