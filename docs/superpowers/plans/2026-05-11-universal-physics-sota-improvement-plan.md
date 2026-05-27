@@ -2053,3 +2053,4 @@ Medium confirmation checkpoint hydration:
 
 - `scripts/run_remote_medium_confirmation.sh` now accepts `CHECKPOINT_SOURCE_B2_KEY`, loads optional B2 credentials from `ENV_FILE`, hydrates a missing `CHECKPOINT_SOURCE` archive from B2 before running the medium candidate, and fails closed if extraction does not create the expected checkpoint path.
 - This closes the fresh-remote gap for evaluating the existing light-selected checkpoint on `medium-v1`; without it, the medium confirmation pipeline could train from scratch but could not reliably reuse the ignored local checkpoint artifact on a new Vast worker.
+- The same medium pipeline now supports `PUBLISH_MEDIUM_ARTIFACTS=1`, which publishes the pipeline logs and any medium candidate or persistence run directories to B2 under `MEDIUM_ARTIFACT_PREFIX` before auto-shutdown. This prevents paid Vast runs from producing only ephemeral local results.

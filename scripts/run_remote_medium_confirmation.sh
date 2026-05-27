@@ -119,12 +119,13 @@ ensure_rclone() {
   exit 1
 }
 
-configure_checkpoint_rclone() {
-  : "${B2_KEY_ID:?Set B2_KEY_ID to hydrate checkpoint source}"
-  : "${B2_APP_KEY:?Set B2_APP_KEY to hydrate checkpoint source}"
-  : "${B2_BUCKET:?Set B2_BUCKET to hydrate checkpoint source}"
+configure_b2_rclone() {
+  local purpose="$1"; shift || true
+  : "${B2_KEY_ID:?Set B2_KEY_ID to ${purpose}}"
+  : "${B2_APP_KEY:?Set B2_APP_KEY to ${purpose}}"
+  : "${B2_BUCKET:?Set B2_BUCKET to ${purpose}}"
   if ! command -v rclone >/dev/null 2>&1; then
-    echo "rclone is required to hydrate checkpoint source." >&2
+    echo "rclone is required to ${purpose}." >&2
     exit 1
   fi
   if [ -n "${B2_S3_ENDPOINT:-}" ] || [ -n "${B2_S3_REGION:-}" ]; then
@@ -154,7 +155,7 @@ hydrate_checkpoint_source() {
   fi
 
   ensure_rclone
-  configure_checkpoint_rclone
+  configure_b2_rclone "hydrate checkpoint source"
   local archive_path extract_root
   archive_path="${CHECKPOINT_SOURCE_ARCHIVE_PATH:-/tmp/$(basename "$CHECKPOINT_SOURCE_B2_KEY")}"
   extract_root="$(dirname "$CHECKPOINT_SOURCE")"
@@ -166,6 +167,35 @@ hydrate_checkpoint_source() {
     echo "Checkpoint archive did not produce expected source path: ${CHECKPOINT_SOURCE}" >&2
     exit 1
   fi
+}
+
+publish_medium_artifacts() {
+  local stamp artifact_name artifact_path remote_key path
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  artifact_name=${MEDIUM_ARTIFACT_NAME:-medium_confirmation_${VERSION}_${stamp}.tar.gz}
+  artifact_path="/tmp/${artifact_name}"
+  remote_key="${MEDIUM_ARTIFACT_PREFIX%/}/${artifact_name}"
+
+  local artifact_paths=()
+  [ -e "$PIPELINE_ROOT" ] && artifact_paths+=("$PIPELINE_ROOT")
+  for path in "$OUTPUT_ROOT/$CANDIDATE_RUN_NAME" "$OUTPUT_ROOT/$PERSISTENCE_RUN_NAME"; do
+    [ -e "$path" ] && artifact_paths+=("$path")
+  done
+  if [ "${#artifact_paths[@]}" -eq 0 ]; then
+    echo "No medium artifacts found to publish." >&2
+    exit 1
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "DRY_RUN=1: would publish medium artifacts to b2://${B2_BUCKET:-<bucket>}/${remote_key}"
+    return 0
+  fi
+
+  tar -czf "$artifact_path" "${artifact_paths[@]}"
+  ensure_rclone
+  configure_b2_rclone "publish medium artifacts"
+  rclone copyto "$artifact_path" "UPSB2:${B2_BUCKET}/${remote_key}"
+  echo "Published medium artifacts: b2://${B2_BUCKET}/${remote_key}"
 }
 
 ENV_FILE=${ENV_FILE:-.env}
@@ -197,6 +227,8 @@ ALLOW_WANDB=${ALLOW_WANDB:-0}
 SKIP_TRAINING=${SKIP_TRAINING:-0}
 CHECKPOINT_SOURCE=${CHECKPOINT_SOURCE:-}
 CHECKPOINT_SOURCE_B2_KEY=${CHECKPOINT_SOURCE_B2_KEY:-}
+PUBLISH_MEDIUM_ARTIFACTS=${PUBLISH_MEDIUM_ARTIFACTS:-0}
+MEDIUM_ARTIFACT_PREFIX=${MEDIUM_ARTIFACT_PREFIX:-remote-runs/medium}
 CANDIDATE_RUN_NAME=${CANDIDATE_RUN_NAME:-ups_medium_shared_context_transport}
 PERSISTENCE_RUN_NAME=${PERSISTENCE_RUN_NAME:-persistence_medium_v1_test}
 CANDIDATE_PROMOTION_RULE=${CANDIDATE_PROMOTION_RULE:-decoded_rollout_nrmse<=1.0}
@@ -352,6 +384,10 @@ if [ "$RUN_PERSISTENCE" -eq 1 ]; then
   run_or_echo "${persistence_cmd[@]}"
 else
   echo "RUN_PERSISTENCE=0: skipping medium persistence baseline command."
+fi
+
+if [ "$PUBLISH_MEDIUM_ARTIFACTS" -eq 1 ]; then
+  publish_medium_artifacts
 fi
 
 echo "Remote medium confirmation pipeline complete."
