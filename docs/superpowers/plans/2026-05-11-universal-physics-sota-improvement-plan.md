@@ -1971,3 +1971,22 @@ Learned capacity compact remote validation result:
 - The args-mode contract restarted after the first successful publication, so it was destroyed immediately after log/artifact verification. A cleanup check returned no active Vast instances: `vastai show instances --raw` returned `[]`.
 - `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
 - No held-out test was run. Status: the compact remote execution path is now proven, but this learned-capacity recipe should not be promoted.
+
+Train-selected horizon residual probe:
+
+- Probe: `scripts/calibrate_residual_gate.py` with checkpoint source `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, `--selection-split train`, `--val-split val`, `--skip-test`, `--schedule-by-horizon`, family `transport`, alphas `0.0,0.12,0.15,0.18,0.2,0.22,0.25,0.3`, and checkpoint-compatible conditioning `{"task_id":3,"equation_signature":15}`.
+- Output: `reports/research/sota_loop/horizon_residual_gate_probe/calibration.json`.
+- Train selection chose alpha `0.0` for every transport horizon, so the selected gate collapsed to constant alpha `0.0`.
+- Validation confirmation decoded rollout `nrmse=0.3685752310100123`; relative improvement against reference `0.3567910081081011` was `-0.03302836291866644`, so the held-out-test guard failed.
+- No held-out test was run. Status: residual alpha schedules remain negative under train-selection/validation-confirmation; stop spending search on scalar residual gates and move to a learned operator/refiner change.
+
+Operator-decoded refiner probe and harness correction:
+
+- While running a frozen-codec `operator_decoded` fine-tune from `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, the experiment harness exposed a stale-checkpoint precedence bug: after copying a source run with `operator_joint.pt`, evaluation still preferred `operator_joint.pt` over the newly written `operator_decoded.pt`.
+- `scripts/run_light_experiment.py` now selects the operator checkpoint according to the last operator-producing stage: `joint_codec_operator` prefers `operator_joint.pt`, `operator_decoded` prefers `operator_decoded.pt`, `operator` prefers `operator.pt`, and eval-only runs keep the previous highest-fidelity default.
+- Regression coverage: `tests/unit/test_light_experiment_runner.py::test_run_light_experiment_evaluates_checkpoint_from_last_operator_stage` failed before the fix with summary checkpoint `operator_joint.pt` and passes after the fix with `operator_decoded.pt`.
+- Corrected probe: `ups_light_local_opdecoded_residual_ft2_val`, `STAGES=operator_decoded`, `data.max_samples=32`, `stages.operator_decoded.epochs=2`, `rollout_steps=4`, `lambda_rollout=1.0`, `lambda_persistence_residual=0.5`, `lambda_persistence_residual_spectral=0.05`, validation split only, decoded rollout steps `16`, and transport-family residual alpha `0.18`.
+- Corrected validation decoded rollout `nrmse=0.3550556903326636`, with task metrics `advection1d=0.49324279610571337`, `burgers1d=0.14738121412908425`, and `darcy2d=0.188979512124482`. Against clean reference `0.3567910081081011`, relative improvement is `0.004863681359681959`, below the strict `0.01` held-out-test authorization guard.
+- The same `operator_decoded.pt` with residual alpha disabled still reports decoded rollout `nrmse=0.3685752310100123`, so the learned operator alone did not clear the reference. The remaining useful signal is still coming from residual blending plus a small operator update, not from a standalone learned refiner.
+- `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
+- No held-out test was run. Status: keep the harness fix, do not promote this operator-decoded recipe, and move to a real learned residual/refiner head or a stronger joint-capacity variant rather than more scalar residual scheduling.
