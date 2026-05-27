@@ -2012,3 +2012,13 @@ Decoded residual refiner probe:
 - Frozen validation `nrmse=0.3678783178329468`; relative improvement against reference was `-0.03107508169456564`, so the held-out-test guard failed.
 - `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
 - No held-out test was run. Status: a per-node decoded refiner overfits/does not transfer. The next viable path should be spatially aware or latent/operator-capacity focused, not decoded scalar gates or pointwise decoded correction.
+
+Decoded spatial residual refiner probe:
+
+- Added `scripts/train_decoded_spatial_refiner.py`, a validation-only CNN decoded-space refiner that groups frozen UPS rollout tensors by grid shape, builds channels from prediction, persistence, residual, coordinates, horizon, and task one-hot context, trains on train split, and validates the frozen refiner on `val`.
+- Unit coverage: `tests/unit/test_train_decoded_spatial_refiner.py` covers flat/grid reshaping, spatial feature construction, grouped-frame subsampling, and a synthetic local-grid correction fit.
+- Probe command used checkpoint source `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, `train_split=train`, `val_split=val`, `data.max_samples=32`, decoded rollout steps `16`, hidden channels `32`, `epochs=200`, `max_train_frames=256`, checkpoint-compatible conditioning `{"task_id":3,"equation_signature":15}`, reference `0.3567910081081011`, and validation guard `0.01`.
+- Output: `reports/research/sota_loop/decoded_spatial_refiner/fit_record.json`; checkpoint: `reports/research/sota_loop/decoded_spatial_refiner/refiner.pt`.
+- The balanced fit used `256` frames sampled across `2` shape groups from `1536` train frames and reached train `nrmse=0.07414577901363373`.
+- Frozen validation `nrmse=0.36599984765052795`; relative improvement against reference was `-0.025810178320516252`, so the held-out-test guard failed.
+- No held-out test was run. Status: a spatial decoded postprocessor transfers slightly better than the pointwise MLP but still regresses the clean validation reference. This closes the cheap decoded post-hoc refiner path for now; the next useful work should move into latent/operator capacity or a transport-aware mechanism trained with stronger causal signal.
