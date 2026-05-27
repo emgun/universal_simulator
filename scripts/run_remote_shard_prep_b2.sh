@@ -109,8 +109,16 @@ VERSION=${VERSION:-light-v1}
 REMOTE_PREFIX=${REMOTE_PREFIX:-$VERSION}
 TASKS=${TASKS:-"burgers1d advection1d darcy2d"}
 DATA_ROOT=${DATA_ROOT:-data/pdebench_full}
-OUT_ROOT=${OUT_ROOT:-data/pdebench_light}
-MANIFEST=${MANIFEST:-docs/demo_data_manifest.yaml}
+if [ "$VERSION" = "light-v1" ]; then
+  DEFAULT_OUT_ROOT="data/pdebench_light"
+  DEFAULT_MANIFEST="docs/demo_data_manifest.yaml"
+else
+  VERSION_SLUG="${VERSION//[^[:alnum:]]/_}"
+  DEFAULT_OUT_ROOT="data/pdebench_${VERSION_SLUG}"
+  DEFAULT_MANIFEST="docs/demo_${VERSION_SLUG}_data_manifest.yaml"
+fi
+OUT_ROOT=${OUT_ROOT:-$DEFAULT_OUT_ROOT}
+MANIFEST=${MANIFEST:-$DEFAULT_MANIFEST}
 TRAIN_COUNT=${TRAIN_COUNT:-128}
 VAL_COUNT=${VAL_COUNT:-32}
 TEST_COUNT=${TEST_COUNT:-32}

@@ -77,6 +77,32 @@ def test_remote_shard_prep_accepts_cli_assignments():
     assert "task=darcy2d source_splits=train test" in proc.stdout
 
 
+def test_remote_shard_prep_uses_version_specific_defaults_for_medium():
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/run_remote_shard_prep_b2.sh",
+        ],
+        check=True,
+        capture_output=True,
+        env={
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "DRY_RUN": "1",
+            "VERSION": "medium-v1",
+            "REMOTE_PREFIX": "medium-v1",
+            "TASKS": "burgers1d",
+        },
+        text=True,
+    )
+
+    assert "would build medium-v1 shards for tasks: burgers1d" in proc.stdout
+    assert "cut burgers1d shards into data/pdebench_medium_v1/burgers1d" in proc.stdout
+    assert (
+        "publish data/pdebench_medium_v1/*.h5 and docs/demo_medium_v1_data_manifest.yaml "
+        "to prefix medium-v1"
+    ) in proc.stdout
+
+
 def test_smoke_shard_prep_wrapper_uses_smoke_defaults():
     proc = subprocess.run(
         [
