@@ -2001,3 +2001,14 @@ Train-fitted decoded residual gate:
 - Frozen validation decoded rollout was `nrmse=0.3636878653661531`; relative improvement against reference was `-0.019330244040125535`, so the held-out-test guard failed.
 - `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
 - No held-out test was run. Status: train-fitted alpha gates also collapse toward persistence and do not explain the validation-only `alpha=0.18` gain; the next viable path is a true decoded residual/refiner model or stronger joint operator capacity, not more scalar/feature alpha gates.
+
+Decoded residual refiner probe:
+
+- Added `scripts/train_decoded_residual_refiner.py`, a validation-only decoded-space MLP refiner that collects frozen UPS rollout tensors, builds per-node features from prediction, persistence, residual, coordinates, horizon, and task one-hot context, trains on train split, and validates the frozen refiner on `val`.
+- Unit coverage: `tests/unit/test_train_decoded_residual_refiner.py` covers feature construction, task-context feature expansion, deterministic row subsampling, and a synthetic non-alpha correction fit.
+- Probe command used checkpoint source `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, `train_split=train`, `val_split=val`, `data.max_samples=32`, decoded rollout steps `16`, hidden dim `64`, `epochs=300`, `max_train_rows=65536`, checkpoint-compatible conditioning `{"task_id":3,"equation_signature":15}`, reference `0.3567910081081011`, and validation guard `0.01`.
+- Output: `reports/research/sota_loop/decoded_residual_refiner/fit_record.json`; checkpoint: `reports/research/sota_loop/decoded_residual_refiner/refiner.pt`.
+- The refiner trained on `65536` sampled rows from `1114112` train rows and reached train `nrmse=0.11606860905885696`.
+- Frozen validation `nrmse=0.3678783178329468`; relative improvement against reference was `-0.03107508169456564`, so the held-out-test guard failed.
+- `python scripts/audit_universal_sota_status.py` still reports `status=not_sota_ready`; blocking reasons remain `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
+- No held-out test was run. Status: a per-node decoded refiner overfits/does not transfer. The next viable path should be spatially aware or latent/operator-capacity focused, not decoded scalar gates or pointwise decoded correction.
