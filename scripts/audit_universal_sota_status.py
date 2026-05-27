@@ -65,6 +65,7 @@ def _wandb_urls(summary: Mapping[str, Any]) -> str:
 def _row_from_summary(summary: Mapping[str, Any], summary_path: Path) -> dict[str, Any]:
     row: dict[str, Any] = {
         "run_name": summary.get("run_name", summary_path.parent.name),
+        "split": summary.get("split", summary.get("eval_split", "")),
         "summary_json": str(summary_path),
         "duration_sec": summary.get("duration_sec"),
         "tracking_wandb_urls": _wandb_urls(summary),
@@ -107,12 +108,17 @@ def _best_row(rows: list[dict[str, Any]], metric_name: str) -> dict[str, Any] | 
 
 
 def _claim_eligible_rows(
-    rows: list[dict[str, Any]], diagnostic_fragments: tuple[str, ...]
+    rows: list[dict[str, Any]],
+    diagnostic_fragments: tuple[str, ...],
+    *,
+    claim_split: str,
 ) -> list[dict[str, Any]]:
     eligible = []
     for row in rows:
         run_name = str(row.get("run_name", ""))
         if any(fragment and fragment in run_name for fragment in diagnostic_fragments):
+            continue
+        if str(row.get("split", "")) != claim_split:
             continue
         eligible.append(row)
     return eligible
@@ -194,7 +200,12 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     diagnostic_fragments = tuple(
         getattr(args, "exclude_diagnostic_fragment", None) or DEFAULT_DIAGNOSTIC_RUN_FRAGMENTS
     )
-    eligible_rows = _claim_eligible_rows(rows, diagnostic_fragments)
+    claim_split = str(getattr(args, "claim_split", "test"))
+    eligible_rows = _claim_eligible_rows(
+        rows,
+        diagnostic_fragments,
+        claim_split=claim_split,
+    )
     eligible_rows = [row for row in eligible_rows if row.get("run_name") != args.baseline_run_name]
     best_overall = _best_row(rows, args.metric_name)
     best = _best_row(eligible_rows, args.metric_name)
@@ -244,7 +255,8 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
             best is not None,
             (
                 f"claim_eligible_run_count={len(eligible_rows)}, "
-                f"excluded_diagnostic_fragments={list(diagnostic_fragments)}"
+                f"excluded_diagnostic_fragments={list(diagnostic_fragments)}, "
+                f"claim_split={claim_split}"
             ),
         ),
         _check(
@@ -301,6 +313,7 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         "light_v1": {
             "scorecard_json": str(args.light_scorecard_json),
             "candidate_summary_globs": list(candidate_summary_globs),
+            "claim_split": claim_split,
             "baseline_run_name": args.baseline_run_name,
             "baseline_metric_name": args.metric_name,
             "baseline_metric_value": baseline_value,
@@ -362,6 +375,11 @@ def main() -> None:
     parser.add_argument("--baseline-run-name", default="persistence_light_v1_test")
     parser.add_argument("--metric-name", default="decoded_rollout_nrmse")
     parser.add_argument("--min-improvement", type=float, default=0.2)
+    parser.add_argument(
+        "--claim-split",
+        default="test",
+        help="Required split metadata for claim-eligible candidate summaries.",
+    )
     parser.add_argument("--medium-confirmed", action="store_true")
     parser.add_argument("--strong-baseline-compared", action="store_true")
     parser.add_argument("--artifact-handles-confirmed", action="store_true")
