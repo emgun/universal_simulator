@@ -1868,6 +1868,17 @@ Inferred transport transfer scorecard:
 - Darcy is skipped in the live local scorecard because `data/pdebench/darcy2d_train.h5` is absent. The scorecard also explicitly rejects non-`1d` tasks when splits exist, because this mechanism is a 1D transport gate rather than a static 2D operator.
 - Status: this is the next credible transfer signal after the official Advection result, not a universal SOTA claim. It supports continuing toward a broader scorecard, but it does not yet demonstrate general PDE-family SOTA or foundation-model behavior.
 
+Shared inferred transport transfer scorecard:
+
+- `scripts/run_inferred_transport_transfer_scorecard.py --shared-calibrator` now fits one linear context-shift calibrator across all supported 1D train tasks, instead of fitting separate per-task calibrators. This is a stronger generality gate for the transport path because Advection and Burgers share one locked calibrator.
+- Live scorecard output at `reports/research/sota_loop/shared_inferred_transfer_scorecard/scorecard.json` reports `status=partial_transfer_validated`, `calibration_scope=shared_1d_transport`, `evaluated_task_count=2`, `skipped_task_count=1`, and `mean_validation_nrmse=0.003561232633868615`.
+- Shared calibrator coefficients: slope `0.9974352988185539`, intercept `0.0`, trained from `128` Advection and `128` Burgers train shift-pair rows.
+- Advection shared-transfer validation: `nrmse=0.00129715464580111`, train `nrmse=0.00003117017230236846`, `test_touched=false`.
+- Burgers shared-transfer validation: `nrmse=0.005825310621936119`, train `nrmse=0.06526661578828445`, `test_touched=false`.
+- Darcy is now present locally but still skipped with `unsupported task for 1D transport gate: darcy2d`, which is the correct boundary for this mechanism.
+- `scripts/audit_universal_sota_status.py --transfer-scorecard-json reports/research/sota_loop/shared_inferred_transfer_scorecard/scorecard.json` records `transfer.calibration_scope=shared_1d_transport` and still reports `status=not_sota_ready`, with the remaining blockers unchanged: `light_v1_min_improvement`, `medium_or_larger_confirmation`, `strong_baseline_comparison`, and `claim_documentation_confirmed`.
+- No held-out test was run. Status: this is real progress from a per-task diagnostic toward a shared transport mechanism, but it still is not a universal SOTA result until the shared mechanism is integrated into or fairly compared against the full light-v1 UPS decoded rollout path and expanded beyond the 1D transport/conservation subset.
+
 Universal SOTA status audit:
 
 - `scripts/audit_universal_sota_status.py` now produces `reports/research/sota_loop/universal_sota_status.json` from the light-v1 demo scorecard, official transport objective status, inferred transfer scorecard, and optional `reports/light_experiments_remote/ups_light*/summary.json` candidate summaries.

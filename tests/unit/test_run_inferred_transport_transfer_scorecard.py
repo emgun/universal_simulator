@@ -61,6 +61,7 @@ def test_transfer_scorecard_evaluates_supported_1d_tasks_and_skips_unsupported(t
             fractional_refine_step=0.0,
             reference_metric_value=1.0,
             val_min_relative_improvement=0.0,
+            shared_calibrator=False,
             output_dir=tmp_path / "out",
         )
     )
@@ -101,6 +102,7 @@ def test_transfer_scorecard_skips_non_1d_tasks_even_when_splits_exist(tmp_path):
             fractional_refine_step=0.0,
             reference_metric_value=1.0,
             val_min_relative_improvement=0.0,
+            shared_calibrator=False,
             output_dir=tmp_path / "out",
         )
     )
@@ -110,3 +112,42 @@ def test_transfer_scorecard_skips_non_1d_tasks_even_when_splits_exist(tmp_path):
     assert record["skipped_task_count"] == 1
     assert record["tasks"]["darcy2d"]["status"] == "skipped"
     assert record["tasks"]["darcy2d"]["reason"] == "unsupported task for 1D transport gate: darcy2d"
+
+
+def test_transfer_scorecard_can_use_one_shared_1d_transport_calibrator(tmp_path):
+    _write_trajectory_split(tmp_path, task="advection1d", split="train", shift=1.0)
+    _write_trajectory_split(tmp_path, task="advection1d", split="val", shift=1.0)
+    _write_trajectory_split(tmp_path, task="burgers1d", split="train", shift=2.0)
+    _write_trajectory_split(tmp_path, task="burgers1d", split="val", shift=2.0)
+
+    record = run_scorecard(
+        Namespace(
+            data_root=tmp_path,
+            tasks=["advection1d", "burgers1d"],
+            train_split="train",
+            val_split="val",
+            max_samples=None,
+            context_transitions=1,
+            rollout_steps=3,
+            shift=[0, 1, 2],
+            metric="nrmse",
+            fit_kind="linear",
+            fit_intercept=False,
+            refine_radius=0,
+            fractional_refine_step=0.0,
+            reference_metric_value=1.0,
+            val_min_relative_improvement=0.0,
+            shared_calibrator=True,
+            output_dir=tmp_path / "out",
+        )
+    )
+
+    assert record["status"] == "transfer_validated"
+    assert record["calibration_scope"] == "shared_1d_transport"
+    assert record["shared_fit"]["train_task_count"] == 2
+    assert record["shared_fit"]["coefficients"]["slope"] == 1.0
+    assert record["tasks"]["advection1d"]["calibration_scope"] == "shared_1d_transport"
+    assert record["tasks"]["advection1d"]["validation_nrmse"] < 1e-5
+    assert record["tasks"]["burgers1d"]["calibration_scope"] == "shared_1d_transport"
+    assert record["tasks"]["burgers1d"]["validation_nrmse"] < 1e-5
+    assert (tmp_path / "out" / "shared_1d_transport_calibrator.json").exists()
