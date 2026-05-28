@@ -87,3 +87,76 @@ def test_run_persistence_baseline_writes_light_summary(tmp_path, monkeypatch):
     assert "decoded_rollout_nrmse" in summary["metrics"]
     assert summary["extra"]["promotion_passed"] is True
     assert (output_root / "results.tsv").exists()
+
+
+def test_append_results_row_preserves_existing_tracking_columns(tmp_path):
+    results_path = tmp_path / "runs" / "results.tsv"
+    results_path.parent.mkdir()
+    results_path.write_text(
+        "\t".join(
+            [
+                "run_name",
+                "timestamp",
+                "stages",
+                "decoded",
+                "train_split",
+                "eval_split",
+                "transfer_tasks",
+                "promotion_passed",
+                "main_metric_name",
+                "main_metric_value",
+                "summary_json",
+                "wandb_run_ids",
+                "wandb_urls",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "candidate",
+                "123",
+                "train,eval",
+                "True",
+                "train",
+                "test",
+                "",
+                "True",
+                "decoded_rollout_nrmse",
+                "0.3",
+                "candidate/summary.json",
+                "run-1",
+                "https://wandb.invalid/run-1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    baseline_script._append_results_row(
+        results_path,
+        {
+            "run_name": "persistence",
+            "timestamp": 456,
+            "stages": "persistence",
+            "decoded": True,
+            "train_split": "",
+            "eval_split": "test",
+            "transfer_tasks": "",
+            "promotion_passed": "",
+            "main_metric_name": "decoded_rollout_nrmse",
+            "main_metric_value": 0.6,
+            "summary_json": "persistence/summary.json",
+        },
+    )
+
+    lines = results_path.read_text(encoding="utf-8").strip().splitlines()
+    header = lines[0].split("\t")
+    assert "wandb_run_ids" in header
+    assert "wandb_urls" in header
+    assert len(lines) == 3
+
+    candidate = dict(zip(header, lines[1].split("\t", maxsplit=len(header) - 1)))
+    persistence = dict(zip(header, lines[2].split("\t", maxsplit=len(header) - 1)))
+    assert candidate["wandb_run_ids"] == "run-1"
+    assert candidate["wandb_urls"] == "https://wandb.invalid/run-1"
+    assert persistence["run_name"] == "persistence"
