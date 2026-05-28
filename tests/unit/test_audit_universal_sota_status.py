@@ -202,6 +202,135 @@ def test_universal_sota_audit_can_scan_candidate_summaries_not_in_scorecard(tmp_
     assert record["light_v1"]["passes_min_improvement_gate"] is False
 
 
+def test_universal_sota_audit_uses_summary_cost_and_artifact_handles(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard([_row("persistence_light_v1_test", 1.0)]),
+    )
+    summary_dir = tmp_path / "reports" / "ups_light_claim_candidate"
+    summary_dir.mkdir(parents=True)
+    _write_json(
+        summary_dir / "summary_test.json",
+        {
+            "run_name": "ups_light_claim_candidate",
+            "split": "test",
+            "artifact_handles": "b2://pdebench/remote-runs/light/claim.tar.gz",
+            "cost": {
+                "provider": "vast",
+                "gpu_type": "RTX 4090",
+                "gpu_count": 1,
+                "wall_clock_hours": 0.5,
+                "hourly_usd": 0.8,
+            },
+            "metrics": {
+                "decoded_rollout_nrmse": 0.7,
+                "task_advection1d_decoded_rollout_nrmse": 0.8,
+                "task_burgers1d_decoded_rollout_nrmse": 0.6,
+                "task_darcy2d_decoded_rollout_nrmse": 0.7,
+                "decoded_rollout_spectral_energy_error": 0.1,
+            },
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "partial_transfer_validated", "evaluated_task_count": 2},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=False,
+            strong_baseline_compared=False,
+            artifact_handles_confirmed=False,
+            documentation_confirmed=False,
+            candidate_summary_glob=[str(summary_dir / "summary_test.json")],
+            claim_split="test",
+            output_json="",
+        )
+    )
+
+    assert record["light_v1"]["cost_or_throughput_present"] is True
+    assert record["light_v1"]["wandb_or_artifact_handles_present"] is True
+    scorecard_check = next(
+        check
+        for check in record["readiness_checks"]
+        if check["key"] == "scorecard_metrics_complete"
+    )
+    handles_check = next(
+        check for check in record["readiness_checks"] if check["key"] == "wandb_or_artifact_handles"
+    )
+    assert scorecard_check["passed"] is True
+    assert handles_check["passed"] is True
+
+
+def test_universal_sota_audit_preserves_scorecard_metadata_when_summary_overlaps(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard(
+            [
+                _row("persistence_light_v1_test", 1.0),
+                {
+                    **_row("ups_light_claim_candidate", 0.7, duration_sec=""),
+                    "artifact_handles": "b2://pdebench/remote-runs/light/claim.tar.gz",
+                    "cost_estimated_usd": 0.4,
+                },
+            ]
+        ),
+    )
+    summary_dir = tmp_path / "reports" / "ups_light_claim_candidate"
+    summary_dir.mkdir(parents=True)
+    _write_json(
+        summary_dir / "summary_test.json",
+        {
+            "run_name": "ups_light_claim_candidate",
+            "split": "test",
+            "metrics": {
+                "decoded_rollout_nrmse": 0.7,
+                "task_advection1d_decoded_rollout_nrmse": 0.8,
+                "task_burgers1d_decoded_rollout_nrmse": 0.6,
+                "task_darcy2d_decoded_rollout_nrmse": 0.7,
+                "decoded_rollout_spectral_energy_error": 0.1,
+            },
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "partial_transfer_validated", "evaluated_task_count": 2},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=False,
+            strong_baseline_compared=False,
+            artifact_handles_confirmed=False,
+            documentation_confirmed=False,
+            candidate_summary_glob=[str(summary_dir / "summary_test.json")],
+            claim_split="test",
+            output_json="",
+        )
+    )
+
+    assert record["light_v1"]["cost_or_throughput_present"] is True
+    assert record["light_v1"]["wandb_or_artifact_handles_present"] is True
+
+
 def test_universal_sota_audit_excludes_non_test_candidate_summaries(tmp_path):
     scorecard = _write_json(
         tmp_path / "scorecard.json",
