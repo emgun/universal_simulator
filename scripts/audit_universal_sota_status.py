@@ -38,6 +38,22 @@ def _maybe_load_json(path: str | Path) -> dict[str, Any]:
     return _load_json(json_path)
 
 
+def _non_empty(value: Any) -> bool:
+    if value is None or value == "":
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(_non_empty(item) for item in value)
+    if isinstance(value, Mapping):
+        return any(_non_empty(item) for item in value.values())
+    return bool(str(value).strip())
+
+
+def _join_values(value: Any) -> Any:
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(item) for item in value if _non_empty(item))
+    return value
+
+
 def _metric_value(row: Mapping[str, Any], metric_name: str) -> float | None:
     value = row.get(f"metric:{metric_name}", row.get(metric_name))
     if value is None or value == "":
@@ -128,6 +144,30 @@ def _summary_rows(patterns: tuple[str, ...]) -> list[dict[str, Any]]:
             if not path.exists():
                 continue
             rows.append(_row_from_summary(_load_json(path), path))
+    return rows
+
+
+def _claim_evidence_rows(claim_evidence: Mapping[str, Any]) -> list[dict[str, Any]]:
+    records = claim_evidence.get("candidate_evidence", [])
+    if not isinstance(records, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, Mapping):
+            continue
+        row = {
+            str(key): _join_values(value)
+            for key, value in record.items()
+            if key not in {"cost", "metrics"} and not isinstance(value, Mapping)
+        }
+        row.update(_summary_cost_fields(record))
+        metrics = record.get("metrics", {})
+        if isinstance(metrics, Mapping):
+            for key, value in metrics.items():
+                if isinstance(value, (int, float)):
+                    row[f"metric:{key}"] = float(value)
+        if row.get("run_name"):
+            rows.append(row)
     return rows
 
 
@@ -232,6 +272,97 @@ def _has_wandb_or_artifact_handles(row: Mapping[str, Any] | None) -> bool:
     return False
 
 
+def _documentation_status(
+    claim_evidence: Mapping[str, Any],
+    best: Mapping[str, Any] | None,
+    *,
+    metric_name: str,
+    claim_split: str,
+) -> dict[str, Any]:
+    doc = claim_evidence.get("claim_documentation", {})
+    if not isinstance(doc, Mapping):
+        return {"present": False, "validated": False, "run_name": "", "reason": "missing"}
+    if best is None:
+        return {
+            "present": True,
+            "validated": False,
+            "run_name": str(doc.get("run_name", "")),
+            "reason": "no claim-eligible best row",
+        }
+
+    checkpoints = doc.get("checkpoints", {})
+    required = {
+        "status": str(doc.get("status", "")) == "complete",
+        "run_name": str(doc.get("run_name", "")) == str(best.get("run_name", "")),
+        "split": str(doc.get("split", "")) == claim_split,
+        "summary_json": _non_empty(doc.get("summary_json")),
+        "commit": _non_empty(doc.get("commit")),
+        "command": _non_empty(doc.get("command")) or _non_empty(doc.get("commands")),
+        "checkpoints": isinstance(checkpoints, Mapping)
+        and all(_non_empty(checkpoints.get(name)) for name in ("operator", "encoder", "decoder")),
+        "artifact_handles": _non_empty(doc.get("artifact_handles"))
+        or _non_empty(doc.get("artifact_urls")),
+    }
+    doc_metric_name = str(doc.get("metric_name", metric_name))
+    best_metric = _metric_value(best, metric_name)
+    doc_metric = _as_float(doc.get("metric_value"))
+    required["metric_name"] = doc_metric_name == metric_name
+    required["metric_value"] = (
+        best_metric is not None
+        and doc_metric is not None
+        and abs(float(best_metric) - float(doc_metric)) <= 1.0e-12
+    )
+
+    if _non_empty(doc.get("summary_json")) and _non_empty(best.get("summary_json")):
+        required["summary_json"] = str(doc.get("summary_json")) == str(best.get("summary_json"))
+
+    failed = [key for key, passed in required.items() if not passed]
+    return {
+        "present": True,
+        "validated": not failed,
+        "run_name": str(doc.get("run_name", "")),
+        "reason": "complete" if not failed else f"failed_fields={failed}",
+    }
+
+
+def _strong_baseline_status(
+    claim_evidence: Mapping[str, Any],
+    best: Mapping[str, Any] | None,
+    *,
+    metric_name: str,
+    claim_split: str,
+) -> dict[str, Any]:
+    comparison = claim_evidence.get("strong_baseline_comparison", {})
+    if not isinstance(comparison, Mapping):
+        return {"present": False, "validated": False, "reason": "missing"}
+    if best is None:
+        return {"present": True, "validated": False, "reason": "no claim-eligible best row"}
+    comparison_status = str(comparison.get("status", ""))
+    if comparison_status not in {"complete", "compared"}:
+        return {
+            "present": True,
+            "validated": False,
+            "reason": str(comparison.get("reason", f"status={comparison_status or 'missing'}")),
+        }
+    required = {
+        "claim_run_name": str(comparison.get("claim_run_name", ""))
+        == str(best.get("run_name", "")),
+        "split": str(comparison.get("split", "")) == claim_split,
+        "metric_name": str(comparison.get("metric_name", metric_name)) == metric_name,
+        "baseline_run_name": _non_empty(comparison.get("baseline_run_name")),
+        "baseline_metric_value": _as_float(comparison.get("baseline_metric_value")) is not None,
+        "candidate_metric_value": _as_float(comparison.get("candidate_metric_value")) is not None,
+        "artifact_handles": _non_empty(comparison.get("artifact_handles"))
+        or _non_empty(comparison.get("artifact_urls")),
+    }
+    failed = [key for key, passed in required.items() if not passed]
+    return {
+        "present": True,
+        "validated": not failed,
+        "reason": "complete" if not failed else f"failed_fields={failed}",
+    }
+
+
 def _check(key: str, passed: bool, evidence: str) -> dict[str, Any]:
     return {"key": key, "passed": bool(passed), "evidence": evidence}
 
@@ -244,9 +375,21 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     light_scorecard = _maybe_load_json(args.light_scorecard_json)
     transport_status = _maybe_load_json(args.transport_status_json)
     transfer_scorecard = _maybe_load_json(args.transfer_scorecard_json)
+    claim_evidence_json = getattr(
+        args,
+        "claim_evidence_json",
+        "",
+    )
+    claim_evidence = _maybe_load_json(claim_evidence_json)
 
     candidate_summary_globs = tuple(getattr(args, "candidate_summary_glob", None) or ())
-    rows = _dedupe_rows([*_rows(light_scorecard), *_summary_rows(candidate_summary_globs)])
+    rows = _dedupe_rows(
+        [
+            *_rows(light_scorecard),
+            *_summary_rows(candidate_summary_globs),
+            *_claim_evidence_rows(claim_evidence),
+        ]
+    )
     baseline = _baseline_row(rows, args.baseline_run_name)
     diagnostic_fragments = tuple(
         getattr(args, "exclude_diagnostic_fragment", None) or DEFAULT_DIAGNOSTIC_RUN_FRAGMENTS
@@ -285,6 +428,24 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     )
     handles_confirmed = bool(args.artifact_handles_confirmed) or _has_wandb_or_artifact_handles(
         best
+    )
+    documentation_status = _documentation_status(
+        claim_evidence,
+        best,
+        metric_name=args.metric_name,
+        claim_split=claim_split,
+    )
+    strong_baseline_status = _strong_baseline_status(
+        claim_evidence,
+        best,
+        metric_name=args.metric_name,
+        claim_split=claim_split,
+    )
+    documentation_confirmed = bool(args.documentation_confirmed) or bool(
+        documentation_status["validated"]
+    )
+    strong_baseline_compared = bool(args.strong_baseline_compared) or bool(
+        strong_baseline_status["validated"]
     )
 
     readiness_checks = [
@@ -325,8 +486,11 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _check(
             "strong_baseline_comparison",
-            bool(args.strong_baseline_compared),
-            "explicit confirmation flag required for reproduced or fair strong baseline comparison",
+            strong_baseline_compared,
+            (
+                "explicit confirmation flag or complete claim evidence entry required for "
+                f"reproduced or fair strong baseline comparison; {strong_baseline_status['reason']}"
+            ),
         ),
         _check(
             "scorecard_metrics_complete",
@@ -344,8 +508,11 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _check(
             "claim_documentation_confirmed",
-            bool(args.documentation_confirmed),
-            "explicit confirmation flag required for exact split/command/commit/checkpoint claim docs",
+            documentation_confirmed,
+            (
+                "explicit confirmation flag or validated claim evidence entry required for exact "
+                f"split/command/commit/checkpoint claim docs; {documentation_status['reason']}"
+            ),
         ),
     ]
     blocking_reasons = [
@@ -390,6 +557,12 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
             "skipped_task_count": transfer_scorecard.get("skipped_task_count", 0),
             "mean_validation_nrmse": transfer_scorecard.get("mean_validation_nrmse"),
         },
+        "claim_evidence": {
+            "source": str(claim_evidence_json),
+            "present": bool(claim_evidence),
+        },
+        "claim_documentation": documentation_status,
+        "strong_baseline_comparison": strong_baseline_status,
         "readiness_checks": readiness_checks,
         "blocking_reasons": blocking_reasons,
         "next_recommended_path": (
@@ -435,6 +608,11 @@ def main() -> None:
     parser.add_argument("--strong-baseline-compared", action="store_true")
     parser.add_argument("--artifact-handles-confirmed", action="store_true")
     parser.add_argument("--documentation-confirmed", action="store_true")
+    parser.add_argument(
+        "--claim-evidence-json",
+        default="docs/claim_evidence/universal_sota_claim_evidence.json",
+        help="Optional machine-readable claim evidence manifest.",
+    )
     parser.add_argument(
         "--exclude-diagnostic-fragment",
         action="append",

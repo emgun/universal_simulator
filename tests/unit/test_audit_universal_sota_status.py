@@ -398,3 +398,170 @@ def test_universal_sota_audit_excludes_non_test_candidate_summaries(tmp_path):
 
     assert record["light_v1"]["best_run_name"] == "ups_light_candidate_test"
     assert record["light_v1"]["best_metric_value"] == 0.8
+
+
+def test_universal_sota_audit_uses_claim_evidence_for_docs_cost_and_artifacts(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard([_row("persistence_light_v1_test", 1.0)]),
+    )
+    summary_dir = tmp_path / "reports" / "ups_light_claim_candidate"
+    summary_dir.mkdir(parents=True)
+    summary_path = _write_json(
+        summary_dir / "summary_test.json",
+        {
+            "run_name": "ups_light_claim_candidate",
+            "split": "test",
+            "metrics": {
+                "decoded_rollout_nrmse": 0.7,
+                "task_advection1d_decoded_rollout_nrmse": 0.8,
+                "task_burgers1d_decoded_rollout_nrmse": 0.6,
+                "task_darcy2d_decoded_rollout_nrmse": 0.7,
+                "decoded_rollout_spectral_energy_error": 0.1,
+            },
+        },
+    )
+    claim_evidence = _write_json(
+        tmp_path / "claim_evidence.json",
+        {
+            "candidate_evidence": [
+                {
+                    "run_name": "ups_light_claim_candidate",
+                    "split": "test",
+                    "summary_json": str(summary_path),
+                    "duration_sec": 12.5,
+                    "artifact_handles": ["git:docs/claim_evidence/artifacts/claim.tar.gz"],
+                    "cost": {
+                        "provider": "local",
+                        "wall_clock_hours": 12.5 / 3600.0,
+                    },
+                }
+            ],
+            "claim_documentation": {
+                "status": "complete",
+                "run_name": "ups_light_claim_candidate",
+                "split": "test",
+                "summary_json": str(summary_path),
+                "metric_name": "decoded_rollout_nrmse",
+                "metric_value": 0.7,
+                "commit": "abc123",
+                "command": "python scripts/run_light_experiment.py ...",
+                "checkpoints": {
+                    "operator": "checkpoints/operator.pt",
+                    "encoder": "checkpoints/encoder.pt",
+                    "decoder": "checkpoints/decoder.pt",
+                },
+                "artifact_handles": ["git:docs/claim_evidence/artifacts/claim.tar.gz"],
+            },
+            "strong_baseline_comparison": {
+                "status": "not_satisfied",
+                "reason": "validation-only Fourier baseline is not a claim-level test comparison",
+            },
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "partial_transfer_validated", "evaluated_task_count": 2},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            claim_evidence_json=claim_evidence,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=True,
+            strong_baseline_compared=False,
+            artifact_handles_confirmed=False,
+            documentation_confirmed=False,
+            candidate_summary_glob=[str(summary_path)],
+            claim_split="test",
+            output_json="",
+        )
+    )
+
+    assert record["light_v1"]["cost_or_throughput_present"] is True
+    assert record["light_v1"]["wandb_or_artifact_handles_present"] is True
+    assert record["claim_documentation"]["validated"] is True
+    assert "claim_documentation_confirmed" not in record["blocking_reasons"]
+    assert "strong_baseline_comparison" in record["blocking_reasons"]
+
+
+def test_universal_sota_audit_rejects_mismatched_claim_documentation(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard([_row("persistence_light_v1_test", 1.0)]),
+    )
+    summary_dir = tmp_path / "reports" / "ups_light_claim_candidate"
+    summary_dir.mkdir(parents=True)
+    summary_path = _write_json(
+        summary_dir / "summary_test.json",
+        {
+            "run_name": "ups_light_claim_candidate",
+            "split": "test",
+            "duration_sec": 2.0,
+            "metrics": {
+                "decoded_rollout_nrmse": 0.7,
+                "task_advection1d_decoded_rollout_nrmse": 0.8,
+                "task_burgers1d_decoded_rollout_nrmse": 0.6,
+                "task_darcy2d_decoded_rollout_nrmse": 0.7,
+                "decoded_rollout_spectral_energy_error": 0.1,
+            },
+        },
+    )
+    claim_evidence = _write_json(
+        tmp_path / "claim_evidence.json",
+        {
+            "claim_documentation": {
+                "status": "complete",
+                "run_name": "different_candidate",
+                "split": "test",
+                "summary_json": str(summary_path),
+                "metric_name": "decoded_rollout_nrmse",
+                "metric_value": 0.7,
+                "commit": "abc123",
+                "command": "python scripts/run_light_experiment.py ...",
+                "checkpoints": {
+                    "operator": "checkpoints/operator.pt",
+                    "encoder": "checkpoints/encoder.pt",
+                    "decoder": "checkpoints/decoder.pt",
+                },
+                "artifact_handles": ["git:docs/claim_evidence/artifacts/claim.tar.gz"],
+            }
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "partial_transfer_validated", "evaluated_task_count": 2},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            claim_evidence_json=claim_evidence,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=True,
+            strong_baseline_compared=True,
+            artifact_handles_confirmed=True,
+            documentation_confirmed=False,
+            candidate_summary_glob=[str(summary_path)],
+            claim_split="test",
+            output_json="",
+        )
+    )
+
+    assert record["claim_documentation"]["validated"] is False
+    assert "claim_documentation_confirmed" in record["blocking_reasons"]
