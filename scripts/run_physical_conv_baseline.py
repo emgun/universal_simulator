@@ -15,6 +15,7 @@ from typing import Any
 import torch
 import yaml
 from torch import nn
+from torch.nn import functional as F
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -46,6 +47,66 @@ class PhysicalConvBaseline(nn.Module):
 
     def forward(self, current: torch.Tensor) -> torch.Tensor:
         return current + self.network(current)
+
+
+class PhysicalResidualUNetBaseline(nn.Module):
+    """Tiny residual U-Net-style baseline with a width-downsampled skip path."""
+
+    def __init__(self, *, channels: int, hidden_channels: int = 32) -> None:
+        super().__init__()
+        self.channels = int(channels)
+        self.hidden_channels = int(hidden_channels)
+        self.input_proj = nn.Sequential(
+            nn.Conv2d(self.channels, self.hidden_channels, kernel_size=3, padding=1),
+            nn.GELU(),
+        )
+        self.down = nn.Sequential(
+            nn.Conv2d(self.hidden_channels, self.hidden_channels * 2, kernel_size=3, padding=1),
+            nn.GELU(),
+            nn.Conv2d(
+                self.hidden_channels * 2,
+                self.hidden_channels * 2,
+                kernel_size=3,
+                padding=1,
+            ),
+            nn.GELU(),
+        )
+        self.up = nn.Sequential(
+            nn.Conv2d(
+                self.hidden_channels * 3,
+                self.hidden_channels,
+                kernel_size=3,
+                padding=1,
+            ),
+            nn.GELU(),
+            nn.Conv2d(self.hidden_channels, self.channels, kernel_size=1),
+        )
+        final = self.up[-1]
+        if isinstance(final, nn.Conv2d):
+            nn.init.zeros_(final.weight)
+            nn.init.zeros_(final.bias)
+
+    def forward(self, current: torch.Tensor) -> torch.Tensor:
+        skip = self.input_proj(current)
+        pooled = F.avg_pool2d(skip, kernel_size=(1, 2), stride=(1, 2), ceil_mode=True)
+        low = self.down(pooled)
+        upsampled = F.interpolate(low, size=skip.shape[-2:], mode="nearest")
+        residual = self.up(torch.cat((skip, upsampled), dim=1))
+        return current + residual
+
+
+def build_physical_model(
+    architecture: str,
+    *,
+    channels: int,
+    hidden_channels: int,
+) -> nn.Module:
+    name = architecture.lower()
+    if name == "conv":
+        return PhysicalConvBaseline(channels=channels, hidden_channels=hidden_channels)
+    if name == "unet":
+        return PhysicalResidualUNetBaseline(channels=channels, hidden_channels=hidden_channels)
+    raise ValueError(f"Unknown physical baseline architecture: {architecture}")
 
 
 def field_step_to_grid(field_step: torch.Tensor, grid_shape: tuple[int, int]) -> torch.Tensor:
@@ -162,13 +223,14 @@ def train_group_model(
     targets: torch.Tensor,
     *,
     hidden_channels: int = 32,
+    architecture: str = "conv",
     epochs: int = 5,
     learning_rate: float = 1e-3,
     weight_decay: float = 1e-4,
     batch_size: int = 8,
     seed: int = 0,
     device: str | torch.device = "cpu",
-) -> tuple[PhysicalConvBaseline, dict[str, Any]]:
+) -> tuple[nn.Module, dict[str, Any]]:
     if currents.shape != targets.shape:
         raise ValueError("currents and targets must have the same shape")
     if currents.dim() != 4:
@@ -176,8 +238,10 @@ def train_group_model(
 
     torch.manual_seed(int(seed))
     device = torch.device(device)
-    model = PhysicalConvBaseline(
-        channels=int(currents.shape[1]), hidden_channels=int(hidden_channels)
+    model = build_physical_model(
+        architecture,
+        channels=int(currents.shape[1]),
+        hidden_channels=int(hidden_channels),
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=float(learning_rate), weight_decay=float(weight_decay)
@@ -209,7 +273,8 @@ def train_group_model(
     model.load_state_dict(best_state)
     model.to("cpu")
     return model, {
-        "model": "physical_conv_residual_baseline",
+        "model": f"physical_{architecture.lower()}_residual_baseline",
+        "architecture": architecture.lower(),
         "train_frames": int(currents.shape[0]),
         "channels": int(currents.shape[1]),
         "height": int(currents.shape[2]),
@@ -227,20 +292,22 @@ def train_groups(
     grouped_pairs: dict[tuple[str, int, int, int], tuple[torch.Tensor, torch.Tensor]],
     *,
     hidden_channels: int,
+    architecture: str,
     epochs: int,
     learning_rate: float,
     weight_decay: float,
     batch_size: int,
     seed: int,
     device: str | torch.device,
-) -> tuple[dict[tuple[str, int, int, int], PhysicalConvBaseline], dict[str, Any]]:
-    models: dict[tuple[str, int, int, int], PhysicalConvBaseline] = {}
+) -> tuple[dict[tuple[str, int, int, int], nn.Module], dict[str, Any]]:
+    models: dict[tuple[str, int, int, int], nn.Module] = {}
     fit: dict[str, Any] = {"groups": {}}
     for offset, (key, (currents, targets)) in enumerate(sorted(grouped_pairs.items())):
         model, group_fit = train_group_model(
             currents,
             targets,
             hidden_channels=hidden_channels,
+            architecture=architecture,
             epochs=epochs,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
@@ -273,7 +340,7 @@ def _add_rollout_metrics(
 
 def evaluate_physical_conv_baseline(
     cfg: dict[str, Any],
-    models: dict[tuple[str, int, int, int], PhysicalConvBaseline],
+    models: dict[tuple[str, int, int, int], nn.Module],
     *,
     tasks: Sequence[str],
     split: str,
@@ -421,6 +488,7 @@ def run_baseline(args: argparse.Namespace) -> Path:
     models, fit = train_groups(
         groups,
         hidden_channels=args.hidden_channels,
+        architecture=args.architecture,
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
@@ -446,7 +514,8 @@ def run_baseline(args: argparse.Namespace) -> Path:
     summary = {
         "metrics": metrics,
         "extra": {
-            "baseline": "physical_conv",
+            "baseline": f"physical_{args.architecture}",
+            "architecture": args.architecture,
             "task": tasks[0] if len(tasks) == 1 else list(tasks),
             "train_split": args.train_split,
             "split": args.eval_split,
@@ -504,6 +573,7 @@ def main() -> None:
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--train-stride", type=int, default=4)
     parser.add_argument("--hidden-channels", type=int, default=16)
+    parser.add_argument("--architecture", choices=["conv", "unet"], default="conv")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=1.0e-3)
     parser.add_argument("--weight-decay", type=float, default=1.0e-4)

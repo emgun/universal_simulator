@@ -4,6 +4,8 @@ import torch
 
 from scripts.run_physical_conv_baseline import (
     PhysicalConvBaseline,
+    PhysicalResidualUNetBaseline,
+    build_physical_model,
     field_step_to_grid,
     grid_to_flat,
     group_key,
@@ -38,6 +40,27 @@ def test_physical_conv_baseline_initializes_to_persistence():
     pred = model(current)
 
     assert torch.allclose(pred, current)
+
+
+def test_physical_unet_baseline_preserves_shape_and_initializes_to_persistence():
+    model = PhysicalResidualUNetBaseline(channels=1, hidden_channels=4)
+    current = torch.randn(2, 1, 5, 17)
+
+    pred = model(current)
+
+    assert pred.shape == current.shape
+    assert torch.allclose(pred, current)
+
+
+def test_build_physical_model_selects_architecture():
+    assert isinstance(
+        build_physical_model("conv", channels=1, hidden_channels=4),
+        PhysicalConvBaseline,
+    )
+    assert isinstance(
+        build_physical_model("unet", channels=1, hidden_channels=4),
+        PhysicalResidualUNetBaseline,
+    )
 
 
 def test_group_key_keeps_same_shape_tasks_separate():
