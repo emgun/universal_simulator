@@ -344,14 +344,30 @@ def _strong_baseline_status(
             "validated": False,
             "reason": str(comparison.get("reason", f"status={comparison_status or 'missing'}")),
         }
+    candidate_metric = _as_float(comparison.get("candidate_metric_value"))
+    baseline_metric = _as_float(comparison.get("baseline_metric_value"))
+    best_metric = _metric_value(best, metric_name)
+    improvement_fraction = None
+    if baseline_metric is not None and candidate_metric is not None and baseline_metric != 0.0:
+        improvement_fraction = (baseline_metric - candidate_metric) / abs(baseline_metric)
     required = {
         "claim_run_name": str(comparison.get("claim_run_name", ""))
         == str(best.get("run_name", "")),
         "split": str(comparison.get("split", "")) == claim_split,
         "metric_name": str(comparison.get("metric_name", metric_name)) == metric_name,
         "baseline_run_name": _non_empty(comparison.get("baseline_run_name")),
-        "baseline_metric_value": _as_float(comparison.get("baseline_metric_value")) is not None,
-        "candidate_metric_value": _as_float(comparison.get("candidate_metric_value")) is not None,
+        "baseline_metric_value": baseline_metric is not None,
+        "candidate_metric_value": candidate_metric is not None,
+        "candidate_metric_matches_best": (
+            best_metric is not None
+            and candidate_metric is not None
+            and abs(float(best_metric) - float(candidate_metric)) <= 1.0e-12
+        ),
+        "candidate_beats_baseline": (
+            candidate_metric is not None
+            and baseline_metric is not None
+            and float(candidate_metric) < float(baseline_metric)
+        ),
         "artifact_handles": _non_empty(comparison.get("artifact_handles"))
         or _non_empty(comparison.get("artifact_urls")),
     }
@@ -360,6 +376,10 @@ def _strong_baseline_status(
         "present": True,
         "validated": not failed,
         "reason": "complete" if not failed else f"failed_fields={failed}",
+        "baseline_run_name": str(comparison.get("baseline_run_name", "")),
+        "baseline_metric_value": baseline_metric,
+        "candidate_metric_value": candidate_metric,
+        "baseline_improvement_fraction": improvement_fraction,
     }
 
 
