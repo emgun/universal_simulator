@@ -62,6 +62,45 @@ def _wandb_urls(summary: Mapping[str, Any]) -> str:
     return ",".join(urls)
 
 
+def _as_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
+def _summary_cost_fields(summary: Mapping[str, Any]) -> dict[str, Any]:
+    extra = summary.get("extra", {})
+    cost = summary.get("cost")
+    if not isinstance(cost, Mapping) and isinstance(extra, Mapping):
+        cost = extra.get("cost")
+    if not isinstance(cost, Mapping):
+        return {}
+
+    hourly_usd = _as_float(cost.get("hourly_usd", cost.get("cost_per_hour_usd")))
+    wall_clock_hours = _as_float(
+        cost.get("wall_clock_hours", cost.get("duration_hours", cost.get("runtime_hours")))
+    )
+    gpu_count = _as_float(cost.get("gpu_count", cost.get("gpus")))
+    gpu_hours = _as_float(cost.get("gpu_hours"))
+    estimated_usd = _as_float(
+        cost.get("estimated_usd", cost.get("estimated_cost_usd", cost.get("cost_usd")))
+    )
+    if gpu_hours is None and wall_clock_hours is not None and gpu_count is not None:
+        gpu_hours = wall_clock_hours * gpu_count
+    if estimated_usd is None and wall_clock_hours is not None and hourly_usd is not None:
+        estimated_usd = wall_clock_hours * hourly_usd
+
+    return {
+        "cost_provider": cost.get("provider", ""),
+        "cost_instance_type": cost.get("instance_type", cost.get("machine_type", "")),
+        "cost_gpu_type": cost.get("gpu_type", cost.get("gpu_model", "")),
+        "cost_gpu_count": gpu_count,
+        "cost_wall_clock_hours": wall_clock_hours,
+        "cost_gpu_hours": gpu_hours,
+        "cost_estimated_usd": estimated_usd,
+    }
+
+
 def _row_from_summary(summary: Mapping[str, Any], summary_path: Path) -> dict[str, Any]:
     row: dict[str, Any] = {
         "run_name": summary.get("run_name", summary_path.parent.name),
@@ -69,6 +108,9 @@ def _row_from_summary(summary: Mapping[str, Any], summary_path: Path) -> dict[st
         "summary_json": str(summary_path),
         "duration_sec": summary.get("duration_sec"),
         "tracking_wandb_urls": _wandb_urls(summary),
+        "artifact_urls": summary.get("artifact_urls", ""),
+        "artifact_handles": summary.get("artifact_handles", ""),
+        **_summary_cost_fields(summary),
     }
     metrics = summary.get("metrics", {})
     if isinstance(metrics, Mapping):
@@ -95,7 +137,16 @@ def _dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         run_name = str(row.get("run_name", ""))
         if not run_name:
             continue
-        by_name[run_name] = row
+        if run_name not in by_name:
+            by_name[run_name] = row
+            continue
+        merged = dict(by_name[run_name])
+        for key, value in row.items():
+            if value not in (None, ""):
+                merged[key] = value
+            elif key not in merged:
+                merged[key] = value
+        by_name[run_name] = merged
     return list(by_name.values())
 
 
