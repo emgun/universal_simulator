@@ -60,7 +60,7 @@ def _main_metric(metrics: dict[str, float]) -> tuple[str, float]:
 
 def _append_results_row(path: Path, row: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
+    base_fieldnames = [
         "run_name",
         "timestamp",
         "stages",
@@ -73,19 +73,29 @@ def _append_results_row(path: Path, row: dict[str, Any]) -> None:
         "main_metric_value",
         "summary_json",
     ]
+    fieldnames = list(base_fieldnames)
     row_map: dict[str, dict[str, Any]] = {}
     if path.exists():
         with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle, delimiter="\t")
+            fieldnames = list(reader.fieldnames or base_fieldnames)
+            for name in base_fieldnames:
+                if name not in fieldnames:
+                    fieldnames.append(name)
             for existing in reader:
                 run_name = existing.get("run_name")
                 if run_name:
                     row_map[run_name] = dict(existing)
     row_map[str(row["run_name"])] = row
+    for name in row:
+        if name not in fieldnames:
+            fieldnames.append(name)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
-        writer.writerows(row_map[name] for name in sorted(row_map))
+        for name in sorted(row_map):
+            result_row = row_map[name]
+            writer.writerow({field: result_row.get(field, "") for field in fieldnames})
 
 
 def main() -> None:
