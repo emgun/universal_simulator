@@ -95,17 +95,94 @@ class PhysicalResidualUNetBaseline(nn.Module):
         return current + residual
 
 
+class SpectralConv2d(nn.Module):
+    """Low-mode Fourier mixer for residual physical-space baselines."""
+
+    def __init__(self, *, in_channels: int, out_channels: int, modes: int = 16) -> None:
+        super().__init__()
+        self.in_channels = int(in_channels)
+        self.out_channels = int(out_channels)
+        self.modes = int(modes)
+        scale = 1.0 / max(self.in_channels * self.out_channels, 1)
+        shape = (self.in_channels, self.out_channels, self.modes, self.modes)
+        self.weight_low = nn.Parameter(scale * torch.randn(shape, dtype=torch.cfloat))
+        self.weight_high = nn.Parameter(scale * torch.randn(shape, dtype=torch.cfloat))
+
+    @staticmethod
+    def _contract(input_ft: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
+        return torch.einsum("bihw,iohw->bohw", input_ft, weights.to(dtype=input_ft.dtype))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch, _, height, width = x.shape
+        width_ft = width // 2 + 1
+        modes_w = min(self.modes, width_ft)
+        modes_low_h = min(self.modes, height)
+        modes_high_h = min(self.modes, max(height - modes_low_h, 0))
+
+        x_ft = torch.fft.rfft2(x, dim=(-2, -1), norm="ortho")
+        out_ft = x_ft.new_zeros((batch, self.out_channels, height, width_ft))
+        out_ft[:, :, :modes_low_h, :modes_w] = self._contract(
+            x_ft[:, :, :modes_low_h, :modes_w],
+            self.weight_low[:, :, :modes_low_h, :modes_w],
+        )
+        if modes_high_h:
+            out_ft[:, :, -modes_high_h:, :modes_w] = self._contract(
+                x_ft[:, :, -modes_high_h:, :modes_w],
+                self.weight_high[:, :, :modes_high_h, :modes_w],
+            )
+        return torch.fft.irfft2(out_ft, s=(height, width), dim=(-2, -1), norm="ortho")
+
+
+class PhysicalFourierBaseline(nn.Module):
+    """Residual Fourier neural-operator-style one-step predictor in physical space."""
+
+    def __init__(self, *, channels: int, hidden_channels: int = 32, modes: int = 16) -> None:
+        super().__init__()
+        self.channels = int(channels)
+        self.hidden_channels = int(hidden_channels)
+        self.modes = int(modes)
+        self.input_proj = nn.Conv2d(self.channels, self.hidden_channels, kernel_size=1)
+        self.spectral_1 = SpectralConv2d(
+            in_channels=self.hidden_channels,
+            out_channels=self.hidden_channels,
+            modes=self.modes,
+        )
+        self.pointwise_1 = nn.Conv2d(self.hidden_channels, self.hidden_channels, kernel_size=1)
+        self.spectral_2 = SpectralConv2d(
+            in_channels=self.hidden_channels,
+            out_channels=self.hidden_channels,
+            modes=self.modes,
+        )
+        self.pointwise_2 = nn.Conv2d(self.hidden_channels, self.hidden_channels, kernel_size=1)
+        self.output_proj = nn.Conv2d(self.hidden_channels, self.channels, kernel_size=1)
+        nn.init.zeros_(self.output_proj.weight)
+        nn.init.zeros_(self.output_proj.bias)
+
+    def forward(self, current: torch.Tensor) -> torch.Tensor:
+        hidden = F.gelu(self.input_proj(current))
+        hidden = F.gelu(self.spectral_1(hidden) + self.pointwise_1(hidden))
+        hidden = F.gelu(self.spectral_2(hidden) + self.pointwise_2(hidden))
+        return current + self.output_proj(hidden)
+
+
 def build_physical_model(
     architecture: str,
     *,
     channels: int,
     hidden_channels: int,
+    fourier_modes: int = 16,
 ) -> nn.Module:
     name = architecture.lower()
     if name == "conv":
         return PhysicalConvBaseline(channels=channels, hidden_channels=hidden_channels)
     if name == "unet":
         return PhysicalResidualUNetBaseline(channels=channels, hidden_channels=hidden_channels)
+    if name == "fourier":
+        return PhysicalFourierBaseline(
+            channels=channels,
+            hidden_channels=hidden_channels,
+            modes=fourier_modes,
+        )
     raise ValueError(f"Unknown physical baseline architecture: {architecture}")
 
 
@@ -224,6 +301,7 @@ def train_group_model(
     *,
     hidden_channels: int = 32,
     architecture: str = "conv",
+    fourier_modes: int = 16,
     epochs: int = 5,
     learning_rate: float = 1e-3,
     weight_decay: float = 1e-4,
@@ -242,6 +320,7 @@ def train_group_model(
         architecture,
         channels=int(currents.shape[1]),
         hidden_channels=int(hidden_channels),
+        fourier_modes=fourier_modes,
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=float(learning_rate), weight_decay=float(weight_decay)
@@ -280,6 +359,7 @@ def train_group_model(
         "height": int(currents.shape[2]),
         "width": int(currents.shape[3]),
         "hidden_channels": int(hidden_channels),
+        "fourier_modes": int(fourier_modes),
         "epochs": int(epochs),
         "learning_rate": float(learning_rate),
         "weight_decay": float(weight_decay),
@@ -293,6 +373,7 @@ def train_groups(
     *,
     hidden_channels: int,
     architecture: str,
+    fourier_modes: int,
     epochs: int,
     learning_rate: float,
     weight_decay: float,
@@ -308,6 +389,7 @@ def train_groups(
             targets,
             hidden_channels=hidden_channels,
             architecture=architecture,
+            fourier_modes=fourier_modes,
             epochs=epochs,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
@@ -489,6 +571,7 @@ def run_baseline(args: argparse.Namespace) -> Path:
         groups,
         hidden_channels=args.hidden_channels,
         architecture=args.architecture,
+        fourier_modes=args.fourier_modes,
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
@@ -516,6 +599,7 @@ def run_baseline(args: argparse.Namespace) -> Path:
         "extra": {
             "baseline": f"physical_{args.architecture}",
             "architecture": args.architecture,
+            "fourier_modes": args.fourier_modes,
             "task": tasks[0] if len(tasks) == 1 else list(tasks),
             "train_split": args.train_split,
             "split": args.eval_split,
@@ -573,7 +657,8 @@ def main() -> None:
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--train-stride", type=int, default=4)
     parser.add_argument("--hidden-channels", type=int, default=16)
-    parser.add_argument("--architecture", choices=["conv", "unet"], default="conv")
+    parser.add_argument("--architecture", choices=["conv", "unet", "fourier"], default="conv")
+    parser.add_argument("--fourier-modes", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=1.0e-3)
     parser.add_argument("--weight-decay", type=float, default=1.0e-4)
