@@ -1,0 +1,132 @@
+{
+  "candidate_evidence": [
+    {
+      "artifact_bytes": 1067684,
+      "artifact_handles": [
+        "repo:docs/claim_evidence/artifacts/ups_light_shared_context_transport_guarded_57108bc.tar.gz"
+      ],
+      "artifact_sha256": "7eb8473b294bbc97e3a26bdcc6b5a313d23528070ace1a70de116d8216089f0a",
+      "cost": {
+        "estimated_usd": 0.0,
+        "gpu_count": 0,
+        "gpu_hours": 0.0,
+        "provider": "local_cpu_legacy_artifact_packaging",
+        "wall_clock_hours": 0.004574484957589044
+      },
+      "duration_sec": 16.468145847320557,
+      "duration_source": "parent summary total guarded command runtime; legacy extra-split summary was intentionally not rerun only to backfill timing",
+      "metrics": {
+        "decoded_rollout_nrmse": 0.4165820594268877,
+        "decoded_rollout_spectral_energy_error": 0.06721625502425291,
+        "task_advection1d_decoded_rollout_nrmse": 0.5765863333379032,
+        "task_burgers1d_decoded_rollout_nrmse": 0.17446857017795178,
+        "task_darcy2d_decoded_rollout_nrmse": 0.20909553062258152
+      },
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "split": "test",
+      "summary_json": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json"
+    }
+  ],
+  "claim_documentation": {
+    "artifact_files": [
+      {
+        "bytes": 473259,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary.json",
+        "sha256": "fa5495d90330c8687190fff435c3f0d0c9f3222f971b7011c9da7ec8ed78acbb"
+      },
+      {
+        "bytes": 461939,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json",
+        "sha256": "70c609ab4209dbd0349e14ae16265cf835bc16772c02c0ea9bb383a2924561ec"
+      },
+      {
+        "bytes": 1802,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/resolved_train.yaml",
+        "sha256": "dd3113f15230f363f844e271b24b1162ebb42012a1360b5bf69a9bb49aeea7ef"
+      },
+      {
+        "bytes": 2246,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/resolved_eval.yaml",
+        "sha256": "841e51a062f5c94564f8de28a1af8a4d46a470be543887162100a441441e33e1"
+      },
+      {
+        "bytes": 40871,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/decoder.pt",
+        "sha256": "468f9be3cbb21f3cc42086a3974a9102f8562b6de1fd4ef8ae08337914f16a98"
+      },
+      {
+        "bytes": 41603,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/decoder_joint.pt",
+        "sha256": "5dafb382e31c07681c1283d783dee8ef0941afadd09b4b9ea790923162c44850"
+      },
+      {
+        "bytes": 4949,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/encoder.pt",
+        "sha256": "97694a4ee7dc84e732ef9199b947168e211c820dc22eab9f84d172daf44d96e9"
+      },
+      {
+        "bytes": 5277,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/encoder_joint.pt",
+        "sha256": "eaa0f77e08b52c66bb4dc732e7946a57423831776e6a2c36168dedf399b5ea50"
+      },
+      {
+        "bytes": 326211,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/operator.pt",
+        "sha256": "198abfedd053d35e3abd34013736ef0856449d016beca30a97fd84daf7c212e5"
+      },
+      {
+        "bytes": 328676,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/operator_decoded.pt",
+        "sha256": "44cd854e3b3fb64710a00b4cfeca56d9f85c45d72a4a43189beb0bd735cb2a79"
+      },
+      {
+        "bytes": 327027,
+        "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/operator_joint.pt",
+        "sha256": "95c0eded7da8dd6470d6bd9b8c5571a81a86d0080a51cb764c5c97ce908016e8"
+      }
+    ],
+    "artifact_handles": [
+      "repo:docs/claim_evidence/artifacts/ups_light_shared_context_transport_guarded_57108bc.tar.gz"
+    ],
+    "artifact_sha256": "7eb8473b294bbc97e3a26bdcc6b5a313d23528070ace1a70de116d8216089f0a",
+    "baseline_improvement_fraction": 0.2693636553585822,
+    "baseline_metric_value": 0.5701633411507036,
+    "baseline_run_name": "persistence_light_v1_test",
+    "checkpoints": {
+      "decoder": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/decoder_joint.pt",
+      "encoder": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/encoder_joint.pt",
+      "operator": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/checkpoints/operator_joint.pt"
+    },
+    "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_shared_context_transport_guarded --output-root reports/research/sota_loop/shared_context_decoded_eval --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 8, coefficients: {slope: 0.9974352988185539, intercept: 0.0}, families: [transport, conservation], mode: roll_persistence, calibration_scope: shared_1d_transport}' --promotion-rule 'decoded_rollout_nrmse<=0.3567910081081011' --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/shared_context_decoded_eval/test_ledger.json",
+    "commit": "1b0446c83bc479697b4ccb395e8436c6545ee0cc",
+    "held_out_measurement": {
+      "measurement_key": "8539422055881698484df9fdfa56880d68a25e273ce7e48701b4efedc866c52d",
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "summary_json": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json",
+      "test_metric_name": "decoded_rollout_nrmse",
+      "test_metric_value": 0.4165820594268877,
+      "test_split": "test",
+      "validation_metric_name": "decoded_rollout_nrmse",
+      "validation_metric_value": 0.2723239543019452
+    },
+    "held_out_test_ledger_json": "reports/research/sota_loop/shared_context_decoded_eval/test_ledger.json",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.4165820594268877,
+    "notes": [
+      "No held-out test rerun was performed for this manifest.",
+      "The evidence bundle is committed in-repo because B2 credentials were not available in this local environment.",
+      "This documentation does not satisfy the separate strong-baseline comparison gate."
+    ],
+    "run_name": "ups_light_shared_context_transport_guarded",
+    "split": "test",
+    "status": "complete",
+    "summary_json": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json"
+  },
+  "claim_scope": "guarded shared-context decoded UPS candidate on held-out light-v1 test",
+  "schema_version": 1,
+  "strong_baseline_comparison": {
+    "next_required_action": "Run or map a strong neural baseline on the same held-out light-v1 protocol and record candidate/baseline metrics plus durable artifacts.",
+    "reason": "Existing ConvNet/U-Net/Fourier physical baselines are validation-only light probes, not a reproduced or fair held-out light-v1 claim-level strong baseline comparison.",
+    "status": "not_satisfied"
+  }
+}
