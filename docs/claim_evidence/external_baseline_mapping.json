@@ -1,0 +1,318 @@
+{
+  "schema_version": 1,
+  "mapping_status": "selected_reproduction_path_not_measured",
+  "research_snapshot_date": "2026-05-29",
+  "terminology": {
+    "claim_protocol": "The exact in-repo measurement contract for the current UPS claim: data root, task set, split, sample caps, rollout horizon, metric, promotion rule, command, ledger, and artifact bundle. A model can be fairly compared on this protocol only if it is trained and evaluated under the same contract.",
+    "external_paper_reproduction": "A run of an outside paper or official implementation, or a faithful implementation with declared architecture and hyperparameters, measured on the claim protocol or on the paper's original protocol with differences explicitly mapped. Published paper table values alone are not a reproduction for this claim.",
+    "current_local_strong_baseline": "The committed physical Fourier baseline is a fair neural baseline on the light-v1 claim protocol. It is not an external-paper reproduction because it uses repo-local baseline code and a local light-v1 data/compute cap."
+  },
+  "claim_protocol": {
+    "protocol_id": "light-v1-heldout-test-decoded-rollout",
+    "claim_scope": "guarded shared-context decoded UPS candidate on held-out light-v1 test",
+    "run_name": "ups_light_shared_context_transport_guarded",
+    "summary_json": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json",
+    "data_root": "data/pdebench",
+    "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+    "task_set": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "task_metric_keys": [
+      "task_advection1d_decoded_rollout_nrmse",
+      "task_burgers1d_decoded_rollout_nrmse",
+      "task_darcy2d_decoded_rollout_nrmse"
+    ],
+    "split": "test",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.4165820594268877,
+    "max_eval_samples": 32,
+    "rollout_steps": 16,
+    "lower_is_better": true,
+    "held_out_test_ledger_json": "reports/research/sota_loop/shared_context_decoded_eval/test_ledger.json",
+    "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_light_shared_context_transport_guarded_57108bc.tar.gz",
+    "artifact_sha256": "7eb8473b294bbc97e3a26bdcc6b5a313d23528070ace1a70de116d8216089f0a"
+  },
+  "local_strong_baseline": {
+    "run_name": "physical_fourier_light_test_strong_baseline",
+    "baseline_family": "residual Fourier physical neural operator baseline",
+    "summary_json": "reports/research/sota_loop/physical_conv_baseline/physical_fourier_light_test_strong_baseline/summary.json",
+    "split": "test",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.5636730976415197,
+    "improvement_fraction_for_claim": 0.26095096400747125,
+    "artifact_handle": "repo:docs/claim_evidence/artifacts/physical_fourier_light_test_strong_baseline_9c5be72.tar.gz",
+    "artifact_sha256": "884b69334e0a34f0537ce009a0911199093820ede966c011232ed591c079e6a9",
+    "is_fair_claim_protocol_baseline": true,
+    "is_external_paper_reproduction": false,
+    "limitation": "This baseline is fair for the committed claim protocol but does not establish parity with published FNO, PDEBench, Poseidon, CNO, or other external-paper results."
+  },
+  "external_sources": [
+    {
+      "source_id": "pdebench_official_repo",
+      "title": "PDEBench official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/pdebench/PDEBench",
+      "year": 2022,
+      "primary_source": true,
+      "relevance": "Provides official PDEBench data and baseline scripts for FNO, U-Net, and PINN."
+    },
+    {
+      "source_id": "pdebench_openreview",
+      "title": "PDEBench: An Extensive Benchmark for Scientific Machine Learning",
+      "kind": "paper",
+      "url": "https://openreview.net/forum?id=dh_MkX0QfrK",
+      "year": 2022,
+      "primary_source": true,
+      "relevance": "Defines PDEBench as a benchmark suite with ready-to-use datasets and popular baseline model families."
+    },
+    {
+      "source_id": "fno_arxiv",
+      "title": "Fourier Neural Operator for Parametric Partial Differential Equations",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2010.08895",
+      "year": 2020,
+      "primary_source": true,
+      "relevance": "Canonical FNO paper covering Burgers, Darcy, and Navier-Stokes style operator learning."
+    },
+    {
+      "source_id": "neuraloperator_official_repo",
+      "title": "NeuralOperator official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/neuraloperator/neuraloperator",
+      "year": 2025,
+      "primary_source": true,
+      "relevance": "Official PyTorch ecosystem library containing FNO and other neural-operator architectures."
+    },
+    {
+      "source_id": "poseidon_arxiv",
+      "title": "Poseidon: Efficient Foundation Models for PDEs",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2405.19101",
+      "year": 2024,
+      "primary_source": true,
+      "relevance": "Foundation-model direction with semigroup pretraining and downstream PDE evaluation."
+    },
+    {
+      "source_id": "poseidon_official_repo",
+      "title": "Poseidon official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/camlab-ethz/poseidon",
+      "year": 2024,
+      "primary_source": true,
+      "relevance": "Official code, dataset, and pretrained-model entry point for Poseidon evaluation."
+    },
+    {
+      "source_id": "pdeformer2_arxiv",
+      "title": "PDEformer-2: A Versatile Foundation Model for Two-Dimensional Partial Differential Equations",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2507.15409",
+      "year": 2025,
+      "primary_source": true,
+      "relevance": "Equation-graph and mesh-free-query foundation-model direction; promising for symbolic conditioning, not the first reproduction path."
+    },
+    {
+      "source_id": "pdeformer2_official_repo",
+      "title": "PDEformer-2 official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/functoreality/pdeformer-2",
+      "year": 2025,
+      "primary_source": true,
+      "relevance": "Official PDEformer-2 implementation and PDEBench shallow-water finetuning example."
+    },
+    {
+      "source_id": "cfo_arxiv",
+      "title": "CFO: Learning Continuous-Time PDE Dynamics via Flow-Matched Neural Operators",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2512.05297",
+      "year": 2025,
+      "primary_source": true,
+      "relevance": "Cutting-edge continuous-time operator direction for long-horizon stability and irregular time grids."
+    },
+    {
+      "source_id": "realpdebench_arxiv",
+      "title": "RealPDEBench: A Benchmark for Complex Physical Systems with Real-World Data",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2601.01829",
+      "year": 2026,
+      "primary_source": true,
+      "relevance": "Future sim-to-real benchmark gate; not comparable to the current simulated light-v1 claim."
+    },
+    {
+      "source_id": "cno_official_repo",
+      "title": "Convolutional Neural Operator official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/camlab-ethz/ConvolutionalNeuralOperator",
+      "year": 2023,
+      "primary_source": true,
+      "relevance": "Official CNO implementation and representative PDE benchmarks; useful as a second external baseline family after FNO."
+    }
+  ],
+  "baseline_candidates": [
+    {
+      "candidate_id": "pdebench_fno_neuraloperator_light_v1",
+      "status": "selected_primary_reproduction_path",
+      "model_family": "FNO",
+      "source_refs": [
+        "pdebench_official_repo",
+        "pdebench_openreview",
+        "fno_arxiv",
+        "neuraloperator_official_repo"
+      ],
+      "why_selected": "FNO is canonical, PDEBench names it as an official baseline family, NeuralOperator provides an official implementation path, and the repo already has PDEBench-shaped data plus a local Fourier baseline for sanity checking.",
+      "protocol_mapping": {
+        "data_root": "data/pdebench",
+        "train_split": "train",
+        "validation_split": "val",
+        "eval_split": "test",
+        "tasks": [
+          "advection1d",
+          "burgers1d",
+          "darcy2d"
+        ],
+        "max_train_samples": 32,
+        "max_eval_samples": 32,
+        "rollout_steps": 16,
+        "metric_name": "decoded_rollout_nrmse",
+        "lower_is_better": true,
+        "published_numbers_directly_comparable": false,
+        "comparability_note": "Published PDEBench or FNO table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. The FNO baseline must be rerun on this protocol."
+      },
+      "reproduction_command_template": [
+        "python",
+        "scripts/run_external_neuraloperator_fno_baseline.py",
+        "--config",
+        "configs/train_multitask_heterogeneous_light_best.yaml",
+        "--name",
+        "external_neuraloperator_fno_light_v1_test",
+        "--output-root",
+        "reports/research/sota_loop/external_baselines",
+        "--data-root",
+        "data/pdebench",
+        "--train-split",
+        "train",
+        "--eval-split",
+        "test",
+        "--max-train-samples",
+        "32",
+        "--max-eval-samples",
+        "32",
+        "--rollout-steps",
+        "16",
+        "--tasks",
+        "advection1d",
+        "burgers1d",
+        "darcy2d",
+        "--metric",
+        "decoded_rollout_nrmse"
+      ],
+      "implementation_status": "external_adapter_not_implemented",
+      "minimum_done_artifacts": [
+        "summary_json",
+        "per_task_metrics",
+        "command",
+        "artifact_sha256",
+        "held_out_ledger_reference"
+      ]
+    },
+    {
+      "candidate_id": "pdebench_unet_official_light_v1",
+      "status": "secondary_reproduction_path",
+      "model_family": "U-Net",
+      "source_refs": [
+        "pdebench_official_repo",
+        "pdebench_openreview"
+      ],
+      "why_not_primary": "U-Net is a useful external baseline family, but FNO is the sharper first comparison because the current repo-local strong baseline is already Fourier/operator-shaped."
+    },
+    {
+      "candidate_id": "cno_representative_pde_light_v1",
+      "status": "secondary_reproduction_path",
+      "model_family": "CNO",
+      "source_refs": [
+        "cno_official_repo",
+        "poseidon_arxiv"
+      ],
+      "why_not_primary": "CNO is credible and relevant, but its official benchmark suite is not the same as the light-v1 PDEBench shard, so it should follow the canonical FNO reproduction."
+    },
+    {
+      "candidate_id": "poseidon_foundation_model_transfer",
+      "status": "promising_followup_not_claim_baseline_yet",
+      "model_family": "PDE foundation model",
+      "source_refs": [
+        "poseidon_arxiv",
+        "poseidon_official_repo"
+      ],
+      "why_not_primary": "Poseidon is important for the north star, but using pretrained foundation weights changes the claim from fair light-v1 baseline comparison to transfer/foundation-model evaluation. That needs a separate contract."
+    },
+    {
+      "candidate_id": "pdeformer2_equation_graph_transfer",
+      "status": "promising_followup_not_claim_baseline_yet",
+      "model_family": "equation-graph PDE foundation model",
+      "source_refs": [
+        "pdeformer2_arxiv",
+        "pdeformer2_official_repo"
+      ],
+      "why_not_primary": "PDEformer-2 targets symbolic PDE conditioning and 2D problems; it is promising for architecture design but not the fastest matched reproduction against the current 1D/2D light-v1 task set."
+    },
+    {
+      "candidate_id": "cfo_continuous_time_operator",
+      "status": "research_signal_not_claim_baseline_yet",
+      "model_family": "continuous-time flow-matched neural operator",
+      "source_refs": [
+        "cfo_arxiv"
+      ],
+      "why_not_primary": "CFO directly attacks rollout stability, but it is a newer continuous-time training recipe rather than a drop-in PDEBench/FNO baseline for the existing claim protocol."
+    },
+    {
+      "candidate_id": "realpdebench_sim_to_real_gate",
+      "status": "future_benchmark_gate_not_current_claim",
+      "model_family": "real-world PDE benchmark",
+      "source_refs": [
+        "realpdebench_arxiv"
+      ],
+      "why_not_primary": "RealPDEBench is a separate sim-to-real benchmark and should be used to prevent overbroad physics-foundation claims after the simulated PDEBench baseline path is settled."
+    }
+  ],
+  "selected_reproduction_path": {
+    "candidate_id": "pdebench_fno_neuraloperator_light_v1",
+    "status": "selected_not_yet_measured",
+    "source_refs": [
+      "pdebench_official_repo",
+      "pdebench_openreview",
+      "fno_arxiv",
+      "neuraloperator_official_repo"
+    ],
+    "required_next_step": "Implement or vendor-minimally wrap an official NeuralOperator/PDEBench FNO baseline runner that emits the same summary schema as scripts/run_physical_conv_baseline.py without rerunning or retuning the UPS candidate.",
+    "claimable_after_completion": "UPS beats an external FNO/PDEBench reproduction on the same light-v1 claim protocol.",
+    "not_claimable_yet": "UPS beats published FNO/PDEBench/Poseidon paper numbers, because no external implementation has been rerun under the light-v1 claim protocol."
+  },
+  "reproduction_contract": {
+    "allows_test_tuning": false,
+    "requires_train_only_model_selection": true,
+    "test_budget_rule": "Use the existing held-out ledger discipline. Do not spend extra UPS candidate test budget while building the external baseline runner; only evaluate the selected external baseline once its validation behavior and schema checks pass.",
+    "comparability_rules": [
+      "Use the same task set as claim_protocol.task_set.",
+      "Use train for fitting and val for adapter/hyperparameter debugging.",
+      "Use test only for the frozen reproduction measurement.",
+      "Report decoded_rollout_nrmse overall and per task.",
+      "Record command, source implementation, dependency version or commit, summary_json, artifact sha256, wall-clock time, and cost.",
+      "Do not compare against published paper table values unless every protocol difference is represented in this mapping."
+    ],
+    "required_output_artifacts": [
+      "summary_json",
+      "per_task_metrics",
+      "command",
+      "artifact_sha256",
+      "source_commit_or_version",
+      "held_out_ledger_reference"
+    ]
+  },
+  "comparability_decision": {
+    "published_numbers_directly_comparable": false,
+    "current_claim_status": "repo_local_sota_ready_with_fair_neural_baseline",
+    "external_claim_status": "external_reproduction_path_selected_not_measured",
+    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline on the light-v1 protocol. It does not prove superiority over external published FNO, PDEBench, Poseidon, CNO, PDEformer, CFO, or RealPDEBench results until one of those implementations is run under a declared comparable protocol."
+  }
+}
