@@ -36,6 +36,15 @@ loading data or requiring `neuralop`, while a live run imports
 `--allow-held-out-test-eval` is set, so adapter debugging stays on validation
 unless the held-out measurement is deliberate.
 
+The first held-out external FNO measurement is
+`external_neuraloperator_fno_test_light_v1_e3`. It uses NeuralOperator `2.0.0`
+on the same light-v1 task set, `32/32` sample caps, and 16-step
+`decoded_rollout_nrmse` protocol. It records
+`decoded_rollout_nrmse = 0.6391747076887233`; the UPS claim candidate is
+`0.4165820594268877`, a `34.825%` improvement over this measured external FNO
+baseline. This comparison is protocol-comparable, but it is still not a claim
+about published FNO paper-table values.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,

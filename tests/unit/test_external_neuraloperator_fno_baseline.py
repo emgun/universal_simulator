@@ -5,10 +5,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import torch
 from torch import nn
 
 from scripts.run_external_neuraloperator_fno_baseline import (
+    _external_test_measurement_key,
     build_neuraloperator_fno_model,
     build_parser,
     fno_modes_for_grid,
@@ -190,3 +192,67 @@ def test_live_test_split_requires_explicit_held_out_flag_before_import_or_data(t
 
     assert proc.returncode != 0
     assert "--allow-held-out-test-eval" in proc.stderr
+
+
+def test_live_test_split_blocks_repeat_external_ledger_before_measurement(tmp_path):
+    ledger_path = tmp_path / "external-test-ledger.json"
+    args = build_parser().parse_args(
+        [
+            "--config",
+            "configs/train_multitask_heterogeneous_light_best.yaml",
+            "--name",
+            "repeat_blocked",
+            "--output-root",
+            str(tmp_path / "out"),
+            "--data-root",
+            "data/pdebench",
+            "--eval-split",
+            "test",
+            "--tasks",
+            "advection1d",
+            "burgers1d",
+            "darcy2d",
+            "--max-train-samples",
+            "32",
+            "--max-eval-samples",
+            "32",
+            "--held-out-ledger-json",
+            str(ledger_path),
+            "--allow-held-out-test-eval",
+        ]
+    )
+    measurement_key = _external_test_measurement_key(
+        args=args,
+        tasks=["advection1d", "burgers1d", "darcy2d"],
+    )
+    ledger_path.write_text(
+        json.dumps({"measurements": [{"measurement_key": measurement_key}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        RuntimeError, match="held-out external FNO test measurement already recorded"
+    ):
+        run_baseline(args)
+
+
+def test_allow_repeat_test_is_explicit_in_command_record(tmp_path):
+    args = build_parser().parse_args(
+        [
+            "--dry-run",
+            "--config",
+            "configs/train_multitask_heterogeneous_light_best.yaml",
+            "--name",
+            "external_fno_repeat_debug",
+            "--output-root",
+            str(tmp_path),
+            "--eval-split",
+            "test",
+            "--allow-repeat-test",
+        ]
+    )
+
+    summary_path = run_baseline(args)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert "--allow-repeat-test" in summary["extra"]["command"]

@@ -54,3 +54,19 @@ def test_external_baseline_mapping_rejects_published_number_overclaim():
     errors = validate_mapping(mutated, claim_evidence)
 
     assert "comparability_decision.published_numbers_directly_comparable must be false" in errors
+
+
+def test_external_baseline_mapping_rejects_measured_status_without_test_evidence():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    primary = next(
+        candidate
+        for candidate in mutated["baseline_candidates"]
+        if candidate["status"] == "selected_primary_reproduction_path"
+    )
+    primary["test_measurements"] = []
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert "external_reproduction_measured requires selected primary test_measurements" in errors

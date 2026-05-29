@@ -289,6 +289,49 @@ def validate_mapping(
     if selected_mapping.get("published_numbers_directly_comparable") is not False:
         errors.append("selected candidate must not mark published numbers as directly comparable")
 
+    if mapping.get("mapping_status") == "external_reproduction_measured":
+        if selected_path.get("status") != "measured_complete":
+            errors.append(
+                "external_reproduction_measured requires selected_reproduction_path measured_complete"
+            )
+        if selected_candidate.get("implementation_status") != "external_adapter_measured_complete":
+            errors.append(
+                "external_reproduction_measured requires selected primary implementation_status "
+                "external_adapter_measured_complete"
+            )
+        test_measurements = _as_list(
+            selected_candidate.get("test_measurements"),
+            "selected candidate test_measurements",
+            errors,
+        )
+        if not test_measurements:
+            errors.append(
+                "external_reproduction_measured requires selected primary test_measurements"
+            )
+        for index, measurement_value in enumerate(test_measurements):
+            measurement = _as_mapping(
+                measurement_value,
+                f"selected candidate test_measurements[{index}]",
+                errors,
+            )
+            if measurement.get("split") != protocol.get("split"):
+                errors.append(f"test_measurements[{index}].split must match claim_protocol.split")
+            if measurement.get("metric_name") != protocol.get("metric_name"):
+                errors.append(
+                    f"test_measurements[{index}].metric_name must match claim_protocol.metric_name"
+                )
+            if measurement.get("held_out_test_used") is not True:
+                errors.append(f"test_measurements[{index}].held_out_test_used must be true")
+            if measurement.get("claim_comparable") is not True:
+                errors.append(f"test_measurements[{index}].claim_comparable must be true")
+            if measurement.get("published_numbers_directly_comparable") is not False:
+                errors.append(
+                    f"test_measurements[{index}].published_numbers_directly_comparable must be false"
+                )
+            for key in ("measurement_key", "evidence_json", "artifact_handle"):
+                if not measurement.get(key):
+                    errors.append(f"test_measurements[{index}].{key} is required")
+
     contract = _as_mapping(mapping.get("reproduction_contract"), "reproduction_contract", errors)
     if contract.get("allows_test_tuning") is not False:
         errors.append("reproduction_contract.allows_test_tuning must be false")
@@ -310,7 +353,14 @@ def validate_mapping(
     decision = _as_mapping(mapping.get("comparability_decision"), "comparability_decision", errors)
     if decision.get("published_numbers_directly_comparable") is not False:
         errors.append("comparability_decision.published_numbers_directly_comparable must be false")
-    if decision.get("external_claim_status") != "external_reproduction_path_selected_not_measured":
+    external_claim_status = decision.get("external_claim_status")
+    if mapping.get("mapping_status") == "external_reproduction_measured":
+        if external_claim_status != "external_reproduction_measured":
+            errors.append(
+                "comparability_decision.external_claim_status must be "
+                "external_reproduction_measured when mapping_status is external_reproduction_measured"
+            )
+    elif external_claim_status != "external_reproduction_path_selected_not_measured":
         errors.append(
             "comparability_decision.external_claim_status must remain "
             "external_reproduction_path_selected_not_measured until a measured run is recorded"

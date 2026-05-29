@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import importlib.metadata as metadata
 import json
 import sys
@@ -102,6 +103,147 @@ def load_neuraloperator_fno_class() -> type[nn.Module]:
             "Install the optional NeuralOperator package or run with --dry-run."
         ) from exc
     return FNO
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _split_source_record(data_root: str | None, task: str, split: str) -> dict[str, Any]:
+    if not data_root:
+        return {"task": task, "split": split, "path": "", "exists": False}
+    path = Path(data_root) / f"{task}_{split}.h5"
+    if not path.exists():
+        return {"task": task, "split": split, "path": str(path), "exists": False}
+    return {
+        "task": task,
+        "split": split,
+        "path": str(path),
+        "exists": True,
+        "bytes": path.stat().st_size,
+        "sha256": _sha256_file(path),
+    }
+
+
+def _external_data_sources(args: argparse.Namespace, tasks: Sequence[str]) -> dict[str, Any]:
+    splits = [args.train_split, args.eval_split]
+    return {
+        task: {
+            split: _split_source_record(args.data_root, task, split)
+            for split in dict.fromkeys(splits)
+        }
+        for task in tasks
+    }
+
+
+def _load_test_ledger(path: str | None) -> dict[str, Any]:
+    if not path:
+        return {"measurements": []}
+    ledger_path = Path(path)
+    if not ledger_path.exists():
+        return {"measurements": []}
+    return json.loads(ledger_path.read_text(encoding="utf-8"))
+
+
+def _write_test_ledger(path: str | None, ledger: dict[str, Any]) -> None:
+    if not path:
+        return
+    ledger_path = Path(path)
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text(json.dumps(ledger, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _external_test_measurement_key(
+    *,
+    args: argparse.Namespace,
+    tasks: Sequence[str],
+) -> str:
+    payload = {
+        "adapter": "external_neuraloperator_fno_baseline",
+        "batch_size": args.batch_size,
+        "config": args.config,
+        "data_root": args.data_root,
+        "data_sources": _external_data_sources(args, tasks),
+        "device": args.device,
+        "eval_split": args.eval_split,
+        "epochs": args.epochs,
+        "fourier_modes": args.fourier_modes,
+        "hidden_channels": args.hidden_channels,
+        "implementation": NEURALOP_IMPORT,
+        "learning_rate": args.learning_rate,
+        "max_eval_samples": args.max_eval_samples,
+        "max_pairs_per_task": args.max_pairs_per_task,
+        "max_train_samples": args.max_train_samples,
+        "metric": args.metric,
+        "n_layers": args.n_layers,
+        "residual": bool(args.residual),
+        "rollout_steps": args.rollout_steps,
+        "seed": args.seed,
+        "tasks": list(tasks),
+        "train_split": args.train_split,
+        "train_stride": args.train_stride,
+        "weight_decay": args.weight_decay,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _guard_external_test_measurement(
+    *,
+    args: argparse.Namespace,
+    tasks: Sequence[str],
+) -> dict[str, Any]:
+    measurement_key = _external_test_measurement_key(args=args, tasks=tasks)
+    ledger = _load_test_ledger(args.held_out_ledger_json)
+    existing_keys = {
+        str(entry.get("measurement_key"))
+        for entry in ledger.get("measurements", [])
+        if isinstance(entry, dict)
+    }
+    already_recorded = measurement_key in existing_keys
+    if already_recorded and not args.allow_repeat_test:
+        raise RuntimeError(
+            "held-out external FNO test measurement already recorded; "
+            "set --allow-repeat-test only for explicit debugging repeats"
+        )
+    return {
+        "enabled": True,
+        "allow_repeat_test": bool(args.allow_repeat_test),
+        "already_recorded": already_recorded,
+        "ledger_path": args.held_out_ledger_json,
+        "measurement_key": measurement_key,
+        "recorded": False,
+    }
+
+
+def _record_external_test_measurement(
+    *,
+    args: argparse.Namespace,
+    tasks: Sequence[str],
+    policy: dict[str, Any],
+    metrics: dict[str, float],
+    summary_path: Path,
+) -> bool:
+    if not policy.get("enabled") or policy.get("allow_repeat_test"):
+        return False
+    ledger = _load_test_ledger(args.held_out_ledger_json)
+    ledger.setdefault("measurements", []).append(
+        {
+            "measurement_key": policy["measurement_key"],
+            "metric": args.metric,
+            "run_name": args.name,
+            "summary": str(summary_path),
+            "test_metric_value": float(metrics[args.metric]),
+            "test_split": args.eval_split,
+            "tasks": list(tasks),
+        }
+    )
+    _write_test_ledger(args.held_out_ledger_json, ledger)
+    return True
 
 
 def fno_modes_for_grid(grid_shape: tuple[int, int], requested_modes: int) -> tuple[int, ...]:
@@ -408,6 +550,8 @@ def _command_record(args: argparse.Namespace) -> list[str]:
         command.append("--dry-run")
     if args.allow_held_out_test_eval:
         command.append("--allow-held-out-test-eval")
+    if args.allow_repeat_test:
+        command.append("--allow-repeat-test")
     return command
 
 
@@ -538,6 +682,9 @@ def run_baseline(args: argparse.Namespace) -> Path:
             "Live external FNO evaluation on split=test requires --allow-held-out-test-eval. "
             "Use --eval-split val while debugging adapter behavior."
         )
+    held_out_test_policy = {"enabled": False, "recorded": False}
+    if args.eval_split == "test":
+        held_out_test_policy = _guard_external_test_measurement(args=args, tasks=tasks)
 
     load_neuraloperator_fno_class()
     started = time.time()
@@ -583,11 +730,23 @@ def run_baseline(args: argparse.Namespace) -> Path:
     group_manifest = run_dir / "fno_groups.tsv"
     _write_group_manifest(group_manifest, fit)
     summary_path = run_dir / "summary.json"
+    held_out_test_policy["recorded"] = _record_external_test_measurement(
+        args=args,
+        tasks=tasks,
+        policy=held_out_test_policy,
+        metrics=metrics,
+        summary_path=summary_path,
+    )
     summary = {
         "status": "complete",
         "metrics": metrics,
         **_summary_common(args, tasks=tasks),
-        "details": {"fit": fit, "group_manifest": str(group_manifest)},
+        "details": {
+            "fit": fit,
+            "group_manifest": str(group_manifest),
+            "held_out_test_policy": held_out_test_policy,
+        },
+        "held_out_test_policy": held_out_test_policy,
         "duration_sec": finished - started,
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
@@ -637,11 +796,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metric", default="decoded_rollout_nrmse")
     parser.add_argument(
         "--held-out-ledger-json",
-        default="reports/research/sota_loop/shared_context_decoded_eval/test_ledger.json",
+        default="reports/research/sota_loop/external_baselines/test_ledger.json",
     )
     parser.add_argument("--residual", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--allow-held-out-test-eval", action="store_true")
+    parser.add_argument("--allow-repeat-test", action="store_true")
     return parser
 
 
