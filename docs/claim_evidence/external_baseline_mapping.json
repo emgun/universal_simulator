@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "mapping_status": "selected_reproduction_path_not_measured",
+  "mapping_status": "external_reproduction_measured",
   "research_snapshot_date": "2026-05-29",
   "terminology": {
     "claim_protocol": "The exact in-repo measurement contract for the current UPS claim: data root, task set, split, sample caps, rollout horizon, metric, promotion rule, command, ledger, and artifact bundle. A model can be fairly compared on this protocol only if it is trained and evaluated under the same contract.",
@@ -207,10 +207,10 @@
         "--metric",
         "decoded_rollout_nrmse",
         "--held-out-ledger-json",
-        "reports/research/sota_loop/shared_context_decoded_eval/test_ledger.json",
+        "reports/research/sota_loop/external_baselines/test_ledger.json",
         "--allow-held-out-test-eval"
       ],
-      "implementation_status": "external_adapter_available_measurement_pending",
+      "implementation_status": "external_adapter_measured_complete",
       "adapter_script": "scripts/run_external_neuraloperator_fno_baseline.py",
       "adapter_dependency_policy": "optional_dependency_required_for_live_run; dry-run and contract tests are dependency-free",
       "validation_measurements": [
@@ -224,6 +224,23 @@
           "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_fno_val_light_v1_e3.tar.gz",
           "claim_comparable": false,
           "held_out_test_used": false
+        }
+      ],
+      "test_measurements": [
+        {
+          "measurement_type": "held_out_test_external_reproduction_measurement",
+          "run_name": "external_neuraloperator_fno_test_light_v1_e3",
+          "split": "test",
+          "metric_name": "decoded_rollout_nrmse",
+          "metric_value": 0.6391747076887233,
+          "measurement_key": "de70d3bd0ca91220736d2d1832fd694e3e19ec87d8e5ee0e45147bd512c95c99",
+          "evidence_json": "docs/claim_evidence/external_neuraloperator_fno_test_light_v1_e3_evidence.json",
+          "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_fno_test_light_v1_e3.tar.gz",
+          "claim_comparable": true,
+          "held_out_test_used": true,
+          "published_numbers_directly_comparable": false,
+          "candidate_metric_value": 0.4165820594268877,
+          "baseline_improvement_fraction": 0.3482500880967864
         }
       ],
       "minimum_done_artifacts": [
@@ -295,14 +312,14 @@
   ],
   "selected_reproduction_path": {
     "candidate_id": "pdebench_fno_neuraloperator_light_v1",
-    "status": "selected_not_yet_measured",
+    "status": "measured_complete",
     "source_refs": [
       "pdebench_official_repo",
       "pdebench_openreview",
       "fno_arxiv",
       "neuraloperator_official_repo"
     ],
-    "required_next_step": "Install the optional NeuralOperator dependency in the measurement environment, validate the adapter on val, then run one explicit held-out test measurement with scripts/run_external_neuraloperator_fno_baseline.py and --allow-held-out-test-eval.",
+    "required_next_step": "Run at least one second external family, such as PDEBench U-Net or CNO, before broadening any external-baseline claim beyond measured NeuralOperator FNO.",
     "claimable_after_completion": "UPS beats an external FNO/PDEBench reproduction on the same light-v1 claim protocol.",
     "not_claimable_yet": "UPS beats published FNO/PDEBench/Poseidon paper numbers, because no external implementation has been rerun under the light-v1 claim protocol."
   },
@@ -329,8 +346,8 @@
   },
   "comparability_decision": {
     "published_numbers_directly_comparable": false,
-    "current_claim_status": "repo_local_sota_ready_with_fair_neural_baseline",
-    "external_claim_status": "external_reproduction_path_selected_not_measured",
-    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline on the light-v1 protocol. It does not prove superiority over external published FNO, PDEBench, Poseidon, CNO, PDEformer, CFO, or RealPDEBench results until one of those implementations is run under a declared comparable protocol."
+    "current_claim_status": "external_neuraloperator_fno_reproduction_measured_on_light_v1",
+    "external_claim_status": "external_reproduction_measured",
+    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline and the measured NeuralOperator FNO external reproduction on the light-v1 claim protocol. It still does not prove superiority over published FNO/PDEBench paper table values, Poseidon, CNO, PDEformer, CFO, or RealPDEBench results."
   }
 }
