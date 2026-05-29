@@ -136,6 +136,14 @@ def build_neuraloperator_fno_model(
     return FNOGridAdapter(fno, grid_shape=grid_shape, residual=residual)
 
 
+def _clone_tensor_state_dict(module: nn.Module) -> dict[str, torch.Tensor]:
+    return {
+        key: value.detach().cpu().clone()
+        for key, value in module.state_dict().items()
+        if isinstance(value, torch.Tensor)
+    }
+
+
 def train_fno_group_model(
     currents: torch.Tensor,
     targets: torch.Tensor,
@@ -174,7 +182,7 @@ def train_fno_group_model(
     )
     generator = torch.Generator().manual_seed(int(seed))
     best_loss = float("inf")
-    best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+    best_state = _clone_tensor_state_dict(model)
     for _ in range(int(epochs)):
         order = torch.randperm(int(currents.shape[0]), generator=generator)
         total_loss = 0.0
@@ -193,9 +201,7 @@ def train_fno_group_model(
         mean_loss = total_loss / max(batches, 1)
         if mean_loss < best_loss:
             best_loss = mean_loss
-            best_state = {
-                key: value.detach().cpu().clone() for key, value in model.state_dict().items()
-            }
+            best_state = _clone_tensor_state_dict(model)
     model.load_state_dict(best_state)
     model.to("cpu")
     return model, {
@@ -419,10 +425,17 @@ def _summary_common(args: argparse.Namespace, *, tasks: Sequence[str]) -> dict[s
             "max_eval_samples": args.max_eval_samples,
             "max_pairs_per_task": args.max_pairs_per_task,
             "rollout_steps": args.rollout_steps,
+            "train_stride": args.train_stride,
             "metric": args.metric,
             "hidden_channels": args.hidden_channels,
             "fourier_modes": args.fourier_modes,
             "n_layers": args.n_layers,
+            "epochs": args.epochs,
+            "learning_rate": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "batch_size": args.batch_size,
+            "seed": args.seed,
+            "device": args.device,
             "residual": bool(args.residual),
             "allow_held_out_test_eval": bool(args.allow_held_out_test_eval),
             "held_out_ledger_reference": args.held_out_ledger_json,

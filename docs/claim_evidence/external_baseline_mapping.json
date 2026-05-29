@@ -213,6 +213,19 @@
       "implementation_status": "external_adapter_available_measurement_pending",
       "adapter_script": "scripts/run_external_neuraloperator_fno_baseline.py",
       "adapter_dependency_policy": "optional_dependency_required_for_live_run; dry-run and contract tests are dependency-free",
+      "validation_measurements": [
+        {
+          "measurement_type": "validation_only_external_adapter_measurement",
+          "run_name": "external_neuraloperator_fno_val_light_v1_e3",
+          "split": "val",
+          "metric_name": "decoded_rollout_nrmse",
+          "metric_value": 0.46753981278379725,
+          "evidence_json": "docs/claim_evidence/external_neuraloperator_fno_val_light_v1_e3_evidence.json",
+          "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_fno_val_light_v1_e3.tar.gz",
+          "claim_comparable": false,
+          "held_out_test_used": false
+        }
+      ],
       "minimum_done_artifacts": [
         "summary_json",
         "per_task_metrics",
