@@ -44,6 +44,13 @@ class TinyFNO(nn.Module):
         return self.net(current)
 
 
+class TinyMetadataFNO(TinyFNO):
+    def state_dict(self, *args, **kwargs):
+        state = super().state_dict(*args, **kwargs)
+        state["_metadata"] = {"n_modes": self.n_modes}
+        return state
+
+
 def test_fno_modes_for_grid_uses_1d_for_flat_tasks():
     assert fno_modes_for_grid((1, 64), 16) == (16,)
     assert fno_modes_for_grid((16, 32), 16) == (8, 16)
@@ -93,6 +100,31 @@ def test_train_fno_group_model_can_learn_simple_residual_with_fake_fno():
     assert mse < 0.01
 
 
+def test_train_fno_group_model_ignores_neuraloperator_state_metadata():
+    generator = torch.Generator().manual_seed(23)
+    currents = torch.randn(16, 1, 1, 8, generator=generator)
+    targets = currents + 0.25
+
+    model, fit = train_fno_group_model(
+        currents,
+        targets,
+        hidden_channels=4,
+        fourier_modes=4,
+        n_layers=1,
+        residual=True,
+        epochs=80,
+        learning_rate=0.05,
+        batch_size=4,
+        seed=9,
+        fno_cls=TinyMetadataFNO,
+    )
+
+    with torch.no_grad():
+        mse = torch.mean((model(currents) - targets) ** 2).item()
+    assert fit["implementation"] == "neuralop.models.FNO"
+    assert mse < 0.01
+
+
 def test_external_neuraloperator_fno_dry_run_writes_contract_summary(tmp_path):
     args = build_parser().parse_args(
         [
@@ -122,6 +154,9 @@ def test_external_neuraloperator_fno_dry_run_writes_contract_summary(tmp_path):
     assert summary["extra"]["baseline"] == "external_neuraloperator_fno"
     assert summary["extra"]["implementation"] == "neuralop.models.FNO"
     assert summary["extra"]["split"] == "test"
+    assert summary["extra"]["epochs"] == 3
+    assert summary["extra"]["batch_size"] == 8
+    assert summary["extra"]["train_stride"] == 4
     assert "advection1d" in summary["extra"]["command"]
     assert "--dry-run" in summary["extra"]["command"]
     assert summary["details"]["contract"]["published_numbers_directly_comparable"] is False
