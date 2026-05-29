@@ -28,6 +28,14 @@ NeuralOperator because FNO is canonical, PDEBench names it as an official
 baseline family, and the current repo already has PDEBench-shaped data plus a
 local Fourier sanity baseline.
 
+The executable adapter is
+`scripts/run_external_neuraloperator_fno_baseline.py`. It keeps NeuralOperator as
+an optional dependency: `--dry-run` validates and writes the contract without
+loading data or requiring `neuralop`, while a live run imports
+`neuralop.models.FNO`. A live `split=test` run fails closed unless
+`--allow-held-out-test-eval` is set, so adapter debugging stays on validation
+unless the held-out measurement is deliberate.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
