@@ -205,9 +205,14 @@
         "burgers1d",
         "darcy2d",
         "--metric",
-        "decoded_rollout_nrmse"
+        "decoded_rollout_nrmse",
+        "--held-out-ledger-json",
+        "reports/research/sota_loop/shared_context_decoded_eval/test_ledger.json",
+        "--allow-held-out-test-eval"
       ],
-      "implementation_status": "external_adapter_not_implemented",
+      "implementation_status": "external_adapter_available_measurement_pending",
+      "adapter_script": "scripts/run_external_neuraloperator_fno_baseline.py",
+      "adapter_dependency_policy": "optional_dependency_required_for_live_run; dry-run and contract tests are dependency-free",
       "minimum_done_artifacts": [
         "summary_json",
         "per_task_metrics",
@@ -284,7 +289,7 @@
       "fno_arxiv",
       "neuraloperator_official_repo"
     ],
-    "required_next_step": "Implement or vendor-minimally wrap an official NeuralOperator/PDEBench FNO baseline runner that emits the same summary schema as scripts/run_physical_conv_baseline.py without rerunning or retuning the UPS candidate.",
+    "required_next_step": "Install the optional NeuralOperator dependency in the measurement environment, validate the adapter on val, then run one explicit held-out test measurement with scripts/run_external_neuraloperator_fno_baseline.py and --allow-held-out-test-eval.",
     "claimable_after_completion": "UPS beats an external FNO/PDEBench reproduction on the same light-v1 claim protocol.",
     "not_claimable_yet": "UPS beats published FNO/PDEBench/Poseidon paper numbers, because no external implementation has been rerun under the light-v1 claim protocol."
   },

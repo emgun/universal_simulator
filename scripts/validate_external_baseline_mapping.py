@@ -18,6 +18,12 @@ ALLOWED_SELECTED_STATUSES = {
     "measured_complete",
 }
 
+ALLOWED_IMPLEMENTATION_STATUSES = {
+    "external_adapter_not_implemented",
+    "external_adapter_available_measurement_pending",
+    "external_adapter_measured_complete",
+}
+
 REQUIRED_PROTOCOL_KEYS = {
     "data_root",
     "split",
@@ -201,6 +207,31 @@ def validate_mapping(
         candidates_by_id[candidate_id] = candidate
         if candidate.get("status") == "selected_primary_reproduction_path":
             selected_primary_count += 1
+            implementation_status = candidate.get("implementation_status")
+            if implementation_status not in ALLOWED_IMPLEMENTATION_STATUSES:
+                errors.append(
+                    f"{candidate_id}.implementation_status must be one of "
+                    f"{sorted(ALLOWED_IMPLEMENTATION_STATUSES)}"
+                )
+            command_template = _as_list(
+                candidate.get("reproduction_command_template"),
+                f"{candidate_id}.reproduction_command_template",
+                errors,
+            )
+            if "scripts/run_external_neuraloperator_fno_baseline.py" not in command_template:
+                errors.append(
+                    f"{candidate_id}.reproduction_command_template must use the external FNO runner"
+                )
+            if selected_mapping := candidate.get("protocol_mapping"):
+                if (
+                    isinstance(selected_mapping, Mapping)
+                    and selected_mapping.get("eval_split") == "test"
+                    and "--allow-held-out-test-eval" not in command_template
+                ):
+                    errors.append(
+                        f"{candidate_id}.reproduction_command_template must explicitly opt into "
+                        "held-out test evaluation"
+                    )
         for source_ref in _as_list(
             candidate.get("source_refs"),
             f"baseline_candidates[{index}].source_refs",
