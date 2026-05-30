@@ -70,3 +70,21 @@ def test_external_baseline_mapping_rejects_measured_status_without_test_evidence
     errors = validate_mapping(mutated, claim_evidence)
 
     assert "external_reproduction_measured requires selected primary test_measurements" in errors
+
+
+def test_external_baseline_mapping_rejects_secondary_measured_without_test_evidence():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    secondary = next(
+        candidate
+        for candidate in mutated["baseline_candidates"]
+        if candidate["candidate_id"] == "neuraloperator_uno_light_v1"
+    )
+    secondary["test_measurements"] = []
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert (
+        "neuraloperator_uno_light_v1.test_measurements is required for measured candidate" in errors
+    )
