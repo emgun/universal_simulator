@@ -54,12 +54,24 @@ UNO with the same task set, sample caps, train stride, and 16-step
 baseline. This expands the claim from one measured external family to two, but
 it still does not make a published-table SOTA claim.
 
+The third held-out external-family measurement is
+`external_pdebench_unet_test_light_v1_e3`. It uses the official PDEBench U-Net
+architecture adapted from PDEBench commit
+`4ff3e3a4aa1561721b5571fa3a048a0a463e0568`, with the same task set, sample caps,
+train stride, and 16-step `decoded_rollout_nrmse` protocol. It records
+`decoded_rollout_nrmse = 0.6095843876848097`; the UPS claim candidate is
+`0.4165820594268877`, a `31.661%` improvement over this measured PDEBench U-Net
+baseline. This reduces single-library bias because the baseline no longer comes
+from NeuralOperator, but it is still not a published PDEBench checkpoint or
+paper-table reproduction.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
 but it cannot support an external SOTA claim. Measured NeuralOperator FNO and
-UNO reproductions are stronger evidence because they use external
-implementations under the claim protocol. The remaining gap is breadth and
-publication comparability: CNO, PDEBench U-Net, or a foundation-model transfer
-contract would reduce single-library bias before making broader public-baseline
+UNO reproductions plus a measured PDEBench U-Net architecture reproduction are
+stronger evidence because they use external architectures under the claim
+protocol. The remaining gap is publication comparability and architecture
+breadth: official CNO or a foundation-model transfer contract would reduce the
+remaining external-baseline blind spots before making broader public-baseline
 claims.
