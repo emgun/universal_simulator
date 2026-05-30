@@ -93,6 +93,34 @@ def _close_enough(left: Any, right: Any) -> bool:
     return left == right
 
 
+def _validate_test_measurements(
+    *,
+    measurements: list[Any],
+    label: str,
+    protocol: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    for index, measurement_value in enumerate(measurements):
+        measurement = _as_mapping(
+            measurement_value,
+            f"{label}[{index}]",
+            errors,
+        )
+        if measurement.get("split") != protocol.get("split"):
+            errors.append(f"{label}[{index}].split must match claim_protocol.split")
+        if measurement.get("metric_name") != protocol.get("metric_name"):
+            errors.append(f"{label}[{index}].metric_name must match claim_protocol.metric_name")
+        if measurement.get("held_out_test_used") is not True:
+            errors.append(f"{label}[{index}].held_out_test_used must be true")
+        if measurement.get("claim_comparable") is not True:
+            errors.append(f"{label}[{index}].claim_comparable must be true")
+        if measurement.get("published_numbers_directly_comparable") is not False:
+            errors.append(f"{label}[{index}].published_numbers_directly_comparable must be false")
+        for key in ("measurement_key", "evidence_json", "artifact_handle"):
+            if not measurement.get(key):
+                errors.append(f"{label}[{index}].{key} is required")
+
+
 def validate_mapping(
     mapping: Mapping[str, Any],
     claim_evidence: Mapping[str, Any],
@@ -308,29 +336,31 @@ def validate_mapping(
             errors.append(
                 "external_reproduction_measured requires selected primary test_measurements"
             )
-        for index, measurement_value in enumerate(test_measurements):
-            measurement = _as_mapping(
-                measurement_value,
-                f"selected candidate test_measurements[{index}]",
-                errors,
-            )
-            if measurement.get("split") != protocol.get("split"):
-                errors.append(f"test_measurements[{index}].split must match claim_protocol.split")
-            if measurement.get("metric_name") != protocol.get("metric_name"):
-                errors.append(
-                    f"test_measurements[{index}].metric_name must match claim_protocol.metric_name"
-                )
-            if measurement.get("held_out_test_used") is not True:
-                errors.append(f"test_measurements[{index}].held_out_test_used must be true")
-            if measurement.get("claim_comparable") is not True:
-                errors.append(f"test_measurements[{index}].claim_comparable must be true")
-            if measurement.get("published_numbers_directly_comparable") is not False:
-                errors.append(
-                    f"test_measurements[{index}].published_numbers_directly_comparable must be false"
-                )
-            for key in ("measurement_key", "evidence_json", "artifact_handle"):
-                if not measurement.get(key):
-                    errors.append(f"test_measurements[{index}].{key} is required")
+        _validate_test_measurements(
+            measurements=test_measurements,
+            label="test_measurements",
+            protocol=protocol,
+            errors=errors,
+        )
+
+    for candidate_id, candidate in candidates_by_id.items():
+        if candidate is selected_candidate:
+            continue
+        if candidate.get("implementation_status") != "external_adapter_measured_complete":
+            continue
+        test_measurements = _as_list(
+            candidate.get("test_measurements"),
+            f"{candidate_id}.test_measurements",
+            errors,
+        )
+        if not test_measurements:
+            errors.append(f"{candidate_id}.test_measurements is required for measured candidate")
+        _validate_test_measurements(
+            measurements=test_measurements,
+            label=f"{candidate_id}.test_measurements",
+            protocol=protocol,
+            errors=errors,
+        )
 
     contract = _as_mapping(mapping.get("reproduction_contract"), "reproduction_contract", errors)
     if contract.get("allows_test_tuning") is not False:

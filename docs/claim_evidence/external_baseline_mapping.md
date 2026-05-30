@@ -45,9 +45,21 @@ on the same light-v1 task set, `32/32` sample caps, and 16-step
 baseline. This comparison is protocol-comparable, but it is still not a claim
 about published FNO paper-table values.
 
+The second held-out external-family measurement is
+`external_neuraloperator_uno_test_light_v1_e3`. It uses NeuralOperator `2.0.0`
+UNO with the same task set, sample caps, train stride, and 16-step
+`decoded_rollout_nrmse` protocol. It records
+`decoded_rollout_nrmse = 0.5560551396226746`; the UPS claim candidate is
+`0.4165820594268877`, a `25.083%` improvement over this measured external UNO
+baseline. This expands the claim from one measured external family to two, but
+it still does not make a published-table SOTA claim.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
-but it cannot support an external SOTA claim. An official FNO/PDEBench
-reproduction is slower to wire up, but it is the shortest defensible bridge from
-repo-local readiness to a public-baseline claim.
+but it cannot support an external SOTA claim. Measured NeuralOperator FNO and
+UNO reproductions are stronger evidence because they use external
+implementations under the claim protocol. The remaining gap is breadth and
+publication comparability: CNO, PDEBench U-Net, or a foundation-model transfer
+contract would reduce single-library bias before making broader public-baseline
+claims.

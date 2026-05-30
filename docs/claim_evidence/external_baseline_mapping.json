@@ -86,6 +86,15 @@
       "relevance": "Official PyTorch ecosystem library containing FNO and other neural-operator architectures."
     },
     {
+      "source_id": "uno_arxiv",
+      "title": "U-NO: U-shaped Neural Operators",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2204.11127",
+      "year": 2022,
+      "primary_source": true,
+      "relevance": "Defines the U-shaped neural operator architecture implemented by NeuralOperator UNO; useful as a second external neural-operator family after FNO."
+    },
+    {
       "source_id": "poseidon_arxiv",
       "title": "Poseidon: Efficient Foundation Models for PDEs",
       "kind": "paper",
@@ -177,7 +186,7 @@
         "metric_name": "decoded_rollout_nrmse",
         "lower_is_better": true,
         "published_numbers_directly_comparable": false,
-        "comparability_note": "Published PDEBench or FNO table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. The FNO baseline must be rerun on this protocol."
+        "comparability_note": "Published PDEBench, FNO, or UNO table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. External baselines must be rerun on this protocol."
       },
       "reproduction_command_template": [
         "python",
@@ -241,6 +250,123 @@
           "published_numbers_directly_comparable": false,
           "candidate_metric_value": 0.4165820594268877,
           "baseline_improvement_fraction": 0.3482500880967864
+        }
+      ],
+      "minimum_done_artifacts": [
+        "summary_json",
+        "per_task_metrics",
+        "command",
+        "artifact_sha256",
+        "held_out_ledger_reference"
+      ]
+    },
+    {
+      "candidate_id": "neuraloperator_uno_light_v1",
+      "status": "secondary_measured_reproduction_path",
+      "model_family": "UNO",
+      "source_refs": [
+        "uno_arxiv",
+        "neuraloperator_official_repo"
+      ],
+      "why_selected": "UNO is a distinct NeuralOperator architecture family available in the installed external NeuralOperator package, so it broadens the claim beyond FNO without introducing a new dependency or changing the frozen light-v1 protocol.",
+      "protocol_mapping": {
+        "data_root": "data/pdebench",
+        "train_split": "train",
+        "validation_split": "val",
+        "eval_split": "test",
+        "tasks": [
+          "advection1d",
+          "burgers1d",
+          "darcy2d"
+        ],
+        "max_train_samples": 32,
+        "max_eval_samples": 32,
+        "rollout_steps": 16,
+        "metric_name": "decoded_rollout_nrmse",
+        "lower_is_better": true,
+        "published_numbers_directly_comparable": false,
+        "comparability_note": "Published PDEBench or FNO table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. The FNO baseline must be rerun on this protocol."
+      },
+      "reproduction_command_template": [
+        "python",
+        "scripts/run_external_neuraloperator_uno_baseline.py",
+        "--config",
+        "configs/train_multitask_heterogeneous_light_best.yaml",
+        "--name",
+        "external_neuraloperator_uno_light_v1_test",
+        "--output-root",
+        "reports/research/sota_loop/external_baselines",
+        "--data-root",
+        "data/pdebench",
+        "--train-split",
+        "train",
+        "--eval-split",
+        "test",
+        "--max-train-samples",
+        "32",
+        "--max-eval-samples",
+        "32",
+        "--max-pairs-per-task",
+        "512",
+        "--rollout-steps",
+        "16",
+        "--train-stride",
+        "1",
+        "--hidden-channels",
+        "16",
+        "--fourier-modes",
+        "16",
+        "--n-layers",
+        "4",
+        "--lifting-channels",
+        "32",
+        "--projection-channels",
+        "32",
+        "--epochs",
+        "3",
+        "--batch-size",
+        "32",
+        "--tasks",
+        "advection1d",
+        "burgers1d",
+        "darcy2d",
+        "--metric",
+        "decoded_rollout_nrmse",
+        "--held-out-ledger-json",
+        "reports/research/sota_loop/external_baselines/test_ledger.json",
+        "--allow-held-out-test-eval"
+      ],
+      "implementation_status": "external_adapter_measured_complete",
+      "adapter_script": "scripts/run_external_neuraloperator_uno_baseline.py",
+      "adapter_dependency_policy": "optional_dependency_required_for_live_run; dry-run and contract tests are dependency-free",
+      "validation_measurements": [
+        {
+          "measurement_type": "validation_only_external_adapter_measurement",
+          "run_name": "external_neuraloperator_uno_val_light_v1_e3",
+          "split": "val",
+          "metric_name": "decoded_rollout_nrmse",
+          "metric_value": 0.363424243629033,
+          "evidence_json": "docs/claim_evidence/external_neuraloperator_uno_val_light_v1_e3_evidence.json",
+          "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_uno_val_light_v1_e3.tar.gz",
+          "claim_comparable": false,
+          "held_out_test_used": false
+        }
+      ],
+      "test_measurements": [
+        {
+          "measurement_type": "held_out_test_external_reproduction_measurement",
+          "run_name": "external_neuraloperator_uno_test_light_v1_e3",
+          "split": "test",
+          "metric_name": "decoded_rollout_nrmse",
+          "metric_value": 0.5560551396226746,
+          "measurement_key": "1908b6ac93cb94d361d7dac87ea4526798f3be712718bccdc635a1849c39acb5",
+          "evidence_json": "docs/claim_evidence/external_neuraloperator_uno_test_light_v1_e3_evidence.json",
+          "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_uno_test_light_v1_e3.tar.gz",
+          "claim_comparable": true,
+          "held_out_test_used": true,
+          "published_numbers_directly_comparable": false,
+          "candidate_metric_value": 0.4165820594268877,
+          "baseline_improvement_fraction": 0.2508259887507378
         }
       ],
       "minimum_done_artifacts": [
@@ -319,9 +445,9 @@
       "fno_arxiv",
       "neuraloperator_official_repo"
     ],
-    "required_next_step": "Run at least one second external family, such as PDEBench U-Net or CNO, before broadening any external-baseline claim beyond measured NeuralOperator FNO.",
-    "claimable_after_completion": "UPS beats an external FNO/PDEBench reproduction on the same light-v1 claim protocol.",
-    "not_claimable_yet": "UPS beats published FNO/PDEBench/Poseidon paper numbers, because no external implementation has been rerun under the light-v1 claim protocol."
+    "required_next_step": "Run an official CNO or PDEBench U-Net reproduction, or a separately contracted foundation-model transfer evaluation, before broadening beyond measured NeuralOperator FNO and UNO baselines.",
+    "claimable_after_completion": "UPS beats measured external FNO and UNO reproductions on the same light-v1 claim protocol.",
+    "not_claimable_yet": "UPS beats published FNO/UNO/PDEBench/Poseidon/CNO paper numbers, because published protocols and table values remain unmapped to the light-v1 claim protocol."
   },
   "reproduction_contract": {
     "allows_test_tuning": false,
@@ -346,8 +472,8 @@
   },
   "comparability_decision": {
     "published_numbers_directly_comparable": false,
-    "current_claim_status": "external_neuraloperator_fno_reproduction_measured_on_light_v1",
+    "current_claim_status": "external_neuraloperator_fno_and_uno_reproductions_measured_on_light_v1",
     "external_claim_status": "external_reproduction_measured",
-    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline and the measured NeuralOperator FNO external reproduction on the light-v1 claim protocol. It still does not prove superiority over published FNO/PDEBench paper table values, Poseidon, CNO, PDEformer, CFO, or RealPDEBench results."
+    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline, the measured NeuralOperator FNO external reproduction, and the measured NeuralOperator UNO external reproduction on the light-v1 claim protocol. It still does not prove superiority over published FNO/UNO/PDEBench paper table values, Poseidon, CNO, PDEformer, CFO, or RealPDEBench results."
   }
 }
