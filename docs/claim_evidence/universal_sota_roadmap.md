@@ -250,7 +250,7 @@ Decide whether `context_transitions = 1`, `min_horizon = 2`, and `families: [tra
 
 If the protocol review accepts CT1, add or update the claim evidence/audit surface so the selected validation config, summary, artifact SHA256, and intended held-out ledger key are explicit before the held-out command is run.
 
-- [ ] **Step 3: Run exactly one ledger-protected held-out confirmation**
+- [x] **Step 3: Run exactly one ledger-protected held-out confirmation**
 
 Run a held-out test only after Steps 1 and 2. The command must include the explicit held-out ledger guard and must not be repeated under the same key.
 
