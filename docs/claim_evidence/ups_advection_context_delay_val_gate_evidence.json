@@ -18,7 +18,7 @@
   "config": "configs/train_multitask_heterogeneous_light_best.yaml",
   "artifact": {
     "path": "docs/claim_evidence/artifacts/ups_advection_context_delay_val_gate.tar.gz",
-    "sha256": "f7a84898b282a7f560949f065323af640788b3cca2d0bd623d1c3efeb03eb3fb",
+    "sha256": "029495fdaa60fbcb0c341c14980bb1aa40bbbad8bb06615629ad7c8ef7ab07a3",
     "contents": [
       "ups_light_advection_context_current_val/summary.json",
       "ups_light_advection_context_transport_only_ct1_val/summary.json",

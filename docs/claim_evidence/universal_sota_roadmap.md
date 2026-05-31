@@ -279,7 +279,10 @@ Status:
 - CT2 transport-only: overall `0.16694739388393856`, advection `0.18214615629606878`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
 - CT4 transport-only: overall `0.20808368063656887`, advection `0.2572710005249541`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
 - CT8 transport-only: overall `0.27230919020248034`, advection `0.36360402666634595`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
-- Packaged validation evidence at `docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json` and artifact SHA256 `f7a84898b282a7f560949f065323af640788b3cca2d0bd623d1c3efeb03eb3fb`.
+- Packaged validation evidence at `docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json` and artifact SHA256 `029495fdaa60fbcb0c341c14980bb1aa40bbbad8bb06615629ad7c8ef7ab07a3`.
+- Added `scripts/validate_ups_advection_context_gate_evidence.py` and `tests/unit/test_validate_ups_advection_context_gate_evidence.py`.
+- The validator enforces that the CT1 validation gate used no held-out test path, that all commands pin validation split, that artifact bytes match the recorded SHA256, that artifact summary metrics match the manifest, that CT1 is the best validation run, and that CT1/CT2/CT4/CT8 are monotonic as context delay increases.
+- Repacked `docs/claim_evidence/artifacts/ups_advection_context_delay_val_gate.tar.gz` with `COPYFILE_DISABLE=1` after the validator caught an AppleDouble `._summary.json` member from the first macOS tarball.
 
 Decision:
 
@@ -291,8 +294,10 @@ Decision:
 - Decision: stop scalar-only Poseidon transfer and do not spend held-out Poseidon test budget from this path.
 - The UPS advection context-delay validation gate cleared strongly: CT1 improves validation overall by `0.13034640528426242` absolute and `0.47864465547433244` relative versus the reproduced current validation baseline.
 - This is not yet a replacement held-out claim, because CT1 changes the current claim evaluation config from `context_transitions = 8`, `families: [transport, conservation]`, `slope = 0.9974352988185539` to `context_transitions = 1`, `families: [transport]`, `slope = 1.0`.
+- The validation evidence is now machine-checkable, but held-out execution is still blocked until the CT1 claim-contract decision and intended ledger key are written before the test command.
 
 Next checkpoint:
 
 - Run repository checks for the new evidence and roadmap files.
 - Next technical path: protocol-review the CT1 context-delay variant, then either wire it into the claim audit and run one ledger-protected held-out confirmation, or reject it as protocol-shift evidence and open a model-side advection objective instead.
+- If CT1 is accepted, add pre-test claim audit wiring that names the validation evidence manifest, selected CT1 command, intended held-out command, and ledger key; only then run the held-out confirmation.
