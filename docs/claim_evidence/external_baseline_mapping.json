@@ -149,6 +149,15 @@
       "relevance": "Future sim-to-real benchmark gate; not comparable to the current simulated light-v1 claim."
     },
     {
+      "source_id": "cno_arxiv",
+      "title": "Convolutional Neural Operators for robust and accurate learning of PDEs",
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2302.01178",
+      "year": 2023,
+      "primary_source": true,
+      "relevance": "Defines CNO and the representative PDE benchmark context; published table values remain unmapped to the light-v1 claim protocol."
+    },
+    {
       "source_id": "cno_official_repo",
       "title": "Convolutional Neural Operator official repository",
       "kind": "official_repo",
@@ -491,13 +500,124 @@
     },
     {
       "candidate_id": "cno_representative_pde_light_v1",
-      "status": "secondary_reproduction_path",
-      "model_family": "CNO",
+      "status": "secondary_measured_reproduction_path",
+      "model_family": "CNO1d",
       "source_refs": [
         "cno_official_repo",
-        "poseidon_arxiv"
+        "cno_arxiv"
       ],
-      "why_not_primary": "CNO is credible and relevant, but its official benchmark suite is not the same as the light-v1 PDEBench shard, so it should follow the canonical FNO reproduction."
+      "why_selected": "CNO is a distinct official neural-operator family with a compact MIT-licensed simplified implementation. The current light-v1 tensors are height=1 grids, so the official CNO1d path can be adapted directly under the frozen claim protocol without changing the held-out-test contract.",
+      "protocol_mapping": {
+        "data_root": "data/pdebench",
+        "train_split": "train",
+        "validation_split": "val",
+        "eval_split": "test",
+        "tasks": [
+          "advection1d",
+          "burgers1d",
+          "darcy2d"
+        ],
+        "max_train_samples": 32,
+        "max_eval_samples": 32,
+        "rollout_steps": 16,
+        "metric_name": "decoded_rollout_nrmse",
+        "lower_is_better": true,
+        "published_numbers_directly_comparable": false,
+        "comparability_note": "Published CNO representative-PDE-benchmark table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, flattened height=1 grids, and a fixed held-out ledger. This measurement reruns the official simplified CNO1d architecture on the claim protocol."
+      },
+      "reproduction_command_template": [
+        "python",
+        "scripts/run_external_cno_baseline.py",
+        "--config",
+        "configs/train_multitask_heterogeneous_light_best.yaml",
+        "--name",
+        "external_cno1d_light_v1_test",
+        "--output-root",
+        "reports/research/sota_loop/external_baselines",
+        "--data-root",
+        "data/pdebench",
+        "--train-split",
+        "train",
+        "--eval-split",
+        "test",
+        "--max-train-samples",
+        "32",
+        "--max-eval-samples",
+        "32",
+        "--max-pairs-per-task",
+        "512",
+        "--rollout-steps",
+        "16",
+        "--train-stride",
+        "1",
+        "--n-layers",
+        "3",
+        "--n-res",
+        "1",
+        "--n-res-neck",
+        "1",
+        "--channel-multiplier",
+        "8",
+        "--lift-latent-dim",
+        "64",
+        "--epochs",
+        "3",
+        "--batch-size",
+        "32",
+        "--tasks",
+        "advection1d",
+        "burgers1d",
+        "darcy2d",
+        "--metric",
+        "decoded_rollout_nrmse",
+        "--held-out-ledger-json",
+        "reports/research/sota_loop/external_baselines/test_ledger.json",
+        "--allow-held-out-test-eval"
+      ],
+      "implementation_status": "external_adapter_measured_complete",
+      "adapter_script": "scripts/run_external_cno_baseline.py",
+      "adapter_dependency_policy": "architecture adapted from official ConvolutionalNeuralOperator simplified CNO1d source; no optional runtime dependency for dry-run or live run",
+      "source_commit": "6e765198aa02b56352e0a3437104b9d9e337176e",
+      "source_path": "CNO1d_simplified/CNO1d.py",
+      "adapter_scope": "official CNO1d applied to the current height=1 light-v1 grids; not a CNO2d square-grid or Poseidon foundation-model evaluation",
+      "validation_measurements": [
+        {
+          "measurement_type": "validation_only_external_adapter_measurement",
+          "run_name": "external_cno1d_val_light_v1_e3",
+          "split": "val",
+          "metric_name": "decoded_rollout_nrmse",
+          "metric_value": 0.40815509179677445,
+          "evidence_json": "docs/claim_evidence/external_cno1d_val_light_v1_e3_evidence.json",
+          "artifact_handle": "repo:docs/claim_evidence/artifacts/external_cno1d_val_light_v1_e3.tar.gz",
+          "claim_comparable": false,
+          "held_out_test_used": false
+        }
+      ],
+      "test_measurements": [
+        {
+          "measurement_type": "held_out_test_external_reproduction_measurement",
+          "run_name": "external_cno1d_test_light_v1_e3",
+          "split": "test",
+          "metric_name": "decoded_rollout_nrmse",
+          "metric_value": 0.5918753212407414,
+          "measurement_key": "790bb968080f9fb9e9ef63eb757749de960a1713da731bc519155a9cd317a839",
+          "evidence_json": "docs/claim_evidence/external_cno1d_test_light_v1_e3_evidence.json",
+          "artifact_handle": "repo:docs/claim_evidence/artifacts/external_cno1d_test_light_v1_e3.tar.gz",
+          "claim_comparable": true,
+          "held_out_test_used": true,
+          "published_numbers_directly_comparable": false,
+          "candidate_metric_value": 0.4165820594268877,
+          "baseline_improvement_fraction": 0.29616585710380433
+        }
+      ],
+      "minimum_done_artifacts": [
+        "summary_json",
+        "per_task_metrics",
+        "command",
+        "artifact_sha256",
+        "held_out_ledger_reference",
+        "source_commit"
+      ]
     },
     {
       "candidate_id": "poseidon_foundation_model_transfer",
@@ -547,9 +667,9 @@
       "fno_arxiv",
       "neuraloperator_official_repo"
     ],
-    "required_next_step": "Run official CNO or a separately contracted foundation-model transfer evaluation before broadening beyond measured FNO, UNO, and PDEBench U-Net baselines.",
-    "claimable_after_completion": "UPS beats measured external FNO, UNO, and PDEBench U-Net reproductions on the same light-v1 claim protocol.",
-    "not_claimable_yet": "UPS beats published FNO/UNO/PDEBench/Poseidon/CNO paper numbers, because published protocols, pretrained checkpoints, and table values remain unmapped to the light-v1 claim protocol."
+    "required_next_step": "Run a separately contracted foundation-model transfer evaluation before broadening beyond measured FNO, UNO, PDEBench U-Net, and CNO1d baselines.",
+    "claimable_after_completion": "UPS beats measured external FNO, UNO, PDEBench U-Net, and official simplified CNO1d reproductions on the same light-v1 claim protocol.",
+    "not_claimable_yet": "UPS beats published FNO/UNO/PDEBench/Poseidon/CNO paper numbers, because published protocols, pretrained checkpoints, square-grid CNO2d setups, foundation-transfer protocols, and table values remain unmapped to the light-v1 claim protocol."
   },
   "reproduction_contract": {
     "allows_test_tuning": false,
@@ -574,8 +694,8 @@
   },
   "comparability_decision": {
     "published_numbers_directly_comparable": false,
-    "current_claim_status": "external_fno_uno_and_pdebench_unet_reproductions_measured_on_light_v1",
+    "current_claim_status": "external_fno_uno_pdebench_unet_and_cno1d_reproductions_measured_on_light_v1",
     "external_claim_status": "external_reproduction_measured",
-    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline, measured NeuralOperator FNO and UNO external reproductions, and a measured PDEBench U-Net architecture reproduction on the light-v1 claim protocol. It still does not prove superiority over published FNO/UNO/PDEBench paper table values, pretrained PDEBench checkpoints, Poseidon, CNO, PDEformer, CFO, or RealPDEBench results."
+    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline, measured NeuralOperator FNO and UNO external reproductions, a measured PDEBench U-Net architecture reproduction, and a measured official simplified CNO1d reproduction on the light-v1 claim protocol. It still does not prove superiority over published FNO/UNO/PDEBench/CNO paper table values, pretrained PDEBench checkpoints, CNO2d square-grid settings, Poseidon, PDEformer, CFO, or RealPDEBench results."
   }
 }

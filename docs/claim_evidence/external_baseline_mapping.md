@@ -65,13 +65,25 @@ baseline. This reduces single-library bias because the baseline no longer comes
 from NeuralOperator, but it is still not a published PDEBench checkpoint or
 paper-table reproduction.
 
+The fourth held-out external-family measurement is
+`external_cno1d_test_light_v1_e3`. It uses the official simplified CNO1d
+architecture adapted from ConvolutionalNeuralOperator commit
+`6e765198aa02b56352e0a3437104b9d9e337176e`, with the same task set, sample
+caps, train stride, and 16-step `decoded_rollout_nrmse` protocol. It records
+`decoded_rollout_nrmse = 0.5918753212407414`; the UPS claim candidate is
+`0.4165820594268877`, a `29.617%` improvement over this measured CNO1d
+baseline. This adds a distinct official neural-operator family, but the scope is
+the current height-1 light-v1 adapter, not a published CNO representative-PDE
+benchmark table, CNO2d square-grid run, or Poseidon foundation-model transfer.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
 but it cannot support an external SOTA claim. Measured NeuralOperator FNO and
-UNO reproductions plus a measured PDEBench U-Net architecture reproduction are
-stronger evidence because they use external architectures under the claim
-protocol. The remaining gap is publication comparability and architecture
-breadth: official CNO or a foundation-model transfer contract would reduce the
-remaining external-baseline blind spots before making broader public-baseline
-claims.
+UNO reproductions, a measured PDEBench U-Net architecture reproduction, and a
+measured official simplified CNO1d reproduction are stronger evidence because
+they use external architectures under the claim protocol. The remaining gap is
+publication and transfer comparability: published table values, CNO2d
+square-grid settings, pretrained checkpoints, and foundation-model transfer
+protocols remain unmapped, so broader public-baseline claims still need a
+separate contract.
