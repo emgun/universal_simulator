@@ -119,6 +119,21 @@ transfer is not useful under this adapter. The next gate is finetuning those
 scalar adapter layers on train and selecting on validation before any held-out
 Poseidon transfer test.
 
+`poseidon_scot_scalar_ft_val_light_v1_e3_lr1e4_clip1` executes that scalar-layer
+finetune gate without using held-out test data. It keeps the Poseidon backbone
+frozen, trains only the newly initialized scalar embedding/recovery layers on
+the train split, and evaluates the full light-v1 validation cap: 32 validation
+samples, 16 teacher-forced steps, and all three tasks. The run records
+`decoded_rollout_nrmse = 0.5453508470039229`, with task validation NRMSE
+advection `0.6030753349043854`, Burgers `0.49033314173084885`, and Darcy
+`0.47892385326272763`. This improves over zero-shot Poseidon but does not clear
+the validation gate: it is above the `0.5` scalar-path stop threshold and above
+the current best external validation baseline, UNO at `0.363424243629033`.
+Therefore the scalar-only Poseidon transfer path should not spend held-out test
+budget. If Poseidon remains worth pursuing, the next path is controlled unfreeze
+or low-rank adaptation on train/validation only; otherwise the higher-signal
+work is UPS-side advection robustness.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
@@ -126,7 +141,9 @@ but it cannot support an external SOTA claim. Measured NeuralOperator FNO and
 UNO reproductions, a measured PDEBench U-Net architecture reproduction, and a
 measured official simplified CNO1d reproduction are stronger evidence because
 they use external architectures under the claim protocol. The remaining gap is
-publication and transfer comparability: published table values, CNO2d
-square-grid settings, pretrained checkpoints, and measured foundation-model
-transfer protocols remain unmapped, so broader public-baseline claims still need
-finetuned validation evidence before any Poseidon held-out transfer measurement.
+publication and transfer comparability: published table values, CNO2d square-grid
+settings, pretrained checkpoints, and stronger foundation-model transfer
+protocols remain unmapped. The scalar-only Poseidon finetune gate is now
+measured and stopped on validation, so broader public-baseline claims need either
+a stronger train/validation-only foundation adapter or UPS-side validation
+improvement before any new held-out transfer measurement.

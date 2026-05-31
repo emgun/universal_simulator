@@ -1,0 +1,367 @@
+{
+  "claim_comparable": false,
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "details": {
+    "adapter_mode": "scalar_layers",
+    "contract": {
+      "frozen_backbone_scalar_adapter_finetune": true,
+      "published_numbers_directly_comparable": false,
+      "teacher_forced_light_v1_steps": true,
+      "train_split_only": true,
+      "validation_split_only": true
+    },
+    "evaluation_records": [
+      {
+        "family": "transport",
+        "pairs_evaluated": 512,
+        "poseidon_image_size": 128,
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "sample_count": 32,
+        "split": "val",
+        "task": "advection1d",
+        "teacher_forced_steps": true,
+        "time_value": 1.0
+      },
+      {
+        "family": "conservation",
+        "pairs_evaluated": 512,
+        "poseidon_image_size": 128,
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "sample_count": 32,
+        "split": "val",
+        "task": "burgers1d",
+        "teacher_forced_steps": true,
+        "time_value": 1.0
+      },
+      {
+        "family": "elliptic",
+        "pairs_evaluated": 512,
+        "poseidon_image_size": 128,
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          128
+        ],
+        "sample_count": 32,
+        "split": "val",
+        "task": "darcy2d",
+        "teacher_forced_steps": true,
+        "time_value": 1.0
+      }
+    ],
+    "held_out_test_policy": {
+      "enabled": false,
+      "recorded": false
+    },
+    "model": {
+      "checkpoint_handle": "camlab-ethz/Poseidon-T",
+      "effective_config": {
+        "channel_slice_list_normalized_loss": null,
+        "image_size": 128,
+        "learn_residual": false,
+        "num_channels": 1,
+        "num_out_channels": 1,
+        "use_conditioning": true
+      },
+      "embedding_recovery_replaced": true,
+      "implementation": "scOT.model.ScOT",
+      "original_config": {
+        "depths": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "embed_dim": 48,
+        "image_size": 128,
+        "learn_residual": false,
+        "num_channels": 4,
+        "num_heads": [
+          3,
+          6,
+          12,
+          24
+        ],
+        "num_out_channels": 4,
+        "use_conditioning": true,
+        "window_size": 16
+      },
+      "parameter_count": 20769458
+    },
+    "poseidon_source": {
+      "available": true,
+      "commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+      "repo_path": "/tmp/poseidon-official",
+      "required_files": {
+        "README.md": {
+          "bytes": 7695,
+          "exists": true
+        },
+        "pyproject.toml": {
+          "bytes": 435,
+          "exists": true
+        },
+        "scOT/inference.py": {
+          "bytes": 35070,
+          "exists": true
+        },
+        "scOT/model.py": {
+          "bytes": 57840,
+          "exists": true
+        },
+        "scOT/problems/base.py": {
+          "bytes": 16470,
+          "exists": true
+        },
+        "scOT/train.py": {
+          "bytes": 18847,
+          "exists": true
+        }
+      },
+      "source_id": "poseidon_official_repo",
+      "source_url": "https://github.com/camlab-ethz/poseidon"
+    },
+    "pretrained_checkpoint": {
+      "bytes": 83200584,
+      "expected_sha256": "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+      "filename": "model.safetensors",
+      "handle": "camlab-ethz/Poseidon-T",
+      "hub_size": 83200584,
+      "path": "/Users/emerygunselman/.cache/huggingface/hub/models--camlab-ethz--Poseidon-T/snapshots/ec976ed5d25883ec9db4e486ebbeeefa9e08303b/model.safetensors",
+      "repo_sha": "ec976ed5d25883ec9db4e486ebbeeefa9e08303b",
+      "sha256": "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+      "sha256_status": "matched"
+    },
+    "trainable_parameters": {
+      "adapter_mode": "scalar_layers",
+      "frozen_parameter_count": 20767848,
+      "frozen_parameter_names_sample": [
+        "embeddings.norm.weight.weight",
+        "embeddings.norm.weight.bias",
+        "embeddings.norm.bias.weight",
+        "embeddings.norm.bias.bias",
+        "encoder.layers.0.blocks.0.attention.self.logit_scale",
+        "encoder.layers.0.blocks.0.attention.self.continuous_position_bias_mlp.0.weight",
+        "encoder.layers.0.blocks.0.attention.self.continuous_position_bias_mlp.0.bias",
+        "encoder.layers.0.blocks.0.attention.self.continuous_position_bias_mlp.2.weight",
+        "encoder.layers.0.blocks.0.attention.self.query.weight",
+        "encoder.layers.0.blocks.0.attention.self.query.bias",
+        "encoder.layers.0.blocks.0.attention.self.key.weight",
+        "encoder.layers.0.blocks.0.attention.self.value.weight",
+        "encoder.layers.0.blocks.0.attention.self.value.bias",
+        "encoder.layers.0.blocks.0.attention.output.dense.weight",
+        "encoder.layers.0.blocks.0.attention.output.dense.bias",
+        "encoder.layers.0.blocks.0.layernorm_before.weight.weight",
+        "encoder.layers.0.blocks.0.layernorm_before.weight.bias",
+        "encoder.layers.0.blocks.0.layernorm_before.bias.weight",
+        "encoder.layers.0.blocks.0.layernorm_before.bias.bias",
+        "encoder.layers.0.blocks.0.intermediate.dense.weight"
+      ],
+      "total_parameter_count": 20769458,
+      "trainable_parameter_count": 1610,
+      "trainable_parameter_names": [
+        "embeddings.patch_embeddings.projection.weight",
+        "embeddings.patch_embeddings.projection.bias",
+        "patch_recovery.projection.weight",
+        "patch_recovery.projection.bias",
+        "patch_recovery.mixup.weight"
+      ]
+    },
+    "training": {
+      "batch_size": 32,
+      "best_train_mse": 0.520779254535834,
+      "epoch_train_mse": [
+        1.150713407744964,
+        0.9101839711268743,
+        0.520779254535834
+      ],
+      "epochs": 3,
+      "grad_clip_norm": 1.0,
+      "learning_rate": 0.0001,
+      "seed": 17,
+      "train_pairs": 1536,
+      "train_split": "train",
+      "training_records": [
+        {
+          "family": "transport",
+          "pairs_collected": 512,
+          "poseidon_image_size": 128,
+          "repo_inferred_channels": 1,
+          "repo_inferred_grid_shape": [
+            1,
+            1024
+          ],
+          "sample_count": 32,
+          "split": "train",
+          "task": "advection1d",
+          "teacher_forced_steps": true
+        },
+        {
+          "family": "conservation",
+          "pairs_collected": 512,
+          "poseidon_image_size": 128,
+          "repo_inferred_channels": 1,
+          "repo_inferred_grid_shape": [
+            1,
+            1024
+          ],
+          "sample_count": 32,
+          "split": "train",
+          "task": "burgers1d",
+          "teacher_forced_steps": true
+        },
+        {
+          "family": "elliptic",
+          "pairs_collected": 512,
+          "poseidon_image_size": 128,
+          "repo_inferred_channels": 1,
+          "repo_inferred_grid_shape": [
+            1,
+            128
+          ],
+          "sample_count": 32,
+          "split": "train",
+          "task": "darcy2d",
+          "teacher_forced_steps": true
+        }
+      ],
+      "weight_decay": 0.0001
+    }
+  },
+  "duration_sec": 1148.8315098285675,
+  "eval_config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "extra": {
+    "allow_held_out_test_eval": false,
+    "baseline": "external_poseidon_scot_finetune",
+    "command": [
+      "python",
+      "scripts/run_external_poseidon_scot_finetune.py",
+      "--config",
+      "configs/train_multitask_heterogeneous_light_best.yaml",
+      "--name",
+      "poseidon_scot_scalar_ft_val_light_v1_e3_lr1e4_clip1",
+      "--output-root",
+      "reports/research/sota_loop/external_baselines",
+      "--train-split",
+      "train",
+      "--eval-split",
+      "val",
+      "--max-train-samples",
+      "32",
+      "--max-eval-samples",
+      "32",
+      "--rollout-steps",
+      "16",
+      "--poseidon-model-size",
+      "T",
+      "--checkpoint-file",
+      "model.safetensors",
+      "--device",
+      "cpu",
+      "--time-value",
+      "1.0",
+      "--epochs",
+      "3",
+      "--learning-rate",
+      "0.0001",
+      "--weight-decay",
+      "0.0001",
+      "--batch-size",
+      "32",
+      "--grad-clip-norm",
+      "1.0",
+      "--adapter-mode",
+      "scalar_layers",
+      "--seed",
+      "17",
+      "--held-out-ledger-json",
+      "reports/research/sota_loop/external_baselines/test_ledger.json",
+      "--data-root",
+      "data/pdebench",
+      "--poseidon-repo",
+      "/tmp/poseidon-official",
+      "--expected-checkpoint-sha256",
+      "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+      "--tasks",
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "device": "cpu",
+    "held_out_ledger_reference": "reports/research/sota_loop/external_baselines/test_ledger.json",
+    "image_size": 128,
+    "implementation": "scOT.model.ScOT",
+    "max_eval_samples": 32,
+    "max_train_samples": 32,
+    "metric": "decoded_rollout_nrmse",
+    "rollout_steps": 16,
+    "source_url": "https://github.com/camlab-ethz/poseidon",
+    "split": "val",
+    "task": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "time_value": 1.0,
+    "train_split": "train"
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "measurement_type": "poseidon_scot_finetune_validation_measurement",
+  "metrics": {
+    "decoded_mae": 0.39043484011541724,
+    "decoded_mse": 0.29962739732355415,
+    "decoded_nrmse": 0.5453508470039229,
+    "decoded_rollout_mae": 0.39043484011541724,
+    "decoded_rollout_mse": 0.29962739732355415,
+    "decoded_rollout_nrmse": 0.5453508470039229,
+    "decoded_rollout_rrmse": 0.5453508470039229,
+    "decoded_rollout_spectral_energy_error": 0.5981469673397442,
+    "decoded_rrmse": 0.5453508470039229,
+    "decoded_spectral_energy_error": 0.5981469673397442,
+    "family_conservation_decoded_rollout_mae": 0.34198635925349663,
+    "family_conservation_decoded_rollout_mse": 0.24487530939207147,
+    "family_conservation_decoded_rollout_nrmse": 0.49033314173084885,
+    "family_conservation_decoded_rollout_rrmse": 0.49033314173084885,
+    "family_elliptic_decoded_rollout_mae": 0.3088965470378753,
+    "family_elliptic_decoded_rollout_mse": 0.22358865012120077,
+    "family_elliptic_decoded_rollout_nrmse": 0.47892385326272763,
+    "family_elliptic_decoded_rollout_rrmse": 0.47892385326272763,
+    "family_transport_decoded_rollout_mae": 0.4490756076120306,
+    "family_transport_decoded_rollout_mse": 0.36388432865533105,
+    "family_transport_decoded_rollout_nrmse": 0.6030753349043854,
+    "family_transport_decoded_rollout_rrmse": 0.6030753349043854,
+    "mae": 0.39043484011541724,
+    "mse": 0.29962739732355415,
+    "rmse": 0.5473823136744136,
+    "task_advection1d_decoded_rollout_mae": 0.4490756076120306,
+    "task_advection1d_decoded_rollout_mse": 0.36388432865533105,
+    "task_advection1d_decoded_rollout_nrmse": 0.6030753349043854,
+    "task_advection1d_decoded_rollout_rrmse": 0.6030753349043854,
+    "task_burgers1d_decoded_rollout_mae": 0.34198635925349663,
+    "task_burgers1d_decoded_rollout_mse": 0.24487530939207147,
+    "task_burgers1d_decoded_rollout_nrmse": 0.49033314173084885,
+    "task_burgers1d_decoded_rollout_rrmse": 0.49033314173084885,
+    "task_darcy2d_decoded_rollout_mae": 0.3088965470378753,
+    "task_darcy2d_decoded_rollout_mse": 0.22358865012120077,
+    "task_darcy2d_decoded_rollout_nrmse": 0.47892385326272763,
+    "task_darcy2d_decoded_rollout_rrmse": 0.47892385326272763
+  },
+  "published_numbers_directly_comparable": false,
+  "run_name": "poseidon_scot_scalar_ft_val_light_v1_e3_lr1e4_clip1",
+  "schema_version": 1,
+  "split": "val",
+  "stages": [
+    "external_poseidon_scot_scalar_adapter_finetune"
+  ],
+  "status": "validation_finetune_measurement_complete",
+  "train_split": "train"
+}

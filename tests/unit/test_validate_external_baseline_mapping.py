@@ -123,3 +123,19 @@ def test_external_baseline_mapping_rejects_poseidon_validation_test_budget_use()
 
     assert "foundation_transfer_validation_measurement.split must not be test" in errors
     assert "foundation_transfer_validation_measurement.held_out_test_used must be false" in errors
+
+
+def test_external_baseline_mapping_rejects_poseidon_finetune_test_budget_use():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    mutated["foundation_transfer_finetune_validation_measurement"]["split"] = "test"
+    mutated["foundation_transfer_finetune_validation_measurement"]["held_out_test_used"] = True
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert "foundation_transfer_finetune_validation_measurement.split must not be test" in errors
+    assert (
+        "foundation_transfer_finetune_validation_measurement.held_out_test_used must be false"
+        in errors
+    )
