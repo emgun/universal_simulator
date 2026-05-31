@@ -208,6 +208,52 @@ python scripts/validate_external_baseline_mapping.py
 
 Expected: baseline mapping validation passes.
 
+## Active Implementation Plan: UPS Advection Context-Delay Validation Gate
+
+### Task 1: Revalidate the current UPS advection context path
+
+**Files:**
+
+- Create: `docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json`
+- Create: `docs/claim_evidence/artifacts/ups_advection_context_delay_val_gate.tar.gz`
+- Modify: `docs/claim_evidence/universal_sota_roadmap.md`
+
+- [x] **Step 1: Reproduce the current claim-style validation baseline**
+
+```bash
+python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_current_val --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={"task_id":3,"equation_signature":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 8, coefficients: {slope: 0.9974352988185539, intercept: 0.0}, families: [transport, conservation], mode: roll_persistence, calibration_scope: shared_1d_transport}'
+```
+
+Expected: validation-only output matching current claim validation `decoded_rollout_nrmse = 0.2723239543019452`; no `--extra-eval-split test` and no held-out ledger use.
+
+- [x] **Step 2: Run transport-only context-delay ablations**
+
+Run `context_transitions = 1`, `2`, `4`, and `8`, with `families: [transport]`, `mode: roll_persistence`, `decoded_persistence_residual_alpha = 0.0`, and the same checkpoint, task bundle, sample cap, split, and rollout horizon.
+
+Expected: select only on validation and compare against the reproduced current validation baseline.
+
+- [x] **Step 3: Package validation evidence**
+
+```bash
+tar -czf docs/claim_evidence/artifacts/ups_advection_context_delay_val_gate.tar.gz -C reports/research/sota_loop/advection_robustness_gate ups_light_advection_context_current_val/summary.json ups_light_advection_context_transport_only_ct1_val/summary.json ups_light_advection_context_transport_only_ct2_val/summary.json ups_light_advection_context_transport_only_ct4_val/summary.json ups_light_advection_context_transport_only_ct8_val/summary.json
+```
+
+Expected: record artifact SHA256 in `docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json`.
+
+### Task 2: Decide whether the validation candidate can spend held-out budget
+
+- [ ] **Step 1: Protocol review**
+
+Decide whether `context_transitions = 1`, `min_horizon = 2`, and `families: [transport]` are an admissible light-v1 claim variant. This setting uses less context to estimate the shift than the current CT8 claim config, but it applies the roll-persistence correction earlier in the teacher-forced decoded evaluator.
+
+- [ ] **Step 2: Wire audit/evidence support before test**
+
+If the protocol review accepts CT1, add or update the claim evidence/audit surface so the selected validation config, summary, artifact SHA256, and intended held-out ledger key are explicit before the held-out command is run.
+
+- [ ] **Step 3: Run exactly one ledger-protected held-out confirmation**
+
+Run a held-out test only after Steps 1 and 2. The command must include the explicit held-out ledger guard and must not be repeated under the same key.
+
 ## Append-Only Worklog
 
 ### 2026-05-31
@@ -226,6 +272,14 @@ Status:
 - Current best measured external held-out test baseline is NeuralOperator UNO at `0.5560551396226746`.
 - Poseidon zero-shot validation is `0.9999999950370435`, which is not competitive and proves that direct scalar transfer is not enough.
 - Poseidon scalar-layer finetune validation is `0.5453508470039229`; per-task validation NRMSE is advection `0.6030753349043854`, Burgers `0.49033314173084885`, Darcy `0.47892385326272763`.
+- Set the next roadmap goal to Gate 4, UPS-side advection robustness, because the scalar Poseidon path was stopped and current UPS held-out advection is the weakest task.
+- Reproduced the current validation baseline under the live harness without touching held-out test: `ups_light_advection_context_current_val decoded_rollout_nrmse = 0.2723239543019452`, advection `0.36362945500857824`, Burgers `0.14737692709626082`, Darcy `0.188979512124482`.
+- Ran validation-only transport context-delay ablations using the same checkpoint, split, sample cap, task bundle, rollout horizon, and metric:
+- CT1 transport-only: overall `0.1419775490176828`, advection `0.12911778915203231`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- CT2 transport-only: overall `0.16694739388393856`, advection `0.18214615629606878`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- CT4 transport-only: overall `0.20808368063656887`, advection `0.2572710005249541`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- CT8 transport-only: overall `0.27230919020248034`, advection `0.36360402666634595`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Packaged validation evidence at `docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json` and artifact SHA256 `f7a84898b282a7f560949f065323af640788b3cca2d0bd623d1c3efeb03eb3fb`.
 
 Decision:
 
@@ -235,8 +289,10 @@ Decision:
 - The tiny smoke result, validation `decoded_rollout_nrmse = 0.9988580194089105`, is only a runner check. It does not count as claim evidence because it used one advection sample, one rollout step, and one epoch.
 - The full scalar-layer finetune result improves over zero-shot but is above the `0.5` stop threshold and above the `0.363424243629033` held-out consideration threshold.
 - Decision: stop scalar-only Poseidon transfer and do not spend held-out Poseidon test budget from this path.
+- The UPS advection context-delay validation gate cleared strongly: CT1 improves validation overall by `0.13034640528426242` absolute and `0.47864465547433244` relative versus the reproduced current validation baseline.
+- This is not yet a replacement held-out claim, because CT1 changes the current claim evaluation config from `context_transitions = 8`, `families: [transport, conservation]`, `slope = 0.9974352988185539` to `context_transitions = 1`, `families: [transport]`, `slope = 1.0`.
 
 Next checkpoint:
 
-- Finish repository checks for the committed evidence.
-- Next technical path: either controlled Poseidon unfreeze/LoRA on train/validation only, or pivot to UPS-side advection robustness because advection is still the weakest claim task.
+- Run repository checks for the new evidence and roadmap files.
+- Next technical path: protocol-review the CT1 context-delay variant, then either wire it into the claim audit and run one ledger-protected held-out confirmation, or reject it as protocol-shift evidence and open a model-side advection objective instead.
