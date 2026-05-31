@@ -218,7 +218,9 @@ def train_poseidon_scot_adapter(
         rollout_steps=rollout_steps,
         image_size=image_size,
     )
-    trainable_parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    trainable_parameters = [
+        parameter for parameter in model.parameters() if parameter.requires_grad
+    ]
     if not trainable_parameters:
         raise ValueError("No trainable Poseidon parameters configured")
 
@@ -479,7 +481,10 @@ def validate_poseidon_finetune_summary(summary: Mapping[str, Any]) -> list[str]:
     if not isinstance(checkpoint, Mapping) or not checkpoint.get("sha256"):
         errors.append("details.pretrained_checkpoint.sha256 is required")
     trainable = summary.get("details", {}).get("trainable_parameters")
-    if not isinstance(trainable, Mapping) or int(trainable.get("trainable_parameter_count", 0)) <= 0:
+    if (
+        not isinstance(trainable, Mapping)
+        or int(trainable.get("trainable_parameter_count", 0)) <= 0
+    ):
         errors.append("details.trainable_parameters.trainable_parameter_count must be positive")
     if summary.get("details", {}).get("adapter_mode") != SCALAR_ADAPTER_MODE:
         errors.append(f"details.adapter_mode must be {SCALAR_ADAPTER_MODE}")

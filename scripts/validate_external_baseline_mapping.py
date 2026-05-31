@@ -415,8 +415,7 @@ def _validate_foundation_transfer_finetune_validation_measurement(
         key = f"task_{task}_decoded_rollout_nrmse"
         if key not in metrics:
             errors.append(
-                f"foundation_transfer_finetune_validation_measurement.metrics.{key} "
-                "is required"
+                f"foundation_transfer_finetune_validation_measurement.metrics.{key} " "is required"
             )
 
     training = _as_mapping(
