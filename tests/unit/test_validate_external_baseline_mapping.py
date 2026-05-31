@@ -99,3 +99,14 @@ def test_external_baseline_mapping_rejects_foundation_transfer_test_budget_use()
     errors = validate_mapping(mutated, claim_evidence)
 
     assert "foundation_transfer_contract.held_out_test_used must be false" in errors
+
+
+def test_external_baseline_mapping_rejects_poseidon_adapter_model_metric_overclaim():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    mutated["foundation_transfer_adapter_gate"]["metrics"]["decoded_rollout_nrmse"] = 0.1
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert "foundation_transfer_adapter_gate must not report decoded_rollout_nrmse" in errors

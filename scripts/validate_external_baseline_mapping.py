@@ -28,6 +28,10 @@ ALLOWED_FOUNDATION_TRANSFER_STATUSES = {
     "contract_defined_measurement_pending",
 }
 
+ALLOWED_FOUNDATION_ADAPTER_STATUSES = {
+    "validation_adapter_manifest_complete",
+}
+
 REQUIRED_PROTOCOL_KEYS = {
     "data_root",
     "split",
@@ -186,6 +190,82 @@ def _validate_foundation_transfer_contract(
         )
     if not contract.get("next_validation_gate"):
         errors.append("foundation_transfer_contract.next_validation_gate is required")
+
+
+def _validate_foundation_transfer_adapter_gate(
+    gate: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    if gate.get("status") not in ALLOWED_FOUNDATION_ADAPTER_STATUSES:
+        errors.append(
+            "foundation_transfer_adapter_gate.status must be one of "
+            f"{sorted(ALLOWED_FOUNDATION_ADAPTER_STATUSES)}"
+        )
+    if gate.get("measurement_type") != "poseidon_validation_adapter_manifest":
+        errors.append(
+            "foundation_transfer_adapter_gate.measurement_type must be "
+            "poseidon_validation_adapter_manifest"
+        )
+    if gate.get("held_out_test_used") is not False:
+        errors.append("foundation_transfer_adapter_gate.held_out_test_used must be false")
+    if gate.get("held_out_test_data_read") is not False:
+        errors.append("foundation_transfer_adapter_gate.held_out_test_data_read must be false")
+    if gate.get("claim_comparable") is not False:
+        errors.append("foundation_transfer_adapter_gate.claim_comparable must be false")
+    if gate.get("published_numbers_directly_comparable") is not False:
+        errors.append(
+            "foundation_transfer_adapter_gate.published_numbers_directly_comparable "
+            "must be false"
+        )
+    for key in ("run_name", "summary_json", "evidence_json", "artifact_handle", "artifact_sha256"):
+        if not gate.get(key):
+            errors.append(f"foundation_transfer_adapter_gate.{key} is required")
+
+    inspected_splits = _as_list(
+        gate.get("inspected_splits"),
+        "foundation_transfer_adapter_gate.inspected_splits",
+        errors,
+    )
+    if "test" in inspected_splits:
+        errors.append("foundation_transfer_adapter_gate.inspected_splits must not include test")
+    if not inspected_splits:
+        errors.append("foundation_transfer_adapter_gate.inspected_splits is required")
+
+    metrics = _as_mapping(
+        gate.get("metrics"),
+        "foundation_transfer_adapter_gate.metrics",
+        errors,
+    )
+    if "adapter_roundtrip_nrmse" not in metrics:
+        errors.append(
+            "foundation_transfer_adapter_gate.metrics.adapter_roundtrip_nrmse is required"
+        )
+    if "decoded_rollout_nrmse" in metrics:
+        errors.append("foundation_transfer_adapter_gate must not report decoded_rollout_nrmse")
+
+    source_commits = _as_mapping(
+        gate.get("source_commits"),
+        "foundation_transfer_adapter_gate.source_commits",
+        errors,
+    )
+    if not source_commits.get("poseidon_official_repo"):
+        errors.append(
+            "foundation_transfer_adapter_gate.source_commits.poseidon_official_repo " "is required"
+        )
+    checkpoint = _as_mapping(
+        gate.get("pretrained_checkpoint"),
+        "foundation_transfer_adapter_gate.pretrained_checkpoint",
+        errors,
+    )
+    if not checkpoint.get("handle"):
+        errors.append("foundation_transfer_adapter_gate.pretrained_checkpoint.handle is required")
+    if checkpoint.get("requires_hash_before_model_metric") is not True:
+        errors.append(
+            "foundation_transfer_adapter_gate.pretrained_checkpoint must require hash "
+            "before model metric"
+        )
+    if not gate.get("next_validation_gate"):
+        errors.append("foundation_transfer_adapter_gate.next_validation_gate is required")
 
 
 def validate_mapping(
@@ -453,6 +533,13 @@ def validate_mapping(
         errors,
     )
     _validate_foundation_transfer_contract(foundation_transfer_contract, errors)
+
+    foundation_transfer_adapter_gate = _as_mapping(
+        mapping.get("foundation_transfer_adapter_gate"),
+        "foundation_transfer_adapter_gate",
+        errors,
+    )
+    _validate_foundation_transfer_adapter_gate(foundation_transfer_adapter_gate, errors)
 
     decision = _as_mapping(mapping.get("comparability_decision"), "comparability_decision", errors)
     if decision.get("published_numbers_directly_comparable") is not False:

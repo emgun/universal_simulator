@@ -621,13 +621,13 @@
     },
     {
       "candidate_id": "poseidon_foundation_model_transfer",
-      "status": "foundation_transfer_contract_defined_measurement_pending",
+      "status": "foundation_transfer_adapter_manifest_complete_measurement_pending",
       "model_family": "PDE foundation model",
       "source_refs": [
         "poseidon_arxiv",
         "poseidon_official_repo"
       ],
-      "why_not_primary": "Poseidon is important for the north star, but using pretrained foundation weights changes the claim from fair light-v1 baseline comparison to transfer/foundation-model evaluation. The readiness contract is now defined, but the validation-only transfer adapter has not been measured.",
+      "why_not_primary": "Poseidon is important for the north star, but using pretrained foundation weights changes the claim from fair light-v1 baseline comparison to transfer/foundation-model evaluation. The readiness contract and validation-only adapter manifest are now defined, but no official pretrained ScOT checkpoint has produced decoded_rollout_nrmse yet.",
       "readiness_contract": {
         "run_name": "foundation_transfer_readiness_light_v1",
         "measurement_type": "foundation_transfer_readiness_contract",
@@ -641,7 +641,8 @@
           "poseidon_shape_adapter_required",
           "cno_fm_channel_adapter_required"
         ],
-        "required_next_step": "Implement a validation-only Poseidon ScOT adapter with pretrained checkpoint provenance and train/val-only dataset adapter evidence before any held-out transfer measurement."
+        "required_next_step": "Load a hashed Poseidon ScOT checkpoint through the adapter manifest and record validation decoded_rollout_nrmse before any held-out transfer measurement.",
+        "adapter_manifest": "docs/claim_evidence/poseidon_transfer_adapter_manifest_light_v1.json"
       }
     },
     {
@@ -682,7 +683,7 @@
       "fno_arxiv",
       "neuraloperator_official_repo"
     ],
-    "required_next_step": "Implement the validation-only Poseidon ScOT adapter described by foundation_transfer_contract before broadening beyond measured FNO, UNO, PDEBench U-Net, and CNO1d baselines.",
+    "required_next_step": "Load a hashed Poseidon ScOT checkpoint through foundation_transfer_adapter_gate and record validation decoded_rollout_nrmse before broadening beyond measured FNO, UNO, PDEBench U-Net, and CNO1d baselines.",
     "claimable_after_completion": "UPS beats measured external FNO, UNO, PDEBench U-Net, and official simplified CNO1d reproductions on the same light-v1 claim protocol.",
     "not_claimable_yet": "UPS beats published FNO/UNO/PDEBench/Poseidon/CNO paper numbers, because published protocols, pretrained checkpoints, square-grid CNO2d setups, measured foundation-transfer protocols, and table values remain unmapped to the light-v1 claim protocol."
   },
@@ -733,10 +734,43 @@
     ],
     "next_validation_gate": "validation-only Poseidon ScOT adapter with pretrained checkpoint provenance, train/val-only dataset adapter manifest, decoded_rollout_nrmse on validation, and no held-out ledger write"
   },
+  "foundation_transfer_adapter_gate": {
+    "status": "validation_adapter_manifest_complete",
+    "run_name": "poseidon_transfer_adapter_manifest_light_v1",
+    "measurement_type": "poseidon_validation_adapter_manifest",
+    "summary_json": "reports/research/sota_loop/external_baselines/poseidon_transfer_adapter_manifest_light_v1/summary.json",
+    "evidence_json": "docs/claim_evidence/poseidon_transfer_adapter_manifest_light_v1.json",
+    "artifact_handle": "repo:docs/claim_evidence/artifacts/poseidon_transfer_adapter_manifest_light_v1.tar.gz",
+    "artifact_sha256": "7a1a7d3e691504dec51143e194b589c6b996436d9e03700888889c1092cee304",
+    "held_out_test_used": false,
+    "held_out_test_data_read": false,
+    "claim_comparable": false,
+    "published_numbers_directly_comparable": false,
+    "inspected_splits": [
+      "train",
+      "val"
+    ],
+    "metrics": {
+      "adapter_roundtrip_nrmse": 0.0023447850529950184,
+      "adapter_roundtrip_darcy2d_val_nrmse": 0.03928458555240412,
+      "adapter_roundtrip_advection1d_val_nrmse": 0.0021984877213458475,
+      "adapter_roundtrip_burgers1d_val_nrmse": 0.0012099046974104258
+    },
+    "source_commits": {
+      "poseidon_official_repo": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61"
+    },
+    "pretrained_checkpoint": {
+      "handle": "camlab-ethz/Poseidon-T",
+      "sha256_status": "pending",
+      "requires_hash_before_model_metric": true
+    },
+    "adapter_scope": "Bilinear light-v1 repo field step to square Poseidon pixel_values and back to repo flattened metric shape; this measures adapter distortion, not Poseidon model accuracy.",
+    "next_validation_gate": "load ScOT.from_pretrained with checkpoint hash, run validation decoded_rollout_nrmse through this adapter, and only then decide whether to spend held-out transfer test budget"
+  },
   "comparability_decision": {
     "published_numbers_directly_comparable": false,
     "current_claim_status": "external_fno_uno_pdebench_unet_and_cno1d_reproductions_measured_on_light_v1",
     "external_claim_status": "external_reproduction_measured",
-    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline, measured NeuralOperator FNO and UNO external reproductions, a measured PDEBench U-Net architecture reproduction, and a measured official simplified CNO1d reproduction on the light-v1 claim protocol. The foundation-transfer readiness contract is defined without held-out test use, but it is not a measured Poseidon or CNO-FM transfer result. The claim still does not prove superiority over published FNO/UNO/PDEBench/CNO paper table values, pretrained PDEBench checkpoints, CNO2d square-grid settings, Poseidon, PDEformer, CFO, or RealPDEBench results."
+    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline, measured NeuralOperator FNO and UNO external reproductions, a measured PDEBench U-Net architecture reproduction, and a measured official simplified CNO1d reproduction on the light-v1 claim protocol. The foundation-transfer readiness contract and Poseidon adapter manifest are defined without held-out test use, but they are not a measured Poseidon or CNO-FM model result. The claim still does not prove superiority over published FNO/UNO/PDEBench/CNO paper table values, pretrained PDEBench checkpoints, CNO2d square-grid settings, Poseidon, PDEformer, CFO, or RealPDEBench results."
   }
 }
