@@ -1,0 +1,133 @@
+{
+  "measurement_type": "ups_advection_context_delay_validation_gate",
+  "date": "2026-05-31",
+  "repo_commit": "8b5799dc69293a9a1b9db8d645e678078d6e10a3",
+  "claim_protocol": "light-v1 validation-only decoded rollout NRMSE",
+  "held_out_test_used": false,
+  "test_split_accessed": false,
+  "data_root": "data/pdebench",
+  "split": "val",
+  "max_samples": 32,
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "decoded_rollout_steps": 16,
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "artifact": {
+    "path": "docs/claim_evidence/artifacts/ups_advection_context_delay_val_gate.tar.gz",
+    "sha256": "f7a84898b282a7f560949f065323af640788b3cca2d0bd623d1c3efeb03eb3fb",
+    "contents": [
+      "ups_light_advection_context_current_val/summary.json",
+      "ups_light_advection_context_transport_only_ct1_val/summary.json",
+      "ups_light_advection_context_transport_only_ct2_val/summary.json",
+      "ups_light_advection_context_transport_only_ct4_val/summary.json",
+      "ups_light_advection_context_transport_only_ct8_val/summary.json"
+    ]
+  },
+  "selection_rule": {
+    "primary_metric": "decoded_rollout_nrmse",
+    "direction": "lower_is_better",
+    "baseline_run": "ups_light_advection_context_current_val",
+    "minimum_useful_relative_improvement": 0.01,
+    "held_out_test_requires_separate_protocol_review": true,
+    "reason": "The best validation candidate changes decoded_context_roll_shift_estimator.context_transitions from the current claim value 8 to 1, so it is strong validation evidence but not automatically a held-out replacement claim."
+  },
+  "runs": [
+    {
+      "name": "ups_light_advection_context_current_val",
+      "summary_json": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_current_val/summary.json",
+      "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_current_val --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 8, coefficients: {slope: 0.9974352988185539, intercept: 0.0}, families: [transport, conservation], mode: roll_persistence, calibration_scope: shared_1d_transport}'",
+      "context_transitions": 8,
+      "min_horizon": 9,
+      "families": [
+        "transport",
+        "conservation"
+      ],
+      "slope": 0.9974352988185539,
+      "decoded_rollout_nrmse": 0.2723239543019452,
+      "task_advection1d_decoded_rollout_nrmse": 0.36362945500857824,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14737692709626082,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+    },
+    {
+      "name": "ups_light_advection_context_transport_only_ct1_val",
+      "summary_json": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_transport_only_ct1_val/summary.json",
+      "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_transport_only_ct1_val --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 1, coefficients: {slope: 1.0, intercept: 0.0}, families: [transport], mode: roll_persistence, calibration_scope: transport_only_ct1}'",
+      "context_transitions": 1,
+      "min_horizon": 2,
+      "families": [
+        "transport"
+      ],
+      "slope": 1.0,
+      "decoded_rollout_nrmse": 0.1419775490176828,
+      "task_advection1d_decoded_rollout_nrmse": 0.12911778915203231,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
+      "relative_improvement_vs_current": 0.47864465547433244
+    },
+    {
+      "name": "ups_light_advection_context_transport_only_ct2_val",
+      "summary_json": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_transport_only_ct2_val/summary.json",
+      "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_transport_only_ct2_val --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 2, coefficients: {slope: 1.0, intercept: 0.0}, families: [transport], mode: roll_persistence, calibration_scope: transport_only_ct2}'",
+      "context_transitions": 2,
+      "min_horizon": 3,
+      "families": [
+        "transport"
+      ],
+      "slope": 1.0,
+      "decoded_rollout_nrmse": 0.16694739388393856,
+      "task_advection1d_decoded_rollout_nrmse": 0.18214615629606878,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
+      "relative_improvement_vs_current": 0.3869529608150742
+    },
+    {
+      "name": "ups_light_advection_context_transport_only_ct4_val",
+      "summary_json": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_transport_only_ct4_val/summary.json",
+      "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_transport_only_ct4_val --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 4, coefficients: {slope: 1.0, intercept: 0.0}, families: [transport], mode: roll_persistence, calibration_scope: transport_only_ct4}'",
+      "context_transitions": 4,
+      "min_horizon": 5,
+      "families": [
+        "transport"
+      ],
+      "slope": 1.0,
+      "decoded_rollout_nrmse": 0.20808368063656887,
+      "task_advection1d_decoded_rollout_nrmse": 0.2572710005249541,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
+      "relative_improvement_vs_current": 0.23589652195689154
+    },
+    {
+      "name": "ups_light_advection_context_transport_only_ct8_val",
+      "summary_json": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_transport_only_ct8_val/summary.json",
+      "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_transport_only_ct8_val --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 8, coefficients: {slope: 1.0, intercept: 0.0}, families: [transport], mode: roll_persistence, calibration_scope: transport_only}'",
+      "context_transitions": 8,
+      "min_horizon": 9,
+      "families": [
+        "transport"
+      ],
+      "slope": 1.0,
+      "decoded_rollout_nrmse": 0.27230919020248034,
+      "task_advection1d_decoded_rollout_nrmse": 0.36360402666634595,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
+      "relative_improvement_vs_current": 0.00005421520667444186
+    }
+  ],
+  "best_validation_candidate": {
+    "name": "ups_light_advection_context_transport_only_ct1_val",
+    "decoded_rollout_nrmse": 0.1419775490176828,
+    "task_advection1d_decoded_rollout_nrmse": 0.12911778915203231,
+    "relative_improvement_vs_current": 0.47864465547433244,
+    "absolute_improvement_vs_current": 0.1303464052842624
+  },
+  "decision": {
+    "status": "validation_gate_cleared_for_protocol_review",
+    "summary": "Reducing the transport-only context delay from 8 observed transitions to 1 produced a monotonic validation improvement across CT1, CT2, CT4, and CT8. This directly attacks the current claim's weakest task, advection.",
+    "held_out_test_next_step": "Do not run held-out test until the context-delay contract is explicitly accepted as a valid claim-protocol variant and wired into the evidence/audit path.",
+    "tradeoff": "CT1 uses less context to estimate the transport shift than CT8, but it also applies the roll-persistence correction earlier in the teacher-forced decoded evaluator. That is a protocol change, not a pure model-capacity improvement."
+  }
+}
