@@ -88,3 +88,14 @@ def test_external_baseline_mapping_rejects_secondary_measured_without_test_evide
     assert (
         "neuraloperator_uno_light_v1.test_measurements is required for measured candidate" in errors
     )
+
+
+def test_external_baseline_mapping_rejects_foundation_transfer_test_budget_use():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    mutated["foundation_transfer_contract"]["held_out_test_used"] = True
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert "foundation_transfer_contract.held_out_test_used must be false" in errors
