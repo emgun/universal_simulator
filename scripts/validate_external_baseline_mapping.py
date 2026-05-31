@@ -24,6 +24,10 @@ ALLOWED_IMPLEMENTATION_STATUSES = {
     "external_adapter_measured_complete",
 }
 
+ALLOWED_FOUNDATION_TRANSFER_STATUSES = {
+    "contract_defined_measurement_pending",
+}
+
 REQUIRED_PROTOCOL_KEYS = {
     "data_root",
     "split",
@@ -119,6 +123,69 @@ def _validate_test_measurements(
         for key in ("measurement_key", "evidence_json", "artifact_handle"):
             if not measurement.get(key):
                 errors.append(f"{label}[{index}].{key} is required")
+
+
+def _validate_foundation_transfer_contract(
+    contract: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    if contract.get("status") not in ALLOWED_FOUNDATION_TRANSFER_STATUSES:
+        errors.append(
+            "foundation_transfer_contract.status must be one of "
+            f"{sorted(ALLOWED_FOUNDATION_TRANSFER_STATUSES)}"
+        )
+    if contract.get("measurement_type") != "foundation_transfer_readiness_contract":
+        errors.append(
+            "foundation_transfer_contract.measurement_type must be "
+            "foundation_transfer_readiness_contract"
+        )
+    if contract.get("held_out_test_used") is not False:
+        errors.append("foundation_transfer_contract.held_out_test_used must be false")
+    if contract.get("held_out_test_data_read") is not False:
+        errors.append("foundation_transfer_contract.held_out_test_data_read must be false")
+    if contract.get("claim_comparable") is not False:
+        errors.append("foundation_transfer_contract.claim_comparable must be false")
+    if contract.get("published_numbers_directly_comparable") is not False:
+        errors.append(
+            "foundation_transfer_contract.published_numbers_directly_comparable must be false"
+        )
+    for key in ("run_name", "evidence_json", "artifact_handle", "artifact_sha256"):
+        if not contract.get(key):
+            errors.append(f"foundation_transfer_contract.{key} is required")
+
+    inspected_splits = _as_list(
+        contract.get("inspected_splits"),
+        "foundation_transfer_contract.inspected_splits",
+        errors,
+    )
+    if "test" in inspected_splits:
+        errors.append("foundation_transfer_contract.inspected_splits must not include test")
+    if not inspected_splits:
+        errors.append("foundation_transfer_contract.inspected_splits is required")
+
+    source_commits = _as_mapping(
+        contract.get("source_commits"),
+        "foundation_transfer_contract.source_commits",
+        errors,
+    )
+    for key in ("poseidon_official_repo", "cno_official_repo"):
+        if not source_commits.get(key):
+            errors.append(f"foundation_transfer_contract.source_commits.{key} is required")
+
+    blockers = _as_list(
+        contract.get("measurement_blockers"),
+        "foundation_transfer_contract.measurement_blockers",
+        errors,
+    )
+    if not blockers:
+        errors.append("foundation_transfer_contract.measurement_blockers is required")
+    if "foundation_measurement_ready" in blockers:
+        errors.append(
+            "foundation_transfer_contract.measurement_blockers must not include "
+            "foundation_measurement_ready"
+        )
+    if not contract.get("next_validation_gate"):
+        errors.append("foundation_transfer_contract.next_validation_gate is required")
 
 
 def validate_mapping(
@@ -379,6 +446,13 @@ def validate_mapping(
     for required in ("summary_json", "artifact_sha256", "held_out_ledger_reference"):
         if required not in required_artifacts:
             errors.append(f"reproduction_contract.required_output_artifacts missing {required}")
+
+    foundation_transfer_contract = _as_mapping(
+        mapping.get("foundation_transfer_contract"),
+        "foundation_transfer_contract",
+        errors,
+    )
+    _validate_foundation_transfer_contract(foundation_transfer_contract, errors)
 
     decision = _as_mapping(mapping.get("comparability_decision"), "comparability_decision", errors)
     if decision.get("published_numbers_directly_comparable") is not False:

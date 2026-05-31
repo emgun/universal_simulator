@@ -76,6 +76,23 @@ baseline. This adds a distinct official neural-operator family, but the scope is
 the current height-1 light-v1 adapter, not a published CNO representative-PDE
 benchmark table, CNO2d square-grid run, or Poseidon foundation-model transfer.
 
+## Foundation-Transfer Contract
+
+`foundation_transfer_readiness_light_v1` records the next transfer gate without
+spending held-out test budget. It inspected only train/validation metadata for
+the light-v1 tasks plus official source snapshots: Poseidon commit
+`b8fa28f59bd7f7673323f28d11a12c6f3a215c61` and ConvolutionalNeuralOperator
+commit `6e765198aa02b56352e0a3437104b9d9e337176e`.
+
+The contract is intentionally not a claim-comparable measurement. It records
+three blockers before any Poseidon/CNO-FM result can be compared: light-v1 has no
+direct official Poseidon dataset identifiers, the repo-inferred light-v1 grids
+are height-1 rather than uniformly square image tensors, and CNO-FM declares a
+5-channel foundation input/4-channel output while the current light-v1 protocol
+is scalar. The next best path is a validation-only Poseidon ScOT adapter with
+pretrained checkpoint provenance and train/val-only dataset adapter evidence;
+CNO-FM should remain a separate 2D/channel-rich transfer track.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
@@ -84,6 +101,6 @@ UNO reproductions, a measured PDEBench U-Net architecture reproduction, and a
 measured official simplified CNO1d reproduction are stronger evidence because
 they use external architectures under the claim protocol. The remaining gap is
 publication and transfer comparability: published table values, CNO2d
-square-grid settings, pretrained checkpoints, and foundation-model transfer
-protocols remain unmapped, so broader public-baseline claims still need a
-separate contract.
+square-grid settings, pretrained checkpoints, and measured foundation-model
+transfer protocols remain unmapped, so broader public-baseline claims still need
+the next validation-only transfer measurement.

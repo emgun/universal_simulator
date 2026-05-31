@@ -1,0 +1,336 @@
+{
+  "claim_comparable": false,
+  "claim_protocol_snapshot": {
+    "claim_split": "test",
+    "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+    "data_root": "data/pdebench",
+    "inspected_splits": [
+      "train",
+      "val"
+    ],
+    "max_eval_samples": 32,
+    "metric_name": "decoded_rollout_nrmse",
+    "rollout_steps": 16,
+    "task_set": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ]
+  },
+  "generated_unix": 1780254568,
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "inspected_splits": [
+    "train",
+    "val"
+  ],
+  "local_protocol_observations": {
+    "tasks": [
+      {
+        "family": "transport",
+        "poseidon_direct_dataset_identifier": null,
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "repo_inferred_step_count": 201,
+        "sample_count_inspected": 1,
+        "split": "train",
+        "task": "advection1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "linear"
+        ]
+      },
+      {
+        "family": "transport",
+        "poseidon_direct_dataset_identifier": null,
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "repo_inferred_step_count": 201,
+        "sample_count_inspected": 1,
+        "split": "val",
+        "task": "advection1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "linear"
+        ]
+      },
+      {
+        "family": "conservation",
+        "poseidon_direct_dataset_identifier": null,
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "repo_inferred_step_count": 201,
+        "sample_count_inspected": 1,
+        "split": "train",
+        "task": "burgers1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "nonlinear",
+          "dissipative"
+        ]
+      },
+      {
+        "family": "conservation",
+        "poseidon_direct_dataset_identifier": null,
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "repo_inferred_step_count": 201,
+        "sample_count_inspected": 1,
+        "split": "val",
+        "task": "burgers1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "nonlinear",
+          "dissipative"
+        ]
+      },
+      {
+        "family": "elliptic",
+        "poseidon_direct_dataset_identifier": null,
+        "raw_sample_shape": [
+          128,
+          128,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          128
+        ],
+        "repo_inferred_step_count": 128,
+        "sample_count_inspected": 1,
+        "split": "train",
+        "task": "darcy2d",
+        "traits": [
+          "scalar",
+          "steady_state",
+          "elliptic",
+          "heterogeneous_medium"
+        ]
+      },
+      {
+        "family": "elliptic",
+        "poseidon_direct_dataset_identifier": null,
+        "raw_sample_shape": [
+          128,
+          128,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          128
+        ],
+        "repo_inferred_step_count": 128,
+        "sample_count_inspected": 1,
+        "split": "val",
+        "task": "darcy2d",
+        "traits": [
+          "scalar",
+          "steady_state",
+          "elliptic",
+          "heterogeneous_medium"
+        ]
+      }
+    ]
+  },
+  "measurement_blockers": [
+    "poseidon_dataset_adapter_required",
+    "poseidon_shape_adapter_required",
+    "cno_fm_channel_adapter_required"
+  ],
+  "measurement_type": "foundation_transfer_readiness_contract",
+  "next_validation_gate": {
+    "minimum_outputs": [
+      "adapter source and commit",
+      "pretrained checkpoint handle and hash",
+      "train/val-only dataset adapter manifest",
+      "decoded_rollout_nrmse on validation",
+      "no held-out test ledger write"
+    ],
+    "requires_no_held_out_test_before_validation": true,
+    "requires_pretrained_weight_provenance": true,
+    "requires_train_only_adapter_selection": true,
+    "split": "val"
+  },
+  "not_claimable_yet": [
+    "UPS beats Poseidon published paper/table values.",
+    "UPS beats CNO-FM published or Zenodo checkpoint results.",
+    "The current light-v1 scalar/height-1 protocol is directly comparable to Poseidon or CNO-FM without dataset and shape/channel adapters."
+  ],
+  "published_numbers_directly_comparable": false,
+  "readiness_checks": [
+    {
+      "detail": "Only train/val metadata is inspected; no held-out test split is opened or evaluated.",
+      "inspected_splits": [
+        "train",
+        "val"
+      ],
+      "key": "held_out_budget_preserved",
+      "status": "pass"
+    },
+    {
+      "commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+      "detail": "Official Poseidon source checkout is available.",
+      "key": "poseidon_source_available",
+      "status": "pass"
+    },
+    {
+      "detail": "Poseidon declares ScOT.from_pretrained and Hugging Face pretrained model loading.",
+      "key": "poseidon_pretrained_entrypoint_declared",
+      "model_import": "scOT.model.ScOT",
+      "model_template": "camlab-ethz/Poseidon-{T,B,L}",
+      "status": "pass"
+    },
+    {
+      "detail": "At least one light-v1 task lacks a direct official Poseidon dataset identifier.",
+      "key": "poseidon_dataset_adapter_required",
+      "status": "blocker"
+    },
+    {
+      "detail": "Current repo-inferred light-v1 grids are not uniformly square image tensors.",
+      "key": "poseidon_shape_adapter_required",
+      "status": "blocker"
+    },
+    {
+      "commit": "6e765198aa02b56352e0a3437104b9d9e337176e",
+      "detail": "Official CNO-FM source checkout is available.",
+      "key": "cno_fm_source_available",
+      "source_path": "CNO2d_temporal",
+      "status": "pass"
+    },
+    {
+      "detail": "CNO-FM declares a 5-channel foundation input, while light-v1 records are scalar under the current protocol.",
+      "foundation_input_channels": 5,
+      "foundation_output_channels": 4,
+      "key": "cno_fm_channel_adapter_required",
+      "status": "blocker"
+    },
+    {
+      "blockers": [
+        "poseidon_dataset_adapter_required",
+        "poseidon_shape_adapter_required",
+        "cno_fm_channel_adapter_required"
+      ],
+      "detail": "Foundation transfer measurement remains pending until source, dataset, shape, and channel adapters are implemented and validated.",
+      "key": "foundation_measurement_ready",
+      "status": "pending"
+    }
+  ],
+  "recommendation": "Implement a validation-only Poseidon ScOT adapter first, because Poseidon exposes a Hugging Face from_pretrained path and an embedding/recovery replacement mode. Treat CNO-FM as a separate 2D/channel-rich transfer track.",
+  "run_name": "foundation_transfer_readiness_light_v1",
+  "schema_version": 1,
+  "source_snapshots": {
+    "cno_fm": {
+      "available": true,
+      "commit": "6e765198aa02b56352e0a3437104b9d9e337176e",
+      "evidence": {
+        "custom_loader_required": true,
+        "finetune_entrypoint": true,
+        "foundation_weights": true,
+        "input_dim_5_output_dim_4": true
+      },
+      "repo_path": "/tmp/cno-official",
+      "required_files": {
+        "CNO2d_temporal/CNO_FineTune.py": {
+          "bytes": 5433,
+          "exists": true
+        },
+        "CNO2d_temporal/CNO_timeModule_CIN.py": {
+          "bytes": 63852,
+          "exists": true
+        },
+        "CNO2d_temporal/DataLoaders/all_experiments.json": {
+          "bytes": 3465,
+          "exists": true
+        },
+        "CNO2d_temporal/readme.md": {
+          "bytes": 6267,
+          "exists": true
+        }
+      },
+      "source_id": "cno_fm_official_source",
+      "source_url": "https://github.com/camlab-ethz/ConvolutionalNeuralOperator"
+    },
+    "poseidon": {
+      "available": true,
+      "commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+      "evidence": {
+        "finetune_mismatched_sizes": true,
+        "from_pretrained": true,
+        "pretrained_hf_collection": true,
+        "square_image_assumption": true
+      },
+      "repo_path": "/tmp/poseidon-official",
+      "required_files": {
+        "README.md": {
+          "bytes": 7695,
+          "exists": true
+        },
+        "pyproject.toml": {
+          "bytes": 435,
+          "exists": true
+        },
+        "scOT/inference.py": {
+          "bytes": 35070,
+          "exists": true
+        },
+        "scOT/model.py": {
+          "bytes": 57840,
+          "exists": true
+        },
+        "scOT/problems/base.py": {
+          "bytes": 16470,
+          "exists": true
+        },
+        "scOT/train.py": {
+          "bytes": 18847,
+          "exists": true
+        }
+      },
+      "source_id": "poseidon_official_repo",
+      "source_url": "https://github.com/camlab-ethz/poseidon"
+    }
+  },
+  "status": "contract_defined_measurement_pending"
+}
