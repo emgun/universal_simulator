@@ -93,6 +93,17 @@ is scalar. The next best path is a validation-only Poseidon ScOT adapter with
 pretrained checkpoint provenance and train/val-only dataset adapter evidence;
 CNO-FM should remain a separate 2D/channel-rich transfer track.
 
+`poseidon_transfer_adapter_manifest_light_v1` implements that first Poseidon
+adapter gate. It converts repo field steps to Poseidon-style square
+`pixel_values` with bilinear resizing and then round-trips back to the repo
+flattened metric shape. It inspected only `train` and `val`, used Poseidon
+commit `b8fa28f59bd7f7673323f28d11a12c6f3a215c61`, and records
+`adapter_roundtrip_nrmse = 0.0023447850529950184`. This is adapter distortion,
+not `decoded_rollout_nrmse` and not a Poseidon model score. The checkpoint
+handle is `camlab-ethz/Poseidon-T`, but the checkpoint hash remains pending, so
+the next gate is loading `ScOT.from_pretrained` with hashed weights and recording
+validation-only `decoded_rollout_nrmse` before any held-out transfer test spend.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
@@ -103,4 +114,4 @@ they use external architectures under the claim protocol. The remaining gap is
 publication and transfer comparability: published table values, CNO2d
 square-grid settings, pretrained checkpoints, and measured foundation-model
 transfer protocols remain unmapped, so broader public-baseline claims still need
-the next validation-only transfer measurement.
+the next validation-only Poseidon model measurement.

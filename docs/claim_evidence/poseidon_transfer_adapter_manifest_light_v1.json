@@ -1,0 +1,456 @@
+{
+  "claim_comparable": false,
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "details": {
+    "adapter_records": [
+      {
+        "adapter_policy": {
+          "from_poseidon": "bilinear resize back to repo-inferred grid then grid_to_flat",
+          "image_size": 224,
+          "input": "repo field step",
+          "lossy_shape_adapter": true,
+          "to_poseidon": "field_step_to_grid then bilinear resize to square pixel_values"
+        },
+        "family": "transport",
+        "poseidon_pixel_shape": [
+          1,
+          1,
+          224,
+          224
+        ],
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "roundtrip": {
+          "mae": 0.0009947532089427114,
+          "mse": 1.461542751712841e-06,
+          "nrmse": 0.0012089358643646109,
+          "rrmse": 0.0012089358643646109,
+          "spectral_energy_error": 0.0021961869206279516
+        },
+        "sample_count_inspected": 1,
+        "source": {
+          "bytes": 93508109,
+          "exists": true,
+          "path": "data/pdebench/advection1d_train.h5",
+          "sha256": "67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1",
+          "split": "train",
+          "task": "advection1d"
+        },
+        "split": "train",
+        "steps_inspected": 2,
+        "task": "advection1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "linear"
+        ]
+      },
+      {
+        "adapter_policy": {
+          "from_poseidon": "bilinear resize back to repo-inferred grid then grid_to_flat",
+          "image_size": 224,
+          "input": "repo field step",
+          "lossy_shape_adapter": true,
+          "to_poseidon": "field_step_to_grid then bilinear resize to square pixel_values"
+        },
+        "family": "transport",
+        "poseidon_pixel_shape": [
+          1,
+          1,
+          224,
+          224
+        ],
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "roundtrip": {
+          "mae": 0.0010719363344833255,
+          "mse": 4.837590722672758e-06,
+          "nrmse": 0.0021984877213458475,
+          "rrmse": 0.0021984877213458475,
+          "spectral_energy_error": 0.002203325740993023
+        },
+        "sample_count_inspected": 1,
+        "source": {
+          "bytes": 24158705,
+          "exists": true,
+          "path": "data/pdebench/advection1d_val.h5",
+          "sha256": "9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329",
+          "split": "val",
+          "task": "advection1d"
+        },
+        "split": "val",
+        "steps_inspected": 2,
+        "task": "advection1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "linear"
+        ]
+      },
+      {
+        "adapter_policy": {
+          "from_poseidon": "bilinear resize back to repo-inferred grid then grid_to_flat",
+          "image_size": 224,
+          "input": "repo field step",
+          "lossy_shape_adapter": true,
+          "to_poseidon": "field_step_to_grid then bilinear resize to square pixel_values"
+        },
+        "family": "conservation",
+        "poseidon_pixel_shape": [
+          1,
+          1,
+          224,
+          224
+        ],
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "roundtrip": {
+          "mae": 0.0013135619810782373,
+          "mse": 2.8943989036633866e-06,
+          "nrmse": 0.0013103728644245623,
+          "rrmse": 0.0013103728644245623,
+          "spectral_energy_error": 0.0021983743645250797
+        },
+        "sample_count_inspected": 1,
+        "source": {
+          "bytes": 94372462,
+          "exists": true,
+          "path": "data/pdebench/burgers1d_train.h5",
+          "sha256": "5d16ddd3b602c8c8f7c2f37d87f8e602f1348c420cea6311da36e5f9af796ad7",
+          "split": "train",
+          "task": "burgers1d"
+        },
+        "split": "train",
+        "steps_inspected": 2,
+        "task": "burgers1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "nonlinear",
+          "dissipative"
+        ]
+      },
+      {
+        "adapter_policy": {
+          "from_poseidon": "bilinear resize back to repo-inferred grid then grid_to_flat",
+          "image_size": 224,
+          "input": "repo field step",
+          "lossy_shape_adapter": true,
+          "to_poseidon": "field_step_to_grid then bilinear resize to square pixel_values"
+        },
+        "family": "conservation",
+        "poseidon_pixel_shape": [
+          1,
+          1,
+          224,
+          224
+        ],
+        "raw_sample_shape": [
+          201,
+          1024,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "roundtrip": {
+          "mae": 0.007915907888673246,
+          "mse": 0.0001454617708986916,
+          "nrmse": 0.0012099046974104258,
+          "rrmse": 0.0012099046974104258,
+          "spectral_energy_error": 0.0021956245182082057
+        },
+        "sample_count_inspected": 1,
+        "source": {
+          "bytes": 3456789,
+          "exists": true,
+          "path": "data/pdebench/burgers1d_val.h5",
+          "sha256": "af8359e85cefb0c7fd04876f9948c98dd43aaa4a391654999ef8157a36469b0c",
+          "split": "val",
+          "task": "burgers1d"
+        },
+        "split": "val",
+        "steps_inspected": 2,
+        "task": "burgers1d",
+        "traits": [
+          "scalar",
+          "time_dependent",
+          "transport",
+          "nonlinear",
+          "dissipative"
+        ]
+      },
+      {
+        "adapter_policy": {
+          "from_poseidon": "bilinear resize back to repo-inferred grid then grid_to_flat",
+          "image_size": 224,
+          "input": "repo field step",
+          "lossy_shape_adapter": true,
+          "to_poseidon": "field_step_to_grid then bilinear resize to square pixel_values"
+        },
+        "family": "elliptic",
+        "poseidon_pixel_shape": [
+          1,
+          1,
+          224,
+          224
+        ],
+        "raw_sample_shape": [
+          128,
+          128,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          128
+        ],
+        "roundtrip": {
+          "mae": 0.007221804698929191,
+          "mse": 0.001889629929792136,
+          "nrmse": 0.03268918081812681,
+          "rrmse": 0.03268918081812681,
+          "spectral_energy_error": 0.007021375000476837
+        },
+        "sample_count_inspected": 1,
+        "source": {
+          "bytes": 167948,
+          "exists": true,
+          "path": "data/pdebench/darcy2d_train.h5",
+          "sha256": "1b4f785bd22e4cb6b63ddea40d29325da31bc93ba3cffef31d40e68074a9ed38",
+          "split": "train",
+          "task": "darcy2d"
+        },
+        "split": "train",
+        "steps_inspected": 2,
+        "task": "darcy2d",
+        "traits": [
+          "scalar",
+          "steady_state",
+          "elliptic",
+          "heterogeneous_medium"
+        ]
+      },
+      {
+        "adapter_policy": {
+          "from_poseidon": "bilinear resize back to repo-inferred grid then grid_to_flat",
+          "image_size": 224,
+          "input": "repo field step",
+          "lossy_shape_adapter": true,
+          "to_poseidon": "field_step_to_grid then bilinear resize to square pixel_values"
+        },
+        "family": "elliptic",
+        "poseidon_pixel_shape": [
+          1,
+          1,
+          224,
+          224
+        ],
+        "raw_sample_shape": [
+          128,
+          128,
+          1
+        ],
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          128
+        ],
+        "roundtrip": {
+          "mae": 0.006261907052248716,
+          "mse": 0.0014206763007678092,
+          "nrmse": 0.03928458555240412,
+          "rrmse": 0.03928458555240412,
+          "spectral_energy_error": 0.011831589508801699
+        },
+        "sample_count_inspected": 1,
+        "source": {
+          "bytes": 45114,
+          "exists": true,
+          "path": "data/pdebench/darcy2d_val.h5",
+          "sha256": "4881d4af84982fd71a7e9955db047f8fdd0841c8df43332c79c105eef4f0cb64",
+          "split": "val",
+          "task": "darcy2d"
+        },
+        "split": "val",
+        "steps_inspected": 2,
+        "task": "darcy2d",
+        "traits": [
+          "scalar",
+          "steady_state",
+          "elliptic",
+          "heterogeneous_medium"
+        ]
+      }
+    ],
+    "contract": {
+      "foundation_contract_json": "docs/claim_evidence/foundation_transfer_readiness_light_v1.json",
+      "next_gate": "load ScOT.from_pretrained with checkpoint hash, run validation decoded_rollout_nrmse, then decide whether to spend held-out test budget",
+      "produces_model_metric": false,
+      "published_numbers_directly_comparable": false,
+      "validation_split_only": true
+    },
+    "poseidon_import": {
+      "available": true,
+      "config_import": "scOT.model.ScOTConfig",
+      "import": "scOT.model.ScOT",
+      "source_url": "https://github.com/camlab-ethz/poseidon"
+    },
+    "poseidon_source": {
+      "available": true,
+      "commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+      "repo_path": "/tmp/poseidon-official",
+      "required_files": {
+        "README.md": {
+          "bytes": 7695,
+          "exists": true
+        },
+        "pyproject.toml": {
+          "bytes": 435,
+          "exists": true
+        },
+        "scOT/inference.py": {
+          "bytes": 35070,
+          "exists": true
+        },
+        "scOT/model.py": {
+          "bytes": 57840,
+          "exists": true
+        },
+        "scOT/problems/base.py": {
+          "bytes": 16470,
+          "exists": true
+        },
+        "scOT/train.py": {
+          "bytes": 18847,
+          "exists": true
+        }
+      },
+      "source_id": "poseidon_official_repo",
+      "source_url": "https://github.com/camlab-ethz/poseidon"
+    },
+    "pretrained_checkpoint": {
+      "handle": "camlab-ethz/Poseidon-T",
+      "model_size": "T",
+      "requires_hash_before_model_metric": true,
+      "sha256": "",
+      "sha256_status": "pending"
+    }
+  },
+  "duration_sec": 0.22972893714904785,
+  "eval_config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "extra": {
+    "baseline": "external_poseidon_transfer_adapter",
+    "command": [
+      "python",
+      "scripts/run_external_poseidon_transfer_adapter.py",
+      "--config",
+      "configs/train_multitask_heterogeneous_light_best.yaml",
+      "--name",
+      "poseidon_transfer_adapter_manifest_light_v1",
+      "--output-root",
+      "reports/research/sota_loop/external_baselines",
+      "--train-split",
+      "train",
+      "--eval-split",
+      "val",
+      "--max-samples",
+      "1",
+      "--max-steps",
+      "2",
+      "--image-size",
+      "224",
+      "--poseidon-model-size",
+      "T",
+      "--foundation-contract-json",
+      "docs/claim_evidence/foundation_transfer_readiness_light_v1.json",
+      "--data-root",
+      "data/pdebench",
+      "--poseidon-repo",
+      "/tmp/poseidon-official",
+      "--tasks",
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "downstream_collection": "https://huggingface.co/collections/camlab-ethz/poseidon-downstream-tasks-664fa237cd6b0c097971ef14",
+    "foundation_contract_json": "docs/claim_evidence/foundation_transfer_readiness_light_v1.json",
+    "image_size": 224,
+    "implementation": "scOT.model.ScOT",
+    "max_samples": 1,
+    "max_steps": 2,
+    "metric": "adapter_roundtrip_nrmse",
+    "pretraining_collection": "https://huggingface.co/collections/camlab-ethz/poseidon-664fa125729c53d8607e209a",
+    "source_url": "https://github.com/camlab-ethz/poseidon",
+    "split": "val",
+    "task": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "train_split": "train"
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "inspected_splits": [
+    "train",
+    "val"
+  ],
+  "measurement_type": "poseidon_validation_adapter_manifest",
+  "metrics": {
+    "adapter_roundtrip_advection1d_train_mse": 1.461542751712841e-06,
+    "adapter_roundtrip_advection1d_train_nrmse": 0.0012089358643646109,
+    "adapter_roundtrip_advection1d_val_mse": 4.837590722672758e-06,
+    "adapter_roundtrip_advection1d_val_nrmse": 0.0021984877213458475,
+    "adapter_roundtrip_burgers1d_train_mse": 2.8943989036633866e-06,
+    "adapter_roundtrip_burgers1d_train_nrmse": 0.0013103728644245623,
+    "adapter_roundtrip_burgers1d_val_mse": 0.0001454617708986916,
+    "adapter_roundtrip_burgers1d_val_nrmse": 0.0012099046974104258,
+    "adapter_roundtrip_darcy2d_train_mse": 0.001889629929792136,
+    "adapter_roundtrip_darcy2d_train_nrmse": 0.03268918081812681,
+    "adapter_roundtrip_darcy2d_val_mse": 0.0014206763007678092,
+    "adapter_roundtrip_darcy2d_val_nrmse": 0.03928458555240412,
+    "adapter_roundtrip_mae": 0.003054499619311708,
+    "adapter_roundtrip_mse": 0.0001337514310815844,
+    "adapter_roundtrip_nrmse": 0.0023447850529950184,
+    "adapter_roundtrip_rrmse": 0.0023447850529950184,
+    "adapter_roundtrip_spectral_energy_error": 0.0046077460089388
+  },
+  "published_numbers_directly_comparable": false,
+  "run_name": "poseidon_transfer_adapter_manifest_light_v1",
+  "schema_version": 1,
+  "split": "val",
+  "stages": [
+    "external_poseidon_transfer_adapter_manifest"
+  ],
+  "status": "validation_adapter_manifest_complete"
+}
