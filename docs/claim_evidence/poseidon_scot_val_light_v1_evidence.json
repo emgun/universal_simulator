@@ -1,0 +1,243 @@
+{
+  "claim_comparable": false,
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "details": {
+    "contract": {
+      "embedding_recovery_replaced_for_scalar_light_v1": true,
+      "published_numbers_directly_comparable": false,
+      "requires_finetuning_before_held_out_test": true,
+      "teacher_forced_light_v1_steps": true,
+      "validation_split_only": true
+    },
+    "evaluation_records": [
+      {
+        "family": "transport",
+        "pairs_evaluated": 512,
+        "poseidon_image_size": 128,
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "sample_count": 32,
+        "split": "val",
+        "task": "advection1d",
+        "teacher_forced_steps": true,
+        "time_value": 1.0
+      },
+      {
+        "family": "conservation",
+        "pairs_evaluated": 512,
+        "poseidon_image_size": 128,
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          1024
+        ],
+        "sample_count": 32,
+        "split": "val",
+        "task": "burgers1d",
+        "teacher_forced_steps": true,
+        "time_value": 1.0
+      },
+      {
+        "family": "elliptic",
+        "pairs_evaluated": 512,
+        "poseidon_image_size": 128,
+        "repo_inferred_channels": 1,
+        "repo_inferred_grid_shape": [
+          1,
+          128
+        ],
+        "sample_count": 32,
+        "split": "val",
+        "task": "darcy2d",
+        "teacher_forced_steps": true,
+        "time_value": 1.0
+      }
+    ],
+    "model": {
+      "checkpoint_handle": "camlab-ethz/Poseidon-T",
+      "effective_config": {
+        "channel_slice_list_normalized_loss": null,
+        "image_size": 128,
+        "learn_residual": false,
+        "num_channels": 1,
+        "num_out_channels": 1,
+        "use_conditioning": true
+      },
+      "embedding_recovery_replaced": true,
+      "implementation": "scOT.model.ScOT",
+      "original_config": {
+        "depths": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "embed_dim": 48,
+        "image_size": 128,
+        "learn_residual": false,
+        "num_channels": 4,
+        "num_heads": [
+          3,
+          6,
+          12,
+          24
+        ],
+        "num_out_channels": 4,
+        "use_conditioning": true,
+        "window_size": 16
+      },
+      "parameter_count": 20769458
+    },
+    "poseidon_source": {
+      "available": true,
+      "commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+      "repo_path": "/tmp/poseidon-official",
+      "required_files": {
+        "README.md": {
+          "bytes": 7695,
+          "exists": true
+        },
+        "pyproject.toml": {
+          "bytes": 435,
+          "exists": true
+        },
+        "scOT/inference.py": {
+          "bytes": 35070,
+          "exists": true
+        },
+        "scOT/model.py": {
+          "bytes": 57840,
+          "exists": true
+        },
+        "scOT/problems/base.py": {
+          "bytes": 16470,
+          "exists": true
+        },
+        "scOT/train.py": {
+          "bytes": 18847,
+          "exists": true
+        }
+      },
+      "source_id": "poseidon_official_repo",
+      "source_url": "https://github.com/camlab-ethz/poseidon"
+    },
+    "pretrained_checkpoint": {
+      "bytes": 83200584,
+      "expected_sha256": "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+      "filename": "model.safetensors",
+      "handle": "camlab-ethz/Poseidon-T",
+      "hub_size": 83200584,
+      "path": "/Users/emerygunselman/.cache/huggingface/hub/models--camlab-ethz--Poseidon-T/snapshots/ec976ed5d25883ec9db4e486ebbeeefa9e08303b/model.safetensors",
+      "repo_sha": "ec976ed5d25883ec9db4e486ebbeeefa9e08303b",
+      "sha256": "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+      "sha256_status": "matched"
+    }
+  },
+  "duration_sec": 126.92325711250305,
+  "eval_config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "extra": {
+    "allow_held_out_test_eval": false,
+    "baseline": "external_poseidon_scot",
+    "command": [
+      "python",
+      "scripts/run_external_poseidon_scot_validation.py",
+      "--config",
+      "configs/train_multitask_heterogeneous_light_best.yaml",
+      "--name",
+      "poseidon_scot_val_light_v1",
+      "--output-root",
+      "reports/research/sota_loop/external_baselines",
+      "--eval-split",
+      "val",
+      "--max-eval-samples",
+      "32",
+      "--rollout-steps",
+      "16",
+      "--poseidon-model-size",
+      "T",
+      "--checkpoint-file",
+      "model.safetensors",
+      "--device",
+      "cpu",
+      "--time-value",
+      "1.0",
+      "--data-root",
+      "data/pdebench",
+      "--poseidon-repo",
+      "/tmp/poseidon-official",
+      "--expected-checkpoint-sha256",
+      "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+      "--tasks",
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "device": "cpu",
+    "image_size": 128,
+    "implementation": "scOT.model.ScOT",
+    "max_eval_samples": 32,
+    "metric": "decoded_rollout_nrmse",
+    "rollout_steps": 16,
+    "source_url": "https://github.com/camlab-ethz/poseidon",
+    "split": "val",
+    "task": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "time_value": 1.0
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "measurement_type": "poseidon_scot_validation_measurement",
+  "metrics": {
+    "decoded_mae": 0.8147900243416456,
+    "decoded_mse": 1.0074639935973082,
+    "decoded_nrmse": 0.9999999950370435,
+    "decoded_rollout_mae": 0.8147900243416456,
+    "decoded_rollout_mse": 1.0074639935973082,
+    "decoded_rollout_nrmse": 0.9999999950370435,
+    "decoded_rollout_rrmse": 0.9999999950370435,
+    "decoded_rollout_spectral_energy_error": 0.999999999650754,
+    "decoded_rrmse": 0.9999999950370435,
+    "decoded_spectral_energy_error": 0.999999999650754,
+    "family_conservation_decoded_rollout_mae": 0.8145068544290552,
+    "family_conservation_decoded_rollout_mse": 1.0185034322134996,
+    "family_conservation_decoded_rollout_nrmse": 0.9999999950908365,
+    "family_conservation_decoded_rollout_rrmse": 0.9999999950908365,
+    "family_elliptic_decoded_rollout_mae": 0.9862031461670995,
+    "family_elliptic_decoded_rollout_mse": 0.9748029020847753,
+    "family_elliptic_decoded_rollout_nrmse": 0.999999994870758,
+    "family_elliptic_decoded_rollout_rrmse": 0.999999994870758,
+    "family_transport_decoded_rollout_mae": 0.7936465540260542,
+    "family_transport_decoded_rollout_mse": 1.0005071914201835,
+    "family_transport_decoded_rollout_nrmse": 0.9999999950025347,
+    "family_transport_decoded_rollout_rrmse": 0.9999999950025347,
+    "mae": 0.8147900243416456,
+    "mse": 1.0074639935973082,
+    "rmse": 1.0037250587672444,
+    "task_advection1d_decoded_rollout_mae": 0.7936465540260542,
+    "task_advection1d_decoded_rollout_mse": 1.0005071914201835,
+    "task_advection1d_decoded_rollout_nrmse": 0.9999999950025347,
+    "task_advection1d_decoded_rollout_rrmse": 0.9999999950025347,
+    "task_burgers1d_decoded_rollout_mae": 0.8145068544290552,
+    "task_burgers1d_decoded_rollout_mse": 1.0185034322134996,
+    "task_burgers1d_decoded_rollout_nrmse": 0.9999999950908365,
+    "task_burgers1d_decoded_rollout_rrmse": 0.9999999950908365,
+    "task_darcy2d_decoded_rollout_mae": 0.9862031461670995,
+    "task_darcy2d_decoded_rollout_mse": 0.9748029020847753,
+    "task_darcy2d_decoded_rollout_nrmse": 0.999999994870758,
+    "task_darcy2d_decoded_rollout_rrmse": 0.999999994870758
+  },
+  "published_numbers_directly_comparable": false,
+  "run_name": "poseidon_scot_val_light_v1",
+  "schema_version": 1,
+  "split": "val",
+  "stages": [
+    "external_poseidon_scot_validation"
+  ],
+  "status": "validation_model_measurement_complete"
+}

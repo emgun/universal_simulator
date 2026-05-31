@@ -104,6 +104,21 @@ handle is `camlab-ethz/Poseidon-T`, but the checkpoint hash remains pending, so
 the next gate is loading `ScOT.from_pretrained` with hashed weights and recording
 validation-only `decoded_rollout_nrmse` before any held-out transfer test spend.
 
+`poseidon_scot_val_light_v1` executes that validation-only checkpoint gate. It
+loads `camlab-ethz/Poseidon-T` from Hugging Face snapshot
+`ec976ed5d25883ec9db4e486ebbeeefa9e08303b`, verifies
+`model.safetensors` SHA256
+`e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2`, and runs
+the full light-v1 validation cap: 32 validation samples, 16 teacher-forced steps,
+and all three tasks. It records
+`decoded_rollout_nrmse = 0.9999999950370435` with per-task validation NRMSE near
+`1.0`. This is a real validation measurement, but not claim-comparable: adapting
+the official 4-channel checkpoint to scalar light-v1 newly initializes the input
+embedding and recovery layers, so the result mainly proves that direct zero-shot
+transfer is not useful under this adapter. The next gate is finetuning those
+scalar adapter layers on train and selecting on validation before any held-out
+Poseidon transfer test.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,
@@ -114,4 +129,4 @@ they use external architectures under the claim protocol. The remaining gap is
 publication and transfer comparability: published table values, CNO2d
 square-grid settings, pretrained checkpoints, and measured foundation-model
 transfer protocols remain unmapped, so broader public-baseline claims still need
-the next validation-only Poseidon model measurement.
+finetuned validation evidence before any Poseidon held-out transfer measurement.
