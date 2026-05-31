@@ -1,0 +1,108 @@
+{
+  "measurement_type": "held_out_test_ups_ct1_online_transport_context_measurement",
+  "date": "2026-05-31",
+  "repo_commit_at_measurement": "567b9ccf10e06950a45142265988981949e4cd22",
+  "pretest_contract_json": "docs/claim_evidence/ups_advection_ct1_pretest_contract.json",
+  "validation_evidence_json": "docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json",
+  "held_out_test_used": true,
+  "test_split_accessed": true,
+  "split": "test",
+  "validation_split": "val",
+  "data_root": "data/pdebench",
+  "max_samples": 32,
+  "decoded_rollout_steps": 16,
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+  "run_dir": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_transport_only_ct1_guarded",
+  "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_transport_only_ct1_guarded --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 1, coefficients: {slope: 1.0, intercept: 0.0}, families: [transport], mode: roll_persistence, calibration_scope: transport_only_ct1}' --promotion-rule 'decoded_rollout_nrmse<=0.26960071475892575' --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/advection_robustness_gate/test_ledger.json",
+  "context_roll_shift_estimator": {
+    "candidate_shifts": [
+      -4,
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      4,
+      8,
+      16,
+      24,
+      32,
+      40,
+      48,
+      64
+    ],
+    "context_transitions": 1,
+    "min_horizon": 2,
+    "coefficients": {
+      "slope": 1.0,
+      "intercept": 0.0
+    },
+    "families": [
+      "transport"
+    ],
+    "mode": "roll_persistence",
+    "calibration_scope": "transport_only_ct1"
+  },
+  "validation_metrics": {
+    "decoded_rollout_nrmse": 0.1419775490176828,
+    "task_advection1d_decoded_rollout_nrmse": 0.12911778915203231,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+    "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
+    "task_advection1d_decoded_context_roll_shift_mean": 40
+  },
+  "test_metrics": {
+    "decoded_rollout_nrmse": 0.20177292896682064,
+    "task_advection1d_decoded_rollout_nrmse": 0.22508631227914033,
+    "task_burgers1d_decoded_rollout_nrmse": 0.17446879896821743,
+    "task_darcy2d_decoded_rollout_nrmse": 0.20909553062258152,
+    "task_advection1d_decoded_context_roll_shift_mean": 64
+  },
+  "held_out_test_policy": {
+    "ledger_json": "reports/research/sota_loop/advection_robustness_gate/test_ledger.json",
+    "ledger_sha256": "56cf65f9fe17b0dc03d7a3a5d77070e54c0b4aab7def6554eff7d2b616be45fd",
+    "measurement_key": "11d176a6466fe04af43ccb47645f9a9ae8efdf68520493fbdc34741d86abd716",
+    "exactly_one_test_after_validation": true,
+    "allow_repeat_held_out_test": false
+  },
+  "artifact": {
+    "path": "docs/claim_evidence/artifacts/ups_advection_ct1_heldout_light_v1.tar.gz",
+    "sha256": "b3b0809afc58085433ba0bbe1efbfa87deb1c227c18b8e6154b7d343e372834d",
+    "contents": [
+      "ups_light_advection_context_transport_only_ct1_guarded/summary.json",
+      "ups_light_advection_context_transport_only_ct1_guarded/summary_test.json",
+      "ups_light_advection_context_transport_only_ct1_guarded/resolved_eval.yaml",
+      "ups_light_advection_context_transport_only_ct1_guarded/resolved_train.yaml",
+      "test_ledger.json"
+    ],
+    "summary_sha256": "3c7283c20e8973bce71c27f46efbc38ed64d4221be223e6ce77dacffdcbe2421",
+    "summary_test_sha256": "b17dd7ef4fc7830a98b82e6bcf2fa851c0fe415c7815cee121f942c61c06712a"
+  },
+  "comparison_to_current_ct8_claim": {
+    "current_ct8_test_decoded_rollout_nrmse": 0.4165820594268877,
+    "current_ct8_test_task_advection1d_decoded_rollout_nrmse": 0.5765863333379032,
+    "absolute_overall_improvement": 0.21480913046006705,
+    "relative_overall_improvement": 0.5156466189532753,
+    "absolute_advection_improvement": 0.3515000210587629,
+    "relative_advection_improvement": 0.6096225330626585,
+    "same_exact_inference_contract_as_ct8": false
+  },
+  "scoped_claim_language": {
+    "claim_contract_label": "light-v1 CT1 online transport-context UPS variant",
+    "not_autonomous_rollout_claim": true,
+    "published_numbers_directly_comparable": false,
+    "external_paper_reproduction": false,
+    "statement": "Under the scoped light-v1 CT1 online transport-context UPS variant, the validation-selected candidate measured held-out test decoded_rollout_nrmse = 0.20177292896682064. This uses one observed transport transition to estimate a roll-persistence correction from horizon 2 onward and must not be described as an autonomous rollout or as the same exact inference contract as the prior CT8 claim."
+  },
+  "decision": {
+    "status": "scoped_ct1_held_out_complete",
+    "claim_update_allowed": "Only with explicit CT1 online transport-context language.",
+    "do_not_repeat_held_out_test": true
+  }
+}
