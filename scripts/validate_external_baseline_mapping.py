@@ -36,6 +36,10 @@ ALLOWED_FOUNDATION_VALIDATION_STATUSES = {
     "validation_model_measurement_complete",
 }
 
+ALLOWED_FOUNDATION_FINETUNE_STATUSES = {
+    "validation_finetune_measurement_complete",
+}
+
 REQUIRED_PROTOCOL_KEYS = {
     "data_root",
     "split",
@@ -355,6 +359,135 @@ def _validate_foundation_transfer_validation_measurement(
         )
 
 
+def _validate_foundation_transfer_finetune_validation_measurement(
+    measurement: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    if measurement.get("status") not in ALLOWED_FOUNDATION_FINETUNE_STATUSES:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.status must be one of "
+            f"{sorted(ALLOWED_FOUNDATION_FINETUNE_STATUSES)}"
+        )
+    if measurement.get("measurement_type") != "poseidon_scot_finetune_validation_measurement":
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.measurement_type must be "
+            "poseidon_scot_finetune_validation_measurement"
+        )
+    if measurement.get("train_split") == "test":
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.train_split must not be test"
+        )
+    if measurement.get("split") == "test":
+        errors.append("foundation_transfer_finetune_validation_measurement.split must not be test")
+    if measurement.get("held_out_test_used") is not False:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.held_out_test_used must be false"
+        )
+    if measurement.get("held_out_test_data_read") is not False:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.held_out_test_data_read "
+            "must be false"
+        )
+    if measurement.get("claim_comparable") is not False:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.claim_comparable must be false"
+        )
+    if measurement.get("published_numbers_directly_comparable") is not False:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement."
+            "published_numbers_directly_comparable must be false"
+        )
+    for key in ("run_name", "summary_json", "evidence_json", "artifact_handle", "artifact_sha256"):
+        if not measurement.get(key):
+            errors.append(f"foundation_transfer_finetune_validation_measurement.{key} is required")
+
+    metrics = _as_mapping(
+        measurement.get("metrics"),
+        "foundation_transfer_finetune_validation_measurement.metrics",
+        errors,
+    )
+    if "decoded_rollout_nrmse" not in metrics:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.metrics."
+            "decoded_rollout_nrmse is required"
+        )
+    for task in ("advection1d", "burgers1d", "darcy2d"):
+        key = f"task_{task}_decoded_rollout_nrmse"
+        if key not in metrics:
+            errors.append(
+                f"foundation_transfer_finetune_validation_measurement.metrics.{key} " "is required"
+            )
+
+    training = _as_mapping(
+        measurement.get("training"),
+        "foundation_transfer_finetune_validation_measurement.training",
+        errors,
+    )
+    if int(training.get("train_pairs", 0)) <= 0:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.training.train_pairs "
+            "must be positive"
+        )
+    if training.get("train_split") == "test":
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.training.train_split "
+            "must not be test"
+        )
+
+    trainable = _as_mapping(
+        measurement.get("trainable_parameters"),
+        "foundation_transfer_finetune_validation_measurement.trainable_parameters",
+        errors,
+    )
+    if trainable.get("adapter_mode") != "scalar_layers":
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.trainable_parameters."
+            "adapter_mode must be scalar_layers"
+        )
+    if int(trainable.get("trainable_parameter_count", 0)) <= 0:
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.trainable_parameters."
+            "trainable_parameter_count must be positive"
+        )
+
+    source_commits = _as_mapping(
+        measurement.get("source_commits"),
+        "foundation_transfer_finetune_validation_measurement.source_commits",
+        errors,
+    )
+    if not source_commits.get("poseidon_official_repo"):
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.source_commits."
+            "poseidon_official_repo is required"
+        )
+    checkpoint = _as_mapping(
+        measurement.get("pretrained_checkpoint"),
+        "foundation_transfer_finetune_validation_measurement.pretrained_checkpoint",
+        errors,
+    )
+    if checkpoint.get("sha256_status") != "matched":
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.pretrained_checkpoint."
+            "sha256_status must be matched"
+        )
+    if not checkpoint.get("sha256"):
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.pretrained_checkpoint."
+            "sha256 is required"
+        )
+
+    decision = _as_mapping(
+        measurement.get("decision"),
+        "foundation_transfer_finetune_validation_measurement.decision",
+        errors,
+    )
+    if decision.get("result") != "stopped_scalar_only_path_no_held_out_test":
+        errors.append(
+            "foundation_transfer_finetune_validation_measurement.decision.result must be "
+            "stopped_scalar_only_path_no_held_out_test"
+        )
+
+
 def validate_mapping(
     mapping: Mapping[str, Any],
     claim_evidence: Mapping[str, Any],
@@ -635,6 +768,16 @@ def validate_mapping(
     )
     _validate_foundation_transfer_validation_measurement(
         foundation_transfer_validation_measurement,
+        errors,
+    )
+
+    foundation_transfer_finetune_validation_measurement = _as_mapping(
+        mapping.get("foundation_transfer_finetune_validation_measurement"),
+        "foundation_transfer_finetune_validation_measurement",
+        errors,
+    )
+    _validate_foundation_transfer_finetune_validation_measurement(
+        foundation_transfer_finetune_validation_measurement,
         errors,
     )
 
