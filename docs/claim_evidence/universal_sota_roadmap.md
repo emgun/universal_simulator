@@ -286,6 +286,9 @@ Status:
 - Added the CT1 pre-test protocol contract at `docs/claim_evidence/ups_advection_ct1_pretest_contract.json`.
 - Added `scripts/validate_ups_advection_ct1_pretest_contract.py` and `tests/unit/test_validate_ups_advection_ct1_pretest_contract.py`; the validator reuses the CT1 evidence validator and recomputes the intended held-out measurement key from the exact pre-registered command.
 - Pre-registered intended held-out measurement key `11d176a6466fe04af43ccb47645f9a9ae8efdf68520493fbdc34741d86abd716` with ledger path `reports/research/sota_loop/advection_robustness_gate/test_ledger.json`, but did not run the held-out command.
+- Ran the pre-registered CT1 held-out command exactly once. Validation remained `decoded_rollout_nrmse = 0.1419775490176828`; held-out test produced `decoded_rollout_nrmse = 0.20177292896682064`, advection `0.22508631227914033`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`.
+- Recorded the held-out ledger entry with measurement key `11d176a6466fe04af43ccb47645f9a9ae8efdf68520493fbdc34741d86abd716` and ledger SHA256 `56cf65f9fe17b0dc03d7a3a5d77070e54c0b4aab7def6554eff7d2b616be45fd`.
+- Packaged scoped CT1 held-out evidence at `docs/claim_evidence/ups_advection_ct1_heldout_light_v1_evidence.json` and artifact SHA256 `b3b0809afc58085433ba0bbe1efbfa87deb1c227c18b8e6154b7d343e372834d`.
 
 Decision:
 
@@ -299,6 +302,7 @@ Decision:
 - This is not yet a replacement held-out claim, because CT1 changes the current claim evaluation config from `context_transitions = 8`, `families: [transport, conservation]`, `slope = 0.9974352988185539` to `context_transitions = 1`, `families: [transport]`, `slope = 1.0`.
 - The validation evidence is now machine-checkable, but held-out execution is still blocked until the CT1 claim-contract decision and intended ledger key are written before the test command.
 - Protocol decision: CT1 is accepted for exactly one ledger-protected held-out confirmation only as a scoped `light-v1 CT1 online transport-context UPS variant`. It must not be described as an autonomous rollout claim, a published-paper SOTA result, or the same exact inference contract as the CT8 claim.
+- CT1 held-out confirmation beats the current CT8 held-out claim overall by `0.21480913046006705` absolute / `0.5156466189532753` relative and advection by `0.3515000210587629` absolute / `0.6096225330626585` relative, but it remains a different scoped inference contract.
 
 Next checkpoint:
 
@@ -306,3 +310,4 @@ Next checkpoint:
 - Next technical path: protocol-review the CT1 context-delay variant, then either wire it into the claim audit and run one ledger-protected held-out confirmation, or reject it as protocol-shift evidence and open a model-side advection objective instead.
 - If CT1 is accepted, add pre-test claim audit wiring that names the validation evidence manifest, selected CT1 command, intended held-out command, and ledger key; only then run the held-out confirmation.
 - The pre-test contract is now in place. The next irreversible step is to spend exactly one held-out test measurement using the pre-registered command, then package/update claim evidence only if the held-out result beats the current CT8 held-out claim and is documented with the scoped CT1 language.
+- Next technical path: add a scoped CT1 claim row/audit path so downstream status scripts can distinguish the CT1 online-context result from the older CT8 claim and from external-paper SOTA claims.
