@@ -242,11 +242,11 @@ Expected: record artifact SHA256 in `docs/claim_evidence/ups_advection_context_d
 
 ### Task 2: Decide whether the validation candidate can spend held-out budget
 
-- [ ] **Step 1: Protocol review**
+- [x] **Step 1: Protocol review**
 
 Decide whether `context_transitions = 1`, `min_horizon = 2`, and `families: [transport]` are an admissible light-v1 claim variant. This setting uses less context to estimate the shift than the current CT8 claim config, but it applies the roll-persistence correction earlier in the teacher-forced decoded evaluator.
 
-- [ ] **Step 2: Wire audit/evidence support before test**
+- [x] **Step 2: Wire audit/evidence support before test**
 
 If the protocol review accepts CT1, add or update the claim evidence/audit surface so the selected validation config, summary, artifact SHA256, and intended held-out ledger key are explicit before the held-out command is run.
 
@@ -283,6 +283,9 @@ Status:
 - Added `scripts/validate_ups_advection_context_gate_evidence.py` and `tests/unit/test_validate_ups_advection_context_gate_evidence.py`.
 - The validator enforces that the CT1 validation gate used no held-out test path, that all commands pin validation split, that artifact bytes match the recorded SHA256, that artifact summary metrics match the manifest, that CT1 is the best validation run, and that CT1/CT2/CT4/CT8 are monotonic as context delay increases.
 - Repacked `docs/claim_evidence/artifacts/ups_advection_context_delay_val_gate.tar.gz` with `COPYFILE_DISABLE=1` after the validator caught an AppleDouble `._summary.json` member from the first macOS tarball.
+- Added the CT1 pre-test protocol contract at `docs/claim_evidence/ups_advection_ct1_pretest_contract.json`.
+- Added `scripts/validate_ups_advection_ct1_pretest_contract.py` and `tests/unit/test_validate_ups_advection_ct1_pretest_contract.py`; the validator reuses the CT1 evidence validator and recomputes the intended held-out measurement key from the exact pre-registered command.
+- Pre-registered intended held-out measurement key `11d176a6466fe04af43ccb47645f9a9ae8efdf68520493fbdc34741d86abd716` with ledger path `reports/research/sota_loop/advection_robustness_gate/test_ledger.json`, but did not run the held-out command.
 
 Decision:
 
@@ -295,9 +298,11 @@ Decision:
 - The UPS advection context-delay validation gate cleared strongly: CT1 improves validation overall by `0.13034640528426242` absolute and `0.47864465547433244` relative versus the reproduced current validation baseline.
 - This is not yet a replacement held-out claim, because CT1 changes the current claim evaluation config from `context_transitions = 8`, `families: [transport, conservation]`, `slope = 0.9974352988185539` to `context_transitions = 1`, `families: [transport]`, `slope = 1.0`.
 - The validation evidence is now machine-checkable, but held-out execution is still blocked until the CT1 claim-contract decision and intended ledger key are written before the test command.
+- Protocol decision: CT1 is accepted for exactly one ledger-protected held-out confirmation only as a scoped `light-v1 CT1 online transport-context UPS variant`. It must not be described as an autonomous rollout claim, a published-paper SOTA result, or the same exact inference contract as the CT8 claim.
 
 Next checkpoint:
 
 - Run repository checks for the new evidence and roadmap files.
 - Next technical path: protocol-review the CT1 context-delay variant, then either wire it into the claim audit and run one ledger-protected held-out confirmation, or reject it as protocol-shift evidence and open a model-side advection objective instead.
 - If CT1 is accepted, add pre-test claim audit wiring that names the validation evidence manifest, selected CT1 command, intended held-out command, and ledger key; only then run the held-out confirmation.
+- The pre-test contract is now in place. The next irreversible step is to spend exactly one held-out test measurement using the pre-registered command, then package/update claim evidence only if the held-out result beats the current CT8 held-out claim and is documented with the scoped CT1 language.

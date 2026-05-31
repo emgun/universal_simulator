@@ -1,0 +1,39 @@
+{
+  "measurement_type": "ups_advection_ct1_pretest_contract",
+  "date": "2026-05-31",
+  "repo_commit_at_contract": "34cbad1a5ec590b6532cbd514e891ffdddb1d2c7",
+  "held_out_test_used": false,
+  "test_split_accessed": false,
+  "validation_evidence_json": "docs/claim_evidence/ups_advection_context_delay_val_gate_evidence.json",
+  "validation_evidence_sha256": "777f8aa166ef212fbf344b547de87fec863059a76310fbccf2faaf32b1b4530b",
+  "selected_validation_run": {
+    "name": "ups_light_advection_context_transport_only_ct1_val",
+    "decoded_rollout_nrmse": 0.1419775490176828,
+    "task_advection1d_decoded_rollout_nrmse": 0.12911778915203231,
+    "relative_improvement_vs_current": 0.47864465547433244
+  },
+  "protocol_decision": {
+    "status": "accepted_for_one_held_out_confirmation",
+    "claim_contract_label": "light-v1 CT1 online transport-context UPS variant",
+    "accepted_scope": "May spend exactly one ledger-protected held-out confirmation after this pre-test contract passes validation.",
+    "not_autonomous_rollout_claim": true,
+    "teacher_forced_previous_frame_dependency_disclosed": true,
+    "external_paper_reproduction": false,
+    "requires_claim_language_update": true,
+    "rationale": "CT1 estimates the transport shift from one observed transition, which uses less context than the current CT8 claim config. It also applies roll-persistence from horizon 2 in the teacher-forced decoded evaluator, so any successful held-out result must be described as an online/context-conditioned protocol variant rather than an autonomous long-horizon rollout claim.",
+    "rejected_overclaims": [
+      "published-paper SOTA without external protocol mapping",
+      "autonomous rollout from initial condition only",
+      "same exact inference contract as ups_light_shared_context_transport_guarded CT8"
+    ]
+  },
+  "intended_held_out": {
+    "command_status": "pre_registered_not_run",
+    "test_split": "test",
+    "ledger_json": "reports/research/sota_loop/advection_robustness_gate/test_ledger.json",
+    "measurement_key": "11d176a6466fe04af43ccb47645f9a9ae8efdf68520493fbdc34741d86abd716",
+    "validation_gate_threshold": 0.26960071475892575,
+    "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_context_transport_only_ct1_guarded --output-root reports/research/sota_loop/advection_robustness_gate --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 1, coefficients: {slope: 1.0, intercept: 0.0}, families: [transport], mode: roll_persistence, calibration_scope: transport_only_ct1}' --promotion-rule 'decoded_rollout_nrmse<=0.26960071475892575' --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/advection_robustness_gate/test_ledger.json"
+  },
+  "next_action": "Run scripts/validate_ups_advection_ct1_pretest_contract.py before any held-out command. If it passes and the team accepts the scoped claim language, run the intended held-out command once."
+}
