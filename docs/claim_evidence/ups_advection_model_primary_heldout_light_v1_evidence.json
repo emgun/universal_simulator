@@ -1,0 +1,76 @@
+{
+  "measurement_type": "held_out_test_ups_model_primary_candidate_measurement",
+  "date": "2026-06-01",
+  "repo_base_commit_at_measurement": "2af81f998ea66b70f03c881c9368adc8f41b6421",
+  "measurement_runner_patch_included_in_this_pr": true,
+  "pretest_contract_json": "docs/claim_evidence/ups_advection_model_primary_pretest_contract.json",
+  "pretest_contract_sha256": "cb0c4a2a90f846d8594eac8a98b2e171f2c3b5669503e6afc9989746c0b268ae",
+  "validation_evidence_json": "docs/claim_evidence/ups_advection_model_stability_val_evidence.json",
+  "held_out_test_used": true,
+  "test_split_accessed": true,
+  "split": "test",
+  "validation_split": "val",
+  "data_root": "data/pdebench",
+  "max_samples": 32,
+  "decoded_rollout_steps": 16,
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "checkpoint_source": "reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+  "checkpoint_preference_stage": "operator_decoded",
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "run_name": "ups_light_advection_weighted_operator_stability_seed23_primary_guarded",
+  "run_dir": "reports/research/sota_loop/model_advection_primary_contract/ups_light_advection_weighted_operator_stability_seed23_primary_guarded",
+  "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_weighted_operator_stability_seed23_primary_guarded --output-root reports/research/sota_loop/model_advection_primary_contract --skip-training --stage operator_decoded --checkpoint-source reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21 --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_persistence_residual_alpha_by_family={transport: 0.21}' --promotion-rule 'decoded_rollout_nrmse<=0.35078329353213156' --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/model_advection_primary_contract/test_ledger.json",
+  "validation_metrics": {
+    "decoded_rollout_nrmse": 0.35078329353213156,
+    "task_advection1d_decoded_rollout_nrmse": 0.4866576789288726,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+    "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+  },
+  "test_metrics": {
+    "decoded_rollout_nrmse": 0.5226095521324494,
+    "decoded_rollout_spectral_energy_error": 0.13223171818152551,
+    "task_advection1d_decoded_rollout_nrmse": 0.7373638522454458,
+    "task_burgers1d_decoded_rollout_nrmse": 0.17446879896821743,
+    "task_darcy2d_decoded_rollout_nrmse": 0.20909553062258152
+  },
+  "held_out_test_policy": {
+    "ledger_json": "reports/research/sota_loop/model_advection_primary_contract/test_ledger.json",
+    "ledger_sha256": "46796c3f32a0954094b823222336cf25ca78f0ed1952587c6f87701f3220dcd3",
+    "measurement_key": "8afdb38b42feb138752101d74e11b95a0077eb2e8ba8cfb0fb5dffa6b67a5128",
+    "exactly_one_test_after_validation": true,
+    "allow_repeat_held_out_test": false
+  },
+  "artifact": {
+    "path": "docs/claim_evidence/artifacts/ups_advection_model_primary_heldout_light_v1.tar.gz",
+    "sha256": "d1f450e3487b9b208d52e45ee5654d5f946ebd2fd7875dda00079433a1a113d6",
+    "bytes": 190214,
+    "contents": [
+      "ups_light_advection_weighted_operator_stability_seed23_primary_guarded/summary.json",
+      "ups_light_advection_weighted_operator_stability_seed23_primary_guarded/summary_test.json",
+      "ups_light_advection_weighted_operator_stability_seed23_primary_guarded/resolved_train.yaml",
+      "ups_light_advection_weighted_operator_stability_seed23_primary_guarded/resolved_eval.yaml",
+      "test_ledger.json"
+    ],
+    "summary_sha256": "df71847dbc6c82814cbd2c3c63d704f30d8d2f4f66fd0465911388ffec4b697e",
+    "summary_test_sha256": "e5768fff9e4a556f75f96b1b42508d5072c6bc265b95b4bca1e2789c2a57def0"
+  },
+  "comparison_to_current_ct8_claim": {
+    "current_ct8_test_decoded_rollout_nrmse": 0.4165820594268877,
+    "current_ct8_test_task_advection1d_decoded_rollout_nrmse": 0.5765863333379032,
+    "absolute_overall_improvement": -0.10602749270556172,
+    "relative_overall_improvement": -0.25451766418224764,
+    "absolute_advection_improvement": -0.16077751890754255,
+    "relative_advection_improvement": -0.2788437907932867,
+    "candidate_beats_current_ct8_primary": false
+  },
+  "decision": {
+    "status": "held_out_complete_not_promoted",
+    "claim_update_allowed": "Do not promote this no-context model-side candidate; it failed to beat the current CT8 primary held-out claim.",
+    "do_not_repeat_held_out_test": true,
+    "next_step": "Use this as negative evidence that the validation-only no-context advection improvement did not transfer to held-out test; return to validation-only model-side work or analyze the validation/test distribution gap without rerunning this held-out key."
+  }
+}

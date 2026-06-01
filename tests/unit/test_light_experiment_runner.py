@@ -244,6 +244,55 @@ def test_run_light_experiment_evaluates_checkpoint_from_last_operator_stage(tmp_
     assert Path(summary["checkpoints"]["operator"]).name == "operator_decoded.pt"
 
 
+def test_run_light_experiment_skip_training_can_prefer_requested_stage_checkpoint(
+    tmp_path, monkeypatch
+):
+    output_root = tmp_path / "light_runs"
+    source_dir = tmp_path / "source" / "checkpoints"
+    source_dir.mkdir(parents=True)
+    for name in ("operator_joint.pt", "operator_decoded.pt", "operator.pt"):
+        (source_dir / name).write_text(f"source {name}", encoding="utf-8")
+
+    loaded_checkpoints = []
+
+    def fake_load_state_dict_compat(_model, path, *, prefix_to_strip=""):
+        loaded_checkpoints.append(path)
+
+    def fake_evaluate_latent_operator(_cfg, _operator, **_kwargs):
+        return MetricReport(metrics={"mse": 0.0}, extra={}), {"loaded": loaded_checkpoints[-1]}
+
+    monkeypatch.setattr(runner_script.evaluate_script, "make_operator", lambda _cfg: object())
+    monkeypatch.setattr(
+        runner_script.evaluate_script, "_load_state_dict_compat", fake_load_state_dict_compat
+    )
+    monkeypatch.setattr(runner_script, "evaluate_latent_operator", fake_evaluate_latent_operator)
+
+    args = [
+        "run_light_experiment",
+        "--config",
+        "configs/train_burgers_light_operator.yaml",
+        "--name",
+        "decoded_skip_training",
+        "--output-root",
+        str(output_root),
+        "--checkpoint-source",
+        str(source_dir.parent),
+        "--skip-training",
+        "--stage",
+        "operator_decoded",
+    ]
+    monkeypatch.setattr(sys, "argv", args)
+
+    runner_script.main()
+
+    summary = json.loads(
+        (output_root / "decoded_skip_training" / "summary.json").read_text(encoding="utf-8")
+    )
+    assert summary["stages"] == []
+    assert summary["checkpoint_preference_stages"] == ["operator_decoded"]
+    assert Path(summary["checkpoints"]["operator"]).name == "operator_decoded.pt"
+
+
 def test_run_light_experiment_logs_benchmark_summary_to_wandb(tmp_path, monkeypatch):
     output_root = tmp_path / "light_runs"
     logged_payloads = []
