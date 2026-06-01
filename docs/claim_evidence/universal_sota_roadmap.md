@@ -51,6 +51,7 @@ Model-side validation gate without online context roll-shift:
 - Held-out primary-candidate result: `ups_light_advection_weighted_operator_stability_seed23_primary_guarded` measured test `decoded_rollout_nrmse = 0.5226095521324494`, advection `0.7373638522454458`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`.
 - Held-out primary-candidate evidence: `docs/claim_evidence/ups_advection_model_primary_heldout_light_v1_evidence.json`; artifact SHA256 `d1f450e3487b9b208d52e45ee5654d5f946ebd2fd7875dda00079433a1a113d6`.
 - The no-context model-side candidate failed to beat the current CT8 primary held-out claim (`0.5226095521324494` vs `0.4165820594268877`), so it must not be promoted.
+- No-heldout-rerun gap analysis: `docs/claim_evidence/ups_advection_model_primary_gap_analysis.json` recomputes the validation/test gap from existing summaries only. It identifies long-horizon advection as the dominant failed-transfer signal: candidate minus CT8 held-out advection h16 is `0.648045534125835`, while Burgers and Darcy rollout errors are effectively unchanged.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -465,3 +466,27 @@ Next checkpoint:
 - Validate the held-out evidence manifest, artifact, runner checkpoint-preference patch, and full test suite.
 - If checks pass, open a PR for the negative held-out evidence.
 - Next technical path after merge: analyze the validation/test distribution gap and return to validation-only model-side work, not held-out reruns.
+
+### 2026-06-01 Model-Side Primary Gap Analysis
+
+Status:
+
+- Added `docs/claim_evidence/ups_advection_model_primary_gap_analysis.json`, generated from the already-committed held-out evidence artifact and the current CT8 primary validation/test summaries.
+- Added `scripts/build_ups_advection_model_primary_gap_analysis.py` so the analysis is reproducible without running a new held-out command or rereading held-out data.
+- Added `scripts/validate_ups_advection_model_primary_gap_analysis.py` and unit coverage so future edits must preserve the no-rerun boundary, negative promotion decision, source-file hashes, and recomputed metric deltas.
+- The failed candidate's held-out test is worse than CT8 by `0.10602749270556172` overall and `0.16077751890754255` on advection rollout.
+- The largest diagnostic delta is held-out advection h16: candidate `0.7523448239495274` versus CT8 `0.10429928982369245`, a candidate-minus-CT8 regression of `0.648045534125835`.
+- The candidate is slightly better than CT8 at held-out advection step1 and h4, but the h16 collapse dominates the rollout metric.
+- Burgers and Darcy held-out rollout errors are effectively unchanged versus CT8, so the next useful model-side target is transport phase tracking under validation-only gates.
+
+Decision:
+
+- Keep the failed no-context model-side candidate as negative evidence only.
+- Do not rerun the held-out key or spend another primary-contract held-out test on this candidate family.
+- The next validation-only gate should require improvement on overall, advection rollout, and long-horizon advection h16 before any future held-out pre-test contract is written.
+
+Next checkpoint:
+
+- Run the gap-analysis validator, targeted unit tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the gap-analysis evidence.
+- Next technical path after merge: design a validation-only robustness gate for transport phase tracking rather than another advection loss-weight sweep that can overfit the validation rollout average.
