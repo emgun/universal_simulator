@@ -60,6 +60,7 @@ def _validate_command_tokens(command: str, errors: list[str]) -> None:
     tokens = _command_tokens(command)
     required_tokens = (
         "--skip-training",
+        "--stage operator_decoded",
         f"--checkpoint-source {EXPECTED_CHECKPOINT_SOURCE}",
         "--extra-eval-split test",
         "--held-out-test-ledger-json",
@@ -89,8 +90,10 @@ def _validate_command_tokens(command: str, errors: list[str]) -> None:
         if token in normalized:
             errors.append(f"intended_held_out.command must not include {token}")
 
-    if "--stage" in tokens:
-        errors.append("intended_held_out.command must not retrain stages")
+    if "--stage" not in tokens or "operator_decoded" not in tokens:
+        errors.append(
+            "intended_held_out.command must request operator_decoded checkpoint preference"
+        )
 
 
 def _validate_intended_command(

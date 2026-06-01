@@ -47,8 +47,10 @@ Model-side validation gate without online context roll-shift:
 - Broader sweep evidence: `docs/claim_evidence/ups_advection_model_sweep_val_evidence.json`; artifact SHA256 `f8f43e475812cd32e5e8cfb15a7c191e4dfd176c84ed1a4ebabb50927cb7e4c1`.
 - Stability update: seed-23 replicate `ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21` validated at `decoded_rollout_nrmse = 0.35078329353213156`, advection `0.4866576789288726`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
 - Stability evidence: `docs/claim_evidence/ups_advection_model_stability_val_evidence.json`; artifact SHA256 `92e4c2ff63b9949bc5154ca53d8f5eedd8cfa20e8d436ac5b6b0363b01f11dd8`.
-- Pre-test primary-contract registration: `docs/claim_evidence/ups_advection_model_primary_pretest_contract.json` records intended held-out measurement key `bef78a52d4a9be624e00f51bcb53b929308a3d595b4d27e3eeca21aaf8613724` and the exact guarded command, but does not run it.
-- These model-side gates did not touch held-out test and must not be used as held-out claims. They are validation-only model-side progress plus pre-test registration for a possible future primary-contract held-out confirmation.
+- Pre-test primary-contract registration: `docs/claim_evidence/ups_advection_model_primary_pretest_contract.json` records intended held-out measurement key `8afdb38b42feb138752101d74e11b95a0077eb2e8ba8cfb0fb5dffa6b67a5128` and the exact guarded command.
+- Held-out primary-candidate result: `ups_light_advection_weighted_operator_stability_seed23_primary_guarded` measured test `decoded_rollout_nrmse = 0.5226095521324494`, advection `0.7373638522454458`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`.
+- Held-out primary-candidate evidence: `docs/claim_evidence/ups_advection_model_primary_heldout_light_v1_evidence.json`; artifact SHA256 `d1f450e3487b9b208d52e45ee5654d5f946ebd2fd7875dda00079433a1a113d6`.
+- The no-context model-side candidate failed to beat the current CT8 primary held-out claim (`0.5226095521324494` vs `0.4165820594268877`), so it must not be promoted.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -425,7 +427,7 @@ Status:
 
 - Wrote `docs/claim_evidence/ups_advection_model_primary_pretest_contract.json` for the seed-23 no-context model-side candidate, without reading or running held-out test.
 - Registered validation evidence SHA256 `fecf10e6936e511fab091e6fc1936d41736fa52b02ea7ad4d1ed326d556ef306` for `docs/claim_evidence/ups_advection_model_stability_val_evidence.json`.
-- Registered intended held-out measurement key `bef78a52d4a9be624e00f51bcb53b929308a3d595b4d27e3eeca21aaf8613724`.
+- Registered intended held-out measurement key `8afdb38b42feb138752101d74e11b95a0077eb2e8ba8cfb0fb5dffa6b67a5128`.
 - Registered intended ledger path `reports/research/sota_loop/model_advection_primary_contract/test_ledger.json`.
 - Added `scripts/validate_ups_advection_model_primary_pretest_contract.py` and unit tests so the command must use the seed-23 checkpoint source, must skip training, must include `--extra-eval-split test`, must use the ledger guard, must reject repeat-test bypass, must recompute the measurement key, and must not include online context/observed/prediction roll-shift estimators.
 
@@ -439,3 +441,27 @@ Next checkpoint:
 - Run the new pre-test contract validator, targeted tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the pre-test contract.
 - Next technical path after merge: decide whether to spend exactly one held-out primary-contract confirmation using the registered command, or require an additional validation seed first.
+
+### 2026-06-01 Model-Side Primary Held-Out Result
+
+Status:
+
+- Re-ran `scripts/validate_ups_advection_model_primary_pretest_contract.py` before any held-out access; it passed.
+- The first execution attempt stopped before `test` because `--skip-training` without a checkpoint-preference stage selected `operator_joint.pt` ahead of the validation-selected `operator_decoded.pt`, causing validation promotion to fail at `0.35413255274913563`.
+- Patched `scripts/run_light_experiment.py` so `--stage operator_decoded --skip-training` remains no-train but controls checkpoint preference, and added unit coverage for that behavior.
+- Updated the pre-test contract command and measurement key to `8afdb38b42feb138752101d74e11b95a0077eb2e8ba8cfb0fb5dffa6b67a5128`.
+- Re-ran the validation-only path with `--stage operator_decoded --skip-training`; it selected `operator_decoded.pt`, reproduced validation `decoded_rollout_nrmse = 0.35078329353213156`, and passed promotion.
+- Ran the registered held-out command exactly once. The ledger recorded measurement key `8afdb38b42feb138752101d74e11b95a0077eb2e8ba8cfb0fb5dffa6b67a5128`.
+- Held-out test result was `decoded_rollout_nrmse = 0.5226095521324494`, advection `0.7373638522454458`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`.
+- Packaged held-out negative evidence at `docs/claim_evidence/ups_advection_model_primary_heldout_light_v1_evidence.json` and artifact SHA256 `d1f450e3487b9b208d52e45ee5654d5f946ebd2fd7875dda00079433a1a113d6`.
+
+Decision:
+
+- Do not promote the no-context model-side candidate. It failed the held-out primary comparison by `0.10602749270556172` overall and `0.16077751890754255` on advection versus the current CT8 primary claim.
+- Do not repeat this held-out key. The result is negative evidence that the validation-only no-context advection gain did not transfer to held-out test.
+
+Next checkpoint:
+
+- Validate the held-out evidence manifest, artifact, runner checkpoint-preference patch, and full test suite.
+- If checks pass, open a PR for the negative held-out evidence.
+- Next technical path after merge: analyze the validation/test distribution gap and return to validation-only model-side work, not held-out reruns.

@@ -840,6 +840,7 @@ def main() -> None:
     args = parser.parse_args()
 
     stages = [] if args.skip_training else (args.stage or ["operator"])
+    checkpoint_preference_stages = args.stage or stages
     output_root = Path(args.output_root)
     run_dir = output_root / args.name
     checkpoint_dir = run_dir / "checkpoints"
@@ -935,7 +936,9 @@ def main() -> None:
     summary = _evaluate_once(
         eval_cfg,
         checkpoint_dir=checkpoint_dir,
-        operator_checkpoint_names=_operator_checkpoint_names_for_stages(stages),
+        operator_checkpoint_names=_operator_checkpoint_names_for_stages(
+            checkpoint_preference_stages
+        ),
         decoded=args.decoded,
         device=args.device,
         decoded_rollout_steps=args.decoded_rollout_steps,
@@ -946,6 +949,8 @@ def main() -> None:
     summary["run_name"] = args.name
     summary["stages"] = stages
     summary["skip_training"] = bool(args.skip_training)
+    if args.skip_training and args.stage:
+        summary["checkpoint_preference_stages"] = list(args.stage)
     if copied_checkpoints:
         summary["checkpoint_source"] = str(Path(args.checkpoint_source))
         summary["copied_checkpoints"] = [str(path) for path in copied_checkpoints]
@@ -966,7 +971,9 @@ def main() -> None:
         split_summary = _evaluate_once(
             split_cfg,
             checkpoint_dir=checkpoint_dir,
-            operator_checkpoint_names=_operator_checkpoint_names_for_stages(stages),
+            operator_checkpoint_names=_operator_checkpoint_names_for_stages(
+                checkpoint_preference_stages
+            ),
             decoded=args.decoded,
             device=args.device,
             decoded_rollout_steps=args.decoded_rollout_steps,
@@ -977,6 +984,8 @@ def main() -> None:
         split_summary["run_name"] = args.name
         split_summary["split"] = split_name
         split_summary["stages"] = stages
+        if args.skip_training and args.stage:
+            split_summary["checkpoint_preference_stages"] = list(args.stage)
         split_summary["config"] = str(train_cfg_path)
         split_summary["eval_config"] = str(eval_cfg_path)
         split_summary["duration_sec"] = time.time() - split_started
