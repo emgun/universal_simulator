@@ -1,0 +1,41 @@
+{
+  "measurement_type": "ups_advection_model_primary_pretest_contract",
+  "date": "2026-06-01",
+  "repo_commit_at_contract": "6e5afd2f18a8d00878e915a6b25c416ea57292e6",
+  "held_out_test_used": false,
+  "test_split_accessed": false,
+  "validation_evidence_json": "docs/claim_evidence/ups_advection_model_stability_val_evidence.json",
+  "validation_evidence_sha256": "fecf10e6936e511fab091e6fc1936d41736fa52b02ea7ad4d1ed326d556ef306",
+  "selected_validation_run": {
+    "name": "ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+    "decoded_rollout_nrmse": 0.35078329353213156,
+    "task_advection1d_decoded_rollout_nrmse": 0.4866576789288726,
+    "relative_improvement_vs_no_context_baseline": 0.008430411930904927,
+    "relative_improvement_vs_seed17_selected": 0.0020060320570773477
+  },
+  "protocol_decision": {
+    "status": "accepted_for_one_primary_contract_held_out_confirmation",
+    "claim_contract_label": "light-v1 no-context model-side UPS primary candidate",
+    "accepted_scope": "May spend exactly one ledger-protected held-out confirmation after this pre-test contract passes validation.",
+    "not_online_context_variant": true,
+    "online_context_roll_shift_disabled": true,
+    "external_paper_reproduction": false,
+    "requires_claim_audit_update": true,
+    "rationale": "The selected model-side candidate improves the no-context validation baseline across two validation seeds without the CT1 online transport-context correction. A held-out result, if later run exactly once through the registered command, can be considered for primary light-v1 claim audit only after the evidence and claim-language update distinguish it from validation-only evidence.",
+    "rejected_overclaims": [
+      "held-out primary claim before running the registered command",
+      "published-paper SOTA without external protocol mapping",
+      "CT1 online-context variant result",
+      "duplicate held-out test-budget spend"
+    ]
+  },
+  "intended_held_out": {
+    "command_status": "pre_registered_not_run",
+    "test_split": "test",
+    "ledger_json": "reports/research/sota_loop/model_advection_primary_contract/test_ledger.json",
+    "measurement_key": "bef78a52d4a9be624e00f51bcb53b929308a3d595b4d27e3eeca21aaf8613724",
+    "validation_gate_threshold": 0.35078329353213156,
+    "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_weighted_operator_stability_seed23_primary_guarded --output-root reports/research/sota_loop/model_advection_primary_contract --skip-training --checkpoint-source reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21 --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_persistence_residual_alpha_by_family={transport: 0.21}' --promotion-rule 'decoded_rollout_nrmse<=0.35078329353213156' --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/model_advection_primary_contract/test_ledger.json"
+  },
+  "next_action": "Run scripts/validate_ups_advection_model_primary_pretest_contract.py before any held-out command. If it passes and the team accepts the no-context primary-candidate claim language, run the intended held-out command exactly once."
+}

@@ -47,7 +47,8 @@ Model-side validation gate without online context roll-shift:
 - Broader sweep evidence: `docs/claim_evidence/ups_advection_model_sweep_val_evidence.json`; artifact SHA256 `f8f43e475812cd32e5e8cfb15a7c191e4dfd176c84ed1a4ebabb50927cb7e4c1`.
 - Stability update: seed-23 replicate `ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21` validated at `decoded_rollout_nrmse = 0.35078329353213156`, advection `0.4866576789288726`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
 - Stability evidence: `docs/claim_evidence/ups_advection_model_stability_val_evidence.json`; artifact SHA256 `92e4c2ff63b9949bc5154ca53d8f5eedd8cfa20e8d436ac5b6b0363b01f11dd8`.
-- These model-side gates did not touch held-out test and must not be used as held-out claims. They are validation-only model-side progress that should motivate a pre-test protocol contract before any primary-contract held-out confirmation.
+- Pre-test primary-contract registration: `docs/claim_evidence/ups_advection_model_primary_pretest_contract.json` records intended held-out measurement key `bef78a52d4a9be624e00f51bcb53b929308a3d595b4d27e3eeca21aaf8613724` and the exact guarded command, but does not run it.
+- These model-side gates did not touch held-out test and must not be used as held-out claims. They are validation-only model-side progress plus pre-test registration for a possible future primary-contract held-out confirmation.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -417,3 +418,24 @@ Next checkpoint:
 - Run the evidence validator, targeted tests, lint/formatting, artifact checks, and full pytest.
 - If checks pass, open a PR for the stability evidence.
 - Next technical path after merge: write the pre-test primary-contract confirmation contract for this no-context model-side candidate before any held-out command.
+
+### 2026-06-01 Model-Side Primary Pre-Test Contract
+
+Status:
+
+- Wrote `docs/claim_evidence/ups_advection_model_primary_pretest_contract.json` for the seed-23 no-context model-side candidate, without reading or running held-out test.
+- Registered validation evidence SHA256 `fecf10e6936e511fab091e6fc1936d41736fa52b02ea7ad4d1ed326d556ef306` for `docs/claim_evidence/ups_advection_model_stability_val_evidence.json`.
+- Registered intended held-out measurement key `bef78a52d4a9be624e00f51bcb53b929308a3d595b4d27e3eeca21aaf8613724`.
+- Registered intended ledger path `reports/research/sota_loop/model_advection_primary_contract/test_ledger.json`.
+- Added `scripts/validate_ups_advection_model_primary_pretest_contract.py` and unit tests so the command must use the seed-23 checkpoint source, must skip training, must include `--extra-eval-split test`, must use the ledger guard, must reject repeat-test bypass, must recompute the measurement key, and must not include online context/observed/prediction roll-shift estimators.
+
+Decision:
+
+- The next held-out spend is now auditable but still not executed. A future worker must run the validator immediately before any held-out command and should only run the exact registered command once.
+- The no-context candidate is distinct from CT1 online-context evidence. If held-out later succeeds, claim audit and language still need an explicit update before replacing or superseding the current primary claim.
+
+Next checkpoint:
+
+- Run the new pre-test contract validator, targeted tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the pre-test contract.
+- Next technical path after merge: decide whether to spend exactly one held-out primary-contract confirmation using the registered command, or require an additional validation seed first.
