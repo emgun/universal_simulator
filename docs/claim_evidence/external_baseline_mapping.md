@@ -15,6 +15,39 @@ model is given the same data budget and judged by the same metric, does UPS win?
 The committed `physical_fourier_light_test_strong_baseline` answers that for a
 repo-local Fourier neural baseline.
 
+## Primary Claim vs Scoped Variant
+
+The current primary UPS claim remains
+`ups_light_shared_context_transport_guarded`: the CT8 shared-context decoded UPS
+candidate on held-out `light-v1` test with
+`decoded_rollout_nrmse = 0.4165820594268877`.
+
+The CT1 result is recorded separately as
+`light_v1_ct1_online_transport_context`, run
+`ups_light_advection_context_transport_only_ct1_guarded`. It uses the same
+held-out `light-v1` test split, task set, metric, 16-step decoded rollout
+horizon, and ledger discipline, and records
+`decoded_rollout_nrmse = 0.20177292896682064`. It is not the same exact
+inference contract as the CT8 primary claim: CT1 changes the online
+roll-persistence correction to `context_transitions = 1`,
+`families = [transport]`, and `slope = 1.0`, while CT8 used
+`context_transitions = 8`,
+`families: [transport, conservation]`, and the shared calibrated slope.
+
+| Surface | CT8 primary claim | CT1 scoped variant |
+| --- | --- | --- |
+| Run | `ups_light_shared_context_transport_guarded` | `ups_light_advection_context_transport_only_ct1_guarded` |
+| Held-out test `decoded_rollout_nrmse` | `0.4165820594268877` | `0.20177292896682064` |
+| Advection test NRMSE | `0.5765863333379032` | `0.22508631227914033` |
+| Contract status | Primary frozen `light-v1` claim contract | Separate online transport-context variant |
+| Claimable wording | UPS beats the measured fair/external baselines under the frozen CT8 light-v1 protocol | CT1 improves the held-out online transport-context variant under a changed inference contract |
+| Not claimable | Published-paper SOTA or published-table equivalence | Replacement for CT8, autonomous rollout claim, external-paper reproduction, or published-table equivalence |
+
+The machine-readable copy of this distinction lives in
+`scoped_claim_variants` in both
+`docs/claim_evidence/universal_sota_claim_evidence.json` and
+`docs/claim_evidence/external_baseline_mapping.json`.
+
 ## External-Paper Reproduction
 
 An external-paper reproduction is stricter. It means running an outside paper's

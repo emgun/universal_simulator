@@ -23,6 +23,50 @@ def test_external_baseline_mapping_matches_current_claim_evidence():
     assert validate_mapping(mapping, claim_evidence) == []
 
 
+def test_external_baseline_mapping_rejects_scoped_variant_metric_mismatch():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    mutated["scoped_claim_variants"][0]["metric_value"] = 999.0
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert (
+        "scoped_claim_variants[light_v1_ct1_online_transport_context].metric_value "
+        "must match claim evidence" in errors
+    )
+
+
+def test_external_baseline_mapping_rejects_scoped_variant_overclaim():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    variant = mutated["scoped_claim_variants"][0]
+    variant["same_exact_inference_contract_as_primary"] = True
+    variant["not_autonomous_rollout_claim"] = False
+    variant["published_numbers_directly_comparable"] = True
+    variant["external_paper_reproduction"] = True
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert (
+        "scoped_claim_variants[light_v1_ct1_online_transport_context]."
+        "same_exact_inference_contract_as_primary must be false" in errors
+    )
+    assert (
+        "scoped_claim_variants[light_v1_ct1_online_transport_context]."
+        "not_autonomous_rollout_claim must be true" in errors
+    )
+    assert (
+        "scoped_claim_variants[light_v1_ct1_online_transport_context]."
+        "published_numbers_directly_comparable must be false" in errors
+    )
+    assert (
+        "scoped_claim_variants[light_v1_ct1_online_transport_context]."
+        "external_paper_reproduction must be false" in errors
+    )
+
+
 def test_external_baseline_mapping_rejects_claim_metric_mismatch():
     mapping = _load(MAPPING_PATH)
     claim_evidence = _load(CLAIM_EVIDENCE_PATH)
