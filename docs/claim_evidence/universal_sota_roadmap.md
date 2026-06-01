@@ -55,6 +55,7 @@ Model-side validation gate without online context roll-shift:
 - Phase-tracking validation gate contract: `docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json` now requires any future no-context primary candidate to clear validation-only thresholds on overall rollout, advection rollout, and advection h16 before a new held-out pre-test contract can be written.
 - Phase-gate alpha diagnostic: `docs/claim_evidence/ups_advection_phase_alpha_diagnostic_val_evidence.json` swept transport residual alpha `0.0`, `0.1`, `0.21`, `0.3`, and `0.4` on validation only. No setting cleared the phase gate; alpha `0.21` remained best overall at `0.35078329353213156` but still failed h16 (`0.4938241237376044` vs required `<= 0.44444171136384397`).
 - H16 training candidate: `docs/claim_evidence/ups_advection_h16_candidate_val_evidence.json` tried operator-decoded fine-tuning with `training_rollout_steps = 16` on validation only. It did not clear the phase gate: overall `0.3516245417982602`, advection rollout `0.487955006724297`, advection h16 `0.4961000768880384`.
+- Horizon-weighted training candidate: `docs/claim_evidence/ups_advection_horizon_weighted_candidate_val_evidence.json` added opt-in `rollout_loss_horizon_power` and ran one validation-only candidate with power `2.0`. It improved slightly over the rollout-16 candidate but did not clear the phase gate: overall `0.35108013463927584`, advection rollout `0.48711549085823747`, advection h16 `0.4952380546421234`.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -563,3 +564,29 @@ Next checkpoint:
 - Run the h16-candidate evidence validator, targeted tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the negative candidate evidence.
 - Next technical path after merge: introduce an explicit horizon-weighted training loss or advection temporal-window sampling change, then validate against the same phase gate.
+
+### 2026-06-01 Horizon-Weighted Training Candidate
+
+Status:
+
+- Added an opt-in decoded rollout training knob: `stages.<stage>.rollout_loss_horizon_power`.
+- Default behavior is unchanged: `rollout_loss_horizon_power = 0.0` preserves uniform averaging over rollout losses.
+- A positive horizon power weights later decoded rollout losses more heavily while keeping the loss scale normalized by total weight.
+- Ran one bounded train/validation-only candidate: `ups_light_advection_horizon_weighted_operator_w15_lr1e4_e8_r16_p2_alpha21`.
+- Candidate settings: `operator_decoded`, seed `37`, `epochs = 8`, `learning_rate = 0.0001`, `training_rollout_steps = 16`, `rollout_loss_horizon_power = 2.0`, task weights `advection1d:1.5`, `burgers1d:1.0`, `darcy2d:1.0`.
+- Evaluation stayed on `val`, used 32 samples, 16-step decoded rollout, no online context/observed/prediction roll-shift estimator, and transport residual alpha `0.21`.
+- Result: overall validation `decoded_rollout_nrmse = 0.35108013463927584`, advection rollout `0.48711549085823747`, advection h16 `0.4952380546421234`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Compared with the prior rollout-16 candidate, the horizon-weighted candidate improved overall by `0.0005444071589843502`, advection rollout by `0.0008395158660595148`, and advection h16 by `0.0008620222459150284`.
+- Packaged evidence at `docs/claim_evidence/ups_advection_horizon_weighted_candidate_val_evidence.json` and artifact SHA256 `1e78c67449aa12226312c99cc93ff5e8704282d645238e633dd24eeffc350a54`.
+
+Decision:
+
+- The opt-in horizon-weighted loss is a useful measured lever because it improves the prior rollout-16 candidate without changing default behavior.
+- It still does not clear the phase gate and does not authorize any held-out pre-test contract.
+- The remaining h16 gap is too large for horizon weighting alone; the next candidate should add a more direct transport phase signal or temporal-window sampling change.
+
+Next checkpoint:
+
+- Run the horizon-weighted evidence validator, loss tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the code lever and negative candidate evidence.
+- Next technical path after merge: combine `rollout_loss_horizon_power` with a transport-specific phase/shift consistency objective or train-split temporal-window sampling that targets advection h16 more directly.

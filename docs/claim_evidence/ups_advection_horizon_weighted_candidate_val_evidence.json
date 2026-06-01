@@ -1,0 +1,98 @@
+{
+  "artifact": {
+    "bytes": 95868,
+    "contents": [
+      "ups_light_advection_horizon_weighted_operator_w15_lr1e4_e8_r16_p2_alpha21/summary.json",
+      "ups_light_advection_horizon_weighted_operator_w15_lr1e4_e8_r16_p2_alpha21/resolved_train.yaml",
+      "ups_light_advection_horizon_weighted_operator_w15_lr1e4_e8_r16_p2_alpha21/resolved_eval.yaml"
+    ],
+    "path": "docs/claim_evidence/artifacts/ups_advection_horizon_weighted_candidate_val.tar.gz",
+    "sha256": "1e78c67449aa12226312c99cc93ff5e8704282d645238e633dd24eeffc350a54"
+  },
+  "checkpoint_preference_stage": "operator_decoded",
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "claim_scope": "validation_only_no_context_horizon_weighted_training_candidate",
+  "code_change": {
+    "candidate_value": 2.0,
+    "default_behavior": "0.0 preserves uniform rollout-loss averaging",
+    "new_stage_config_key": "rollout_loss_horizon_power"
+  },
+  "comparison_to_rollout16_candidate": {
+    "advection_h16_absolute_improvement": 0.0008620222459150284,
+    "advection_rollout_absolute_improvement": 0.0008395158660595148,
+    "overall_absolute_improvement": 0.0005444071589843502,
+    "prior_advection_h16_nrmse": 0.4961000768880384,
+    "prior_advection_rollout_nrmse": 0.487955006724297,
+    "prior_evidence_json": "docs/claim_evidence/ups_advection_h16_candidate_val_evidence.json",
+    "prior_overall_decoded_rollout_nrmse": 0.3516245417982602
+  },
+  "data_root": "data/pdebench",
+  "date": "2026-06-01",
+  "decision": {
+    "held_out_pretest_contract_allowed": false,
+    "next_step": "Keep the opt-in loss lever as a measured training knob, but combine it with a more direct transport phase signal or temporal-window sampling before another phase-gate candidate.",
+    "reason": "Horizon-weighted rollout training improved the prior rollout-16 candidate slightly but still failed all phase-gate thresholds, especially advection h16.",
+    "status": "phase_gate_not_cleared_horizon_weighted_candidate"
+  },
+  "decoded_rollout_steps": 16,
+  "evaluation": {
+    "decoded_context_roll_shift_estimator": {},
+    "decoded_observed_roll_shift_estimator": {},
+    "decoded_persistence_residual_alpha": 0.0,
+    "decoded_persistence_residual_alpha_by_family": {
+      "transport": 0.21
+    },
+    "decoded_prediction_roll_shift_estimator": {}
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "max_samples": 32,
+  "measurement_type": "ups_advection_horizon_weighted_training_candidate_validation",
+  "metrics": {
+    "decoded_rollout_nrmse": 0.35108013463927584,
+    "decoded_rollout_spectral_energy_error": 0.10283969107329717,
+    "task_advection1d_decoded_h16_nrmse": 0.4952380546421234,
+    "task_advection1d_decoded_rollout_nrmse": 0.48711549085823747,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+    "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+  },
+  "phase_gate": {
+    "errors": [
+      "summary.metrics.decoded_rollout_nrmse=0.35108013463927584 must be < 0.35078329353213156",
+      "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.48711549085823747 must be < 0.4866576789288726",
+      "summary.metrics.task_advection1d_decoded_h16_nrmse=0.4952380546421234 must be <= 0.44444171136384397"
+    ],
+    "passed": false
+  },
+  "phase_gate_contract": {
+    "bytes": 3464,
+    "path": "docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json",
+    "sha256": "d27585f9c05d949aa84c8d9e53d49f407a4b88346cc91c80d1d20ca80ef749fa"
+  },
+  "run_name": "ups_light_advection_horizon_weighted_operator_w15_lr1e4_e8_r16_p2_alpha21",
+  "schema_version": 1,
+  "split": "val",
+  "summary": {
+    "bytes": 465085,
+    "path": "reports/research/sota_loop/model_advection_horizon_weighted/ups_light_advection_horizon_weighted_operator_w15_lr1e4_e8_r16_p2_alpha21/summary.json",
+    "sha256": "c0562d1a904cac850e5b37a7fe31ed7cc4baaa455a558608d1f25b76fc5fefb1"
+  },
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "training": {
+    "epochs": 8,
+    "learning_rate": 0.0001,
+    "rollout_loss_horizon_power": 2.0,
+    "seed": 37,
+    "stage": "operator_decoded",
+    "task_loss_weights": {
+      "advection1d": 1.5,
+      "burgers1d": 1.0,
+      "darcy2d": 1.0
+    },
+    "training_rollout_steps": 16
+  }
+}
