@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "measurement_type": "ups_advection_model_gate_validation",
+  "status": "validation_only_sweep_selected",
+  "run_group": "ups_advection_model_sweep_val",
+  "claim_scope": "broader validation-only model-side advection robustness sweep without online context roll-shift correction",
+  "held_out_test_used": false,
+  "held_out_test_data_read": false,
+  "claim_comparable": false,
+  "claim_comparability_reason": "This is a validation-only model-selection sweep. It did not evaluate the held-out test split and must not be used as a held-out claim.",
+  "published_numbers_directly_comparable": false,
+  "external_paper_reproduction": false,
+  "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_advection_model_sweep_val.tar.gz",
+  "artifact_sha256": "f8f43e475812cd32e5e8cfb15a7c191e4dfd176c84ed1a4ebabb50927cb7e4c1",
+  "artifact_bytes": 1263407,
+  "data_protocol": {
+    "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+    "data_root": "data/pdebench",
+    "train_split": "train",
+    "eval_split": "val",
+    "max_train_samples": 32,
+    "max_eval_samples": 32,
+    "tasks": [
+      "burgers1d",
+      "advection1d",
+      "darcy2d"
+    ],
+    "metric_name": "decoded_rollout_nrmse",
+    "rollout_steps": 16,
+    "conditioning_sources": {
+      "task_id": 3,
+      "equation_signature": 15
+    },
+    "forbidden_eval_features": [
+      "evaluation.decoded_context_roll_shift_estimator",
+      "evaluation.decoded_observed_roll_shift_estimator",
+      "evaluation.decoded_prediction_roll_shift_estimator",
+      "--extra-eval-split test"
+    ]
+  },
+  "baseline_validation": {
+    "run_name": "ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18",
+    "summary_json": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18/summary.json",
+    "split": "val",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.35376568397505964,
+    "metrics": {
+      "decoded_rollout_nrmse": 0.35376568397505964,
+      "task_advection1d_decoded_rollout_nrmse": 0.4912554112347586,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+    },
+    "evaluation": {
+      "decoded_persistence_residual_alpha": 0.0,
+      "decoded_persistence_residual_alpha_by_family": {
+        "transport": 0.18
+      },
+      "decoded_context_roll_shift_estimator": {}
+    }
+  },
+  "previous_model_gate": {
+    "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha19",
+    "metric_value": 0.3535522468895649,
+    "task_advection1d_decoded_rollout_nrmse": 0.4909265135126871,
+    "evidence_json": "docs/claim_evidence/ups_advection_model_gate_val_evidence.json"
+  },
+  "training_candidates": [
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w125_lr1e4_e8_r4_alpha19",
+      "summary_json": "reports/research/sota_loop/model_advection_sweep/ups_light_advection_weighted_operator_sweep_w125_lr1e4_e8_r4_alpha19/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 1.25,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "training_rollout_steps": 4,
+      "transport_alpha": 0.19,
+      "metric_value": 0.35352167517959965,
+      "task_advection1d_decoded_rollout_nrmse": 0.49087940198799296,
+      "promotion_passed": true
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w175_lr1e4_e8_r4_alpha19",
+      "summary_json": "reports/research/sota_loop/model_advection_sweep/ups_light_advection_weighted_operator_sweep_w175_lr1e4_e8_r4_alpha19/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 1.75,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "training_rollout_steps": 4,
+      "transport_alpha": 0.19,
+      "metric_value": 0.3535970281914783,
+      "task_advection1d_decoded_rollout_nrmse": 0.4909955214527162,
+      "promotion_passed": false
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr5e5_e12_r4_alpha19",
+      "summary_json": "reports/research/sota_loop/model_advection_sweep/ups_light_advection_weighted_operator_sweep_w15_lr5e5_e12_r4_alpha19/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 1.5,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 12,
+      "learning_rate": 0.00005,
+      "training_rollout_steps": 4,
+      "transport_alpha": 0.19,
+      "metric_value": 0.3546448305722839,
+      "task_advection1d_decoded_rollout_nrmse": 0.4926099108871598,
+      "promotion_passed": false
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha19",
+      "summary_json": "reports/research/sota_loop/model_advection_sweep/ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha19/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 1.5,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "training_rollout_steps": 8,
+      "transport_alpha": 0.19,
+      "metric_value": 0.35165618765263623,
+      "task_advection1d_decoded_rollout_nrmse": 0.4880038025091331,
+      "promotion_passed": true
+    }
+  ],
+  "alpha_sweep": [
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha17",
+      "transport_alpha": 0.17,
+      "metric_value": 0.3521390504361333,
+      "task_advection1d_decoded_rollout_nrmse": 0.48874828410009574
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha18",
+      "transport_alpha": 0.18,
+      "metric_value": 0.3518582974186369,
+      "task_advection1d_decoded_rollout_nrmse": 0.4883154307093878
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha19_eval",
+      "transport_alpha": 0.19,
+      "metric_value": 0.35165618765263623,
+      "task_advection1d_decoded_rollout_nrmse": 0.4880038025091331
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha20",
+      "transport_alpha": 0.2,
+      "metric_value": 0.35153285795700495,
+      "task_advection1d_decoded_rollout_nrmse": 0.4878136336348338
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha205",
+      "transport_alpha": 0.205,
+      "metric_value": 0.3515007633912423,
+      "task_advection1d_decoded_rollout_nrmse": 0.48776414403374674
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21",
+      "transport_alpha": 0.21,
+      "metric_value": 0.3514883905111875,
+      "task_advection1d_decoded_rollout_nrmse": 0.4877450650030357
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha215",
+      "transport_alpha": 0.215,
+      "metric_value": 0.35149574175361653,
+      "task_advection1d_decoded_rollout_nrmse": 0.48775640065737663
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha22",
+      "transport_alpha": 0.22,
+      "metric_value": 0.351522814512421,
+      "task_advection1d_decoded_rollout_nrmse": 0.4877981467659382
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha225",
+      "transport_alpha": 0.225,
+      "metric_value": 0.3515696056596038,
+      "task_advection1d_decoded_rollout_nrmse": 0.48787029772414914
+    }
+  ],
+  "selected_validation_candidate": {
+    "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21",
+    "source_train_run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha19",
+    "summary_json": "reports/research/sota_loop/model_advection_sweep/ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21/summary.json",
+    "split": "val",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.3514883905111875,
+    "metrics": {
+      "decoded_rollout_nrmse": 0.3514883905111875,
+      "task_advection1d_decoded_rollout_nrmse": 0.4877450650030357,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+    },
+    "evaluation": {
+      "decoded_persistence_residual_alpha": 0.0,
+      "decoded_persistence_residual_alpha_by_family": {
+        "transport": 0.21
+      },
+      "decoded_context_roll_shift_estimator": {},
+      "decoded_observed_roll_shift_estimator": {},
+      "decoded_prediction_roll_shift_estimator": {}
+    },
+    "improvement_vs_baseline": {
+      "decoded_rollout_nrmse_absolute": 0.002277293463872121,
+      "decoded_rollout_nrmse_fraction": 0.006437293290529189,
+      "task_advection1d_decoded_rollout_nrmse_absolute": 0.0035103462317228606,
+      "task_advection1d_decoded_rollout_nrmse_fraction": 0.00714566425415995
+    },
+    "improvement_vs_previous_model_gate": {
+      "decoded_rollout_nrmse_absolute": 0.00206385637837736,
+      "decoded_rollout_nrmse_fraction": 0.005837486245765604,
+      "task_advection1d_decoded_rollout_nrmse_absolute": 0.003181448509651408,
+      "task_advection1d_decoded_rollout_nrmse_fraction": 0.006480498449528514
+    }
+  },
+  "decision": {
+    "result": "validation_gate_cleared_material_margin_no_held_out_test",
+    "reason": "The broader operator-decoded sweep found a materially better no-context validation candidate. The improvement is still validation-only, but the margin is large enough to justify one more stability sweep or pre-test protocol review before any held-out primary-contract measurement.",
+    "next_step": "Run a stability check across nearby seeds or repeat-free deterministic reruns, then pre-register a held-out primary-contract confirmation only if the validation evidence remains stable and all no-context caveats are written before test spend."
+  }
+}

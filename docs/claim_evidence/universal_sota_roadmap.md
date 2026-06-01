@@ -41,7 +41,11 @@ Model-side validation gate without online context roll-shift:
 - Validation `decoded_rollout_nrmse = 0.3535522468895649`, advection `0.4909265135126871`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
 - Improvement over the previous best no-context validation baseline `ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18`: overall `0.00021343708549476093` absolute / `0.0006033289693236842` relative and advection `0.00032889772207145285` absolute / `0.0006695045276850516` relative.
 - Evidence: `docs/claim_evidence/ups_advection_model_gate_val_evidence.json`; artifact SHA256 `90951476e2810608724cbf479ba10cfd91190fb4e29854dd33d44e9f9a6e414b`.
-- This did not touch held-out test and must not be used as a held-out claim. It is validation-only model-side progress that should motivate a broader train/validation sweep before any primary-contract held-out confirmation.
+- Broader sweep update: selected validation-only candidate `ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21`.
+- Broader sweep validation `decoded_rollout_nrmse = 0.3514883905111875`, advection `0.4877450650030357`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Broader sweep improvement over the previous best no-context validation baseline `ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18`: overall `0.002277293463872121` absolute / `0.006437293290529189` relative and advection `0.0035103462317228606` absolute / `0.00714566425415995` relative.
+- Broader sweep evidence: `docs/claim_evidence/ups_advection_model_sweep_val_evidence.json`; artifact SHA256 `f8f43e475812cd32e5e8cfb15a7c191e4dfd176c84ed1a4ebabb50927cb7e4c1`.
+- These model-side gates did not touch held-out test and must not be used as held-out claims. They are validation-only model-side progress that should motivate stability validation or a pre-test protocol contract before any primary-contract held-out confirmation.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -365,3 +369,27 @@ Next checkpoint:
 - The pre-test contract is now in place. The next irreversible step is to spend exactly one held-out test measurement using the pre-registered command, then package/update claim evidence only if the held-out result beats the current CT8 held-out claim and is documented with the scoped CT1 language.
 - Next technical path: add a scoped CT1 claim row/audit path so downstream status scripts can distinguish the CT1 online-context result from the older CT8 claim and from external-paper SOTA claims.
 - Next technical path: update user-facing claim documentation to describe the CT8 primary claim and CT1 online-context variant side by side, then decide whether to pursue a model-side advection objective that does not depend on online roll-persistence correction.
+
+### 2026-06-01 Broader Model-Side Advection Sweep
+
+Status:
+
+- Ran a validation-only decoded-operator sweep around the small model-side signal, still from `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, using `train` only for fine-tuning and `val` only for selection.
+- Rejected `advection1d:1.75`, `learning_rate = 0.0001`, `rollout_steps = 4`, `alpha = 0.19` because validation worsened to `decoded_rollout_nrmse = 0.3535970281914783`.
+- Rejected `advection1d:1.5`, `learning_rate = 0.00005`, `epochs = 12`, `rollout_steps = 4`, `alpha = 0.19` because validation worsened to `decoded_rollout_nrmse = 0.3546448305722839`.
+- Accepted `advection1d:1.25`, `learning_rate = 0.0001`, `epochs = 8`, `rollout_steps = 4`, `alpha = 0.19` as a small validation improvement at `decoded_rollout_nrmse = 0.35352167517959965`.
+- Accepted `advection1d:1.5`, `learning_rate = 0.0001`, `epochs = 8`, `rollout_steps = 8`, `alpha = 0.19` as the first materially better model-side candidate at `decoded_rollout_nrmse = 0.35165618765263623`.
+- Selected alpha `0.21` for the `rollout_steps = 8` candidate on validation, producing `decoded_rollout_nrmse = 0.3514883905111875` and advection `0.4877450650030357`.
+- Packaged validation-only sweep evidence at `docs/claim_evidence/ups_advection_model_sweep_val_evidence.json` and artifact SHA256 `f8f43e475812cd32e5e8cfb15a7c191e4dfd176c84ed1a4ebabb50927cb7e4c1`.
+
+Decision:
+
+- This is a stronger model-side result than the previous gate because the validation margin expanded from `0.00021343708549476093` to `0.002277293463872121` overall and from `0.00032889772207145285` to `0.0035103462317228606` on advection versus the same no-context baseline.
+- This still is not a held-out primary-contract result. The sweep used validation for model and alpha selection, did not read `test`, and kept online context, observed, and prediction roll-shift estimators empty.
+- The result is now large enough to justify either one stability-focused validation replicate around the selected setting or a pre-test protocol contract review, but not enough to silently spend held-out budget without that checkpoint.
+
+Next checkpoint:
+
+- Run the evidence validator, artifact hash/contents checks, targeted unit tests, lint, formatting checks, and the full pytest suite.
+- If checks pass, open a PR for the sweep evidence and roadmap update.
+- Next technical path: run a stability-only validation replicate near `advection1d:1.5`, `learning_rate = 0.0001`, `epochs = 8`, `rollout_steps = 8`, `alpha = 0.21`, or write the pre-test primary-contract confirmation contract before any held-out command.
