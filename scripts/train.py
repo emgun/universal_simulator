@@ -7,7 +7,7 @@ import argparse
 import copy
 import random
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +114,34 @@ def _task_loss_weight(stage_cfg: dict[str, Any], task_name: str | None) -> float
     if weight < 0.0:
         raise ValueError("task_loss_weights values must be non-negative")
     return weight
+
+
+def _decoded_rollout_training_loss(
+    decoded_losses: Sequence[torch.Tensor],
+    *,
+    stage_cfg: dict[str, Any],
+    lambda_rollout: float,
+) -> torch.Tensor:
+    if not decoded_losses:
+        raise ValueError("decoded_losses must be non-empty")
+    loss = decoded_losses[0]
+    if len(decoded_losses) <= 1:
+        return loss
+
+    rollout_losses = torch.stack(list(decoded_losses[1:]))
+    horizon_power = float(stage_cfg.get("rollout_loss_horizon_power", 0.0) or 0.0)
+    if horizon_power < 0.0:
+        raise ValueError("rollout_loss_horizon_power must be non-negative")
+    if horizon_power > 0.0:
+        step_count = len(decoded_losses)
+        steps = torch.arange(
+            2, step_count + 1, device=rollout_losses.device, dtype=rollout_losses.dtype
+        )
+        weights = torch.pow(steps / float(step_count), horizon_power)
+        rollout_loss = (rollout_losses * weights).sum() / weights.sum()
+    else:
+        rollout_loss = rollout_losses.mean()
+    return loss + lambda_rollout * rollout_loss
 
 
 def load_config(path: str) -> dict:
@@ -1155,10 +1183,11 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                         )
                     if not decoded_losses:
                         continue
-                    sample_loss = decoded_losses[0]
-                    if len(decoded_losses) > 1:
-                        rollout_loss = torch.stack(decoded_losses[1:]).mean()
-                        sample_loss = sample_loss + lambda_rollout * rollout_loss
+                    sample_loss = _decoded_rollout_training_loss(
+                        decoded_losses,
+                        stage_cfg=stage_cfg,
+                        lambda_rollout=lambda_rollout,
+                    )
                     sample_loss = sample_loss * _task_loss_weight(stage_cfg, task_name)
                     sample_losses.append(sample_loss)
 
@@ -1233,10 +1262,11 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
             if not decoded_losses:
                 continue
 
-            loss = decoded_losses[0]
-            if len(decoded_losses) > 1:
-                rollout_loss = torch.stack(decoded_losses[1:]).mean()
-                loss = loss + lambda_rollout * rollout_loss
+            loss = _decoded_rollout_training_loss(
+                decoded_losses,
+                stage_cfg=stage_cfg,
+                lambda_rollout=lambda_rollout,
+            )
             loss = loss * _task_loss_weight(stage_cfg, task_name)
 
             optimizer.zero_grad(set_to_none=True)
@@ -1424,10 +1454,13 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                 )
 
                             if decoded_losses:
-                                losses.append(decoded_losses[0])
-                                if len(decoded_losses) > 1:
-                                    rollout_loss = torch.stack(decoded_losses[1:]).mean()
-                                    losses.append(lambda_rollout * rollout_loss)
+                                losses.append(
+                                    _decoded_rollout_training_loss(
+                                        decoded_losses,
+                                        stage_cfg=stage_cfg,
+                                        lambda_rollout=lambda_rollout,
+                                    )
+                                )
 
                             if losses:
                                 sample_loss = torch.stack(losses).sum()
@@ -1529,10 +1562,13 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         )
 
                     if decoded_losses:
-                        losses.append(decoded_losses[0])
-                        if len(decoded_losses) > 1:
-                            rollout_loss = torch.stack(decoded_losses[1:]).mean()
-                            losses.append(lambda_rollout * rollout_loss)
+                        losses.append(
+                            _decoded_rollout_training_loss(
+                                decoded_losses,
+                                stage_cfg=stage_cfg,
+                                lambda_rollout=lambda_rollout,
+                            )
+                        )
 
                     if not losses:
                         continue

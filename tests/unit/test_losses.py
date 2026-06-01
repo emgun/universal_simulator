@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from scripts.train import _decoded_field_loss, _task_loss_weight
+from scripts.train import _decoded_field_loss, _decoded_rollout_training_loss, _task_loss_weight
 from ups.training.losses import (
     LossBundle,
     compute_loss_bundle,
@@ -114,3 +114,41 @@ def test_task_loss_weight_uses_explicit_task_weight():
     assert _task_loss_weight(stage_cfg, "advection1d") == 3.0
     assert _task_loss_weight(stage_cfg, "burgers1d") == 0.5
     assert _task_loss_weight(stage_cfg, "darcy2d") == 1.0
+
+
+def test_decoded_rollout_training_loss_preserves_uniform_default():
+    decoded_losses = [torch.tensor(1.0), torch.tensor(2.0), torch.tensor(4.0)]
+
+    loss = _decoded_rollout_training_loss(
+        decoded_losses,
+        stage_cfg={},
+        lambda_rollout=0.5,
+    )
+
+    assert loss == torch.tensor(2.5)
+
+
+def test_decoded_rollout_training_loss_can_emphasize_late_horizons():
+    decoded_losses = [torch.tensor(1.0), torch.tensor(2.0), torch.tensor(4.0)]
+
+    uniform = _decoded_rollout_training_loss(
+        decoded_losses,
+        stage_cfg={},
+        lambda_rollout=1.0,
+    )
+    weighted = _decoded_rollout_training_loss(
+        decoded_losses,
+        stage_cfg={"rollout_loss_horizon_power": 2.0},
+        lambda_rollout=1.0,
+    )
+
+    assert weighted > uniform
+
+
+def test_decoded_rollout_training_loss_rejects_negative_horizon_power():
+    with pytest.raises(ValueError):
+        _decoded_rollout_training_loss(
+            [torch.tensor(1.0), torch.tensor(2.0)],
+            stage_cfg={"rollout_loss_horizon_power": -1.0},
+            lambda_rollout=1.0,
+        )
