@@ -58,14 +58,18 @@ def _sha256(path: Path) -> str:
 
 
 def _load_tar_json(path: Path, member: str) -> dict[str, Any]:
+    payload = json.loads(_load_tar_member(path, member).decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(f"{member} in {path} must contain a JSON object")
+    return payload
+
+
+def _load_tar_member(path: Path, member: str) -> bytes:
     with tarfile.open(path, mode="r:gz") as archive:
         extracted = archive.extractfile(member)
         if extracted is None:
             raise FileNotFoundError(f"{member} not found in {path}")
-        payload = json.load(extracted)
-    if not isinstance(payload, dict):
-        raise TypeError(f"{member} in {path} must contain a JSON object")
-    return payload
+        return extracted.read()
 
 
 def _metric_subset(metrics: Mapping[str, Any]) -> dict[str, float]:
@@ -122,21 +126,21 @@ def _source_json(path: Path, root: Path) -> dict[str, Any]:
     }
 
 
-def _claim_summary_path(claim_evidence: Mapping[str, Any], suffix: str) -> str:
-    documentation = claim_evidence.get("claim_documentation", {})
-    if not isinstance(documentation, Mapping):
-        raise TypeError("claim_documentation must be an object")
-    files = documentation.get("artifact_files", [])
-    if not isinstance(files, list):
-        raise TypeError("claim_documentation.artifact_files must be a list")
-    matches = [
-        str(item.get("path"))
-        for item in files
-        if isinstance(item, Mapping) and str(item.get("path", "")).endswith(suffix)
-    ]
-    if len(matches) != 1:
-        raise ValueError(f"expected exactly one claim artifact path ending with {suffix}")
-    return matches[0]
+def _source_tar_member(path: Path, member: str, root: Path) -> dict[str, Any]:
+    payload = _load_tar_member(path, member)
+    return {
+        "path": str(path.relative_to(root)),
+        "member": member,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "bytes": len(payload),
+    }
+
+
+def _repo_artifact_path(handle: str, root: Path) -> Path:
+    prefix = "repo:"
+    if not handle.startswith(prefix):
+        raise ValueError(f"artifact handle must start with {prefix}: {handle}")
+    return root / handle[len(prefix) :]
 
 
 def _current_candidate(claim_evidence: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -181,10 +185,14 @@ def build_analysis(
     candidate_test_metrics = _metric_subset(candidate_test_summary["metrics"])
 
     current_candidate = _current_candidate(claim_evidence)
-    ct8_val_path = root / _claim_summary_path(claim_evidence, "/summary.json")
-    ct8_test_path = root / str(current_candidate["summary_json"])
-    ct8_val_summary = load_json(ct8_val_path)
-    ct8_test_summary = load_json(ct8_test_path)
+    ct8_artifact_handles = current_candidate.get("artifact_handles", [])
+    if not isinstance(ct8_artifact_handles, list) or not ct8_artifact_handles:
+        raise TypeError("candidate_evidence[0].artifact_handles must be a non-empty list")
+    ct8_artifact_path = _repo_artifact_path(str(ct8_artifact_handles[0]), root)
+    ct8_val_member = f"{current_candidate['run_name']}/summary.json"
+    ct8_test_member = f"{current_candidate['run_name']}/summary_test.json"
+    ct8_val_summary = _load_tar_json(ct8_artifact_path, ct8_val_member)
+    ct8_test_summary = _load_tar_json(ct8_artifact_path, ct8_test_member)
     ct8_val_metrics = _metric_subset(ct8_val_summary["metrics"])
     ct8_test_metrics = _metric_subset(ct8_test_summary["metrics"])
 
@@ -214,8 +222,9 @@ def build_analysis(
                 "bytes": artifact_path.stat().st_size,
                 "recorded_bytes": artifact["bytes"],
             },
-            "ct8_validation_summary": _source_json(ct8_val_path, root),
-            "ct8_test_summary": _source_json(ct8_test_path, root),
+            "ct8_artifact": _source_json(ct8_artifact_path, root),
+            "ct8_validation_summary": _source_tar_member(ct8_artifact_path, ct8_val_member, root),
+            "ct8_test_summary": _source_tar_member(ct8_artifact_path, ct8_test_member, root),
         },
         "candidate": {
             "run_name": heldout_evidence["run_name"],
@@ -227,7 +236,7 @@ def build_analysis(
         },
         "current_ct8_primary": {
             "run_name": current_candidate["run_name"],
-            "validation_summary_json": str(ct8_val_path.relative_to(root)),
+            "validation_summary_json": f"artifact:{ct8_val_member}",
             "test_summary_json": current_candidate["summary_json"],
             "validation_metrics": ct8_val_metrics,
             "test_metrics": ct8_test_metrics,

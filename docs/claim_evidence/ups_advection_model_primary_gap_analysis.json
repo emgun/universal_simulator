@@ -457,7 +457,7 @@
       "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
       "task_darcy2d_decoded_step1_nrmse": 0.20932347625775766
     },
-    "validation_summary_json": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary.json",
+    "validation_summary_json": "artifact:ups_light_shared_context_transport_guarded/summary.json",
     "validation_to_test_gap": {
       "decoded_h16_nrmse": {
         "absolute": 0.051410558253339116,
@@ -586,14 +586,21 @@
       "path": "docs/claim_evidence/universal_sota_claim_evidence.json",
       "sha256": "861887a49ef16effb61e3437d2c68b32dfe799b710cc2aff251301d88e790736"
     },
+    "ct8_artifact": {
+      "bytes": 1067684,
+      "path": "docs/claim_evidence/artifacts/ups_light_shared_context_transport_guarded_57108bc.tar.gz",
+      "sha256": "7eb8473b294bbc97e3a26bdcc6b5a313d23528070ace1a70de116d8216089f0a"
+    },
     "ct8_test_summary": {
       "bytes": 461939,
-      "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json",
+      "member": "ups_light_shared_context_transport_guarded/summary_test.json",
+      "path": "docs/claim_evidence/artifacts/ups_light_shared_context_transport_guarded_57108bc.tar.gz",
       "sha256": "70c609ab4209dbd0349e14ae16265cf835bc16772c02c0ea9bb383a2924561ec"
     },
     "ct8_validation_summary": {
       "bytes": 473259,
-      "path": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary.json",
+      "member": "ups_light_shared_context_transport_guarded/summary.json",
+      "path": "docs/claim_evidence/artifacts/ups_light_shared_context_transport_guarded_57108bc.tar.gz",
       "sha256": "fa5495d90330c8687190fff435c3f0d0c9f3222f971b7011c9da7ec8ed78acbb"
     },
     "heldout_evidence": {
