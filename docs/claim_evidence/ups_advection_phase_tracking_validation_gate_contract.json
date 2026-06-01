@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "measurement_type": "ups_advection_phase_tracking_validation_gate_contract",
+  "date": "2026-06-01",
+  "contract_scope": "validation_only_pre_heldout_gate_for_no_context_primary_candidates",
+  "source_files": {
+    "gap_analysis": {
+      "path": "docs/claim_evidence/ups_advection_model_primary_gap_analysis.json",
+      "sha256": "e2ad7ca8c07b7bd03d85ab1f5bea4e8ce7558ecabf2706a9641e03a178e0c0cc",
+      "bytes": 24347
+    },
+    "negative_heldout_evidence": {
+      "path": "docs/claim_evidence/ups_advection_model_primary_heldout_light_v1_evidence.json",
+      "sha256": "a90add7e0492e562819b1ef0356e849c1f98da850e80399bc3a4e6c9d3f51643",
+      "bytes": 5203
+    },
+    "stability_validation_evidence": {
+      "path": "docs/claim_evidence/ups_advection_model_stability_val_evidence.json",
+      "sha256": "fecf10e6936e511fab091e6fc1936d41736fa52b02ea7ad4d1ed326d556ef306",
+      "bytes": 6688
+    }
+  },
+  "held_out_test_access": {
+    "allowed_by_this_contract": false,
+    "validation_gate_does_not_authorize_test_access": true,
+    "candidate_command_forbidden_tokens": [
+      "--extra-eval-split test",
+      "--allow-held-out-test-eval",
+      "--allow-repeat-held-out-test",
+      "--held-out-test-ledger-json"
+    ],
+    "next_step_if_gate_passes": "Write a separate pre-test held-out contract with a new measurement key before any test command is run."
+  },
+  "required_candidate_protocol": {
+    "split": "val",
+    "data_root": "data/pdebench",
+    "max_samples": 32,
+    "decoded_rollout_steps": 16,
+    "tasks": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "checkpoint_preference_stage": "operator_decoded",
+    "must_keep_context_roll_shift_estimator_empty": true,
+    "must_keep_observed_roll_shift_estimator_empty": true,
+    "must_keep_prediction_roll_shift_estimator_empty": true
+  },
+  "baseline_failed_candidate": {
+    "run_name": "ups_light_advection_weighted_operator_stability_seed23_primary_guarded",
+    "validation_overall_decoded_rollout_nrmse": 0.35078329353213156,
+    "validation_advection_rollout_nrmse": 0.4866576789288726,
+    "validation_advection_h16_nrmse": 0.4938241237376044,
+    "held_out_test_overall_decoded_rollout_nrmse": 0.5226095521324494,
+    "held_out_test_advection_rollout_nrmse": 0.7373638522454458,
+    "decision": "failed_primary_promotion_do_not_rerun"
+  },
+  "candidate_pass_thresholds": [
+    {
+      "metric": "decoded_rollout_nrmse",
+      "comparison": "<",
+      "threshold": 0.35078329353213156,
+      "rationale": "A future candidate must beat the failed validation-selected candidate overall, not merely reproduce it."
+    },
+    {
+      "metric": "task_advection1d_decoded_rollout_nrmse",
+      "comparison": "<",
+      "threshold": 0.4866576789288726,
+      "rationale": "The failed held-out promotion was dominated by advection, so validation must improve advection rollout directly."
+    },
+    {
+      "metric": "task_advection1d_decoded_h16_nrmse",
+      "comparison": "<=",
+      "threshold": 0.44444171136384397,
+      "rationale": "Require at least a 10% validation h16 improvement over the failed candidate before considering any future held-out pre-test contract."
+    }
+  ],
+  "decision": {
+    "status": "active_validation_only_gate",
+    "candidate_can_open_pretest_contract_only_if_all_thresholds_pass": true,
+    "candidate_can_skip_pretest_contract": false,
+    "candidate_can_run_held_out_test_from_this_contract": false
+  }
+}

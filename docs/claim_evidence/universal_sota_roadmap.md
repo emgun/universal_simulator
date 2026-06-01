@@ -52,6 +52,7 @@ Model-side validation gate without online context roll-shift:
 - Held-out primary-candidate evidence: `docs/claim_evidence/ups_advection_model_primary_heldout_light_v1_evidence.json`; artifact SHA256 `d1f450e3487b9b208d52e45ee5654d5f946ebd2fd7875dda00079433a1a113d6`.
 - The no-context model-side candidate failed to beat the current CT8 primary held-out claim (`0.5226095521324494` vs `0.4165820594268877`), so it must not be promoted.
 - No-heldout-rerun gap analysis: `docs/claim_evidence/ups_advection_model_primary_gap_analysis.json` recomputes the validation/test gap from existing summaries only. It identifies long-horizon advection as the dominant failed-transfer signal: candidate minus CT8 held-out advection h16 is `0.648045534125835`, while Burgers and Darcy rollout errors are effectively unchanged.
+- Phase-tracking validation gate contract: `docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json` now requires any future no-context primary candidate to clear validation-only thresholds on overall rollout, advection rollout, and advection h16 before a new held-out pre-test contract can be written.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -490,3 +491,25 @@ Next checkpoint:
 - Run the gap-analysis validator, targeted unit tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the gap-analysis evidence.
 - Next technical path after merge: design a validation-only robustness gate for transport phase tracking rather than another advection loss-weight sweep that can overfit the validation rollout average.
+
+### 2026-06-01 Phase-Tracking Validation Gate Contract
+
+Status:
+
+- Added `docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json` as the next no-context model-side pre-held-out gate.
+- Added `scripts/validate_ups_advection_phase_tracking_gate_contract.py` and unit coverage so the contract can validate itself and evaluate future validation summaries.
+- The contract explicitly does not authorize held-out test access. Passing this gate only permits writing a separate pre-test held-out contract with a new ledger key.
+- Required candidate protocol stays on `val`, with the light-v1 task bundle, 32-sample cap, 16-step decoded rollout, `operator_decoded` checkpoint preference, and empty context/observed/prediction roll-shift estimators.
+- Future candidates must beat the failed candidate's validation overall `decoded_rollout_nrmse = 0.35078329353213156`, beat validation advection rollout `0.4866576789288726`, and improve validation advection h16 by at least 10% to `<= 0.44444171136384397`.
+- The previously failed candidate does not clear this gate, which is intentional: it reproduced the validation-selected score but then failed held-out on long-horizon advection.
+
+Decision:
+
+- Use this gate before any future no-context primary held-out pre-test contract.
+- The gate is stricter than the previous validation average because the held-out miss showed that average validation improvement was not enough to protect transport phase tracking.
+
+Next checkpoint:
+
+- Run the phase-gate validator, targeted tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the contract.
+- Next technical path after merge: run validation-only model-side candidates against this gate, prioritizing changes that directly reduce advection h16 without reintroducing online context correction.
