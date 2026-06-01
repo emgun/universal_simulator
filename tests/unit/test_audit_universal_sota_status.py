@@ -493,6 +493,124 @@ def test_universal_sota_audit_uses_claim_evidence_for_docs_cost_and_artifacts(tm
     assert "strong_baseline_comparison" in record["blocking_reasons"]
 
 
+def test_universal_sota_audit_reports_scoped_ct1_variant_separately(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard([_row("persistence_light_v1_test", 1.0)]),
+    )
+    claim_evidence = _write_json(
+        tmp_path / "claim_evidence.json",
+        {
+            "candidate_evidence": [
+                {
+                    "run_name": "ups_light_shared_context_transport_guarded",
+                    "split": "test",
+                    "summary_json": "reports/ct8/summary_test.json",
+                    "duration_sec": 12.5,
+                    "artifact_handles": ["repo:docs/claim_evidence/artifacts/ct8.tar.gz"],
+                    "metrics": {
+                        "decoded_rollout_nrmse": 0.4165820594268877,
+                        "task_advection1d_decoded_rollout_nrmse": 0.5765863333379032,
+                        "task_burgers1d_decoded_rollout_nrmse": 0.17446857017795178,
+                        "task_darcy2d_decoded_rollout_nrmse": 0.20909553062258152,
+                        "decoded_rollout_spectral_energy_error": 0.06721625502425291,
+                    },
+                }
+            ],
+            "claim_documentation": {
+                "status": "complete",
+                "run_name": "ups_light_shared_context_transport_guarded",
+                "split": "test",
+                "summary_json": "reports/ct8/summary_test.json",
+                "metric_name": "decoded_rollout_nrmse",
+                "metric_value": 0.4165820594268877,
+                "commit": "abc123",
+                "command": "python scripts/run_light_experiment.py --decoded-rollout-steps 16",
+                "checkpoints": {
+                    "operator": "checkpoints/operator.pt",
+                    "encoder": "checkpoints/encoder.pt",
+                    "decoder": "checkpoints/decoder.pt",
+                },
+                "artifact_handles": ["repo:docs/claim_evidence/artifacts/ct8.tar.gz"],
+            },
+            "strong_baseline_comparison": {
+                "status": "complete",
+                "claim_run_name": "ups_light_shared_context_transport_guarded",
+                "baseline_run_name": "physical_fourier_test",
+                "split": "test",
+                "metric_name": "decoded_rollout_nrmse",
+                "candidate_metric_value": 0.4165820594268877,
+                "baseline_metric_value": 0.5636730976415197,
+                "artifact_handles": ["repo:baseline.tar.gz"],
+            },
+            "scoped_claim_variants": [
+                {
+                    "variant_id": "light_v1_ct1_online_transport_context",
+                    "status": "held_out_complete",
+                    "claim_contract_label": "light-v1 CT1 online transport-context UPS variant",
+                    "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+                    "split": "test",
+                    "metric_name": "decoded_rollout_nrmse",
+                    "metric_value": 0.20177292896682064,
+                    "evidence_json": (
+                        "docs/claim_evidence/" "ups_advection_ct1_heldout_light_v1_evidence.json"
+                    ),
+                    "artifact_handles": [
+                        "repo:docs/claim_evidence/artifacts/"
+                        "ups_advection_ct1_heldout_light_v1.tar.gz"
+                    ],
+                    "artifact_sha256": "b3b0809afc58085433ba0bbe1efbfa87deb1c227",
+                    "same_exact_inference_contract_as_primary": False,
+                    "not_autonomous_rollout_claim": True,
+                    "published_numbers_directly_comparable": False,
+                    "external_paper_reproduction": False,
+                }
+            ],
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json", {"status": "literal_achieved"}
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"status": "partial_transfer_validated", "evaluated_task_count": 2},
+    )
+
+    record = run_audit(
+        Namespace(
+            light_scorecard_json=scorecard,
+            transport_status_json=transport_status,
+            transfer_scorecard_json=transfer_scorecard,
+            claim_evidence_json=claim_evidence,
+            baseline_run_name="persistence_light_v1_test",
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            medium_confirmed=True,
+            strong_baseline_compared=False,
+            artifact_handles_confirmed=False,
+            documentation_confirmed=False,
+            candidate_summary_glob=[],
+            claim_split="test",
+            output_json="",
+        )
+    )
+
+    assert record["light_v1"]["best_run_name"] == "ups_light_shared_context_transport_guarded"
+    assert record["scoped_claim_variants"]["validated_count"] == 1
+    assert record["scoped_claim_variants"]["best_valid_variant"]["variant_id"] == (
+        "light_v1_ct1_online_transport_context"
+    )
+    assert record["scoped_claim_variants"]["best_valid_variant"]["metric_value"] == (
+        0.20177292896682064
+    )
+    assert (
+        record["scoped_claim_variants"]["best_valid_variant"][
+            "same_exact_inference_contract_as_primary"
+        ]
+        is False
+    )
+
+
 def test_universal_sota_audit_rejects_mismatched_claim_documentation(tmp_path):
     scorecard = _write_json(
         tmp_path / "scorecard.json",

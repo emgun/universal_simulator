@@ -124,6 +124,43 @@
   },
   "claim_scope": "guarded shared-context decoded UPS candidate on held-out light-v1 test",
   "schema_version": 1,
+  "scoped_claim_variants": [
+    {
+      "artifact_handles": [
+        "repo:docs/claim_evidence/artifacts/ups_advection_ct1_heldout_light_v1.tar.gz"
+      ],
+      "artifact_sha256": "b3b0809afc58085433ba0bbe1efbfa87deb1c227c18b8e6154b7d343e372834d",
+      "claim_contract_label": "light-v1 CT1 online transport-context UPS variant",
+      "evidence_json": "docs/claim_evidence/ups_advection_ct1_heldout_light_v1_evidence.json",
+      "external_paper_reproduction": false,
+      "held_out_measurement": {
+        "measurement_key": "11d176a6466fe04af43ccb47645f9a9ae8efdf68520493fbdc34741d86abd716",
+        "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+        "summary_json": "reports/research/sota_loop/advection_robustness_gate/ups_light_advection_context_transport_only_ct1_guarded/summary_test.json",
+        "test_metric_name": "decoded_rollout_nrmse",
+        "test_metric_value": 0.20177292896682064,
+        "test_split": "test",
+        "validation_metric_name": "decoded_rollout_nrmse",
+        "validation_metric_value": 0.1419775490176828
+      },
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.20177292896682064,
+      "metrics": {
+        "decoded_rollout_nrmse": 0.20177292896682064,
+        "decoded_rollout_spectral_energy_error": 0.06721626206246058,
+        "task_advection1d_decoded_rollout_nrmse": 0.22508631227914033,
+        "task_burgers1d_decoded_rollout_nrmse": 0.17446879896821743,
+        "task_darcy2d_decoded_rollout_nrmse": 0.20909553062258152
+      },
+      "not_autonomous_rollout_claim": true,
+      "published_numbers_directly_comparable": false,
+      "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+      "same_exact_inference_contract_as_primary": false,
+      "split": "test",
+      "status": "held_out_complete",
+      "variant_id": "light_v1_ct1_online_transport_context"
+    }
+  ],
   "strong_baseline_comparison": {
     "artifact_handles": [
       "repo:docs/claim_evidence/artifacts/physical_fourier_light_test_strong_baseline_9c5be72.tar.gz"
