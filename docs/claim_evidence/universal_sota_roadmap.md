@@ -45,7 +45,9 @@ Model-side validation gate without online context roll-shift:
 - Broader sweep validation `decoded_rollout_nrmse = 0.3514883905111875`, advection `0.4877450650030357`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
 - Broader sweep improvement over the previous best no-context validation baseline `ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18`: overall `0.002277293463872121` absolute / `0.006437293290529189` relative and advection `0.0035103462317228606` absolute / `0.00714566425415995` relative.
 - Broader sweep evidence: `docs/claim_evidence/ups_advection_model_sweep_val_evidence.json`; artifact SHA256 `f8f43e475812cd32e5e8cfb15a7c191e4dfd176c84ed1a4ebabb50927cb7e4c1`.
-- These model-side gates did not touch held-out test and must not be used as held-out claims. They are validation-only model-side progress that should motivate stability validation or a pre-test protocol contract before any primary-contract held-out confirmation.
+- Stability update: seed-23 replicate `ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21` validated at `decoded_rollout_nrmse = 0.35078329353213156`, advection `0.4866576789288726`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Stability evidence: `docs/claim_evidence/ups_advection_model_stability_val_evidence.json`; artifact SHA256 `92e4c2ff63b9949bc5154ca53d8f5eedd8cfa20e8d436ac5b6b0363b01f11dd8`.
+- These model-side gates did not touch held-out test and must not be used as held-out claims. They are validation-only model-side progress that should motivate a pre-test protocol contract before any primary-contract held-out confirmation.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -393,3 +395,25 @@ Next checkpoint:
 - Run the evidence validator, artifact hash/contents checks, targeted unit tests, lint, formatting checks, and the full pytest suite.
 - If checks pass, open a PR for the sweep evidence and roadmap update.
 - Next technical path: run a stability-only validation replicate near `advection1d:1.5`, `learning_rate = 0.0001`, `epochs = 8`, `rollout_steps = 8`, `alpha = 0.21`, or write the pre-test primary-contract confirmation contract before any held-out command.
+
+### 2026-06-01 Model-Side Advection Stability Gate
+
+Status:
+
+- Ran a seed-23 validation-only stability replicate for the selected no-context setting: `advection1d:1.5`, `learning_rate = 0.0001`, `epochs = 8`, `rollout_steps = 8`, validation transport alpha `0.21`.
+- Kept the same protocol boundary as the broader sweep: `train` only for fine-tuning, `val` only for selection/evidence, `max_samples = 32`, 16-step decoded rollout, and empty context/observed/prediction roll-shift estimators.
+- The seed-23 replicate passed the validation promotion rule against the no-context baseline and produced `decoded_rollout_nrmse = 0.35078329353213156`, advection `0.4866576789288726`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- The seed-23 result improves over the seed-17 selected sweep by `0.0007050969790559636` overall and `0.0010873860741631436` on advection.
+- Packaged validation-only stability evidence at `docs/claim_evidence/ups_advection_model_stability_val_evidence.json` and artifact SHA256 `92e4c2ff63b9949bc5154ca53d8f5eedd8cfa20e8d436ac5b6b0363b01f11dd8`.
+- Extended `scripts/validate_ups_advection_model_gate_evidence.py` so stability evidence must include at least two distinct seeds, every replicate must beat the baseline, the selected candidate must be the best replicate, and the artifact SHA/size/selected summary must match.
+
+Decision:
+
+- This clears the stability-only validation gate: the material improvement survived a distinct seed and improved further under the same no-context protocol.
+- This still cannot be reported as a held-out primary-contract claim. It is the validation-selected candidate family that can justify the next irreversible step only after a pre-test contract records the exact intended held-out command and ledger key.
+
+Next checkpoint:
+
+- Run the evidence validator, targeted tests, lint/formatting, artifact checks, and full pytest.
+- If checks pass, open a PR for the stability evidence.
+- Next technical path after merge: write the pre-test primary-contract confirmation contract for this no-context model-side candidate before any held-out command.

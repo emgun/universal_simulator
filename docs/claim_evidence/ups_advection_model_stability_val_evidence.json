@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "measurement_type": "ups_advection_model_stability_validation",
+  "status": "validation_only_two_seed_stability_selected",
+  "run_group": "ups_advection_model_stability_val",
+  "claim_scope": "two-seed validation-only model-side advection stability check without online context roll-shift correction",
+  "held_out_test_used": false,
+  "held_out_test_data_read": false,
+  "claim_comparable": false,
+  "claim_comparability_reason": "This is a validation-only stability check after model and alpha selection. It did not evaluate the held-out test split and must not be used as a held-out claim.",
+  "published_numbers_directly_comparable": false,
+  "external_paper_reproduction": false,
+  "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_advection_model_stability_val.tar.gz",
+  "artifact_sha256": "92e4c2ff63b9949bc5154ca53d8f5eedd8cfa20e8d436ac5b6b0363b01f11dd8",
+  "artifact_bytes": 98565,
+  "data_protocol": {
+    "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+    "data_root": "data/pdebench",
+    "train_split": "train",
+    "eval_split": "val",
+    "max_train_samples": 32,
+    "max_eval_samples": 32,
+    "tasks": [
+      "burgers1d",
+      "advection1d",
+      "darcy2d"
+    ],
+    "metric_name": "decoded_rollout_nrmse",
+    "rollout_steps": 16,
+    "conditioning_sources": {
+      "task_id": 3,
+      "equation_signature": 15
+    },
+    "forbidden_eval_features": [
+      "evaluation.decoded_context_roll_shift_estimator",
+      "evaluation.decoded_observed_roll_shift_estimator",
+      "evaluation.decoded_prediction_roll_shift_estimator",
+      "--extra-eval-split test"
+    ]
+  },
+  "baseline_validation": {
+    "run_name": "ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18",
+    "summary_json": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18/summary.json",
+    "split": "val",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.35376568397505964,
+    "metrics": {
+      "decoded_rollout_nrmse": 0.35376568397505964,
+      "task_advection1d_decoded_rollout_nrmse": 0.4912554112347586,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+    },
+    "evaluation": {
+      "decoded_persistence_residual_alpha": 0.0,
+      "decoded_persistence_residual_alpha_by_family": {
+        "transport": 0.18
+      },
+      "decoded_context_roll_shift_estimator": {}
+    }
+  },
+  "prior_selected_validation_candidate": {
+    "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21",
+    "seed": 17,
+    "metric_value": 0.3514883905111875,
+    "task_advection1d_decoded_rollout_nrmse": 0.4877450650030357,
+    "evidence_json": "docs/claim_evidence/ups_advection_model_sweep_val_evidence.json"
+  },
+  "stability_replicates": [
+    {
+      "run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21",
+      "seed": 17,
+      "summary_json": "reports/research/sota_loop/model_advection_sweep/ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha21/summary.json",
+      "source_train_run_name": "ups_light_advection_weighted_operator_sweep_w15_lr1e4_e8_r8_alpha19",
+      "metric_value": 0.3514883905111875,
+      "task_advection1d_decoded_rollout_nrmse": 0.4877450650030357,
+      "promotion_passed": true
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+      "seed": 23,
+      "summary_json": "reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21/summary.json",
+      "source_train_run_name": "ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+      "metric_value": 0.35078329353213156,
+      "task_advection1d_decoded_rollout_nrmse": 0.4866576789288726,
+      "promotion_passed": true
+    }
+  ],
+  "selected_validation_candidate": {
+    "run_name": "ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+    "source_train_run_name": "ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+    "summary_json": "reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21/summary.json",
+    "split": "val",
+    "seed": 23,
+    "stage": "operator_decoded",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.35078329353213156,
+    "metrics": {
+      "decoded_rollout_nrmse": 0.35078329353213156,
+      "task_advection1d_decoded_rollout_nrmse": 0.4866576789288726,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482,
+      "decoded_rollout_spectral_energy_error": 0.1122790477414267
+    },
+    "training": {
+      "task_loss_weights": {
+        "advection1d": 1.5,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "training_rollout_steps": 8
+    },
+    "evaluation": {
+      "decoded_persistence_residual_alpha": 0.0,
+      "decoded_persistence_residual_alpha_by_family": {
+        "transport": 0.21
+      },
+      "decoded_context_roll_shift_estimator": {},
+      "decoded_observed_roll_shift_estimator": {},
+      "decoded_prediction_roll_shift_estimator": {}
+    },
+    "improvement_vs_baseline": {
+      "decoded_rollout_nrmse_absolute": 0.0029823904429280845,
+      "decoded_rollout_nrmse_fraction": 0.008430411930904927,
+      "task_advection1d_decoded_rollout_nrmse_absolute": 0.004597732305886004,
+      "task_advection1d_decoded_rollout_nrmse_fraction": 0.009359148420023946
+    },
+    "improvement_vs_prior_selected_validation_candidate": {
+      "decoded_rollout_nrmse_absolute": 0.0007050969790559636,
+      "decoded_rollout_nrmse_fraction": 0.0020060320570773477,
+      "task_advection1d_decoded_rollout_nrmse_absolute": 0.0010873860741631436,
+      "task_advection1d_decoded_rollout_nrmse_fraction": 0.0022294148156196633
+    }
+  },
+  "decision": {
+    "result": "stability_gate_cleared_two_seed_no_held_out_test",
+    "reason": "The seed-23 replicate uses the same no-context selected setting and improves both the seed-17 selected validation result and the previous no-context validation baseline. This increases confidence that the model-side gain is not a one-seed artifact, while still remaining validation-only evidence.",
+    "next_step": "Write a pre-test primary-contract confirmation contract and ledger key before any held-out command, or run one additional validation seed if a stricter stability bar is required."
+  }
+}

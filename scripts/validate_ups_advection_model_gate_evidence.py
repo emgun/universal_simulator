@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_EVIDENCE_JSON = "docs/claim_evidence/ups_advection_model_gate_val_evidence.json"
+GATE_MEASUREMENT_TYPE = "ups_advection_model_gate_validation"
+STABILITY_MEASUREMENT_TYPE = "ups_advection_model_stability_validation"
+SUPPORTED_MEASUREMENT_TYPES = {
+    GATE_MEASUREMENT_TYPE,
+    STABILITY_MEASUREMENT_TYPE,
+}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -92,14 +98,56 @@ def _validate_artifact(evidence: Mapping[str, Any], root: Path, errors: list[str
         errors.append("artifact must include selected_validation_candidate.summary_json")
 
 
+def _best_by_metric(items: list[Mapping[str, Any]]) -> Mapping[str, Any]:
+    return min(items, key=lambda item: float(item.get("metric_value", float("inf"))))
+
+
+def _validate_stability_replicates(
+    evidence: Mapping[str, Any],
+    *,
+    selected: Mapping[str, Any],
+    baseline_metric: Any,
+    errors: list[str],
+) -> None:
+    replicates = [
+        _as_mapping(item, f"stability_replicates[{index}]", errors)
+        for index, item in enumerate(
+            _as_list(evidence.get("stability_replicates"), "stability_replicates", errors)
+        )
+    ]
+    if len(replicates) < 2:
+        errors.append("stability_replicates must include at least two validation runs")
+    seeds = {replicate.get("seed") for replicate in replicates if "seed" in replicate}
+    if len(seeds) < 2:
+        errors.append("stability_replicates must include at least two distinct seeds")
+    if isinstance(baseline_metric, (int, float)):
+        for index, replicate in enumerate(replicates):
+            metric = replicate.get("metric_value")
+            if isinstance(metric, (int, float)) and float(metric) >= float(baseline_metric):
+                errors.append(f"stability_replicates[{index}].metric_value must improve baseline")
+    if replicates:
+        best = _best_by_metric(replicates)
+        if not _close_enough(selected.get("metric_value"), best.get("metric_value")):
+            errors.append(
+                "selected_validation_candidate.metric_value must match stability_replicates best"
+            )
+        if selected.get("run_name") != best.get("run_name"):
+            errors.append(
+                "selected_validation_candidate.run_name must match stability_replicates best"
+            )
+
+
 def validate_evidence(evidence: Mapping[str, Any], *, root: Path | None = None) -> list[str]:
     errors: list[str] = []
     repo_root = root or Path.cwd()
 
     if evidence.get("schema_version") != 1:
         errors.append("schema_version must be 1")
-    if evidence.get("measurement_type") != "ups_advection_model_gate_validation":
-        errors.append("measurement_type must be ups_advection_model_gate_validation")
+    measurement_type = evidence.get("measurement_type")
+    if measurement_type not in SUPPORTED_MEASUREMENT_TYPES:
+        errors.append(
+            "measurement_type must be one of " + ", ".join(sorted(SUPPORTED_MEASUREMENT_TYPES))
+        )
     if evidence.get("held_out_test_used") is not False:
         errors.append("held_out_test_used must be false")
     if evidence.get("held_out_test_data_read") is not False:
@@ -152,16 +200,30 @@ def validate_evidence(evidence: Mapping[str, Any], *, root: Path | None = None) 
         if selected_eval.get(key) not in ({}, None):
             errors.append(f"selected_validation_candidate.evaluation.{key} must be empty")
 
-    alpha_sweep = [
-        _as_mapping(item, f"alpha_sweep[{index}]", errors)
-        for index, item in enumerate(_as_list(evidence.get("alpha_sweep"), "alpha_sweep", errors))
-    ]
+    alpha_sweep: list[Mapping[str, Any]] = []
+    if "alpha_sweep" in evidence:
+        alpha_sweep = [
+            _as_mapping(item, f"alpha_sweep[{index}]", errors)
+            for index, item in enumerate(
+                _as_list(evidence.get("alpha_sweep"), "alpha_sweep", errors)
+            )
+        ]
+    elif measurement_type == GATE_MEASUREMENT_TYPE:
+        errors.append("alpha_sweep must be a list")
     if alpha_sweep:
-        best = min(alpha_sweep, key=lambda item: float(item.get("metric_value", float("inf"))))
+        best = _best_by_metric(alpha_sweep)
         if not _close_enough(selected.get("metric_value"), best.get("metric_value")):
             errors.append("selected_validation_candidate.metric_value must match alpha_sweep best")
         if selected.get("run_name") != best.get("run_name"):
             errors.append("selected_validation_candidate.run_name must match alpha_sweep best")
+
+    if measurement_type == STABILITY_MEASUREMENT_TYPE:
+        _validate_stability_replicates(
+            evidence,
+            selected=selected,
+            baseline_metric=baseline_metric,
+            errors=errors,
+        )
 
     improvements = _as_mapping(
         selected.get("improvement_vs_baseline"),
