@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from scripts.train import _decoded_field_loss
+from scripts.train import _decoded_field_loss, _task_loss_weight
 from ups.training.losses import (
     LossBundle,
     compute_loss_bundle,
@@ -106,3 +106,11 @@ def test_decoded_field_loss_can_weight_persistence_residual():
     )
 
     assert residual > base
+
+
+def test_task_loss_weight_uses_explicit_task_weight():
+    stage_cfg = {"task_loss_weights": {"advection1d": 3.0, "burgers1d": 0.5}}
+
+    assert _task_loss_weight(stage_cfg, "advection1d") == 3.0
+    assert _task_loss_weight(stage_cfg, "burgers1d") == 0.5
+    assert _task_loss_weight(stage_cfg, "darcy2d") == 1.0

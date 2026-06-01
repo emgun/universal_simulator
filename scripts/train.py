@@ -7,6 +7,7 @@ import argparse
 import copy
 import random
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,20 @@ def _decoded_field_loss(
     if relative_weight > 0.0:
         loss = loss + relative_weight * _nrmse(pred, target)
     return loss
+
+
+def _task_loss_weight(stage_cfg: dict[str, Any], task_name: str | None) -> float:
+    if not task_name:
+        return 1.0
+    raw_weights = stage_cfg.get("task_loss_weights", {})
+    if raw_weights is None:
+        return 1.0
+    if not isinstance(raw_weights, Mapping):
+        raise ValueError("task_loss_weights must be a mapping from task name to weight")
+    weight = float(raw_weights.get(str(task_name), 1.0))
+    if weight < 0.0:
+        raise ValueError("task_loss_weights values must be non-negative")
+    return weight
 
 
 def load_config(path: str) -> dict:
@@ -1144,6 +1159,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                     if len(decoded_losses) > 1:
                         rollout_loss = torch.stack(decoded_losses[1:]).mean()
                         sample_loss = sample_loss + lambda_rollout * rollout_loss
+                    sample_loss = sample_loss * _task_loss_weight(stage_cfg, task_name)
                     sample_losses.append(sample_loss)
 
                 if not sample_losses:
@@ -1221,6 +1237,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
             if len(decoded_losses) > 1:
                 rollout_loss = torch.stack(decoded_losses[1:]).mean()
                 loss = loss + lambda_rollout * rollout_loss
+            loss = loss * _task_loss_weight(stage_cfg, task_name)
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -1413,7 +1430,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                     losses.append(lambda_rollout * rollout_loss)
 
                             if losses:
-                                sample_losses.append(torch.stack(losses).sum())
+                                sample_loss = torch.stack(losses).sum()
+                                sample_loss = sample_loss * _task_loss_weight(stage_cfg, task_name)
+                                sample_losses.append(sample_loss)
                     except RuntimeError as e:
                         if "out of memory" in str(e).lower():
                             if torch.cuda.is_available():
@@ -1518,6 +1537,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                     if not losses:
                         continue
                     loss = torch.stack(losses).sum()
+                    loss = loss * _task_loss_weight(stage_cfg, task_name)
             except RuntimeError as e:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():

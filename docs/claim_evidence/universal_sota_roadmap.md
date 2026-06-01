@@ -34,6 +34,15 @@ Scoped UPS variant:
 - CT1 improves over CT8 overall by `0.21480913046006705` absolute / `0.5156466189532753` relative and on advection by `0.3515000210587629` absolute / `0.6096225330626585` relative.
 - CT1 is not the same exact inference contract as the CT8 primary claim, not an autonomous rollout claim, not an external-paper reproduction, and not directly comparable to published table values. It is reportable only as a separate scoped `light-v1 CT1 online transport-context UPS variant`.
 
+Model-side validation gate without online context roll-shift:
+
+- Added a training-time `task_loss_weights` lever for decoded operator/joint fine-tuning and used it only on `train`.
+- Best selected validation-only candidate: `ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha19`.
+- Validation `decoded_rollout_nrmse = 0.3535522468895649`, advection `0.4909265135126871`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Improvement over the previous best no-context validation baseline `ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18`: overall `0.00021343708549476093` absolute / `0.0006033289693236842` relative and advection `0.00032889772207145285` absolute / `0.0006695045276850516` relative.
+- Evidence: `docs/claim_evidence/ups_advection_model_gate_val_evidence.json`; artifact SHA256 `90951476e2810608724cbf479ba10cfd91190fb4e29854dd33d44e9f9a6e414b`.
+- This did not touch held-out test and must not be used as a held-out claim. It is validation-only model-side progress that should motivate a broader train/validation sweep before any primary-contract held-out confirmation.
+
 Measured fair and external baselines under the claim protocol:
 
 - Repo-local physical Fourier neural baseline held-out test: `0.5636730976415197`.
@@ -329,6 +338,24 @@ Decision:
 - Keep CT8 as the primary frozen `light-v1` claim contract for broad claim-protocol comparisons against fair and external baselines.
 - Report CT1 only as the scoped `light-v1 CT1 online transport-context UPS variant`, even though its held-out metric is much better, because the inference contract changed.
 - Next model-side progress should target advection robustness without relying on the online roll-persistence correction, so a future candidate can improve the primary contract rather than only a scoped evaluation variant.
+
+### 2026-06-01 Model-Side Advection Gate
+
+Status:
+
+- Added `task_loss_weights` support to decoded operator and joint codec/operator training, with unit coverage in `tests/unit/test_losses.py`.
+- Ran the first validation-only model-side advection gate from `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`, using `train` only for fine-tuning and `val` only for selection.
+- Rejected the joint codec/operator `advection1d:3.0` run because validation worsened to `decoded_rollout_nrmse = 0.3566482531298049`.
+- Rejected the operator-only `advection1d:3.0` run because it missed the incumbent no-context gate at `0.3539187529949886`.
+- Accepted the operator-only `advection1d:2.0` and `advection1d:1.5` runs as validation improvements; `advection1d:1.5` was stronger before alpha sweep at `0.3535584718194382`.
+- Selected alpha `0.19` for the `advection1d:1.5` operator-only run on validation, producing `decoded_rollout_nrmse = 0.3535522468895649` and advection `0.4909265135126871`.
+- Packaged validation-only evidence at `docs/claim_evidence/ups_advection_model_gate_val_evidence.json` and artifact SHA256 `90951476e2810608724cbf479ba10cfd91190fb4e29854dd33d44e9f9a6e414b`.
+- Added `scripts/validate_ups_advection_model_gate_evidence.py` and `tests/unit/test_validate_ups_advection_model_gate_evidence.py` to guard the validation-only boundary, selected alpha-sweep best, positive improvement, empty context/observed/prediction shift estimators, and artifact SHA/size.
+
+Decision:
+
+- This is real model-side movement in the right direction because it changes train-time loss weighting and improves the no-context validation metric without CT1 online roll-persistence correction.
+- The margin is too small to justify held-out primary-contract spend. Continue validation-only sweeps around advection weights `1.25-1.75`, lower learning rates, and `rollout_steps` `4-8` before pre-registering any held-out test.
 
 Next checkpoint:
 

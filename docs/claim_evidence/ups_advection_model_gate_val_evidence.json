@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "measurement_type": "ups_advection_model_gate_validation",
+  "status": "validation_only_candidate_selected",
+  "run_group": "ups_advection_model_gate_val",
+  "claim_scope": "validation-only model-side advection robustness gate without online context roll-shift correction",
+  "held_out_test_used": false,
+  "held_out_test_data_read": false,
+  "claim_comparable": false,
+  "claim_comparability_reason": "This is a validation-only model-selection gate. It did not evaluate the held-out test split and must not be used as a held-out claim.",
+  "published_numbers_directly_comparable": false,
+  "external_paper_reproduction": false,
+  "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_advection_model_gate_val.tar.gz",
+  "artifact_sha256": "90951476e2810608724cbf479ba10cfd91190fb4e29854dd33d44e9f9a6e414b",
+  "artifact_bytes": 863316,
+  "data_protocol": {
+    "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+    "data_root": "data/pdebench",
+    "train_split": "train",
+    "eval_split": "val",
+    "max_train_samples": 32,
+    "max_eval_samples": 32,
+    "tasks": [
+      "burgers1d",
+      "advection1d",
+      "darcy2d"
+    ],
+    "metric_name": "decoded_rollout_nrmse",
+    "rollout_steps": 16,
+    "conditioning_sources": {
+      "task_id": 3,
+      "equation_signature": 15
+    },
+    "forbidden_eval_features": [
+      "evaluation.decoded_context_roll_shift_estimator",
+      "evaluation.decoded_observed_roll_shift_estimator",
+      "evaluation.decoded_prediction_roll_shift_estimator",
+      "--extra-eval-split test"
+    ]
+  },
+  "baseline_validation": {
+    "run_name": "ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18",
+    "summary_json": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val_transport_alpha18/summary.json",
+    "split": "val",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.35376568397505964,
+    "metrics": {
+      "decoded_rollout_nrmse": 0.35376568397505964,
+      "task_advection1d_decoded_rollout_nrmse": 0.4912554112347586,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+    },
+    "evaluation": {
+      "decoded_persistence_residual_alpha": 0.0,
+      "decoded_persistence_residual_alpha_by_family": {
+        "transport": 0.18
+      },
+      "decoded_context_roll_shift_estimator": {}
+    }
+  },
+  "training_candidates": [
+    {
+      "run_name": "ups_light_advection_weighted_joint_ft_val_w3_e4",
+      "summary_json": "reports/research/sota_loop/model_advection_gate/ups_light_advection_weighted_joint_ft_val_w3_e4/summary.json",
+      "stage": "joint_codec_operator",
+      "task_loss_weights": {
+        "advection1d": 3.0,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 4,
+      "learning_rate": 0.00075,
+      "metric_value": 0.3566482531298049,
+      "task_advection1d_decoded_rollout_nrmse": 0.49569521763876634,
+      "promotion_passed": false
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w3_lr1e4_e8",
+      "summary_json": "reports/research/sota_loop/model_advection_gate/ups_light_advection_weighted_operator_ft_val_w3_lr1e4_e8/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 3.0,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "metric_value": 0.3539187529949886,
+      "task_advection1d_decoded_rollout_nrmse": 0.4914912708650816,
+      "promotion_passed": false
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w2_lr1e4_e8",
+      "summary_json": "reports/research/sota_loop/model_advection_gate/ups_light_advection_weighted_operator_ft_val_w2_lr1e4_e8/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 2.0,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "metric_value": 0.35364786799150305,
+      "task_advection1d_decoded_rollout_nrmse": 0.4910738643693815,
+      "promotion_passed": true
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8",
+      "summary_json": "reports/research/sota_loop/model_advection_gate/ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8/summary.json",
+      "stage": "operator_decoded",
+      "task_loss_weights": {
+        "advection1d": 1.5,
+        "burgers1d": 1.0,
+        "darcy2d": 1.0
+      },
+      "epochs": 8,
+      "learning_rate": 0.0001,
+      "metric_value": 0.3535584718194382,
+      "task_advection1d_decoded_rollout_nrmse": 0.4909361061806171,
+      "promotion_passed": true
+    }
+  ],
+  "alpha_sweep": [
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha16",
+      "transport_alpha": 0.16,
+      "metric_value": 0.3538378913858177,
+      "task_advection1d_decoded_rollout_nrmse": 0.49136667494107705
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha17",
+      "transport_alpha": 0.17,
+      "metric_value": 0.3536537105730978,
+      "task_advection1d_decoded_rollout_nrmse": 0.49108286756878794
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha18",
+      "transport_alpha": 0.18,
+      "metric_value": 0.3535584718194382,
+      "task_advection1d_decoded_rollout_nrmse": 0.4909361061806171
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha19",
+      "transport_alpha": 0.19,
+      "metric_value": 0.3535522468895649,
+      "task_advection1d_decoded_rollout_nrmse": 0.4909265135126871
+    },
+    {
+      "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha20",
+      "transport_alpha": 0.2,
+      "metric_value": 0.35363504222272846,
+      "task_advection1d_decoded_rollout_nrmse": 0.4910541002828414
+    }
+  ],
+  "selected_validation_candidate": {
+    "run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha19",
+    "source_train_run_name": "ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8",
+    "summary_json": "reports/research/sota_loop/model_advection_gate/ups_light_advection_weighted_operator_ft_val_w15_lr1e4_e8_alpha19/summary.json",
+    "split": "val",
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.3535522468895649,
+    "metrics": {
+      "decoded_rollout_nrmse": 0.3535522468895649,
+      "task_advection1d_decoded_rollout_nrmse": 0.4909265135126871,
+      "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+      "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+    },
+    "evaluation": {
+      "decoded_persistence_residual_alpha": 0.0,
+      "decoded_persistence_residual_alpha_by_family": {
+        "transport": 0.19
+      },
+      "decoded_context_roll_shift_estimator": {},
+      "decoded_observed_roll_shift_estimator": {},
+      "decoded_prediction_roll_shift_estimator": {}
+    },
+    "improvement_vs_baseline": {
+      "decoded_rollout_nrmse_absolute": 0.00021343708549476093,
+      "decoded_rollout_nrmse_fraction": 0.0006033289693236842,
+      "task_advection1d_decoded_rollout_nrmse_absolute": 0.00032889772207145285,
+      "task_advection1d_decoded_rollout_nrmse_fraction": 0.0006695045276850516
+    }
+  },
+  "decision": {
+    "result": "validation_gate_cleared_small_margin_no_held_out_test",
+    "reason": "The selected operator-decoded advection-weighted candidate improves the previous best no-context validation score and advection validation score without online context roll-shift, but the margin is small. Treat it as model-side progress and continue validation-only work before any held-out primary-claim spend.",
+    "next_step": "Run a broader validation-only operator-decoded sweep around advection loss weight 1.25-1.75, lower learning rates, and rollout_steps 4-8; only pre-register held-out testing if the margin becomes materially larger and stable."
+  }
+}
