@@ -51,6 +51,22 @@ REQUIRED_PROTOCOL_KEYS = {
     "task_metric_keys",
 }
 
+REQUIRED_SCOPED_VARIANT_KEYS = {
+    "artifact_handle",
+    "artifact_sha256",
+    "evidence_json",
+    "external_paper_reproduction",
+    "metric_name",
+    "metric_value",
+    "not_autonomous_rollout_claim",
+    "published_numbers_directly_comparable",
+    "run_name",
+    "same_exact_inference_contract_as_primary",
+    "split",
+    "status",
+    "variant_id",
+}
+
 
 def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
@@ -135,6 +151,102 @@ def _validate_test_measurements(
         for key in ("measurement_key", "evidence_json", "artifact_handle"):
             if not measurement.get(key):
                 errors.append(f"{label}[{index}].{key} is required")
+
+
+def _validate_scoped_claim_variants(
+    *,
+    mapping_variants_value: Any,
+    claim_evidence: Mapping[str, Any],
+    protocol: Mapping[str, Any],
+    errors: list[str],
+) -> None:
+    claim_variants = _as_list(
+        claim_evidence.get("scoped_claim_variants", []),
+        "claim_evidence.scoped_claim_variants",
+        errors,
+    )
+    mapping_variants = _as_list(
+        mapping_variants_value,
+        "scoped_claim_variants",
+        errors,
+    )
+    claim_by_id: dict[str, Mapping[str, Any]] = {}
+    for index, claim_variant_value in enumerate(claim_variants):
+        claim_variant = _as_mapping(
+            claim_variant_value,
+            f"claim_evidence.scoped_claim_variants[{index}]",
+            errors,
+        )
+        variant_id = claim_variant.get("variant_id")
+        if isinstance(variant_id, str) and variant_id:
+            claim_by_id[variant_id] = claim_variant
+
+    mapped_ids: set[str] = set()
+    for index, mapping_variant_value in enumerate(mapping_variants):
+        variant = _as_mapping(mapping_variant_value, f"scoped_claim_variants[{index}]", errors)
+        variant_id = variant.get("variant_id")
+        label = (
+            f"scoped_claim_variants[{variant_id}]"
+            if isinstance(variant_id, str) and variant_id
+            else f"scoped_claim_variants[{index}]"
+        )
+        if not isinstance(variant_id, str) or not variant_id:
+            errors.append(f"{label}.variant_id is required")
+            continue
+        if variant_id in mapped_ids:
+            errors.append(f"duplicate scoped_claim_variants variant_id: {variant_id}")
+        mapped_ids.add(variant_id)
+
+        claim_variant = claim_by_id.get(variant_id)
+        if claim_variant is None:
+            errors.append(f"{label} has no matching claim evidence variant")
+            continue
+
+        for key in REQUIRED_SCOPED_VARIANT_KEYS:
+            if key not in variant:
+                errors.append(f"{label}.{key} is required")
+
+        checks = {
+            "run_name": claim_variant.get("run_name"),
+            "split": claim_variant.get("split"),
+            "metric_name": claim_variant.get("metric_name"),
+            "metric_value": claim_variant.get("metric_value"),
+            "evidence_json": claim_variant.get("evidence_json"),
+            "artifact_sha256": claim_variant.get("artifact_sha256"),
+            "status": claim_variant.get("status"),
+        }
+        for key, expected in checks.items():
+            if expected is not None and not _close_enough(variant.get(key), expected):
+                errors.append(f"{label}.{key} must match claim evidence")
+
+        artifact_handles = _as_list(
+            claim_variant.get("artifact_handles"),
+            f"claim_evidence.scoped_claim_variants[{variant_id}].artifact_handles",
+            errors,
+        )
+        if variant.get("artifact_handle") not in artifact_handles:
+            errors.append(f"{label}.artifact_handle must match claim evidence")
+
+        if variant.get("split") != protocol.get("split"):
+            errors.append(f"{label}.split must match claim_protocol.split")
+        if variant.get("metric_name") != protocol.get("metric_name"):
+            errors.append(f"{label}.metric_name must match claim_protocol.metric_name")
+        if variant.get("run_name") == protocol.get("run_name"):
+            errors.append(f"{label}.run_name must not replace the primary claim run")
+        if variant.get("same_exact_inference_contract_as_primary") is not False:
+            errors.append(f"{label}.same_exact_inference_contract_as_primary must be false")
+        if variant.get("not_autonomous_rollout_claim") is not True:
+            errors.append(f"{label}.not_autonomous_rollout_claim must be true")
+        if variant.get("published_numbers_directly_comparable") is not False:
+            errors.append(f"{label}.published_numbers_directly_comparable must be false")
+        if variant.get("external_paper_reproduction") is not False:
+            errors.append(f"{label}.external_paper_reproduction must be false")
+        if not variant.get("comparability_note"):
+            errors.append(f"{label}.comparability_note is required")
+
+    missing_ids = sorted(set(claim_by_id) - mapped_ids)
+    for variant_id in missing_ids:
+        errors.append(f"scoped_claim_variants missing claim evidence variant: {variant_id}")
 
 
 def _validate_foundation_transfer_contract(
@@ -547,6 +659,13 @@ def validate_mapping(
         errors.append("claim_protocol.rollout_steps must match the claim command")
     if isinstance(max_eval_samples, int) and f"data.max_samples={max_eval_samples}" not in command:
         errors.append("claim_protocol.max_eval_samples must match the claim command")
+
+    _validate_scoped_claim_variants(
+        mapping_variants_value=mapping.get("scoped_claim_variants"),
+        claim_evidence=claim_evidence,
+        protocol=protocol,
+        errors=errors,
+    )
 
     local_baseline = _as_mapping(
         mapping.get("local_strong_baseline"), "local_strong_baseline", errors

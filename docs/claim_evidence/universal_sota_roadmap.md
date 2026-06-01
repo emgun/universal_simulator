@@ -26,6 +26,14 @@ Claim candidate:
 - UPS held-out per-task test NRMSE: advection `0.5765863333379032`, Burgers `0.17446857017795178`, Darcy `0.20909553062258152`.
 - UPS validation metric recorded with the held-out measurement: `decoded_rollout_nrmse = 0.2723239543019452`.
 
+Scoped UPS variant:
+
+- CT1 online transport-context variant `ups_light_advection_context_transport_only_ct1_guarded` held-out test `decoded_rollout_nrmse = 0.20177292896682064`.
+- CT1 held-out per-task test NRMSE: advection `0.22508631227914033`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`.
+- CT1 validation-selected metric before the one ledger-protected held-out confirmation: `decoded_rollout_nrmse = 0.1419775490176828`.
+- CT1 improves over CT8 overall by `0.21480913046006705` absolute / `0.5156466189532753` relative and on advection by `0.3515000210587629` absolute / `0.6096225330626585` relative.
+- CT1 is not the same exact inference contract as the CT8 primary claim, not an autonomous rollout claim, not an external-paper reproduction, and not directly comparable to published table values. It is reportable only as a separate scoped `light-v1 CT1 online transport-context UPS variant`.
+
 Measured fair and external baselines under the claim protocol:
 
 - Repo-local physical Fourier neural baseline held-out test: `0.5636730976415197`.
@@ -305,6 +313,22 @@ Decision:
 - Protocol decision: CT1 is accepted for exactly one ledger-protected held-out confirmation only as a scoped `light-v1 CT1 online transport-context UPS variant`. It must not be described as an autonomous rollout claim, a published-paper SOTA result, or the same exact inference contract as the CT8 claim.
 - CT1 held-out confirmation beats the current CT8 held-out claim overall by `0.21480913046006705` absolute / `0.5156466189532753` relative and advection by `0.3515000210587629` absolute / `0.6096225330626585` relative, but it remains a different scoped inference contract.
 - Audit decision: CT1 is now machine-visible as `scoped_claim_variants.best_valid_variant`, not as `light_v1.best_run_name`; this prevents silently broadening the primary CT8 claim.
+
+### 2026-06-01
+
+Status:
+
+- Promoted the CT8-vs-CT1 distinction from audit-only output into user-facing claim documentation.
+- Added a machine-readable CT1 row to `docs/claim_evidence/external_baseline_mapping.json` under `scoped_claim_variants`, mirroring `docs/claim_evidence/universal_sota_claim_evidence.json`.
+- Added validator coverage so the external-baseline mapping rejects CT1 metric drift and rejects overclaim flags that would mark CT1 as the same exact inference contract, an autonomous rollout claim, a published-number-comparable result, or an external-paper reproduction.
+- Updated `docs/claim_evidence/external_baseline_mapping.md` with a side-by-side CT8 primary claim / CT1 scoped variant table.
+- Updated the current evidence snapshot above so readers do not need to reconstruct CT1 status from the append-only worklog.
+
+Decision:
+
+- Keep CT8 as the primary frozen `light-v1` claim contract for broad claim-protocol comparisons against fair and external baselines.
+- Report CT1 only as the scoped `light-v1 CT1 online transport-context UPS variant`, even though its held-out metric is much better, because the inference contract changed.
+- Next model-side progress should target advection robustness without relying on the online roll-persistence correction, so a future candidate can improve the primary contract rather than only a scoped evaluation variant.
 
 Next checkpoint:
 
