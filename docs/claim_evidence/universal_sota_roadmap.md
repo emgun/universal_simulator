@@ -53,6 +53,7 @@ Model-side validation gate without online context roll-shift:
 - The no-context model-side candidate failed to beat the current CT8 primary held-out claim (`0.5226095521324494` vs `0.4165820594268877`), so it must not be promoted.
 - No-heldout-rerun gap analysis: `docs/claim_evidence/ups_advection_model_primary_gap_analysis.json` recomputes the validation/test gap from existing summaries only. It identifies long-horizon advection as the dominant failed-transfer signal: candidate minus CT8 held-out advection h16 is `0.648045534125835`, while Burgers and Darcy rollout errors are effectively unchanged.
 - Phase-tracking validation gate contract: `docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json` now requires any future no-context primary candidate to clear validation-only thresholds on overall rollout, advection rollout, and advection h16 before a new held-out pre-test contract can be written.
+- Phase-gate alpha diagnostic: `docs/claim_evidence/ups_advection_phase_alpha_diagnostic_val_evidence.json` swept transport residual alpha `0.0`, `0.1`, `0.21`, `0.3`, and `0.4` on validation only. No setting cleared the phase gate; alpha `0.21` remained best overall at `0.35078329353213156` but still failed h16 (`0.4938241237376044` vs required `<= 0.44444171136384397`).
 
 Measured fair and external baselines under the claim protocol:
 
@@ -513,3 +514,29 @@ Next checkpoint:
 - Run the phase-gate validator, targeted tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the contract.
 - Next technical path after merge: run validation-only model-side candidates against this gate, prioritizing changes that directly reduce advection h16 without reintroducing online context correction.
+
+### 2026-06-01 Phase-Gate Alpha Diagnostic
+
+Status:
+
+- Ran validation-only skip-training diagnostics from the seed-23 no-context checkpoint with transport residual alpha values `0.0`, `0.1`, `0.21`, `0.3`, and `0.4`.
+- Kept the run on `val` only with no held-out command, no ledger, the light-v1 32-sample cap, 16-step decoded rollout, and `operator_decoded` checkpoint preference.
+- Packaged summaries in `docs/claim_evidence/artifacts/ups_advection_phase_alpha_diagnostic_val.tar.gz` with SHA256 `4b77e2f88882a3567b75b1a3c4c2db1c47a8d989e8c97c4e0ab7197f90545ab5`.
+- Added `docs/claim_evidence/ups_advection_phase_alpha_diagnostic_val_evidence.json` plus validator/test coverage.
+- Results: alpha `0.0` overall `0.3685752310100123`, advection rollout `0.5140255043059492`, advection h16 `0.5139634622080358`.
+- Results: alpha `0.1` overall `0.3561013566786569`, advection rollout `0.49485317390239136`, advection h16 `0.49734736642642574`.
+- Results: alpha `0.21` overall `0.35078329353213156`, advection rollout `0.4866576789288726`, advection h16 `0.4938241237376044`.
+- Results: alpha `0.3` overall `0.353259160237994`, advection rollout `0.49047484357229637`, advection h16 `0.5026802065601567`.
+- Results: alpha `0.4` overall `0.3630639287116581`, advection rollout `0.5055630865381556`, advection h16 `0.5242369940678469`.
+
+Decision:
+
+- No transport residual alpha setting on the existing seed-23 checkpoint clears the phase-tracking validation gate.
+- Do not write a held-out pre-test contract from this diagnostic.
+- The next useful model-side work should train or alter the model to reduce validation advection h16 directly; post-hoc alpha tuning around this checkpoint is not enough.
+
+Next checkpoint:
+
+- Run the diagnostic evidence validator, targeted tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the diagnostic evidence.
+- Next technical path after merge: add a training-side long-horizon advection objective or sampling change, then evaluate that new validation summary against the phase gate.
