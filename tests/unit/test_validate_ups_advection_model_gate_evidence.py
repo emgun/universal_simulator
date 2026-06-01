@@ -8,6 +8,9 @@ from scripts.validate_ups_advection_model_gate_evidence import validate_evidence
 
 ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_PATH = ROOT / "docs/claim_evidence/ups_advection_model_gate_val_evidence.json"
+STABILITY_EVIDENCE_PATH = (
+    ROOT / "docs/claim_evidence/ups_advection_model_stability_val_evidence.json"
+)
 
 
 def _load(path: Path) -> dict:
@@ -39,3 +42,29 @@ def test_ups_advection_model_gate_evidence_rejects_non_best_selected_candidate()
     errors = validate_evidence(mutated, root=ROOT)
 
     assert "selected_validation_candidate.metric_value must match alpha_sweep best" in errors
+
+
+def test_ups_advection_model_stability_evidence_matches_artifact():
+    evidence = _load(STABILITY_EVIDENCE_PATH)
+
+    assert validate_evidence(evidence, root=ROOT) == []
+
+
+def test_ups_advection_model_stability_evidence_rejects_underperforming_replicate():
+    evidence = _load(STABILITY_EVIDENCE_PATH)
+    mutated = copy.deepcopy(evidence)
+    mutated["stability_replicates"][0]["metric_value"] = 999.0
+
+    errors = validate_evidence(mutated, root=ROOT)
+
+    assert "stability_replicates[0].metric_value must improve baseline" in errors
+
+
+def test_ups_advection_model_stability_evidence_rejects_non_best_selected_candidate():
+    evidence = _load(STABILITY_EVIDENCE_PATH)
+    mutated = copy.deepcopy(evidence)
+    mutated["selected_validation_candidate"]["run_name"] = "not-the-best-run"
+
+    errors = validate_evidence(mutated, root=ROOT)
+
+    assert "selected_validation_candidate.run_name must match stability_replicates best" in errors
