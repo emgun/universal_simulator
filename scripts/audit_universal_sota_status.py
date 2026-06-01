@@ -383,6 +383,92 @@ def _strong_baseline_status(
     }
 
 
+def _scoped_claim_variants_status(
+    claim_evidence: Mapping[str, Any],
+    *,
+    metric_name: str,
+    claim_split: str,
+) -> dict[str, Any]:
+    records = claim_evidence.get("scoped_claim_variants", [])
+    if not isinstance(records, list):
+        return {
+            "present": False,
+            "variant_count": 0,
+            "validated_count": 0,
+            "variants": [],
+            "best_valid_variant": {},
+            "reason": "scoped_claim_variants must be a list",
+        }
+
+    variants: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, Mapping):
+            continue
+        metric_value = _as_float(record.get("metric_value"))
+        required = {
+            "variant_id": _non_empty(record.get("variant_id")),
+            "status": str(record.get("status", "")) in {"held_out_complete"},
+            "claim_contract_label": _non_empty(record.get("claim_contract_label")),
+            "run_name": _non_empty(record.get("run_name")),
+            "split": str(record.get("split", "")) == claim_split,
+            "metric_name": str(record.get("metric_name", metric_name)) == metric_name,
+            "metric_value": metric_value is not None,
+            "evidence_json": _non_empty(record.get("evidence_json")),
+            "artifact_handles": _non_empty(record.get("artifact_handles")),
+            "artifact_sha256": _non_empty(record.get("artifact_sha256")),
+            "same_exact_inference_contract_as_primary": (
+                record.get("same_exact_inference_contract_as_primary") is False
+            ),
+            "not_autonomous_rollout_claim": (record.get("not_autonomous_rollout_claim") is True),
+            "published_numbers_directly_comparable": (
+                record.get("published_numbers_directly_comparable") is False
+            ),
+            "external_paper_reproduction": record.get("external_paper_reproduction") is False,
+        }
+        failed = [key for key, passed in required.items() if not passed]
+        variants.append(
+            {
+                "variant_id": str(record.get("variant_id", "")),
+                "validated": not failed,
+                "reason": "complete" if not failed else f"failed_fields={failed}",
+                "claim_contract_label": str(record.get("claim_contract_label", "")),
+                "run_name": str(record.get("run_name", "")),
+                "split": str(record.get("split", "")),
+                "metric_name": str(record.get("metric_name", "")),
+                "metric_value": metric_value,
+                "evidence_json": str(record.get("evidence_json", "")),
+                "artifact_handles": _join_values(record.get("artifact_handles", "")),
+                "same_exact_inference_contract_as_primary": bool(
+                    record.get("same_exact_inference_contract_as_primary")
+                ),
+                "not_autonomous_rollout_claim": bool(record.get("not_autonomous_rollout_claim")),
+                "published_numbers_directly_comparable": bool(
+                    record.get("published_numbers_directly_comparable")
+                ),
+                "external_paper_reproduction": bool(record.get("external_paper_reproduction")),
+            }
+        )
+
+    valid_variants = [
+        variant
+        for variant in variants
+        if variant["validated"] and variant["metric_value"] is not None
+    ]
+    best_valid = (
+        min(valid_variants, key=lambda variant: float(variant["metric_value"]))
+        if valid_variants
+        else {}
+    )
+    return {
+        "present": bool(records),
+        "variant_count": len(variants),
+        "validated_count": len(valid_variants),
+        "variants": variants,
+        "best_valid_variant": best_valid,
+        "reason": "complete" if valid_variants else "no validated scoped variants",
+    }
+
+
 def _check(key: str, passed: bool, evidence: str) -> dict[str, Any]:
     return {"key": key, "passed": bool(passed), "evidence": evidence}
 
@@ -458,6 +544,11 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     strong_baseline_status = _strong_baseline_status(
         claim_evidence,
         best,
+        metric_name=args.metric_name,
+        claim_split=claim_split,
+    )
+    scoped_claim_variants_status = _scoped_claim_variants_status(
+        claim_evidence,
         metric_name=args.metric_name,
         claim_split=claim_split,
     )
@@ -583,6 +674,7 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         },
         "claim_documentation": documentation_status,
         "strong_baseline_comparison": strong_baseline_status,
+        "scoped_claim_variants": scoped_claim_variants_status,
         "readiness_checks": readiness_checks,
         "blocking_reasons": blocking_reasons,
         "next_recommended_path": (
