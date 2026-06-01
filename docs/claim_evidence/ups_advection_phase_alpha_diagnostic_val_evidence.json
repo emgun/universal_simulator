@@ -1,0 +1,154 @@
+{
+  "alpha_candidates": [
+    {
+      "alpha": 0.0,
+      "metrics": {
+        "decoded_rollout_nrmse": 0.3685752310100123,
+        "task_advection1d_decoded_h16_nrmse": 0.5139634622080358,
+        "task_advection1d_decoded_rollout_nrmse": 0.5140255043059492,
+        "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+        "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+      },
+      "phase_gate_errors": [
+        "summary.metrics.decoded_rollout_nrmse=0.3685752310100123 must be < 0.35078329353213156",
+        "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.5140255043059492 must be < 0.4866576789288726",
+        "summary.metrics.task_advection1d_decoded_h16_nrmse=0.5139634622080358 must be <= 0.44444171136384397"
+      ],
+      "phase_gate_passed": false,
+      "run_name": "ups_light_advection_phase_gate_alpha_0p00",
+      "summary_member": "ups_light_advection_phase_gate_alpha_0p00/summary.json",
+      "summary_sha256": "a1cc9d6a7cbd6addb4df9722c9699c504127055d443c51b66e5aa1fdf5b6cf7b"
+    },
+    {
+      "alpha": 0.1,
+      "metrics": {
+        "decoded_rollout_nrmse": 0.3561013566786569,
+        "task_advection1d_decoded_h16_nrmse": 0.49734736642642574,
+        "task_advection1d_decoded_rollout_nrmse": 0.49485317390239136,
+        "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+        "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+      },
+      "phase_gate_errors": [
+        "summary.metrics.decoded_rollout_nrmse=0.3561013566786569 must be < 0.35078329353213156",
+        "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.49485317390239136 must be < 0.4866576789288726",
+        "summary.metrics.task_advection1d_decoded_h16_nrmse=0.49734736642642574 must be <= 0.44444171136384397"
+      ],
+      "phase_gate_passed": false,
+      "run_name": "ups_light_advection_phase_gate_alpha_0p10",
+      "summary_member": "ups_light_advection_phase_gate_alpha_0p10/summary.json",
+      "summary_sha256": "89af357d7b29670e32c315b131b4489af60bb8397b25d27f04189fa81b9033ff"
+    },
+    {
+      "alpha": 0.21,
+      "metrics": {
+        "decoded_rollout_nrmse": 0.35078329353213156,
+        "task_advection1d_decoded_h16_nrmse": 0.4938241237376044,
+        "task_advection1d_decoded_rollout_nrmse": 0.4866576789288726,
+        "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+        "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+      },
+      "phase_gate_errors": [
+        "summary.metrics.decoded_rollout_nrmse=0.35078329353213156 must be < 0.35078329353213156",
+        "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.4866576789288726 must be < 0.4866576789288726",
+        "summary.metrics.task_advection1d_decoded_h16_nrmse=0.4938241237376044 must be <= 0.44444171136384397"
+      ],
+      "phase_gate_passed": false,
+      "run_name": "ups_light_advection_phase_gate_alpha_0p21",
+      "summary_member": "ups_light_advection_phase_gate_alpha_0p21/summary.json",
+      "summary_sha256": "c539cb837f3b20222e0942c792676775351b285e671a58cac996f4a7195cf126"
+    },
+    {
+      "alpha": 0.3,
+      "metrics": {
+        "decoded_rollout_nrmse": 0.353259160237994,
+        "task_advection1d_decoded_h16_nrmse": 0.5026802065601567,
+        "task_advection1d_decoded_rollout_nrmse": 0.49047484357229637,
+        "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+        "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+      },
+      "phase_gate_errors": [
+        "summary.metrics.decoded_rollout_nrmse=0.353259160237994 must be < 0.35078329353213156",
+        "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.49047484357229637 must be < 0.4866576789288726",
+        "summary.metrics.task_advection1d_decoded_h16_nrmse=0.5026802065601567 must be <= 0.44444171136384397"
+      ],
+      "phase_gate_passed": false,
+      "run_name": "ups_light_advection_phase_gate_alpha_0p30",
+      "summary_member": "ups_light_advection_phase_gate_alpha_0p30/summary.json",
+      "summary_sha256": "caae47298f9a260dfc897706850502a1fbfeb1eb3bb60c3d0efe1c76cc49e0c6"
+    },
+    {
+      "alpha": 0.4,
+      "metrics": {
+        "decoded_rollout_nrmse": 0.3630639287116581,
+        "task_advection1d_decoded_h16_nrmse": 0.5242369940678469,
+        "task_advection1d_decoded_rollout_nrmse": 0.5055630865381556,
+        "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+        "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+      },
+      "phase_gate_errors": [
+        "summary.metrics.decoded_rollout_nrmse=0.3630639287116581 must be < 0.35078329353213156",
+        "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.5055630865381556 must be < 0.4866576789288726",
+        "summary.metrics.task_advection1d_decoded_h16_nrmse=0.5242369940678469 must be <= 0.44444171136384397"
+      ],
+      "phase_gate_passed": false,
+      "run_name": "ups_light_advection_phase_gate_alpha_0p40",
+      "summary_member": "ups_light_advection_phase_gate_alpha_0p40/summary.json",
+      "summary_sha256": "dca469a217c1ee074f1fa1ab7290fb13f86fc4b53994fdd148876d19e8307155"
+    }
+  ],
+  "artifact": {
+    "bytes": 477612,
+    "contents": [
+      "ups_light_advection_phase_gate_alpha_0p00/summary.json",
+      "ups_light_advection_phase_gate_alpha_0p10/summary.json",
+      "ups_light_advection_phase_gate_alpha_0p21/summary.json",
+      "ups_light_advection_phase_gate_alpha_0p30/summary.json",
+      "ups_light_advection_phase_gate_alpha_0p40/summary.json"
+    ],
+    "path": "docs/claim_evidence/artifacts/ups_advection_phase_alpha_diagnostic_val.tar.gz",
+    "sha256": "4b77e2f88882a3567b75b1a3c4c2db1c47a8d989e8c97c4e0ab7197f90545ab5"
+  },
+  "checkpoint_preference_stage": "operator_decoded",
+  "checkpoint_source": "reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21",
+  "claim_scope": "validation_only_no_context_phase_gate_diagnostic",
+  "command_template": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_phase_gate_alpha_<alpha> --output-root reports/research/sota_loop/model_advection_phase_gate --skip-training --stage operator_decoded --checkpoint-source reports/research/sota_loop/model_advection_stability/ups_light_advection_weighted_operator_stability_seed23_w15_lr1e4_e8_r8_alpha21 --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_persistence_residual_alpha_by_family={transport: <alpha>}'",
+  "data_root": "data/pdebench",
+  "date": "2026-06-01",
+  "decision": {
+    "held_out_pretest_contract_allowed": false,
+    "next_step": "Train or modify a model-side candidate that directly reduces validation advection h16, then evaluate it against the phase gate before any held-out pre-test contract.",
+    "reason": "Transport residual alpha tuning on the existing seed-23 no-context checkpoint did not clear the validation-only phase gate; no held-out test was run or authorized.",
+    "status": "phase_gate_not_cleared_alpha_diagnostic"
+  },
+  "decoded_rollout_steps": 16,
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "max_samples": 32,
+  "measurement_type": "ups_advection_phase_alpha_diagnostic_validation",
+  "phase_gate_contract": {
+    "bytes": 3464,
+    "path": "docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json",
+    "sha256": "d27585f9c05d949aa84c8d9e53d49f407a4b88346cc91c80d1d20ca80ef749fa"
+  },
+  "run_group": "model_advection_phase_gate",
+  "schema_version": 1,
+  "selected_best_validation_candidate": {
+    "alpha": 0.21,
+    "metric_name": "decoded_rollout_nrmse",
+    "metric_value": 0.35078329353213156,
+    "phase_gate_errors": [
+      "summary.metrics.decoded_rollout_nrmse=0.35078329353213156 must be < 0.35078329353213156",
+      "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.4866576789288726 must be < 0.4866576789288726",
+      "summary.metrics.task_advection1d_decoded_h16_nrmse=0.4938241237376044 must be <= 0.44444171136384397"
+    ],
+    "phase_gate_passed": false,
+    "run_name": "ups_light_advection_phase_gate_alpha_0p21",
+    "summary_member": "ups_light_advection_phase_gate_alpha_0p21/summary.json"
+  },
+  "split": "val",
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ]
+}
