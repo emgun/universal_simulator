@@ -1,0 +1,82 @@
+{
+  "artifact": {
+    "bytes": 94012,
+    "contents": [
+      "ups_light_advection_h16_operator_w15_lr1e4_e8_r16_alpha21/summary.json",
+      "ups_light_advection_h16_operator_w15_lr1e4_e8_r16_alpha21/resolved_train.yaml",
+      "ups_light_advection_h16_operator_w15_lr1e4_e8_r16_alpha21/resolved_eval.yaml"
+    ],
+    "path": "docs/claim_evidence/artifacts/ups_advection_h16_candidate_val.tar.gz",
+    "sha256": "12e260ca702d00b3f70f8b72f3005c14e34c0b39826ab4302b2473b8d3c475b3"
+  },
+  "checkpoint_preference_stage": "operator_decoded",
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "claim_scope": "validation_only_no_context_h16_training_candidate",
+  "data_root": "data/pdebench",
+  "date": "2026-06-01",
+  "decision": {
+    "held_out_pretest_contract_allowed": false,
+    "next_step": "Change the training objective or data sampling more directly for transport phase tracking before another phase-gate evaluation.",
+    "reason": "Increasing decoded-operator training rollout_steps from 8 to 16 did not improve enough and worsened validation advection h16 relative to the failed seed-23 phase gate baseline.",
+    "status": "phase_gate_not_cleared_h16_training_candidate"
+  },
+  "decoded_rollout_steps": 16,
+  "evaluation": {
+    "decoded_context_roll_shift_estimator": {},
+    "decoded_observed_roll_shift_estimator": {},
+    "decoded_persistence_residual_alpha": 0.0,
+    "decoded_persistence_residual_alpha_by_family": {
+      "transport": 0.21
+    },
+    "decoded_prediction_roll_shift_estimator": {}
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "max_samples": 32,
+  "measurement_type": "ups_advection_h16_training_candidate_validation",
+  "metrics": {
+    "decoded_rollout_nrmse": 0.3516245417982602,
+    "task_advection1d_decoded_h16_nrmse": 0.4961000768880384,
+    "task_advection1d_decoded_rollout_nrmse": 0.487955006724297,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+    "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+  },
+  "phase_gate": {
+    "errors": [
+      "summary.metrics.decoded_rollout_nrmse=0.3516245417982602 must be < 0.35078329353213156",
+      "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.487955006724297 must be < 0.4866576789288726",
+      "summary.metrics.task_advection1d_decoded_h16_nrmse=0.4961000768880384 must be <= 0.44444171136384397"
+    ],
+    "passed": false
+  },
+  "phase_gate_contract": {
+    "bytes": 3464,
+    "path": "docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json",
+    "sha256": "d27585f9c05d949aa84c8d9e53d49f407a4b88346cc91c80d1d20ca80ef749fa"
+  },
+  "run_name": "ups_light_advection_h16_operator_w15_lr1e4_e8_r16_alpha21",
+  "schema_version": 1,
+  "split": "val",
+  "summary": {
+    "bytes": 463130,
+    "path": "reports/research/sota_loop/model_advection_h16_candidate/ups_light_advection_h16_operator_w15_lr1e4_e8_r16_alpha21/summary.json",
+    "sha256": "c806637b15e552ed3dcf0cc8831929eb4ca3956f78f4ed7b8aee01d5f1971b8a"
+  },
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "training": {
+    "epochs": 8,
+    "learning_rate": 0.0001,
+    "seed": 31,
+    "stage": "operator_decoded",
+    "task_loss_weights": {
+      "advection1d": 1.5,
+      "burgers1d": 1.0,
+      "darcy2d": 1.0
+    },
+    "training_rollout_steps": 16
+  }
+}

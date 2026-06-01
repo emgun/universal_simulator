@@ -54,6 +54,7 @@ Model-side validation gate without online context roll-shift:
 - No-heldout-rerun gap analysis: `docs/claim_evidence/ups_advection_model_primary_gap_analysis.json` recomputes the validation/test gap from existing summaries only. It identifies long-horizon advection as the dominant failed-transfer signal: candidate minus CT8 held-out advection h16 is `0.648045534125835`, while Burgers and Darcy rollout errors are effectively unchanged.
 - Phase-tracking validation gate contract: `docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json` now requires any future no-context primary candidate to clear validation-only thresholds on overall rollout, advection rollout, and advection h16 before a new held-out pre-test contract can be written.
 - Phase-gate alpha diagnostic: `docs/claim_evidence/ups_advection_phase_alpha_diagnostic_val_evidence.json` swept transport residual alpha `0.0`, `0.1`, `0.21`, `0.3`, and `0.4` on validation only. No setting cleared the phase gate; alpha `0.21` remained best overall at `0.35078329353213156` but still failed h16 (`0.4938241237376044` vs required `<= 0.44444171136384397`).
+- H16 training candidate: `docs/claim_evidence/ups_advection_h16_candidate_val_evidence.json` tried operator-decoded fine-tuning with `training_rollout_steps = 16` on validation only. It did not clear the phase gate: overall `0.3516245417982602`, advection rollout `0.487955006724297`, advection h16 `0.4961000768880384`.
 
 Measured fair and external baselines under the claim protocol:
 
@@ -540,3 +541,25 @@ Next checkpoint:
 - Run the diagnostic evidence validator, targeted tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the diagnostic evidence.
 - Next technical path after merge: add a training-side long-horizon advection objective or sampling change, then evaluate that new validation summary against the phase gate.
+
+### 2026-06-01 H16 Training Candidate
+
+Status:
+
+- Ran one bounded train/validation-only no-context candidate from `reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`.
+- Candidate: `ups_light_advection_h16_operator_w15_lr1e4_e8_r16_alpha21`.
+- Training changed the decoded-operator rollout length from the prior successful `8` to `16`, kept `advection1d:1.5` task loss weighting, `epochs = 8`, `learning_rate = 0.0001`, seed `31`, and used `operator_decoded` checkpoint preference.
+- Evaluation stayed on `val`, used 32 samples, 16-step decoded rollout, no online context/observed/prediction roll-shift estimator, and transport residual alpha `0.21`.
+- Result: overall validation `decoded_rollout_nrmse = 0.3516245417982602`, advection rollout `0.487955006724297`, advection h16 `0.4961000768880384`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Packaged evidence at `docs/claim_evidence/ups_advection_h16_candidate_val_evidence.json` and artifact SHA256 `12e260ca702d00b3f70f8b72f3005c14e34c0b39826ab4302b2473b8d3c475b3`.
+
+Decision:
+
+- The rollout-16 decoded-operator candidate does not clear the phase gate and should not advance to any held-out pre-test contract.
+- Simply increasing training rollout length from 8 to 16 on the same operator-only fine-tuning path worsened the h16 signal; the next candidate needs a different objective or data sampling change.
+
+Next checkpoint:
+
+- Run the h16-candidate evidence validator, targeted tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the negative candidate evidence.
+- Next technical path after merge: introduce an explicit horizon-weighted training loss or advection temporal-window sampling change, then validate against the same phase gate.
