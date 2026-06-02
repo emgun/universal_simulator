@@ -617,3 +617,31 @@ Next checkpoint:
 - Run the temporal-window evidence validator, loss tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the code lever and negative candidate evidence.
 - Next technical path after merge: implement an explicit train/validation-only transport phase or shift-consistency objective, then validate against the same phase gate before any held-out access.
+
+### 2026-06-02 Transport Shift-Consistency Training Candidate
+
+Status:
+
+- Added an opt-in decoded rollout training objective: `stages.<stage>.transport_shift_consistency_lambda`.
+- Default behavior is unchanged: `transport_shift_consistency_lambda = 0.0` disables the phase/shift regularizer.
+- The companion mapping `transport_shift_consistency_by_task` selects task-specific periodic shifts and currently applies only where configured.
+- Ran a train/validation-only shift-fit diagnostic on `advection1d` with 32 train and 32 validation samples, 16-step rollout, and candidate shifts `[-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64]`.
+- Shift diagnostic result: train-selected shift `1` with train NRMSE `0.00032598856823269374`; validation oracle shift `40` with validation NRMSE `0.012850484431904393`; locked train shift `1` measured validation NRMSE `0.5027994425730189`.
+- Ran one bounded train/validation-only candidate using the train-selected shift, not the validation oracle: `ups_light_advection_transport_shift1_operator_w15_lr1e4_e8_r16_p2_scl1_alpha21`.
+- Candidate settings: `operator_decoded`, seed `43`, `epochs = 8`, `learning_rate = 0.0001`, `training_rollout_steps = 16`, `rollout_loss_horizon_power = 2.0`, `transport_shift_consistency_lambda = 1.0`, `transport_shift_consistency_by_task = {advection1d: 1}`, task weights `advection1d:1.5`, `burgers1d:1.0`, `darcy2d:1.0`.
+- Evaluation stayed on `val`, used 32 samples, 16-step decoded rollout, no online context/observed/prediction roll-shift estimator, and transport residual alpha `0.21`.
+- Result: overall validation `decoded_rollout_nrmse = 0.35199049383849107`, advection rollout `0.4885192504506526`, advection h16 `0.4968563765605278`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Compared with the horizon-weighted candidate, train-fitted shift-consistency worsened overall by `0.0009103591992152314`, advection rollout by `0.001403759592415104`, and advection h16 by `0.0016183219184043799`.
+- Packaged evidence at `docs/claim_evidence/ups_advection_transport_shift_consistency_candidate_val_evidence.json` and artifact SHA256 `1591328abd0f7a032e17ba10fbd8f8622649b56be68b22ebb16f392fa8ecedb9`.
+
+Decision:
+
+- The opt-in shift-consistency loss is useful infrastructure because it is default-off and captures a concrete transport phase prior without changing inference.
+- This specific train-fitted fixed-shift candidate does not clear the phase gate, worsens the prior horizon-weighted candidate, and does not authorize any held-out pre-test contract.
+- The train/validation shift mismatch shows why fixed train-fitted phase regularization is insufficient for this local light-v1 split.
+
+Next checkpoint:
+
+- Run the transport shift-consistency evidence validator, loss tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the code lever and negative candidate evidence.
+- Next technical path after merge: move to a data-conditioned phase estimator or source/parameter-aware transport objective that can explain the train/validation shift mismatch without using validation-oracle shifts for training.
