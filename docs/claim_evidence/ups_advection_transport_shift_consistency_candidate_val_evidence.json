@@ -1,0 +1,117 @@
+{
+  "artifact": {
+    "bytes": 96001,
+    "contents": [
+      "reports/research/sota_loop/model_advection_transport_shift_consistency/ups_light_advection_transport_shift1_operator_w15_lr1e4_e8_r16_p2_scl1_alpha21/summary.json",
+      "reports/research/sota_loop/model_advection_transport_shift_consistency/ups_light_advection_transport_shift1_operator_w15_lr1e4_e8_r16_p2_scl1_alpha21/resolved_train.yaml",
+      "reports/research/sota_loop/model_advection_transport_shift_consistency/ups_light_advection_transport_shift1_operator_w15_lr1e4_e8_r16_p2_scl1_alpha21/resolved_eval.yaml",
+      "reports/research/sota_loop/transport_phase_objective/shift_fit_train32_val32.json"
+    ],
+    "path": "docs/claim_evidence/artifacts/ups_advection_transport_shift_consistency_candidate_val.tar.gz",
+    "sha256": "1591328abd0f7a032e17ba10fbd8f8622649b56be68b22ebb16f392fa8ecedb9"
+  },
+  "checkpoint_preference_stage": "operator_decoded",
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "claim_scope": "validation_only_no_context_train_fitted_transport_shift_consistency_candidate",
+  "code_change": {
+    "candidate_value": 1.0,
+    "companion_stage_config_key": "transport_shift_consistency_by_task",
+    "default_behavior": "0.0 disables transport shift-consistency loss",
+    "new_stage_config_key": "transport_shift_consistency_lambda",
+    "scope": "decoded operator and joint codec/operator decoded rollout training losses"
+  },
+  "comparison_to_horizon_weighted_candidate": {
+    "advection_h16_absolute_delta": 0.0016183219184043862,
+    "advection_rollout_absolute_delta": 0.0014037595924151214,
+    "delta_sign": "positive means worse because NRMSE is minimized",
+    "overall_absolute_delta": 0.0009103591992152271,
+    "prior_advection_h16_nrmse": 0.4952380546421234,
+    "prior_advection_rollout_nrmse": 0.48711549085823747,
+    "prior_evidence_json": "docs/claim_evidence/ups_advection_horizon_weighted_candidate_val_evidence.json",
+    "prior_overall_decoded_rollout_nrmse": 0.35108013463927584
+  },
+  "data_root": "data/pdebench",
+  "date": "2026-06-02",
+  "decision": {
+    "held_out_pretest_contract_allowed": false,
+    "next_step": "Move from fixed train-fitted shift regularization to a data-conditioned phase estimator or source/parameter-aware transport objective, still validated before held-out access.",
+    "reason": "A train-fitted shift-consistency objective did not bridge the validation phase mismatch; advection h16 worsened relative to the horizon-weighted candidate.",
+    "status": "phase_gate_not_cleared_transport_shift_consistency_candidate"
+  },
+  "decoded_rollout_steps": 16,
+  "evaluation": {
+    "decoded_context_roll_shift_estimator": {},
+    "decoded_observed_roll_shift_estimator": {},
+    "decoded_persistence_residual_alpha": 0.0,
+    "decoded_persistence_residual_alpha_by_family": {
+      "transport": 0.21
+    },
+    "decoded_prediction_roll_shift_estimator": {}
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "max_samples": 32,
+  "measurement_type": "ups_advection_transport_shift_consistency_training_candidate_validation",
+  "metrics": {
+    "decoded_rollout_nrmse": 0.35199049383849107,
+    "decoded_rollout_spectral_energy_error": 0.10316076005205604,
+    "task_advection1d_decoded_h16_nrmse": 0.4968563765605278,
+    "task_advection1d_decoded_rollout_nrmse": 0.4885192504506526,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+    "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+  },
+  "phase_gate": {
+    "errors": [
+      "summary.metrics.decoded_rollout_nrmse=0.35199049383849107 must be < 0.35078329353213156",
+      "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.4885192504506526 must be < 0.4866576789288726",
+      "summary.metrics.task_advection1d_decoded_h16_nrmse=0.4968563765605278 must be <= 0.44444171136384397"
+    ],
+    "passed": false
+  },
+  "phase_gate_contract": {
+    "bytes": 3464,
+    "path": "docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json",
+    "sha256": "d27585f9c05d949aa84c8d9e53d49f407a4b88346cc91c80d1d20ca80ef749fa"
+  },
+  "run_name": "ups_light_advection_transport_shift1_operator_w15_lr1e4_e8_r16_p2_scl1_alpha21",
+  "schema_version": 1,
+  "split": "val",
+  "summary": {
+    "bytes": 462305,
+    "path": "reports/research/sota_loop/model_advection_transport_shift_consistency/ups_light_advection_transport_shift1_operator_w15_lr1e4_e8_r16_p2_scl1_alpha21/summary.json",
+    "sha256": "17dc7f64bf115bb38380e58f1f38f3cb95dd06300adeaa6f4b20e6d2c0e3ba9a"
+  },
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "train_fit_shift_diagnostic": {
+    "bytes": 4033,
+    "interpretation": "Train-only shift 1 was used for the objective; validation oracle shift 40 was not used for training candidate selection.",
+    "path": "reports/research/sota_loop/transport_phase_objective/shift_fit_train32_val32.json",
+    "selected_train_nrmse": 0.00032598856823269374,
+    "selected_train_shift": 1,
+    "selected_validation_nrmse": 0.5027994425730189,
+    "sha256": "a53b9424034faeb118189656b6687b5c70e68c4e72602142bc981bc57bf4114f",
+    "validation_oracle_nrmse": 0.012850484431904393,
+    "validation_oracle_shift": 40
+  },
+  "training": {
+    "epochs": 8,
+    "learning_rate": 0.0001,
+    "rollout_loss_horizon_power": 2.0,
+    "seed": 43,
+    "stage": "operator_decoded",
+    "task_loss_weights": {
+      "advection1d": 1.5,
+      "burgers1d": 1.0,
+      "darcy2d": 1.0
+    },
+    "training_rollout_steps": 16,
+    "transport_shift_consistency_by_task": {
+      "advection1d": 1
+    },
+    "transport_shift_consistency_lambda": 1.0
+  }
+}

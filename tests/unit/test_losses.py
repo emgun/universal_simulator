@@ -6,6 +6,7 @@ from scripts.train import (
     _decoded_rollout_training_loss,
     _decoded_rollout_training_window,
     _task_loss_weight,
+    _transport_shift_consistency_loss,
 )
 from ups.training.losses import (
     LossBundle,
@@ -191,4 +192,61 @@ def test_decoded_rollout_training_window_rejects_unknown_strategy():
             torch.arange(4).view(1, 4, 1),
             rollout_steps=2,
             stage_cfg={"rollout_start_strategy": "middle"},
+        )
+
+
+def test_transport_shift_consistency_loss_is_default_off():
+    previous = torch.arange(4, dtype=torch.float32).view(1, 4, 1)
+    pred = torch.roll(previous, shifts=1, dims=1)
+
+    loss = _transport_shift_consistency_loss(
+        pred,
+        previous,
+        stage_cfg={},
+        task_name="advection1d",
+    )
+
+    assert loss is None
+
+
+def test_transport_shift_consistency_loss_uses_task_shift():
+    previous = torch.arange(4, dtype=torch.float32).view(1, 4, 1)
+    pred = torch.roll(previous, shifts=1, dims=1)
+
+    loss = _transport_shift_consistency_loss(
+        pred,
+        previous,
+        stage_cfg={
+            "transport_shift_consistency_lambda": 2.0,
+            "transport_shift_consistency_by_task": {"advection1d": 1},
+        },
+        task_name="advection1d",
+    )
+
+    assert loss == torch.tensor(0.0)
+
+
+def test_transport_shift_consistency_loss_ignores_unconfigured_task():
+    previous = torch.arange(4, dtype=torch.float32).view(1, 4, 1)
+
+    loss = _transport_shift_consistency_loss(
+        previous,
+        previous,
+        stage_cfg={
+            "transport_shift_consistency_lambda": 1.0,
+            "transport_shift_consistency_by_task": {"advection1d": 1},
+        },
+        task_name="burgers1d",
+    )
+
+    assert loss is None
+
+
+def test_transport_shift_consistency_loss_rejects_negative_weight():
+    with pytest.raises(ValueError):
+        _transport_shift_consistency_loss(
+            torch.zeros(1, 4, 1),
+            torch.zeros(1, 4, 1),
+            stage_cfg={"transport_shift_consistency_lambda": -1.0},
+            task_name="advection1d",
         )

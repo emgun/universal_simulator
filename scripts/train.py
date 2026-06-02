@@ -116,6 +116,32 @@ def _task_loss_weight(stage_cfg: dict[str, Any], task_name: str | None) -> float
     return weight
 
 
+def _transport_shift_consistency_loss(
+    pred: torch.Tensor,
+    previous: torch.Tensor,
+    *,
+    stage_cfg: dict[str, Any],
+    task_name: str | None,
+) -> torch.Tensor | None:
+    weight = float(stage_cfg.get("transport_shift_consistency_lambda", 0.0) or 0.0)
+    if weight < 0.0:
+        raise ValueError("transport_shift_consistency_lambda must be non-negative")
+    if weight == 0.0 or not task_name:
+        return None
+
+    raw_shifts = stage_cfg.get("transport_shift_consistency_by_task", {})
+    if raw_shifts is None:
+        return None
+    if not isinstance(raw_shifts, Mapping):
+        raise ValueError("transport_shift_consistency_by_task must map task names to shifts")
+    if str(task_name) not in raw_shifts:
+        return None
+
+    shift = int(raw_shifts[str(task_name)])
+    shifted_previous = torch.roll(previous, shifts=shift, dims=1)
+    return weight * F.mse_loss(pred, shifted_previous)
+
+
 def _decoded_rollout_training_loss(
     decoded_losses: Sequence[torch.Tensor],
     *,
@@ -1197,14 +1223,21 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                         state = LatentState(z=state.z, t=state.t, cond=cond)
                         state = operator(state, dt_tensor)
                         decoded = decoder(coords_batch, state.z, conditioning={})
-                        decoded_losses.append(
-                            _decoded_field_loss(
-                                decoded[field_name],
-                                targets[:, step],
-                                targets[:, step - 1],
-                                stage_cfg=stage_cfg,
-                            )
+                        step_loss = _decoded_field_loss(
+                            decoded[field_name],
+                            targets[:, step],
+                            targets[:, step - 1],
+                            stage_cfg=stage_cfg,
                         )
+                        shift_loss = _transport_shift_consistency_loss(
+                            decoded[field_name],
+                            targets[:, step - 1],
+                            stage_cfg=stage_cfg,
+                            task_name=task_name,
+                        )
+                        if shift_loss is not None:
+                            step_loss = step_loss + shift_loss
+                        decoded_losses.append(step_loss)
                     if not decoded_losses:
                         continue
                     sample_loss = _decoded_rollout_training_loss(
@@ -1277,14 +1310,21 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                 state = LatentState(z=state.z, t=state.t, cond=cond)
                 state = operator(state, dt_tensor)
                 decoded = decoder(coords_batch, state.z, conditioning={})
-                decoded_losses.append(
-                    _decoded_field_loss(
-                        decoded[field_name],
-                        targets[:, step],
-                        targets[:, step - 1],
-                        stage_cfg=stage_cfg,
-                    )
+                step_loss = _decoded_field_loss(
+                    decoded[field_name],
+                    targets[:, step],
+                    targets[:, step - 1],
+                    stage_cfg=stage_cfg,
                 )
+                shift_loss = _transport_shift_consistency_loss(
+                    decoded[field_name],
+                    targets[:, step - 1],
+                    stage_cfg=stage_cfg,
+                    task_name=task_name,
+                )
+                if shift_loss is not None:
+                    step_loss = step_loss + shift_loss
+                decoded_losses.append(step_loss)
 
             if not decoded_losses:
                 continue
@@ -1475,14 +1515,21 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                 state = LatentState(z=state.z, t=state.t, cond=cond)
                                 state = operator(state, dt_tensor)
                                 decoded = decoder(coords_batch, state.z, conditioning={})
-                                decoded_losses.append(
-                                    _decoded_field_loss(
-                                        decoded[field_name],
-                                        targets[:, step],
-                                        targets[:, step - 1],
-                                        stage_cfg=stage_cfg,
-                                    )
+                                step_loss = _decoded_field_loss(
+                                    decoded[field_name],
+                                    targets[:, step],
+                                    targets[:, step - 1],
+                                    stage_cfg=stage_cfg,
                                 )
+                                shift_loss = _transport_shift_consistency_loss(
+                                    decoded[field_name],
+                                    targets[:, step - 1],
+                                    stage_cfg=stage_cfg,
+                                    task_name=task_name,
+                                )
+                                if shift_loss is not None:
+                                    step_loss = step_loss + shift_loss
+                                decoded_losses.append(step_loss)
 
                             if decoded_losses:
                                 losses.append(
@@ -1586,14 +1633,21 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         state = LatentState(z=state.z, t=state.t, cond=cond)
                         state = operator(state, dt_tensor)
                         decoded = decoder(coords_batch, state.z, conditioning={})
-                        decoded_losses.append(
-                            _decoded_field_loss(
-                                decoded[field_name],
-                                targets[:, step],
-                                targets[:, step - 1],
-                                stage_cfg=stage_cfg,
-                            )
+                        step_loss = _decoded_field_loss(
+                            decoded[field_name],
+                            targets[:, step],
+                            targets[:, step - 1],
+                            stage_cfg=stage_cfg,
                         )
+                        shift_loss = _transport_shift_consistency_loss(
+                            decoded[field_name],
+                            targets[:, step - 1],
+                            stage_cfg=stage_cfg,
+                            task_name=task_name,
+                        )
+                        if shift_loss is not None:
+                            step_loss = step_loss + shift_loss
+                        decoded_losses.append(step_loss)
 
                     if decoded_losses:
                         losses.append(
