@@ -144,6 +144,29 @@ def _decoded_rollout_training_loss(
     return loss + lambda_rollout * rollout_loss
 
 
+def _decoded_rollout_training_window(
+    fields: torch.Tensor,
+    *,
+    rollout_steps: int,
+    stage_cfg: dict[str, Any],
+) -> tuple[torch.Tensor, int]:
+    """Select the temporal training window for decoded rollout supervision."""
+    max_steps = min(rollout_steps, max(fields.shape[1] - 1, 0))
+    if max_steps <= 0:
+        return fields[:, :1], 0
+
+    strategy = str(stage_cfg.get("rollout_start_strategy", "zero") or "zero")
+    if strategy in {"zero", "first"}:
+        start = 0
+    elif strategy == "latest":
+        start = max(0, fields.shape[1] - (max_steps + 1))
+    else:
+        raise ValueError("rollout_start_strategy must be one of: zero, first, latest")
+
+    end = start + max_steps + 1
+    return fields[:, start:end], start
+
+
 def load_config(path: str) -> dict:
     try:
         from ups.utils.config_loader import load_config_with_includes
@@ -1131,18 +1154,19 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                     bc = sample.get("bc")
                     grid_shape = infer_grid_shape(sample["fields"].float())
                     coords = make_grid_coords(grid_shape, device)
-                    max_steps = min(rollout_steps, fields.shape[1] - 1)
+                    rollout_fields, rollout_start = _decoded_rollout_training_window(
+                        fields, rollout_steps=rollout_steps, stage_cfg=stage_cfg
+                    )
+                    max_steps = rollout_fields.shape[1] - 1
                     latent = _encode_sequence_batch(
                         encoder,
-                        fields[:, :1],
+                        rollout_fields[:, :1],
                         coords,
                         grid_shape,
                         field_name=field_name,
                         device=device,
                     )
-                    targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(
-                        device
-                    )
+                    targets = _flatten_field_batch(rollout_fields, grid_shape).to(device)
                     state = LatentState(
                         z=latent,
                         t=torch.tensor(0.0, device=device),
@@ -1154,7 +1178,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                             task_name=task_name,
                             params=params,
                             bc=bc,
-                            step=0,
+                            step=rollout_start,
                         ),
                     )
                     coords_batch = coords.expand(1, -1, -1)
@@ -1168,7 +1192,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                             task_name=task_name,
                             params=params,
                             bc=bc,
-                            step=step - 1,
+                            step=rollout_start + step - 1,
                         )
                         state = LatentState(z=state.z, t=state.t, cond=cond)
                         state = operator(state, dt_tensor)
@@ -1209,16 +1233,19 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
             task_name = _task_name_from_batch(batch)
             grid_shape = infer_grid_shape(fields[0])
             coords = make_grid_coords(grid_shape, device)
-            max_steps = min(rollout_steps, fields.shape[1] - 1)
+            rollout_fields, rollout_start = _decoded_rollout_training_window(
+                fields, rollout_steps=rollout_steps, stage_cfg=stage_cfg
+            )
+            max_steps = rollout_fields.shape[1] - 1
             latent = _encode_sequence_batch(
                 encoder,
-                fields[:, :1],
+                rollout_fields[:, :1],
                 coords,
                 grid_shape,
                 field_name=field_name,
                 device=device,
             )
-            targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(device)
+            targets = _flatten_field_batch(rollout_fields, grid_shape).to(device)
             state = LatentState(
                 z=latent,
                 t=torch.tensor(0.0, device=device),
@@ -1230,7 +1257,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                     task_name=task_name,
                     params=params,
                     bc=bc,
-                    step=0,
+                    step=rollout_start,
                 ),
             )
             coords_batch = coords.expand(fields.shape[0], -1, -1)
@@ -1245,7 +1272,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                     task_name=task_name,
                     params=params,
                     bc=bc,
-                    step=step - 1,
+                    step=rollout_start + step - 1,
                 )
                 state = LatentState(z=state.z, t=state.t, cond=cond)
                 state = operator(state, dt_tensor)
@@ -1399,10 +1426,11 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                     bc = sample.get("bc")
                     grid_shape = infer_grid_shape(sample["fields"].float())
                     coords = make_grid_coords(grid_shape, device)
-                    max_steps = min(rollout_steps, max(fields.shape[1] - 1, 0))
-                    targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(
-                        device
+                    rollout_fields, rollout_start = _decoded_rollout_training_window(
+                        fields, rollout_steps=rollout_steps, stage_cfg=stage_cfg
                     )
+                    max_steps = rollout_fields.shape[1] - 1
+                    targets = _flatten_field_batch(rollout_fields, grid_shape).to(device)
                     coords_batch = coords.expand(1, -1, -1)
                     structured_cond = _grid_structured_conditioning(
                         cfg,
@@ -1410,6 +1438,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         batch_size=1,
                         device=device,
                         task_name=task_name,
+                        params=params,
+                        bc=bc,
+                        step=rollout_start,
                     )
                     try:
                         with _autocast(device, use_amp):
@@ -1439,7 +1470,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                     task_name=task_name,
                                     params=params,
                                     bc=bc,
-                                    step=step - 1,
+                                    step=rollout_start + step - 1,
                                 )
                                 state = LatentState(z=state.z, t=state.t, cond=cond)
                                 state = operator(state, dt_tensor)
@@ -1507,8 +1538,11 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
             bc = batch.get("bc")
             grid_shape = infer_grid_shape(fields[0])
             coords = make_grid_coords(grid_shape, device)
-            max_steps = min(rollout_steps, max(fields.shape[1] - 1, 0))
-            targets = _flatten_field_batch(fields[:, : max_steps + 1], grid_shape).to(device)
+            rollout_fields, rollout_start = _decoded_rollout_training_window(
+                fields, rollout_steps=rollout_steps, stage_cfg=stage_cfg
+            )
+            max_steps = rollout_fields.shape[1] - 1
+            targets = _flatten_field_batch(rollout_fields, grid_shape).to(device)
             coords_batch = coords.expand(fields.shape[0], -1, -1)
             structured_cond = _grid_structured_conditioning(
                 cfg,
@@ -1518,7 +1552,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                 task_name=task_name,
                 params=params,
                 bc=bc,
-                step=0,
+                step=rollout_start,
             )
 
             try:
@@ -1547,7 +1581,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                             task_name=task_name,
                             params=params,
                             bc=bc,
-                            step=step - 1,
+                            step=rollout_start + step - 1,
                         )
                         state = LatentState(z=state.z, t=state.t, cond=cond)
                         state = operator(state, dt_tensor)

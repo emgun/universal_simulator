@@ -1,0 +1,101 @@
+{
+  "artifact": {
+    "bytes": 97551,
+    "contents": [
+      "ups_light_advection_temporal_latest_operator_w15_lr1e4_e8_r16_p2_alpha21/summary.json",
+      "ups_light_advection_temporal_latest_operator_w15_lr1e4_e8_r16_p2_alpha21/resolved_train.yaml",
+      "ups_light_advection_temporal_latest_operator_w15_lr1e4_e8_r16_p2_alpha21/resolved_eval.yaml"
+    ],
+    "path": "docs/claim_evidence/artifacts/ups_advection_temporal_window_candidate_val.tar.gz",
+    "sha256": "567ba875f61e4bca66c18173809114f3c28ae4b59248620fedfe8a0aaf764a1b"
+  },
+  "checkpoint_preference_stage": "operator_decoded",
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "claim_scope": "validation_only_no_context_temporal_window_training_candidate",
+  "code_change": {
+    "candidate_value": "latest",
+    "default_behavior": "zero preserves frame-0 decoded rollout supervision",
+    "new_stage_config_key": "rollout_start_strategy",
+    "scope": "decoded operator and joint codec/operator decoded rollout training windows"
+  },
+  "comparison_to_horizon_weighted_candidate": {
+    "advection_h16_absolute_delta": 0.0010697848973413304,
+    "advection_rollout_absolute_delta": 0.0017168905842854798,
+    "delta_sign": "positive means worse because NRMSE is minimized",
+    "overall_absolute_delta": 0.0011134650490124964,
+    "prior_advection_h16_nrmse": 0.4952380546421234,
+    "prior_advection_rollout_nrmse": 0.48711549085823747,
+    "prior_evidence_json": "docs/claim_evidence/ups_advection_horizon_weighted_candidate_val_evidence.json",
+    "prior_overall_decoded_rollout_nrmse": 0.35108013463927584
+  },
+  "data_root": "data/pdebench",
+  "date": "2026-06-02",
+  "decision": {
+    "held_out_pretest_contract_allowed": false,
+    "next_step": "Stop temporal-window-only loss sweeps; move to an explicit transport phase/shift consistency objective or data-conditioned phase estimator under the same validation-only gate.",
+    "reason": "Latest-window decoded rollout training worsened the validation phase-gate metrics relative to horizon weighting alone and left the advection h16 miss essentially unchanged.",
+    "status": "phase_gate_not_cleared_temporal_window_candidate"
+  },
+  "decoded_rollout_steps": 16,
+  "evaluation": {
+    "decoded_context_roll_shift_estimator": {},
+    "decoded_observed_roll_shift_estimator": {},
+    "decoded_persistence_residual_alpha": 0.0,
+    "decoded_persistence_residual_alpha_by_family": {
+      "transport": 0.21
+    },
+    "decoded_prediction_roll_shift_estimator": {}
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "max_samples": 32,
+  "measurement_type": "ups_advection_temporal_window_training_candidate_validation",
+  "metrics": {
+    "decoded_rollout_nrmse": 0.35219359968828834,
+    "decoded_rollout_spectral_energy_error": 0.10362242680061956,
+    "task_advection1d_decoded_h16_nrmse": 0.4963078395394647,
+    "task_advection1d_decoded_rollout_nrmse": 0.48883238144252295,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121412908425,
+    "task_darcy2d_decoded_rollout_nrmse": 0.188979512124482
+  },
+  "phase_gate": {
+    "errors": [
+      "summary.metrics.decoded_rollout_nrmse=0.35219359968828834 must be < 0.35078329353213156",
+      "summary.metrics.task_advection1d_decoded_rollout_nrmse=0.48883238144252295 must be < 0.4866576789288726",
+      "summary.metrics.task_advection1d_decoded_h16_nrmse=0.4963078395394647 must be <= 0.44444171136384397"
+    ],
+    "passed": false
+  },
+  "phase_gate_contract": {
+    "bytes": 3464,
+    "path": "docs/claim_evidence/ups_advection_phase_tracking_validation_gate_contract.json",
+    "sha256": "d27585f9c05d949aa84c8d9e53d49f407a4b88346cc91c80d1d20ca80ef749fa"
+  },
+  "run_name": "ups_light_advection_temporal_latest_operator_w15_lr1e4_e8_r16_p2_alpha21",
+  "schema_version": 1,
+  "split": "val",
+  "summary": {
+    "bytes": 464305,
+    "path": "reports/research/sota_loop/model_advection_temporal_window/ups_light_advection_temporal_latest_operator_w15_lr1e4_e8_r16_p2_alpha21/summary.json",
+    "sha256": "5e6adc8031bb294f4f12d148f8a46f35649b58546ea26cfceb26190b2b807cdd"
+  },
+  "tasks": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "training": {
+    "epochs": 8,
+    "learning_rate": 0.0001,
+    "rollout_loss_horizon_power": 2.0,
+    "rollout_start_strategy": "latest",
+    "seed": 41,
+    "stage": "operator_decoded",
+    "task_loss_weights": {
+      "advection1d": 1.5,
+      "burgers1d": 1.0,
+      "darcy2d": 1.0
+    },
+    "training_rollout_steps": 16
+  }
+}

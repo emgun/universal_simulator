@@ -1,7 +1,12 @@
 import pytest
 import torch
 
-from scripts.train import _decoded_field_loss, _decoded_rollout_training_loss, _task_loss_weight
+from scripts.train import (
+    _decoded_field_loss,
+    _decoded_rollout_training_loss,
+    _decoded_rollout_training_window,
+    _task_loss_weight,
+)
 from ups.training.losses import (
     LossBundle,
     compute_loss_bundle,
@@ -151,4 +156,39 @@ def test_decoded_rollout_training_loss_rejects_negative_horizon_power():
             [torch.tensor(1.0), torch.tensor(2.0)],
             stage_cfg={"rollout_loss_horizon_power": -1.0},
             lambda_rollout=1.0,
+        )
+
+
+def test_decoded_rollout_training_window_preserves_zero_start_default():
+    fields = torch.arange(6).view(1, 6, 1)
+
+    window, start = _decoded_rollout_training_window(
+        fields,
+        rollout_steps=3,
+        stage_cfg={},
+    )
+
+    assert start == 0
+    assert torch.equal(window[:, :, 0], torch.tensor([[0, 1, 2, 3]]))
+
+
+def test_decoded_rollout_training_window_can_select_latest_window():
+    fields = torch.arange(6).view(1, 6, 1)
+
+    window, start = _decoded_rollout_training_window(
+        fields,
+        rollout_steps=3,
+        stage_cfg={"rollout_start_strategy": "latest"},
+    )
+
+    assert start == 2
+    assert torch.equal(window[:, :, 0], torch.tensor([[2, 3, 4, 5]]))
+
+
+def test_decoded_rollout_training_window_rejects_unknown_strategy():
+    with pytest.raises(ValueError):
+        _decoded_rollout_training_window(
+            torch.arange(4).view(1, 4, 1),
+            rollout_steps=2,
+            stage_cfg={"rollout_start_strategy": "middle"},
         )

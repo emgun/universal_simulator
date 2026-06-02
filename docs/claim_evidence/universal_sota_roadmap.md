@@ -590,3 +590,30 @@ Next checkpoint:
 - Run the horizon-weighted evidence validator, loss tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the code lever and negative candidate evidence.
 - Next technical path after merge: combine `rollout_loss_horizon_power` with a transport-specific phase/shift consistency objective or train-split temporal-window sampling that targets advection h16 more directly.
+
+### 2026-06-02 Temporal-Window Training Candidate
+
+Status:
+
+- Added an opt-in decoded rollout training-window knob: `stages.<stage>.rollout_start_strategy`.
+- Default behavior is unchanged: `rollout_start_strategy = zero` preserves frame-0 decoded rollout supervision.
+- The `latest` strategy trains the requested decoded rollout length from the latest available window in each sample and passes the absolute window start into structured conditioning.
+- The implementation applies consistently to `operator_decoded` and `joint_codec_operator` decoded rollout supervision.
+- Ran one bounded train/validation-only candidate: `ups_light_advection_temporal_latest_operator_w15_lr1e4_e8_r16_p2_alpha21`.
+- Candidate settings: `operator_decoded`, seed `41`, `epochs = 8`, `learning_rate = 0.0001`, `training_rollout_steps = 16`, `rollout_start_strategy = latest`, `rollout_loss_horizon_power = 2.0`, task weights `advection1d:1.5`, `burgers1d:1.0`, `darcy2d:1.0`.
+- Evaluation stayed on `val`, used 32 samples, 16-step decoded rollout, no online context/observed/prediction roll-shift estimator, and transport residual alpha `0.21`.
+- Result: overall validation `decoded_rollout_nrmse = 0.35219359968828834`, advection rollout `0.48883238144252295`, advection h16 `0.4963078395394647`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- Compared with the horizon-weighted candidate, latest-window sampling worsened overall by `0.0011134650490124964`, advection rollout by `0.0017168905842854798`, and advection h16 by `0.0010697848973413304`.
+- Packaged evidence at `docs/claim_evidence/ups_advection_temporal_window_candidate_val_evidence.json` and artifact SHA256 `567ba875f61e4bca66c18173809114f3c28ae4b59248620fedfe8a0aaf764a1b`.
+
+Decision:
+
+- The opt-in temporal-window lever is useful infrastructure because it is default-off, unit-tested, and exposes a real training-data axis.
+- This specific latest-window candidate does not clear the phase gate, worsens the prior horizon-weighted candidate, and does not authorize any held-out pre-test contract.
+- Temporal-window-only loss sweeps should stop unless paired with a direct phase target; the validation evidence points back to transport phase tracking rather than generic later-window supervision.
+
+Next checkpoint:
+
+- Run the temporal-window evidence validator, loss tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the code lever and negative candidate evidence.
+- Next technical path after merge: implement an explicit train/validation-only transport phase or shift-consistency objective, then validate against the same phase gate before any held-out access.
