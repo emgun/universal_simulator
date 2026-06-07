@@ -33,6 +33,17 @@ class BaselineModel:
 
 
 _DEFAULT_DECODED_HORIZONS = (1, 4, 16)
+_DATA_CONDITIONED_SHIFT_FEATURES = (
+    "bias",
+    "horizon_norm",
+    "mean",
+    "std",
+    "rms",
+    "abs_mean",
+    "max",
+    "min",
+)
+_DATA_CONDITIONED_CONTEXT_FEATURES = {"context_shift", "context_shift_abs"}
 
 
 def _flatten_field_step(field_step: torch.Tensor, grid_shape: tuple[int, int]) -> torch.Tensor:
@@ -361,6 +372,98 @@ def _context_roll_shift_estimator_config(raw: Any) -> dict[str, Any]:
     return cfg
 
 
+def _data_conditioned_roll_shift_estimator_config(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(
+            "evaluation.decoded_data_conditioned_roll_shift_estimator must be a mapping"
+        )
+    cfg = dict(raw)
+    cfg["enabled"] = bool(cfg.get("enabled", True))
+    for key in ("tasks", "families"):
+        values = cfg.get(key, ())
+        if values is None:
+            values = ()
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, Sequence):
+            raise ValueError(
+                f"decoded data-conditioned roll-shift estimator {key} must be a sequence"
+            )
+        cfg[key] = [str(value) for value in values]
+    cfg["min_horizon"] = int(cfg.get("min_horizon", 1))
+    if cfg["min_horizon"] <= 0:
+        raise ValueError(
+            "decoded data-conditioned roll-shift estimator min_horizon must be positive"
+        )
+    feature_names = cfg.get("feature_names", _DATA_CONDITIONED_SHIFT_FEATURES)
+    if isinstance(feature_names, str) or not isinstance(feature_names, Sequence):
+        raise ValueError(
+            "decoded data-conditioned roll-shift estimator feature_names must be a sequence"
+        )
+    cfg["feature_names"] = [str(name) for name in feature_names]
+    uses_context_shift = any(
+        name in _DATA_CONDITIONED_CONTEXT_FEATURES for name in cfg["feature_names"]
+    )
+    if uses_context_shift or "candidate_shifts" in cfg or "context_transitions" in cfg:
+        candidate_shifts = cfg.get(
+            "candidate_shifts",
+            [
+                -64,
+                -48,
+                -40,
+                -32,
+                -24,
+                -16,
+                -8,
+                -4,
+                -2,
+                -1,
+                0,
+                1,
+                2,
+                4,
+                8,
+                16,
+                24,
+                32,
+                40,
+                48,
+                64,
+            ],
+        )
+        if not isinstance(candidate_shifts, Sequence) or isinstance(candidate_shifts, (str, bytes)):
+            raise ValueError(
+                "decoded data-conditioned roll-shift estimator candidate_shifts must be a sequence"
+            )
+        cfg["candidate_shifts"] = [float(shift) for shift in candidate_shifts]
+        context_transitions = int(cfg.get("context_transitions", 1))
+        if context_transitions <= 0:
+            raise ValueError(
+                "decoded data-conditioned roll-shift estimator context_transitions must be positive"
+            )
+        cfg["context_transitions"] = context_transitions
+        if uses_context_shift and cfg["min_horizon"] <= context_transitions:
+            raise ValueError(
+                "decoded data-conditioned roll-shift estimator min_horizon must be greater than "
+                "context_transitions when context_shift features are used"
+            )
+    coefficients = cfg.get("coefficients", {})
+    if not isinstance(coefficients, Mapping):
+        raise ValueError(
+            "decoded data-conditioned roll-shift estimator coefficients must be a mapping"
+        )
+    cfg["coefficients"] = {str(key): float(value) for key, value in coefficients.items()}
+    if "min_shift" in cfg:
+        cfg["min_shift"] = float(cfg["min_shift"])
+    if "max_shift" in cfg:
+        cfg["max_shift"] = float(cfg["max_shift"])
+    cfg["mode"] = _roll_shift_estimator_mode(cfg)
+    cfg["calibration_scope"] = str(cfg.get("calibration_scope", "data_conditioned_train_fit"))
+    return cfg
+
+
 def _roll_shift_estimator_applies(
     *,
     cfg: Mapping[str, Any],
@@ -459,6 +562,58 @@ def _estimate_context_roll_shift(
     return best_shift * float(coefficients.get("slope", 1.0)) + float(
         coefficients.get("intercept", 0.0)
     )
+
+
+def _data_conditioned_shift_features(
+    field: torch.Tensor,
+    *,
+    horizon: int,
+    rollout_steps: int,
+    context_shift: float | None = None,
+) -> dict[str, float]:
+    if field.dim() != 3:
+        raise ValueError(
+            f"Expected flattened grid field shaped (B, N, C), got {tuple(field.shape)}"
+        )
+    features = {
+        "bias": 1.0,
+        "horizon_norm": float(horizon) / max(float(rollout_steps), 1.0),
+        "mean": float(field.mean().item()),
+        "std": float(field.std(unbiased=False).item()),
+        "rms": _tensor_rms(field),
+        "abs_mean": float(field.abs().mean().item()),
+        "max": float(field.max().item()),
+        "min": float(field.min().item()),
+    }
+    if context_shift is not None:
+        features["context_shift"] = float(context_shift)
+        features["context_shift_abs"] = abs(float(context_shift))
+    return features
+
+
+def _estimate_data_conditioned_roll_shift(
+    *,
+    field: torch.Tensor,
+    cfg: Mapping[str, Any],
+    horizon: int,
+    rollout_steps: int,
+    context_shift: float | None = None,
+) -> float:
+    features = _data_conditioned_shift_features(
+        field,
+        horizon=horizon,
+        rollout_steps=rollout_steps,
+        context_shift=context_shift,
+    )
+    coefficients = cfg.get("coefficients", {})
+    shift = 0.0
+    for name in cfg.get("feature_names", _DATA_CONDITIONED_SHIFT_FEATURES):
+        shift += float(coefficients.get(str(name), 0.0)) * float(features.get(str(name), 0.0))
+    if "min_shift" in cfg:
+        shift = max(float(cfg["min_shift"]), shift)
+    if "max_shift" in cfg:
+        shift = min(float(cfg["max_shift"]), shift)
+    return float(shift)
 
 
 def _logit(value: float, *, eps: float = 1e-6) -> float:
@@ -813,6 +968,9 @@ def evaluate_decoded_operator(
     context_roll_shift_cfg = _context_roll_shift_estimator_config(
         eval_cfg.get("decoded_context_roll_shift_estimator")
     )
+    data_conditioned_roll_shift_cfg = _data_conditioned_roll_shift_estimator_config(
+        eval_cfg.get("decoded_data_conditioned_roll_shift_estimator")
+    )
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
     skip_missing_tasks = bool(
         eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
@@ -905,6 +1063,28 @@ def evaluate_decoded_operator(
                         candidate_shifts=context_roll_shift_cfg.get("candidate_shifts", ()),
                         context_transitions=int(context_roll_shift_cfg["context_transitions"]),
                         coefficients=context_roll_shift_cfg.get("coefficients", {}),
+                    )
+                data_conditioned_context_shift: float | None = None
+                if (
+                    data_conditioned_roll_shift_cfg
+                    and "context_transitions" in data_conditioned_roll_shift_cfg
+                    and _roll_shift_estimator_applies(
+                        cfg=data_conditioned_roll_shift_cfg,
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=int(data_conditioned_roll_shift_cfg["min_horizon"]),
+                    )
+                ):
+                    data_conditioned_context_shift = _estimate_context_roll_shift(
+                        fields=fields,
+                        grid_shape=grid_shape,
+                        candidate_shifts=data_conditioned_roll_shift_cfg.get(
+                            "candidate_shifts", ()
+                        ),
+                        context_transitions=int(
+                            data_conditioned_roll_shift_cfg["context_transitions"]
+                        ),
+                        coefficients={"slope": 1.0, "intercept": 0.0},
                     )
                 initial_cond = pdebench_condition_step(
                     params,
@@ -999,6 +1179,44 @@ def evaluate_decoded_operator(
                         shift_by_task_horizon=roll_shift_by_task_horizon,
                         shift_by_family_horizon=roll_shift_by_family_horizon,
                     )
+                    if roll_shift == 0 and _roll_shift_estimator_applies(
+                        cfg=data_conditioned_roll_shift_cfg,
+                        task_name=task_name,
+                        task_family=task_family,
+                        horizon=horizon,
+                    ):
+                        roll_shift = _estimate_data_conditioned_roll_shift(
+                            field=persistence_field,
+                            cfg=data_conditioned_roll_shift_cfg,
+                            horizon=horizon,
+                            rollout_steps=steps,
+                            context_shift=data_conditioned_context_shift,
+                        )
+                        _append_stat(
+                            shift_stats,
+                            "decoded_data_conditioned_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"task_{task_name}_decoded_data_conditioned_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"family_{task_family}_decoded_data_conditioned_roll_shift",
+                            float(roll_shift),
+                        )
+                        _append_stat(
+                            shift_stats,
+                            f"decoded_data_conditioned_roll_shift_h{horizon}",
+                            float(roll_shift),
+                        )
+                        if (
+                            _roll_shift_estimator_mode(data_conditioned_roll_shift_cfg)
+                            == "roll_persistence"
+                        ):
+                            pred_field = persistence_field
                     if roll_shift == 0 and _roll_shift_estimator_applies(
                         cfg=observed_roll_shift_cfg,
                         task_name=task_name,
@@ -1213,6 +1431,7 @@ def evaluate_decoded_operator(
             "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
             "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
             "decoded_context_roll_shift_estimator": context_roll_shift_cfg,
+            "decoded_data_conditioned_roll_shift_estimator": data_conditioned_roll_shift_cfg,
             "report_all_horizon_metrics": report_all_horizon_metrics,
             "skip_missing_tasks": skip_missing_tasks,
             "skipped_missing_tasks": skipped_missing_tasks,

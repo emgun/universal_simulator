@@ -645,3 +645,29 @@ Next checkpoint:
 - Run the transport shift-consistency evidence validator, loss tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the code lever and negative candidate evidence.
 - Next technical path after merge: move to a data-conditioned phase estimator or source/parameter-aware transport objective that can explain the train/validation shift mismatch without using validation-oracle shifts for training.
+
+### 2026-06-07 Data-Conditioned Context-Phase Validation Candidate
+
+Status:
+
+- Imported the June 4 literature/ecosystem landscape into this worktree and wrote the execution plan at `docs/superpowers/plans/2026-06-07-causal-transport-phase-estimator-plan.md`.
+- Added a default-off decoded evaluator key: `evaluation.decoded_data_conditioned_roll_shift_estimator`.
+- The estimator supports field-stat features and an explicit causal `context_shift` feature inferred from early observed context transitions, then applies a train-fitted linear coefficient during validation.
+- Static field-feature diagnostic failed as expected: train first-32 rows are a `+1` transport regime, validation first-32 rows are a `+41` regime, and field moments alone produced validation NRMSE `0.5027994693398018`, worse than the `0.4866576789288726` advection reference.
+- Context-feature train-fit gate cleared validation without held-out reads: `context_shift` coefficient `0.9999999979166667`, train context shift mean `1.0`, validation context shift mean `41.0`, validation direct transport NRMSE `0.0005432125951258969`.
+- Ran validation-only decoded candidate `ups_light_advection_data_conditioned_context_phase_val` with the frozen checkpoint, split `val`, 32 samples, 16 decoded steps, `transport` residual alpha `0.21`, and no held-out/test split.
+- Result: overall validation `decoded_rollout_nrmse = 0.1379312547168074`, advection rollout `0.11936459958552438`, advection h1 `0.4774484941309337`, advection h16 `0.0005560538043379871`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`.
+- The existing advection phase-tracking validator passes this candidate with no errors.
+- Packaged evidence at `docs/claim_evidence/ups_advection_data_conditioned_phase_candidate_val_evidence.json` and artifact SHA256 `f2250d9c7e1db1f070fe3bceab5b98fe5a783d248bd2bcf3d9a972a9a96ff4ab`.
+
+Decision:
+
+- P1 is validated on the current validation protocol: a train-fitted data-conditioned `context_shift` estimator explains the train/validation phase mismatch that fixed train-fitted shifts could not.
+- This does not authorize held-out access by itself. It clears the validation phase gate and permits writing a separate held-out pre-test contract with a new measurement key.
+- The tradeoff is explicit: the candidate uses one observed transition to infer phase and applies roll-persistence from horizon 2 onward, so it is a scoped data-conditioned phase-estimator protocol variant, not a no-context primary model-capacity claim or external-paper reproduction.
+
+Next checkpoint:
+
+- Run the data-conditioned evidence validator, focused unit tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the plan, default-off estimator, train-fit gate, validation evidence, and validator.
+- Next technical path after merge: write a pre-test held-out contract for this exact data-conditioned phase-estimator variant before any held-out command, or proceed to P2 learned warp sidecar if the protocol review rejects one-transition context inference as a claim variant.
