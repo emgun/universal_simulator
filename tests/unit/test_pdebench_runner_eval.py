@@ -560,6 +560,132 @@ def test_evaluate_decoded_operator_can_estimate_prediction_roll_shift(tmp_path):
     assert report.extra["decoded_prediction_roll_shift_estimator"]["mode"] == "roll_persistence"
 
 
+def test_evaluate_decoded_operator_can_apply_data_conditioned_roll_shift(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_data_conditioned_roll_shift_estimator": {
+                "coefficients": {"bias": 1.0},
+                "feature_names": ["bias"],
+                "tasks": ["advection1d"],
+                "min_horizon": 1,
+                "mode": "roll_persistence",
+            },
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] == 0.0
+    assert report.metrics["decoded_data_conditioned_roll_shift_mean"] == 1.0
+    assert report.extra["decoded_data_conditioned_roll_shift_estimator"]["feature_names"] == [
+        "bias"
+    ]
+
+
+def test_evaluate_decoded_operator_data_conditioned_roll_shift_is_default_off(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {"decoded_persistence_residual_alpha": 0.0},
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert "decoded_data_conditioned_roll_shift_mean" not in report.metrics
+    assert report.extra["decoded_data_conditioned_roll_shift_estimator"] == {}
+
+
+def test_evaluate_decoded_operator_data_conditioned_roll_shift_can_use_context_feature(
+    tmp_path,
+):
+    data = torch.tensor(
+        [
+            [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ],
+        dtype=torch.float32,
+    )
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_data_conditioned_roll_shift_estimator": {
+                "candidate_shifts": [-1, 0, 1],
+                "context_transitions": 1,
+                "coefficients": {"context_shift": 1.0},
+                "feature_names": ["context_shift"],
+                "min_horizon": 2,
+                "mode": "roll_persistence",
+                "tasks": ["advection1d"],
+            },
+            "report_all_horizon_metrics": True,
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+        rollout_steps=3,
+    )
+
+    assert report.metrics["task_advection1d_decoded_h2_nrmse"] == 0.0
+    assert report.metrics["task_advection1d_decoded_h3_nrmse"] == 0.0
+    assert report.metrics["decoded_data_conditioned_roll_shift_mean"] == 1.0
+    assert report.extra["decoded_data_conditioned_roll_shift_estimator"]["context_transitions"] == 1
+
+
 def test_evaluate_decoded_operator_can_apply_context_calibrated_roll_shift(tmp_path):
     data = torch.tensor(
         [
