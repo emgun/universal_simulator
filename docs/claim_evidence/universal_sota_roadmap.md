@@ -834,3 +834,28 @@ Next checkpoint:
 - Run the mixed-root evidence validator, focused tests, lint/formatting, audit, and full pytest.
 - If checks pass, open a PR for `data.task_roots`, the mixed-root validation evidence, validator, and roadmap update.
 - Next technical path after merge: remove the mixed-root caveat by constructing a canonical full-task validation root with Advection beta provenance or by training/evaluating a model-side parameter-conditioned transport head under the standard `data/pdebench` task root.
+
+### 2026-06-09 P2 Canonical Full-Task Validation Root
+
+Status:
+
+- Added a reproducible validation-root builder, `scripts/build_p2_parameter_full_task_root.py`, that materializes one full-task PDEBench root from exact existing HDF5 files instead of using evaluator-side `data.task_roots`.
+- The generated root contains only `val` split files: Burgers and Darcy from `data/pdebench`, and Advection from `data/pdebench_official_advection_light` so `source_file_index` plus `source_paths` beta provenance are available.
+- The builder records a root manifest with source paths, output paths, bytes, SHA-256 hashes, HDF5 dataset summaries, Advection beta-provenance status, `held_out_test_data_read = false`, and empty `test_ledger_writes`.
+- Ran validation-only decoded evaluation with the frozen checkpoint, `data.root = reports/research/sota_loop/p2_parameter_canonical_root_sidecar/full_task_beta_val_root`, split `val`, `max_samples = 32`, `decoded_rollout_steps = 16`, no `data.task_roots`, no `--extra-eval-split test`, and no ledger writes.
+- Locked estimator remains `feature_names = [param:beta, bias]`, `shift = 10.236877359639507 * beta - 0.08098891730605368`, `mode = roll_persistence`, `min_horizon = 1`.
+- Result: canonical-root full-task validation `decoded_rollout_nrmse = 0.11122069865007121`, Advection `0.0017868130908052495`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`, Advection h16 `0.0017842800879688658`.
+- This exactly matches the mixed-root validation metric while removing the evaluator-runtime `data.task_roots` caveat.
+- Added `docs/claim_evidence/ups_advection_p2_parameter_canonical_root_sidecar_val_evidence.json`, summary artifact `docs/claim_evidence/artifacts/ups_advection_p2_parameter_canonical_root_sidecar_val_summary.json`, root manifest artifact `docs/claim_evidence/artifacts/ups_p2_parameter_full_task_root_manifest.json`, and validator `scripts/validate_p2_parameter_canonical_root_sidecar_evidence.py`.
+
+Decision:
+
+- This is stronger than the mixed-root checkpoint because the decoded evaluator now sees one explicit `data.root` with all three tasks and no task-specific root routing.
+- It is still not a primary `light-v1` claim replacement because the root is generated for validation and swaps Advection to the official beta-provenance shard rather than using the exact primary `data/pdebench` root unchanged.
+- No held-out test is authorized by this evidence. It removes a runtime caveat, not the broader data-protocol caveat.
+
+Next checkpoint:
+
+- Run the canonical-root evidence validator, focused tests, lint/formatting, audit, and full pytest.
+- If checks pass, open a PR for the root builder, canonical-root evidence package, validator, and roadmap update.
+- Next technical path after merge: choose between a standard-root model-side parameter-conditioned transport head and a formally documented canonical-root validation protocol before any broader pretest contract.
