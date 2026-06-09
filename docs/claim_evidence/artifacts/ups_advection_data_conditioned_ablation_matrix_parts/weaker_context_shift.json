@@ -1,0 +1,237 @@
+{
+  "blockers": [],
+  "candidate_shifts": [
+    -8,
+    -7,
+    -6,
+    -5,
+    -4,
+    -3,
+    -2,
+    -1,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "context_fractional_refine_step": 0.0,
+  "context_refine_radius": 0,
+  "context_transitions": 1,
+  "data_root": "data/pdebench",
+  "feature_names": [
+    "context_shift"
+  ],
+  "fit": {
+    "coefficients": {
+      "context_shift": 0.9999999979166667
+    },
+    "model": "ridge_linear_field_feature_shift",
+    "selected_validation": {
+      "metric_value": 0.421816253136215,
+      "mse": 0.17801915109157562,
+      "nrmse": 0.421816253136215,
+      "predicted_shift_max": 7.999999983333334,
+      "predicted_shift_mean": 7.9999999833333355,
+      "predicted_shift_min": 7.999999983333334,
+      "predicted_shift_std": 1.7763568394002505e-15,
+      "transition_count": 480
+    },
+    "train": {
+      "metric_value": 0.0003232510169521055,
+      "mse": 1.044918178649823e-07,
+      "nrmse": 0.0003232510169521055,
+      "predicted_shift_max": 0.9999999979166667,
+      "predicted_shift_mean": 0.9999999979166669,
+      "predicted_shift_min": 0.9999999979166667,
+      "predicted_shift_std": 2.220446049250313e-16,
+      "transition_count": 480
+    },
+    "train_label_records_preview": [
+      {
+        "horizon": 2,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005902715660327534,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 3,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005901287696013376,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 4,
+        "sample_index": 0,
+        "selected_nrmse": 0.000590067997145169,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 5,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005900249615935876,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 6,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005900773548952985,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 7,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005900658569218121,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 8,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005899730027820812,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 9,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005899933015315103,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 10,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005900460042766715,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 11,
+        "sample_index": 0,
+        "selected_nrmse": 0.000590011199603724,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 12,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005899504271205966,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 13,
+        "sample_index": 0,
+        "selected_nrmse": 0.000590016435454955,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 14,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005899809255264669,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 15,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005899605403845219,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 16,
+        "sample_index": 0,
+        "selected_nrmse": 0.0005899933157079642,
+        "selected_shift": 1.0
+      },
+      {
+        "horizon": 2,
+        "sample_index": 1,
+        "selected_nrmse": 0.00041366320413173543,
+        "selected_shift": 1.0
+      }
+    ],
+    "train_label_summary": {
+      "max": 1.0,
+      "mean": 1.0,
+      "min": 1.0,
+      "std": 0.0
+    },
+    "validation_guard": {
+      "enabled": true,
+      "min_relative_improvement": 0.0,
+      "passed": true,
+      "reference_metric_value": 1.0,
+      "relative_improvement": 0.5781837468637849
+    }
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "max_samples": 32,
+  "max_shift": null,
+  "metric": "nrmse",
+  "min_horizon": 2,
+  "min_shift": null,
+  "next_action": "validation guard cleared; write a separate held-out pre-test contract before test",
+  "normalize": true,
+  "notes": [
+    "Fit uses train split trajectories only.",
+    "Validation scores locked train-fitted coefficients; it does not refit on validation.",
+    "No held-out test split is loaded or measured by this script."
+  ],
+  "ridge": 1e-06,
+  "rollout_steps": 16,
+  "selected_override": {
+    "evaluation.decoded_data_conditioned_roll_shift_estimator": {
+      "calibration_scope": "train_fit_context_field_features",
+      "candidate_shifts": [
+        -8.0,
+        -7.0,
+        -6.0,
+        -5.0,
+        -4.0,
+        -3.0,
+        -2.0,
+        -1.0,
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0
+      ],
+      "coefficients": {
+        "context_shift": 0.9999999979166667
+      },
+      "context_transitions": 1,
+      "enabled": true,
+      "feature_names": [
+        "context_shift"
+      ],
+      "min_horizon": 2,
+      "mode": "roll_persistence",
+      "tasks": [
+        "advection1d"
+      ]
+    }
+  },
+  "task": "advection1d",
+  "test_eligible": true,
+  "train_context_shift_summary": {
+    "max": 1.0,
+    "mean": 1.0,
+    "min": 1.0,
+    "std": 0.0
+  },
+  "train_max_samples": null,
+  "train_split": "train",
+  "val_context_shift_summary": {
+    "max": 8.0,
+    "mean": 8.0,
+    "min": 8.0,
+    "std": 0.0
+  },
+  "val_max_samples": null,
+  "val_split": "val"
+}
