@@ -787,3 +787,27 @@ Next checkpoint:
 - Run the P2 sidecar evidence validator, focused tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the evidence package and validator.
 - Next technical path after merge: implement a default-off decoded evaluator hook for parameter-conditioned transport sidecars, then validate it against the full light-v1 decoded rollout contract.
+
+### 2026-06-09 P2 Parameter-Conditioned Decoded Evaluator Integration
+
+Status:
+
+- Added official-source-provenance `beta` derivation to `PDEBenchDataset` when `data.param_keys = [beta]` and an HDF5 shard has `source_file_index` plus `source_paths`.
+- Extended the default-off decoded evaluator data-conditioned roll-shift path with explicit `param:<name>` features, so the locked P2 sidecar can use `param:beta` without observed context transitions.
+- Ran validation-only decoded evaluation with the frozen checkpoint, original three-task conditioning vocabulary, `data/pdebench_official_advection_light`, split `val`, `max_samples = 64`, `decoded_rollout_steps = 16`, no `--extra-eval-split test`, and no ledger writes.
+- Locked estimator: `feature_names = [param:beta, bias]`, `shift = 10.236877359639507 * beta - 0.08098891730605368`, `mode = roll_persistence`, `min_horizon = 1`.
+- Result: decoded validation `decoded_rollout_nrmse = 0.0019816594876579004`, advection h1 `0.002066357660843727`, advection h16 `0.0019494709566432954`, mean applied shift `19.62499999809323`.
+- The decoded result matches the standalone sidecar within `1.4548390010510294e-08` absolute NRMSE, so the P2 transport signal is now proven inside the decoded evaluator path rather than only in a bespoke sidecar script.
+- Added `docs/claim_evidence/ups_advection_p2_parameter_decoded_sidecar_val_evidence.json`, summary artifact `docs/claim_evidence/artifacts/ups_advection_p2_parameter_decoded_sidecar_val_summary.json`, and validator `scripts/validate_p2_parameter_decoded_sidecar_evidence.py`.
+
+Decision:
+
+- This is a stronger P2 checkpoint than the standalone sidecar because it exercises the actual decoded rollout evaluator and checkpoint-loading path.
+- It still is not a full multitask `light-v1` primary candidate: the official beta-provenance root contains advection only, so Burgers and Darcy were explicitly skipped while preserving the original three-task conditioning vocabulary.
+- No held-out test is authorized by this evidence. It reduces observed-context dependency but introduces explicit PDE-parameter metadata dependency.
+
+Next checkpoint:
+
+- Run the decoded sidecar evidence validator, focused tests, lint/formatting, audit, and full pytest.
+- If checks pass, open a PR for the evaluator integration, decoded evidence, validator, and roadmap update.
+- Next technical path after merge: build a full multitask parameter-aware validation root or add model-side PDE-parameter conditioning so this transport win can be tested under the complete light-v1 task mix before any broader pretest contract.

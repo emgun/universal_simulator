@@ -601,6 +601,50 @@ def test_evaluate_decoded_operator_can_apply_data_conditioned_roll_shift(tmp_pat
     ]
 
 
+def test_evaluate_decoded_operator_can_apply_parameter_conditioned_roll_shift(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+        handle.create_dataset("source_file_index", data=torch.tensor([0]).numpy())
+        handle.attrs["source_paths"] = ["1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5"]
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_data_conditioned_roll_shift_estimator": {
+                "coefficients": {"param:beta": 10.0},
+                "feature_names": ["param:beta"],
+                "tasks": ["advection1d"],
+                "min_horizon": 1,
+                "mode": "roll_persistence",
+            },
+        },
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+            "param_keys": ["beta"],
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] < 1e-6
+    assert abs(report.metrics["decoded_data_conditioned_roll_shift_mean"] - 1.0) < 1e-6
+    assert report.extra["decoded_data_conditioned_roll_shift_estimator"]["feature_names"] == [
+        "param:beta"
+    ]
+
+
 def test_evaluate_decoded_operator_data_conditioned_roll_shift_is_default_off(tmp_path):
     data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
     file_path = tmp_path / "advection1d_train.h5"

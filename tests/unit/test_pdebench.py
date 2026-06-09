@@ -46,6 +46,28 @@ def test_pdebench_dataset_respects_max_samples_across_shards(tmp_path):
     assert torch.equal(ds.params["beta"].squeeze(-1), torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0]))
 
 
+def test_pdebench_dataset_derives_advection_beta_from_source_paths(tmp_path):
+    data = torch.randn(3, 4, 8, dtype=torch.float32)
+    with h5py.File(tmp_path / "advection1d_val.h5", "w") as f:
+        f.create_dataset("data", data=data.numpy())
+        f.create_dataset("source_file_index", data=torch.tensor([0, 1, 1]).numpy())
+        f.attrs["source_paths"] = [
+            "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5",
+            "1D/Advection/Train/1D_Advection_Sols_beta0.7.hdf5",
+        ]
+
+    cfg = PDEBenchConfig(
+        task="advection1d",
+        split="val",
+        root=tmp_path,
+        param_keys=("beta",),
+        normalize=False,
+    )
+    ds = PDEBenchDataset(cfg)
+
+    assert torch.allclose(ds.params["beta"].squeeze(-1), torch.tensor([0.1, 0.7, 0.7]))
+
+
 def test_pdebench_dataset_rejects_nonpositive_max_samples(tmp_path):
     cfg = PDEBenchConfig(task="burgers1d", split="train", root=tmp_path, max_samples=0)
 

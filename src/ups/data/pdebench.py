@@ -2,27 +2,28 @@ from __future__ import annotations
 
 """Lightweight PDEBench dataset adapters used for benchmarking."""
 
+import os
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
 
 import h5py
 import torch
 from torch.utils.data import Dataset
-import os
 
 
 @dataclass
 class PDEBenchSpec:
     field_key: str
-    target_key: Optional[str] = None
-    param_keys: Tuple[str, ...] = ()
-    bc_keys: Tuple[str, ...] = ()
+    target_key: str | None = None
+    param_keys: tuple[str, ...] = ()
+    bc_keys: tuple[str, ...] = ()
     family: str = "generic"
-    traits: Tuple[str, ...] = ()
+    traits: tuple[str, ...] = ()
 
 
-TASK_SPECS: Dict[str, PDEBenchSpec] = {
+TASK_SPECS: dict[str, PDEBenchSpec] = {
     "burgers1d": PDEBenchSpec(
         field_key="data",
         family="conservation",
@@ -60,7 +61,7 @@ def get_pdebench_spec(task: str) -> PDEBenchSpec:
     return spec
 
 
-def _ordered_unique(values: Sequence[str]) -> Tuple[str, ...]:
+def _ordered_unique(values: Sequence[str]) -> tuple[str, ...]:
     seen = set()
     ordered = []
     for value in values:
@@ -72,12 +73,12 @@ def _ordered_unique(values: Sequence[str]) -> Tuple[str, ...]:
     return tuple(ordered)
 
 
-def pdebench_family_vocab(tasks: Optional[Sequence[str]] = None) -> Tuple[str, ...]:
+def pdebench_family_vocab(tasks: Sequence[str] | None = None) -> tuple[str, ...]:
     task_names = tuple(str(task) for task in (tasks or TASK_SPECS.keys()))
     return _ordered_unique(tuple(get_pdebench_spec(task).family for task in task_names))
 
 
-def pdebench_trait_vocab(tasks: Optional[Sequence[str]] = None) -> Tuple[str, ...]:
+def pdebench_trait_vocab(tasks: Sequence[str] | None = None) -> tuple[str, ...]:
     task_names = tuple(str(task) for task in (tasks or TASK_SPECS.keys()))
     traits = []
     for task in task_names:
@@ -88,19 +89,19 @@ def pdebench_trait_vocab(tasks: Optional[Sequence[str]] = None) -> Tuple[str, ..
 def pdebench_task_semantics(
     task: str,
     *,
-    task_vocab: Optional[Sequence[str]] = None,
-    family_vocab: Optional[Sequence[str]] = None,
-    trait_vocab: Optional[Sequence[str]] = None,
-) -> Dict[str, torch.Tensor]:
+    task_vocab: Sequence[str] | None = None,
+    family_vocab: Sequence[str] | None = None,
+    trait_vocab: Sequence[str] | None = None,
+) -> dict[str, torch.Tensor]:
     spec = get_pdebench_spec(task)
-    semantics: Dict[str, torch.Tensor] = {}
+    semantics: dict[str, torch.Tensor] = {}
 
     if task_vocab is not None and len(task_vocab) > 1 and task in task_vocab:
         task_id = torch.zeros(len(task_vocab), dtype=torch.float32)
         task_id[list(task_vocab).index(task)] = 1.0
         semantics["task_id"] = task_id
 
-    resolved_family_vocab: Tuple[str, ...]
+    resolved_family_vocab: tuple[str, ...]
     if family_vocab is not None:
         resolved_family_vocab = tuple(str(name) for name in family_vocab)
     elif task_vocab is not None and len(task_vocab) > 1:
@@ -112,7 +113,7 @@ def pdebench_task_semantics(
         family_id[resolved_family_vocab.index(spec.family)] = 1.0
         semantics["task_family"] = family_id
 
-    resolved_trait_vocab: Tuple[str, ...]
+    resolved_trait_vocab: tuple[str, ...]
     if trait_vocab is not None:
         resolved_trait_vocab = tuple(str(name) for name in trait_vocab)
     elif task_vocab is not None and len(task_vocab) > 1:
@@ -133,8 +134,8 @@ def pdebench_task_semantics(
 def pdebench_equation_signature(
     task: str,
     *,
-    family_vocab: Optional[Sequence[str]] = None,
-    trait_vocab: Optional[Sequence[str]] = None,
+    family_vocab: Sequence[str] | None = None,
+    trait_vocab: Sequence[str] | None = None,
 ) -> torch.Tensor:
     resolved_family_vocab = tuple(str(name) for name in (family_vocab or pdebench_family_vocab()))
     resolved_trait_vocab = tuple(str(name) for name in (trait_vocab or pdebench_trait_vocab()))
@@ -169,8 +170,8 @@ def _indicator_node_set(size: int, active_indices: Sequence[int]) -> torch.Tenso
 def pdebench_equation_nodes(
     task: str,
     *,
-    family_vocab: Optional[Sequence[str]] = None,
-    trait_vocab: Optional[Sequence[str]] = None,
+    family_vocab: Sequence[str] | None = None,
+    trait_vocab: Sequence[str] | None = None,
 ) -> torch.Tensor:
     spec = get_pdebench_spec(task)
     resolved_family_vocab = tuple(str(name) for name in (family_vocab or pdebench_family_vocab()))
@@ -213,11 +214,14 @@ def pdebench_equation_nodes(
 class PDEBenchConfig:
     task: str
     split: str = "train"
-    root: Optional[str] = None
+    root: str | None = None
     normalize: bool = True
-    param_keys: Tuple[str, ...] = ()
-    bc_keys: Tuple[str, ...] = ()
-    max_samples: Optional[int] = None
+    param_keys: tuple[str, ...] = ()
+    bc_keys: tuple[str, ...] = ()
+    max_samples: int | None = None
+
+
+_BETA_PATTERN = re.compile(r"beta(?P<beta>[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
 
 
 def _normalise_fields(fields: torch.Tensor) -> torch.Tensor:
@@ -228,13 +232,58 @@ def _normalise_fields(fields: torch.Tensor) -> torch.Tensor:
     return (fields - mean) / std
 
 
+def _h5_attr_strings(value) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)):
+        values = (value,)
+    else:
+        values = tuple(value)
+    result = []
+    for item in values:
+        if isinstance(item, bytes):
+            result.append(item.decode("utf-8"))
+        else:
+            result.append(str(item))
+    return tuple(result)
+
+
+def _beta_from_source_path(source_path: str) -> float:
+    match = _BETA_PATTERN.search(source_path)
+    if not match:
+        raise ValueError(f"Could not parse beta from source path: {source_path}")
+    return float(match.group("beta"))
+
+
+def _derive_param_from_source_provenance(
+    handle: h5py.File,
+    *,
+    key: str,
+    sample_slice: slice,
+) -> torch.Tensor | None:
+    if key != "beta" or "source_file_index" not in handle or "source_paths" not in handle.attrs:
+        return None
+    source_paths = _h5_attr_strings(handle.attrs.get("source_paths"))
+    beta_by_source = {
+        source_index: _beta_from_source_path(source_path)
+        for source_index, source_path in enumerate(source_paths)
+    }
+    source_file_index = torch.from_numpy(handle["source_file_index"][sample_slice]).long()
+    values = []
+    for source_index in source_file_index.tolist():
+        if int(source_index) not in beta_by_source:
+            raise ValueError(f"source_file_index {source_index} has no source_paths beta metadata")
+        values.append(beta_by_source[int(source_index)])
+    return torch.tensor(values, dtype=torch.float32).view(-1, 1)
+
+
 class PDEBenchDataset(Dataset):
     """Loader for PDEBench HDF5 dumps (with fallback tensor data for tests)."""
 
     def __init__(
         self,
         cfg: PDEBenchConfig,
-        tensor_data: Optional[Dict[str, torch.Tensor]] = None,
+        tensor_data: dict[str, torch.Tensor] | None = None,
     ) -> None:
         super().__init__()
         self.cfg = cfg
@@ -309,11 +358,16 @@ class PDEBenchDataset(Dataset):
                         targets_list.append(f_fields)
                     # Parameter/BC aggregation (if present): concatenate along first axis
                     if param_keys:
-                        p = {
-                            key: torch.from_numpy(f[key][sample_slice]).float()
-                            for key in param_keys
-                            if key in f
-                        }
+                        p = {}
+                        for key in param_keys:
+                            if key in f:
+                                p[key] = torch.from_numpy(f[key][sample_slice]).float()
+                                continue
+                            derived = _derive_param_from_source_provenance(
+                                f, key=key, sample_slice=sample_slice
+                            )
+                            if derived is not None:
+                                p[key] = derived
                         if p:
                             if params_accum is None:
                                 params_accum = {k: v.clone() for k, v in p.items()}
@@ -351,7 +405,7 @@ class PDEBenchDataset(Dataset):
     def __len__(self) -> int:
         return self.fields.shape[0]
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         sample = {
             "fields": self.fields[idx],
             "targets": self.targets[idx],
