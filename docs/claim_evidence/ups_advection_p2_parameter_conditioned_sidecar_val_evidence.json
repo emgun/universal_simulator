@@ -1,0 +1,60 @@
+{
+  "acceptance_gate": {
+    "passed": true,
+    "reduced_teacher_forced_context_dependency": true,
+    "validation_nrmse_must_be_below": 0.1379312547168074,
+    "validation_only": true
+  },
+  "candidate_report": {
+    "bytes": 9567,
+    "path": "docs/claim_evidence/artifacts/ups_advection_p2_parameter_conditioned_sidecar_val.json",
+    "sha256": "84cb14468a60fcb275d3261c3da6b7137283624b77411a83f5b05895f979c49c"
+  },
+  "comparison_reports": {
+    "dense_context_inferred_data_pdebench_val": {
+      "bytes": 19822,
+      "path": "docs/claim_evidence/artifacts/ups_advection_p2_inferred_context_dense_val_comparison.json",
+      "sha256": "206303b9afe65d2d788b98ebe7d43f97cff744f899f88ff288dd5436aa258060",
+      "validation_nrmse": 0.26177843531949696
+    }
+  },
+  "contract": {
+    "bytes": 2563,
+    "path": "docs/claim_evidence/ups_advection_next_validation_contracts.json",
+    "sha256": "24e7eb48da44277403e7cd3b3a7c130ca7f58a758189db969f9c4ca6edebcaa3"
+  },
+  "data_protocol": "official balanced advection light train/val source-provenance shard",
+  "data_root": "data/pdebench_official_advection_light",
+  "date": "2026-06-09",
+  "decision": {
+    "held_out_test_allowed_by_this_evidence": false,
+    "next_step": "Promote this reduced-context transport signal into the decoded evaluator or a learned model-side sidecar before any new held-out pretest contract.",
+    "primary_claim_replacement": false,
+    "status": "validation_sidecar_supports_p2_reduced_context_path"
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "measurement_type": "ups_advection_p2_parameter_conditioned_sidecar_validation",
+  "metrics": {
+    "reference_validation_nrmse": 0.1379312547168074,
+    "train_nrmse": 0.0012031011109454775,
+    "validation_improvement_fraction_vs_reference": 0.9856336116281638,
+    "validation_nrmse": 0.001981674036057911
+  },
+  "rollout_steps": 16,
+  "scope_boundary": {
+    "full_light_v1_decoded_candidate": false,
+    "same_exact_inference_contract_as_primary": false,
+    "supporting_p2_transport_sidecar_evidence": true
+  },
+  "split": "val",
+  "task": "advection1d",
+  "teacher_context_dependency": {
+    "uses_beta_metadata": true,
+    "uses_observed_context_transitions": false,
+    "uses_source_identity_as_learned_key": false
+  },
+  "test_ledger_writes": [],
+  "train_samples": 256,
+  "val_samples": 64
+}
