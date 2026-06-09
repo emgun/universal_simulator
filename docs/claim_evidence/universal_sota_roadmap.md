@@ -671,3 +671,26 @@ Next checkpoint:
 - Run the data-conditioned evidence validator, focused unit tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the plan, default-off estimator, train-fit gate, validation evidence, and validator.
 - Next technical path after merge: write a pre-test held-out contract for this exact data-conditioned phase-estimator variant before any held-out command, or proceed to P2 learned warp sidecar if the protocol review rejects one-transition context inference as a claim variant.
+
+### 2026-06-08 Data-Conditioned Context-Phase Pre-Test Contract
+
+Status:
+
+- Added `docs/claim_evidence/ups_advection_data_conditioned_pretest_contract.json`.
+- Added `scripts/validate_ups_advection_data_conditioned_pretest_contract.py` and tests for the intended held-out command, measurement-key recomputation, ledger-repeat rejection, and protocol-disclosure fields.
+- Pre-registered intended held-out measurement key `361686cf61ebc532c34bd43be7920515c8864db05aa61226ca88a670dacdf88a`.
+- Ledger path: `reports/research/sota_loop/data_conditioned_transport_phase/test_ledger.json`.
+- Intended command remains `pre_registered_not_run`; no held-out test split was accessed by this contract work.
+- The intended command carries the exact `evaluation.decoded_data_conditioned_roll_shift_estimator` selected by the validation evidence, all three phase-gate promotion rules, `--extra-eval-split test`, and the held-out ledger guard.
+
+Decision:
+
+- The data-conditioned context-phase candidate is accepted for exactly one ledger-protected held-out confirmation as a scoped `light-v1 data-conditioned context-phase UPS variant`.
+- The claim-language boundary remains explicit: this is not a no-context autonomous rollout claim, not the same inference contract as no-context primary candidates, and not an external-paper reproduction.
+- Repeated held-out measurements under the same key are forbidden unless a future debugging-only path explicitly opts into repeat testing and is not used as new claim evidence.
+
+Next checkpoint:
+
+- Run `scripts/validate_ups_advection_data_conditioned_pretest_contract.py`, targeted tests, lint/formatting, and the full suite.
+- If checks pass, open a PR for the pre-test contract and validator.
+- After merge, run the intended held-out command exactly once if the scoped claim-language boundary is still accepted.

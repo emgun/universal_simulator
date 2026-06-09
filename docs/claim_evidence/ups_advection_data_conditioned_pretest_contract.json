@@ -1,0 +1,61 @@
+{
+  "date": "2026-06-08",
+  "held_out_test_used": false,
+  "intended_held_out": {
+    "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_data_conditioned_context_phase_guarded --output-root reports/research/sota_loop/data_conditioned_transport_phase --skip-training --stage operator_decoded --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override data.root=data/pdebench --eval-override data.split=val --eval-override data.max_samples=32 --eval-override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_persistence_residual_alpha_by_family={transport: 0.21}' --eval-override evaluation.report_all_horizon_metrics=true --eval-override 'evaluation.decoded_data_conditioned_roll_shift_estimator={\"calibration_scope\":\"train_fit_context_field_features\",\"candidate_shifts\":[-80.0,-79.0,-78.0,-77.0,-76.0,-75.0,-74.0,-73.0,-72.0,-71.0,-70.0,-69.0,-68.0,-67.0,-66.0,-65.0,-64.0,-63.0,-62.0,-61.0,-60.0,-59.0,-58.0,-57.0,-56.0,-55.0,-54.0,-53.0,-52.0,-51.0,-50.0,-49.0,-48.0,-47.0,-46.0,-45.0,-44.0,-43.0,-42.0,-41.0,-40.0,-39.0,-38.0,-37.0,-36.0,-35.0,-34.0,-33.0,-32.0,-31.0,-30.0,-29.0,-28.0,-27.0,-26.0,-25.0,-24.0,-23.0,-22.0,-21.0,-20.0,-19.0,-18.0,-17.0,-16.0,-15.0,-14.0,-13.0,-12.0,-11.0,-10.0,-9.0,-8.0,-7.0,-6.0,-5.0,-4.0,-3.0,-2.0,-1.0,0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0,30.0,31.0,32.0,33.0,34.0,35.0,36.0,37.0,38.0,39.0,40.0,41.0,42.0,43.0,44.0,45.0,46.0,47.0,48.0,49.0,50.0,51.0,52.0,53.0,54.0,55.0,56.0,57.0,58.0,59.0,60.0,61.0,62.0,63.0,64.0,65.0,66.0,67.0,68.0,69.0,70.0,71.0,72.0,73.0,74.0,75.0,76.0,77.0,78.0,79.0,80.0],\"coefficients\":{\"context_shift\":0.9999999979166667},\"context_transitions\":1,\"enabled\":true,\"feature_names\":[\"context_shift\"],\"max_shift\":80.0,\"min_horizon\":2,\"min_shift\":-80.0,\"mode\":\"roll_persistence\",\"tasks\":[\"advection1d\"]}' --promotion-rule 'decoded_rollout_nrmse<=0.35078329353213156' --promotion-rule 'task_advection1d_decoded_rollout_nrmse<=0.4866576789288726' --promotion-rule 'task_advection1d_decoded_h16_nrmse<=0.44444171136384397' --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/data_conditioned_transport_phase/test_ledger.json",
+    "command_status": "pre_registered_not_run",
+    "ledger_json": "reports/research/sota_loop/data_conditioned_transport_phase/test_ledger.json",
+    "measurement_key": "361686cf61ebc532c34bd43be7920515c8864db05aa61226ca88a670dacdf88a",
+    "test_split": "test",
+    "validation_gate_thresholds": [
+      {
+        "comparison": "<",
+        "metric": "decoded_rollout_nrmse",
+        "rationale": "A future candidate must beat the failed validation-selected candidate overall, not merely reproduce it.",
+        "threshold": 0.35078329353213156
+      },
+      {
+        "comparison": "<",
+        "metric": "task_advection1d_decoded_rollout_nrmse",
+        "rationale": "The failed held-out promotion was dominated by advection, so validation must improve advection rollout directly.",
+        "threshold": 0.4866576789288726
+      },
+      {
+        "comparison": "<=",
+        "metric": "task_advection1d_decoded_h16_nrmse",
+        "rationale": "Require at least a 10% validation h16 improvement over the failed candidate before considering any future held-out pre-test contract.",
+        "threshold": 0.44444171136384397
+      }
+    ]
+  },
+  "measurement_type": "ups_advection_data_conditioned_pretest_contract",
+  "next_action": "Run scripts/validate_ups_advection_data_conditioned_pretest_contract.py before the intended held-out command. If it passes, run the command once; the ledger guard must reject repeats under the same measurement key.",
+  "protocol_decision": {
+    "accepted_scope": "May spend exactly one ledger-protected held-out confirmation after this pre-test contract validates.",
+    "claim_contract_label": "light-v1 data-conditioned context-phase UPS variant",
+    "data_conditioned_context_shift_disclosed": true,
+    "external_paper_reproduction": false,
+    "not_autonomous_rollout_claim": true,
+    "rationale": "The selected validation candidate fits a coefficient on train only, infers context_shift from one observed transition at evaluation time, and applies roll-persistence from horizon 2. A held-out result must be described as a scoped data-conditioned online/context protocol variant, not a no-context autonomous rollout or external-paper reproduction.",
+    "rejected_overclaims": [
+      "published-paper SOTA without external protocol mapping",
+      "autonomous rollout from initial condition only",
+      "same exact inference contract as no-context primary candidates",
+      "validation evidence alone authorizes repeated held-out tests"
+    ],
+    "requires_claim_language_update": true,
+    "status": "accepted_for_one_held_out_confirmation",
+    "teacher_forced_previous_frame_dependency_disclosed": true
+  },
+  "repo_commit_at_contract": "1e76426464987a97f1bfb7a5c30a3373f8dbd6dd",
+  "selected_validation_run": {
+    "decoded_data_conditioned_roll_shift_mean": 40.999999914583334,
+    "decoded_rollout_nrmse": 0.1379312547168074,
+    "name": "ups_light_advection_data_conditioned_context_phase_val",
+    "task_advection1d_decoded_h16_nrmse": 0.0005560538043379871,
+    "task_advection1d_decoded_rollout_nrmse": 0.11936459958552438
+  },
+  "test_split_accessed": false,
+  "validation_evidence_json": "docs/claim_evidence/ups_advection_data_conditioned_phase_candidate_val_evidence.json",
+  "validation_evidence_sha256": "43b3b81ff585c5640a55f60a2908cc99fefbecedc7748ba08f2585b469b89b4b"
+}
