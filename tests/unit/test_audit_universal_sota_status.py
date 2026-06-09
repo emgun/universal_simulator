@@ -493,6 +493,131 @@ def test_universal_sota_audit_uses_claim_evidence_for_docs_cost_and_artifacts(tm
     assert "strong_baseline_comparison" in record["blocking_reasons"]
 
 
+def test_universal_sota_audit_accepts_validated_medium_confirmation_evidence(tmp_path):
+    scorecard = _write_json(
+        tmp_path / "scorecard.json",
+        _scorecard([_row("persistence_light_v1_test", 1.0)]),
+    )
+    medium_evidence = _write_json(
+        tmp_path / "medium_confirmation.json",
+        {
+            "artifact": {
+                "handle": "b2://pdebench/remote-runs/medium/medium-confirmation.tar.gz",
+                "published": True,
+            },
+            "candidate": {
+                "metric_value": 0.3,
+                "run_name": "ups_medium_shared_context_transport",
+            },
+            "comparison_to_persistence": {
+                "absolute_improvement": 0.3,
+                "baseline_metric_value": 0.6,
+                "candidate_metric_value": 0.3,
+                "improvement_fraction": 0.5,
+                "metric_name": "decoded_rollout_nrmse",
+                "persistence_run_name": "persistence_medium_v1_test",
+            },
+            "confirmation_scope": {
+                "data_root": "data/pdebench_medium_v1",
+                "decoded_rollout_steps": 16,
+                "split": "test",
+                "test_samples": 128,
+                "train_samples": 512,
+                "val_samples": 128,
+                "version": "medium-v1",
+            },
+            "measurement_type": "medium_or_larger_confirmation_evidence",
+            "selection_policy": {
+                "selected_from_light_v1": True,
+                "test_tuned": False,
+            },
+            "status": "complete",
+        },
+    )
+    claim_evidence = _write_json(
+        tmp_path / "claim_evidence.json",
+        {
+            "candidate_evidence": [
+                {
+                    "artifact_handles": ["repo:docs/claim_evidence/artifacts/claim.tar.gz"],
+                    "duration_sec": 12.5,
+                    "metrics": {
+                        "decoded_rollout_nrmse": 0.7,
+                        "decoded_rollout_spectral_energy_error": 0.1,
+                        "task_advection1d_decoded_rollout_nrmse": 0.8,
+                        "task_burgers1d_decoded_rollout_nrmse": 0.6,
+                        "task_darcy2d_decoded_rollout_nrmse": 0.7,
+                    },
+                    "run_name": "ups_light_claim_candidate",
+                    "split": "test",
+                    "summary_json": "reports/claim/summary_test.json",
+                }
+            ],
+            "claim_documentation": {
+                "artifact_handles": ["repo:docs/claim_evidence/artifacts/claim.tar.gz"],
+                "checkpoints": {
+                    "decoder": "checkpoints/decoder.pt",
+                    "encoder": "checkpoints/encoder.pt",
+                    "operator": "checkpoints/operator.pt",
+                },
+                "command": "python scripts/run_light_experiment.py --decoded-rollout-steps 16",
+                "commit": "abc123",
+                "metric_name": "decoded_rollout_nrmse",
+                "metric_value": 0.7,
+                "run_name": "ups_light_claim_candidate",
+                "split": "test",
+                "status": "complete",
+                "summary_json": "reports/claim/summary_test.json",
+            },
+            "medium_or_larger_confirmation": {
+                "evidence_json": str(medium_evidence),
+                "status": "complete",
+            },
+            "strong_baseline_comparison": {
+                "artifact_handles": ["repo:baseline.tar.gz"],
+                "baseline_metric_value": 0.9,
+                "baseline_run_name": "physical_fourier_test",
+                "candidate_metric_value": 0.7,
+                "claim_run_name": "ups_light_claim_candidate",
+                "metric_name": "decoded_rollout_nrmse",
+                "split": "test",
+                "status": "complete",
+            },
+        },
+    )
+    transport_status = _write_json(
+        tmp_path / "transport_status.json",
+        {"status": "literal_achieved"},
+    )
+    transfer_scorecard = _write_json(
+        tmp_path / "transfer_scorecard.json",
+        {"evaluated_task_count": 3, "skipped_task_count": 0, "status": "transfer_validated"},
+    )
+
+    record = run_audit(
+        Namespace(
+            artifact_handles_confirmed=False,
+            baseline_run_name="persistence_light_v1_test",
+            candidate_summary_glob=[],
+            claim_evidence_json=claim_evidence,
+            claim_split="test",
+            documentation_confirmed=False,
+            light_scorecard_json=scorecard,
+            medium_confirmed=False,
+            metric_name="decoded_rollout_nrmse",
+            min_improvement=0.2,
+            output_json="",
+            strong_baseline_compared=False,
+            transfer_scorecard_json=transfer_scorecard,
+            transport_status_json=transport_status,
+        )
+    )
+
+    assert record["status"] == "sota_ready"
+    assert record["medium_or_larger_confirmation"]["validated"] is True
+    assert "medium_or_larger_confirmation" not in record["blocking_reasons"]
+
+
 def test_universal_sota_audit_reports_scoped_ct1_variant_separately(tmp_path):
     scorecard = _write_json(
         tmp_path / "scorecard.json",

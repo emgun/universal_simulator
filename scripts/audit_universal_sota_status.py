@@ -6,9 +6,21 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from scripts.validate_medium_confirmation_evidence import (
+    load_json as load_medium_confirmation_json,
+)
+from scripts.validate_medium_confirmation_evidence import (
+    validate_evidence as validate_medium_confirmation_evidence,
+)
 
 DEFAULT_DIAGNOSTIC_RUN_FRAGMENTS = (
     "gate_hook",
@@ -477,6 +489,80 @@ def _status_from_checks(checks: list[Mapping[str, Any]]) -> str:
     return "sota_ready" if all(bool(check.get("passed")) for check in checks) else "not_sota_ready"
 
 
+def _resolve_evidence_path(raw_path: str, *, claim_evidence_json: Any) -> Path:
+    path = Path(raw_path)
+    if path.is_absolute() or path.exists():
+        return path
+    claim_path = Path(str(claim_evidence_json))
+    if str(claim_path):
+        return claim_path.parent / path
+    return path
+
+
+def _medium_confirmation_status(
+    claim_evidence: Mapping[str, Any],
+    *,
+    claim_evidence_json: Any,
+    explicit_evidence_json: Any,
+) -> dict[str, Any]:
+    raw_record = claim_evidence.get("medium_or_larger_confirmation", {})
+    record = raw_record if isinstance(raw_record, Mapping) else {}
+    raw_evidence_json = str(explicit_evidence_json or record.get("evidence_json", "") or "")
+    evidence: Mapping[str, Any] = {}
+    evidence_json = ""
+    if raw_evidence_json:
+        path = _resolve_evidence_path(raw_evidence_json, claim_evidence_json=claim_evidence_json)
+        evidence_json = str(path)
+        if not path.exists():
+            return {
+                "present": True,
+                "validated": False,
+                "evidence_json": evidence_json,
+                "reason": "evidence_json does not exist",
+            }
+        evidence = load_medium_confirmation_json(path)
+    elif record.get("measurement_type") == "medium_or_larger_confirmation_evidence":
+        evidence = record
+    else:
+        return {
+            "present": bool(raw_record),
+            "validated": False,
+            "evidence_json": "",
+            "reason": "missing",
+        }
+
+    errors = validate_medium_confirmation_evidence(evidence, root=Path.cwd())
+    comparison = evidence.get("comparison_to_persistence", {})
+    scope = evidence.get("confirmation_scope", {})
+    artifact = evidence.get("artifact", {})
+    return {
+        "present": True,
+        "validated": not errors,
+        "evidence_json": evidence_json or str(record.get("evidence_json", "")),
+        "reason": "complete" if not errors else f"errors={errors}",
+        "version": str(scope.get("version", "")) if isinstance(scope, Mapping) else "",
+        "candidate_run_name": str(evidence.get("candidate", {}).get("run_name", "")),
+        "persistence_run_name": (
+            str(comparison.get("persistence_run_name", ""))
+            if isinstance(comparison, Mapping)
+            else ""
+        ),
+        "metric_name": (
+            str(comparison.get("metric_name", "")) if isinstance(comparison, Mapping) else ""
+        ),
+        "candidate_metric_value": (
+            comparison.get("candidate_metric_value") if isinstance(comparison, Mapping) else None
+        ),
+        "baseline_metric_value": (
+            comparison.get("baseline_metric_value") if isinstance(comparison, Mapping) else None
+        ),
+        "improvement_fraction": (
+            comparison.get("improvement_fraction") if isinstance(comparison, Mapping) else None
+        ),
+        "artifact_handle": str(artifact.get("handle", "")) if isinstance(artifact, Mapping) else "",
+    }
+
+
 def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     light_scorecard = _maybe_load_json(args.light_scorecard_json)
     transport_status = _maybe_load_json(args.transport_status_json)
@@ -552,12 +638,18 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         metric_name=args.metric_name,
         claim_split=claim_split,
     )
+    medium_confirmation_status = _medium_confirmation_status(
+        claim_evidence,
+        claim_evidence_json=claim_evidence_json,
+        explicit_evidence_json=getattr(args, "medium_confirmation_json", ""),
+    )
     documentation_confirmed = bool(args.documentation_confirmed) or bool(
         documentation_status["validated"]
     )
     strong_baseline_compared = bool(args.strong_baseline_compared) or bool(
         strong_baseline_status["validated"]
     )
+    medium_confirmed = bool(args.medium_confirmed) or bool(medium_confirmation_status["validated"])
 
     readiness_checks = [
         _check(
@@ -592,8 +684,11 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         ),
         _check(
             "medium_or_larger_confirmation",
-            bool(args.medium_confirmed),
-            "explicit confirmation flag required for medium-or-larger split evidence",
+            medium_confirmed,
+            (
+                "explicit confirmation flag or validated medium evidence required; "
+                f"{medium_confirmation_status['reason']}"
+            ),
         ),
         _check(
             "strong_baseline_comparison",
@@ -675,6 +770,7 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
         "claim_documentation": documentation_status,
         "strong_baseline_comparison": strong_baseline_status,
         "scoped_claim_variants": scoped_claim_variants_status,
+        "medium_or_larger_confirmation": medium_confirmation_status,
         "readiness_checks": readiness_checks,
         "blocking_reasons": blocking_reasons,
         "next_recommended_path": (
@@ -717,6 +813,14 @@ def main() -> None:
         help="Required split metadata for claim-eligible candidate summaries.",
     )
     parser.add_argument("--medium-confirmed", action="store_true")
+    parser.add_argument(
+        "--medium-confirmation-json",
+        default="",
+        help=(
+            "Optional medium-or-larger confirmation evidence JSON. If omitted, the audit "
+            "uses claim_evidence.medium_or_larger_confirmation.evidence_json when present."
+        ),
+    )
     parser.add_argument("--strong-baseline-compared", action="store_true")
     parser.add_argument("--artifact-handles-confirmed", action="store_true")
     parser.add_argument("--documentation-confirmed", action="store_true")

@@ -1,0 +1,45 @@
+{
+  "data_conditioned_ablation": {
+    "acceptance_outputs": [
+      "validation metrics for every required variant",
+      "delta versus full_context_shift",
+      "explicit teacher/context dependency interpretation",
+      "no held-out test ledger writes"
+    ],
+    "purpose": "Quantify how much of the data-conditioned held-out win comes from online context inference versus model capability.",
+    "required_variants": [
+      "full_context_shift",
+      "weaker_context_shift",
+      "no_data_conditioning"
+    ],
+    "split": "val"
+  },
+  "date": "2026-06-09",
+  "held_out_test_policy": {
+    "future_held_out_requires_separate_pretest_contract": true,
+    "held_out_test_allowed_by_this_contract": false,
+    "must_use_new_measurement_key_for_future_test": true,
+    "repeat_existing_data_conditioned_key_allowed": false
+  },
+  "measurement_type": "ups_advection_next_validation_contracts",
+  "p2_learned_warp_sidecar": {
+    "acceptance_gate": {
+      "decoded_rollout_nrmse_must_be_below": 0.1379312547168074,
+      "must_reduce_teacher_forced_context_dependency": true,
+      "task_advection1d_decoded_rollout_nrmse_must_be_below": 0.11936459958552438,
+      "validation_only": true
+    },
+    "candidate_command_template": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_advection_p2_learned_warp_sidecar_val --output-root reports/research/sota_loop/p2_learned_warp_sidecar --skip-training --stage operator_decoded --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=data/pdebench --override data.split=val --override data.max_samples=32 --eval-override data.root=data/pdebench --eval-override data.split=val --eval-override data.max_samples=32 --eval-override evaluation.report_all_horizon_metrics=true",
+    "data_root": "data/pdebench",
+    "decoded_rollout_steps": 16,
+    "max_samples": 32,
+    "purpose": "Prototype a validation-only learned warp or transport sidecar that preserves the phase win while reducing reliance on one observed transition.",
+    "split": "val"
+  },
+  "status": "active",
+  "tradeoffs": [
+    "The current best scoped variant is strong but data-conditioned/online.",
+    "P2 should prefer a learned or model-side transport mechanism if it can retain validation quality with less teacher-forced context dependence.",
+    "Ablations should be completed before any broader primary-claim replacement language."
+  ]
+}

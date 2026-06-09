@@ -1,0 +1,43 @@
+{
+  "artifact": {
+    "handle": "b2://pdebench/remote-runs/medium/medium_confirmation_medium-v1_20260528T010453Z.tar.gz",
+    "published": true
+  },
+  "candidate": {
+    "metric_value": 0.30616533327650614,
+    "run_name": "ups_medium_shared_context_transport"
+  },
+  "comparison_to_persistence": {
+    "absolute_improvement": 0.26634558673375414,
+    "baseline_metric_value": 0.5725109200102603,
+    "candidate_metric_value": 0.30616533327650614,
+    "improvement_fraction": 0.46522359211765046,
+    "metric_name": "decoded_rollout_nrmse",
+    "persistence_run_name": "persistence_medium_v1_test"
+  },
+  "confirmation_scope": {
+    "data_root": "data/pdebench_medium_v1",
+    "decoded_rollout_steps": 16,
+    "split": "test",
+    "test_samples": 128,
+    "train_samples": 512,
+    "val_samples": 128,
+    "version": "medium-v1"
+  },
+  "date": "2026-05-28",
+  "measurement_type": "medium_or_larger_confirmation_evidence",
+  "notes": [
+    "This records an existing medium-v1 confirmation result; it does not run a new held-out command.",
+    "The medium artifact handle is remote B2 evidence from the prior medium confirmation pipeline.",
+    "This confirms the CT8/shared-context primary path at medium scale; scoped data-conditioned variants still require separate medium evidence before broader promotion."
+  ],
+  "selection_policy": {
+    "selected_from_light_v1": true,
+    "test_tuned": false
+  },
+  "source": {
+    "document": "docs/superpowers/plans/2026-05-11-universal-physics-sota-improvement-plan.md",
+    "summary": "Medium confirmation result recorded by the remote medium pipeline checkpoint."
+  },
+  "status": "complete"
+}

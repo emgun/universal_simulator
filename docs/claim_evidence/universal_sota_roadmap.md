@@ -717,3 +717,25 @@ Next checkpoint:
 - Run the held-out evidence validator, external mapping validator, audit, targeted tests, lint/formatting, and the full suite.
 - If checks pass, open a PR for the evidence package and scoped-variant claim updates.
 - Next technical path after merge: pursue a validation-only learned warp/transport sidecar or model-side objective that preserves the metric win while reducing the one-transition teacher-forced dependency before any broader primary-claim replacement.
+
+### 2026-06-09 Medium Confirmation Contract and Next Validation Goals
+
+Status:
+
+- Added `docs/claim_evidence/medium_v1_confirmation_evidence.json` to make the existing medium-v1 confirmation machine-readable instead of relying on the manual `--medium-confirmed` audit flag.
+- Medium confirmation recorded: `ups_medium_shared_context_transport` on `medium-v1` test reached `decoded_rollout_nrmse = 0.30616533327650614` versus `persistence_medium_v1_test = 0.5725109200102603`, a `0.46522359211765046` improvement fraction.
+- Added `scripts/validate_medium_confirmation_evidence.py` and tests for sample-count floor, no test tuning, improvement threshold, and artifact-handle requirements.
+- Updated `scripts/audit_universal_sota_status.py` so validated medium evidence satisfies the `medium_or_larger_confirmation` readiness check without a manual flag.
+- Added `docs/claim_evidence/ups_advection_next_validation_contracts.json` and `scripts/validate_next_validation_contracts.py` to define the next safe experiment goals: P2 learned warp/transport sidecar validation and data-conditioned weaker/no-context ablation.
+
+Decision:
+
+- The default audit can now close the medium-or-larger confirmation gate from committed evidence for the CT8/shared-context primary path.
+- This does not promote the data-conditioned scoped variant to a primary claim. That variant remains the best scoped light-v1 held-out metric but still needs separate medium-scale evidence and reduced-context ablation before broader claim language.
+- The next experiments remain validation-only: no new held-out command is authorized by these contracts.
+
+Next checkpoint:
+
+- Run the medium confirmation validator, next-validation contract validator, audit, focused tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the medium evidence/audit wiring and next-validation contracts.
+- Next technical path after merge: implement the P2 learned warp/transport sidecar or run the required ablation matrix on validation, then package evidence before any new pretest contract.
