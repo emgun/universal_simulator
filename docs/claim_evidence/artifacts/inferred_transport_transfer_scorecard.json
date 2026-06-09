@@ -1,0 +1,37 @@
+{
+  "context_transitions": 8,
+  "data_root": "data/pdebench",
+  "evaluated_task_count": 2,
+  "fractional_refine_step": 0.025,
+  "held_out_policy": "train/val only; no held-out test split is passed to task gates",
+  "mean_validation_nrmse": 0.00303644300924271,
+  "metric": "nrmse",
+  "refine_radius": 4,
+  "rollout_steps": 16,
+  "skipped_task_count": 1,
+  "status": "partial_transfer_validated",
+  "tasks": {
+    "advection1d": {
+      "gate_json": "reports/research/sota_loop/inferred_transfer_scorecard/advection1d_transfer_gate.json",
+      "status": "validated",
+      "test_touched": false,
+      "train_nrmse": 2.1722591109190475e-05,
+      "validation_guard_passed": true,
+      "validation_nrmse": 0.0002474825485253347
+    },
+    "burgers1d": {
+      "gate_json": "reports/research/sota_loop/inferred_transfer_scorecard/burgers1d_transfer_gate.json",
+      "status": "validated",
+      "test_touched": false,
+      "train_nrmse": 0.062408372798664555,
+      "validation_guard_passed": true,
+      "validation_nrmse": 0.0058254034699600854
+    },
+    "darcy2d": {
+      "reason": "missing train split: data/pdebench/darcy2d_train.h5",
+      "status": "skipped"
+    }
+  },
+  "train_split": "train",
+  "val_split": "val"
+}

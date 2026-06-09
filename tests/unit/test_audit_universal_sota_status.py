@@ -983,3 +983,159 @@ def test_universal_sota_audit_rejects_losing_strong_baseline_evidence(tmp_path):
     assert record["strong_baseline_comparison"]["validated"] is False
     assert "candidate_beats_baseline" in record["strong_baseline_comparison"]["reason"]
     assert "strong_baseline_comparison" in record["blocking_reasons"]
+
+
+def _durable_artifact(root, rel_path, payload, original_report_path, extra=None):
+    import hashlib
+
+    path = root / rel_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    raw = path.read_bytes()
+    record = {
+        "artifact_path": rel_path,
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "original_report_path": original_report_path,
+    }
+    record.update(extra or {})
+    return record
+
+
+def _durable_evidence(root, baseline_value=0.5701633411507036):
+    scorecard_record = _durable_artifact(
+        root,
+        "docs/claim_evidence/artifacts/light_v1_demo_scorecard.json",
+        _scorecard(
+            [
+                _row("persistence_light_v1_test", baseline_value, split=""),
+            ]
+        ),
+        "reports/demo/light_latest/scorecard.json",
+        extra={
+            "key_recorded_fields": {
+                "baseline_run_name": "persistence_light_v1_test",
+                "baseline_metric_name": "decoded_rollout_nrmse",
+                "baseline_metric_value": baseline_value,
+            }
+        },
+    )
+    transport_record = _durable_artifact(
+        root,
+        "docs/claim_evidence/artifacts/transport_objective_status.json",
+        {"status": "literal_achieved", "blockers": []},
+        "reports/research/sota_loop/transport_objective_status.json",
+    )
+    transfer_record = _durable_artifact(
+        root,
+        "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json",
+        {
+            "status": "partial_transfer_validated",
+            "evaluated_task_count": 2,
+            "skipped_task_count": 1,
+            "held_out_policy": ("train/val only; no held-out test split is passed to task gates"),
+        },
+        "reports/research/sota_loop/inferred_transfer_scorecard/scorecard.json",
+    )
+    return _write_json(
+        root / "docs/claim_evidence/durable_audit_inputs_evidence.json",
+        {
+            "measurement_type": "durable_audit_inputs_evidence",
+            "status": "complete",
+            "held_out_test_data_read": False,
+            "test_ledger_writes": [],
+            "artifacts": {
+                "light_v1_demo_scorecard": scorecard_record,
+                "transport_objective_status": transport_record,
+                "inferred_transport_transfer_scorecard": transfer_record,
+            },
+        },
+    )
+
+
+def _fallback_namespace(tmp_path, evidence_json, **overrides):
+    base = dict(
+        light_scorecard_json=tmp_path / "missing_scorecard.json",
+        transport_status_json=tmp_path / "missing_transport.json",
+        transfer_scorecard_json=tmp_path / "missing_transfer.json",
+        durable_inputs_evidence_json=evidence_json,
+        durable_inputs_root=tmp_path,
+        baseline_run_name="persistence_light_v1_test",
+        metric_name="decoded_rollout_nrmse",
+        min_improvement=0.2,
+        medium_confirmed=True,
+        strong_baseline_compared=True,
+        artifact_handles_confirmed=True,
+        documentation_confirmed=True,
+        candidate_summary_glob=[],
+        claim_split="test",
+        output_json="",
+    )
+    base.update(overrides)
+    return Namespace(**base)
+
+
+def test_audit_falls_back_to_durable_inputs_when_reports_are_missing(tmp_path):
+    evidence_json = _durable_evidence(tmp_path)
+    summary_dir = tmp_path / "summaries" / "ups_light_candidate"
+    summary_dir.mkdir(parents=True)
+    summary_path = _write_json(
+        summary_dir / "summary.json",
+        {
+            "run_name": "ups_light_candidate",
+            "split": "test",
+            "duration_sec": 2.0,
+            "metrics": {
+                "decoded_rollout_nrmse": 0.41,
+                "task_advection1d_decoded_rollout_nrmse": 0.5,
+                "task_burgers1d_decoded_rollout_nrmse": 0.2,
+                "task_darcy2d_decoded_rollout_nrmse": 0.2,
+                "decoded_rollout_spectral_energy_error": 0.05,
+            },
+        },
+    )
+
+    record = run_audit(
+        _fallback_namespace(
+            tmp_path,
+            evidence_json,
+            candidate_summary_glob=[str(summary_path)],
+        )
+    )
+
+    assert record["durable_audit_inputs"]["status"] == "valid"
+    assert record["transport_objective"]["status"] == "literal_achieved"
+    assert record["transport_objective"]["source_kind"] == "durable_claim_evidence_artifact"
+    assert record["transfer"]["status"] == "partial_transfer_validated"
+    assert record["transfer"]["scorecard_source_kind"] == "durable_claim_evidence_artifact"
+    assert record["light_v1"]["scorecard_source_kind"] == "durable_claim_evidence_artifact"
+    assert record["light_v1"]["baseline_metric_value"] == 0.5701633411507036
+    assert record["light_v1"]["passes_min_improvement_gate"] is True
+    assert record["status"] == "sota_ready"
+
+
+def test_audit_ignores_durable_inputs_when_evidence_is_invalid(tmp_path):
+    evidence_json = _durable_evidence(tmp_path)
+    tampered = tmp_path / "docs/claim_evidence/artifacts/transport_objective_status.json"
+    tampered.write_text(json.dumps({"status": "literal_achieved"}), encoding="utf-8")
+
+    record = run_audit(_fallback_namespace(tmp_path, evidence_json))
+
+    assert record["durable_audit_inputs"]["status"] == "invalid"
+    assert record["transport_objective"]["status"] == "missing"
+    assert record["transport_objective"]["source_kind"] == "missing"
+    assert record["status"] == "not_sota_ready"
+    assert "official_transport_objective_achieved" in record["blocking_reasons"]
+
+
+def test_audit_prefers_live_reports_over_durable_inputs(tmp_path):
+    evidence_json = _durable_evidence(tmp_path)
+    live_transport = _write_json(tmp_path / "live_transport.json", {"status": "literal_blocked"})
+
+    record = run_audit(
+        _fallback_namespace(tmp_path, evidence_json, transport_status_json=live_transport)
+    )
+
+    assert record["transport_objective"]["source_kind"] == "live_report"
+    assert record["transport_objective"]["status"] == "literal_blocked"
+    assert "official_transport_objective_achieved" in record["blocking_reasons"]
