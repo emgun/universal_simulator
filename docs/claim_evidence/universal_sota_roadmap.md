@@ -739,3 +739,27 @@ Next checkpoint:
 - Run the medium confirmation validator, next-validation contract validator, audit, focused tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the medium evidence/audit wiring and next-validation contracts.
 - Next technical path after merge: implement the P2 learned warp/transport sidecar or run the required ablation matrix on validation, then package evidence before any new pretest contract.
+
+### 2026-06-09 Data-Conditioned Context Ablation Matrix
+
+Status:
+
+- Added `scripts/run_data_conditioned_ablation_matrix.py` to run the required validation-only ablation matrix from `docs/claim_evidence/ups_advection_next_validation_contracts.json`.
+- Added `docs/claim_evidence/ups_advection_data_conditioned_ablation_val_evidence.json` plus `scripts/validate_ups_advection_data_conditioned_ablation_evidence.py`.
+- Ran the matrix on `data/pdebench`, split `val`, task `advection1d`, `max_samples = 32`, `rollout_steps = 16`, with no held-out test reads and no ledger writes.
+- Full context-shift variant: validation NRMSE `0.0005432125951258969`, predicted validation shift mean `40.999999914583334`.
+- Weaker bounded context-shift variant with candidate shifts `[-8, 8]`: validation NRMSE `0.421816253136215`, absolute delta versus full context `0.4212730405410891`.
+- No-data-conditioning variant with only a train-fitted bias shift: validation NRMSE `0.5027994693398018`, absolute delta versus full context `0.5022562567446759`.
+- Durable matrix artifacts are committed under `docs/claim_evidence/artifacts/ups_advection_data_conditioned_ablation_matrix.json` and `docs/claim_evidence/artifacts/ups_advection_data_conditioned_ablation_matrix_parts/`.
+
+Decision:
+
+- The ablation confirms the current data-conditioned win is strongly dependent on broad online context-shift estimation.
+- The result supports keeping the data-conditioned candidate scoped as teacher/context-dependent evidence rather than promoting it as a no-context primary model-capacity claim.
+- This evidence does not authorize a new held-out run. It makes P2 the next optimal technical path: a validation-only learned warp/transport sidecar that tries to retain the phase win while reducing context dependence.
+
+Next checkpoint:
+
+- Run the ablation evidence validator, focused tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the ablation runner, evidence package, and roadmap update.
+- Next technical path after merge: implement the P2 learned warp/transport sidecar with acceptance gates below the full context-shift validation metrics recorded here.
