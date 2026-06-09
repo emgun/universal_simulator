@@ -595,7 +595,7 @@ def test_evaluate_decoded_operator_can_apply_data_conditioned_roll_shift(tmp_pat
     )
 
     assert report.metrics["task_advection1d_decoded_rollout_nrmse"] == 0.0
-    assert report.metrics["decoded_data_conditioned_roll_shift_mean"] == 1.0
+    assert abs(report.metrics["decoded_data_conditioned_roll_shift_mean"] - 1.0) < 1e-6
     assert report.extra["decoded_data_conditioned_roll_shift_estimator"]["feature_names"] == [
         "bias"
     ]
@@ -643,6 +643,59 @@ def test_evaluate_decoded_operator_can_apply_parameter_conditioned_roll_shift(tm
     assert report.extra["decoded_data_conditioned_roll_shift_estimator"]["feature_names"] == [
         "param:beta"
     ]
+
+
+def test_evaluate_decoded_operator_can_use_task_specific_roots_for_parameter_sidecar(tmp_path):
+    base_root = tmp_path / "base"
+    advection_root = tmp_path / "advection"
+    base_root.mkdir()
+    advection_root.mkdir()
+
+    burgers = torch.full((1, 2, 4), 2.0, dtype=torch.float32)
+    with h5py.File(base_root / "burgers1d_train.h5", "w") as handle:
+        handle.create_dataset("data", data=burgers.numpy())
+
+    advection = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]])
+    with h5py.File(advection_root / "advection1d_train.h5", "w") as handle:
+        handle.create_dataset("data", data=advection.numpy())
+        handle.create_dataset("source_file_index", data=torch.tensor([0]).numpy())
+        handle.attrs["source_paths"] = ["1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5"]
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "evaluation": {
+            "decoded_persistence_residual_alpha": 0.0,
+            "decoded_data_conditioned_roll_shift_estimator": {
+                "coefficients": {"param:beta": 10.0},
+                "feature_names": ["param:beta"],
+                "tasks": ["advection1d"],
+                "min_horizon": 1,
+                "mode": "roll_persistence",
+            },
+        },
+        "data": {
+            "task": ["burgers1d", "advection1d"],
+            "split": "train",
+            "root": str(base_root),
+            "task_roots": {"advection1d": str(advection_root)},
+            "patch_size": 1,
+            "field_name": "u",
+            "param_keys": ["beta"],
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert report.extra["task_roots"] == {"advection1d": str(advection_root)}
+    assert report.extra["skipped_missing_tasks"] == []
+    assert report.metrics["task_burgers1d_decoded_rollout_nrmse"] == 0.0
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] < 1e-6
+    assert abs(report.metrics["decoded_data_conditioned_roll_shift_mean"] - 1.0) < 1e-6
 
 
 def test_evaluate_decoded_operator_data_conditioned_roll_shift_is_default_off(tmp_path):

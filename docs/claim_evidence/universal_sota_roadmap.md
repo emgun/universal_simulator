@@ -811,3 +811,26 @@ Next checkpoint:
 - Run the decoded sidecar evidence validator, focused tests, lint/formatting, audit, and full pytest.
 - If checks pass, open a PR for the evaluator integration, decoded evidence, validator, and roadmap update.
 - Next technical path after merge: build a full multitask parameter-aware validation root or add model-side PDE-parameter conditioning so this transport win can be tested under the complete light-v1 task mix before any broader pretest contract.
+
+### 2026-06-09 P2 Mixed-Root Full-Task Validation
+
+Status:
+
+- Added a default-off decoded evaluator config surface: `data.task_roots`, allowing a task-specific PDEBench root during decoded evaluation while preserving the normal base `data.root` for the rest of the task mix.
+- Ran validation-only decoded evaluation with Burgers and Darcy from `data/pdebench`, Advection from `data/pdebench_official_advection_light`, split `val`, `max_samples = 32`, `decoded_rollout_steps = 16`, no `--extra-eval-split test`, no ledger writes, and `evaluation.skip_missing_tasks = false`.
+- Locked estimator remains `feature_names = [param:beta, bias]`, `shift = 10.236877359639507 * beta - 0.08098891730605368`, `mode = roll_persistence`, `min_horizon = 1`.
+- Result: mixed-root full-task validation `decoded_rollout_nrmse = 0.11122069865007121`, Advection `0.0017868130908052495`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`, Advection h16 `0.0017842800879688658`.
+- This improves over the prior data-conditioned context-phase validation reference `0.1379312547168074` by `0.026710556066736182` absolute and `0.19365122228154` relative.
+- Added `docs/claim_evidence/ups_advection_p2_parameter_mixed_root_sidecar_val_evidence.json`, summary artifact `docs/claim_evidence/artifacts/ups_advection_p2_parameter_mixed_root_sidecar_val_summary.json`, and validator `scripts/validate_p2_parameter_mixed_root_sidecar_evidence.py`.
+
+Decision:
+
+- This is the first P2 parameter-conditioned sidecar result that evaluates all three light-v1 tasks in one decoded validation run with no skipped tasks.
+- It is still a mixed-root validation candidate, not a primary claim replacement, because Advection is sourced from the official beta-provenance light shard while Burgers/Darcy stay on `data/pdebench`.
+- No held-out test is authorized. The result supports the technical path but still requires either canonical full-task beta-provenance data or model-side parameter conditioning before a broader pretest contract.
+
+Next checkpoint:
+
+- Run the mixed-root evidence validator, focused tests, lint/formatting, audit, and full pytest.
+- If checks pass, open a PR for `data.task_roots`, the mixed-root validation evidence, validator, and roadmap update.
+- Next technical path after merge: remove the mixed-root caveat by constructing a canonical full-task validation root with Advection beta provenance or by training/evaluating a model-side parameter-conditioned transport head under the standard `data/pdebench` task root.
