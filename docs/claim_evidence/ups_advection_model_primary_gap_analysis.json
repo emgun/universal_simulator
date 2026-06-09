@@ -582,9 +582,9 @@
       "sha256": "d1f450e3487b9b208d52e45ee5654d5f946ebd2fd7875dda00079433a1a113d6"
     },
     "claim_evidence": {
-      "bytes": 15015,
+      "bytes": 15163,
       "path": "docs/claim_evidence/universal_sota_claim_evidence.json",
-      "sha256": "9c70b5863f6c9154c794b15abf9075857a4bbe8412fbdea8419d42dcbbe0b624"
+      "sha256": "9685adaa590e4907f6bd510c1180d9ae846317097e1dc21900bf726f7810c698"
     },
     "ct8_artifact": {
       "bytes": 1067684,

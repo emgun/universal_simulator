@@ -122,6 +122,10 @@
     "status": "complete",
     "summary_json": "reports/research/sota_loop/shared_context_decoded_eval/ups_light_shared_context_transport_guarded/summary_test.json"
   },
+  "medium_or_larger_confirmation": {
+    "evidence_json": "docs/claim_evidence/medium_v1_confirmation_evidence.json",
+    "status": "complete"
+  },
   "claim_scope": "guarded shared-context decoded UPS candidate on held-out light-v1 test",
   "schema_version": 1,
   "scoped_claim_variants": [
