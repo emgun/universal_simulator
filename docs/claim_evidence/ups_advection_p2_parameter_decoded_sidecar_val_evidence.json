@@ -1,0 +1,114 @@
+{
+  "measurement_type": "ups_advection_p2_parameter_decoded_sidecar_validation",
+  "date": "2026-06-09",
+  "task": "advection1d",
+  "split": "val",
+  "data_root": "data/pdebench_official_advection_light",
+  "data_protocol": "official balanced advection light validation shard with beta derived from source provenance",
+  "checkpoint_source": "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+  "run_dir": "reports/research/sota_loop/p2_parameter_decoded_sidecar/ups_light_advection_p2_param_sidecar_decoded_val_vocab3",
+  "command_args": [
+    "python",
+    "scripts/run_light_experiment.py",
+    "--config",
+    "configs/train_multitask_heterogeneous_light_best.yaml",
+    "--name",
+    "ups_light_advection_p2_param_sidecar_decoded_val_vocab3",
+    "--output-root",
+    "reports/research/sota_loop/p2_parameter_decoded_sidecar",
+    "--stage",
+    "operator_decoded",
+    "--skip-training",
+    "--checkpoint-source",
+    "reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val",
+    "--decoded",
+    "--decoded-rollout-steps",
+    "16",
+    "--device",
+    "cpu",
+    "--override",
+    "data.root=data/pdebench_official_advection_light",
+    "--override",
+    "data.split=val",
+    "--override",
+    "data.max_samples=64",
+    "--override",
+    "data.param_keys=[beta]",
+    "--override",
+    "operator.conditioning.sources={task_id: 3, equation_signature: 15}",
+    "--eval-override",
+    "evaluation.skip_missing_tasks=true",
+    "--eval-override",
+    "evaluation.decoded_persistence_residual_alpha=0.0",
+    "--eval-override",
+    "evaluation.decoded_data_conditioned_roll_shift_estimator={coefficients: {\"param:beta\": 10.236877359639507, bias: -0.08098891730605368}, feature_names: [\"param:beta\", bias], tasks: [advection1d], min_horizon: 1, mode: roll_persistence, calibration_scope: p2_parameter_conditioned_train_fit}",
+    "--eval-override",
+    "evaluation.report_all_horizon_metrics=true"
+  ],
+  "summary_report": {
+    "path": "docs/claim_evidence/artifacts/ups_advection_p2_parameter_decoded_sidecar_val_summary.json",
+    "sha256": "ce01a2fd652d1acaa9c82c48eb9ac0124c254c298a2d7751912a7dadeaf71b9f",
+    "bytes": 366226
+  },
+  "source_sidecar_evidence": {
+    "path": "docs/claim_evidence/ups_advection_p2_parameter_conditioned_sidecar_val_evidence.json",
+    "sha256": "9001f7a77ae8b534dfeb98f2d1b8710749641e2dbc003d2bfeee61f043e96f1a",
+    "bytes": 2360
+  },
+  "estimator": {
+    "config_key": "evaluation.decoded_data_conditioned_roll_shift_estimator",
+    "enabled": true,
+    "feature_names": [
+      "param:beta",
+      "bias"
+    ],
+    "coefficients": {
+      "param:beta": 10.236877359639507,
+      "bias": -0.08098891730605368
+    },
+    "mode": "roll_persistence",
+    "min_horizon": 1,
+    "tasks": [
+      "advection1d"
+    ],
+    "families": [],
+    "calibration_scope": "p2_parameter_conditioned_train_fit"
+  },
+  "metrics": {
+    "decoded_rollout_nrmse": 0.0019816594876579004,
+    "task_advection1d_decoded_rollout_nrmse": 0.0019816594876579004,
+    "task_advection1d_decoded_h1_nrmse": 0.002066357660843727,
+    "task_advection1d_decoded_h16_nrmse": 0.0019494709566432954,
+    "decoded_data_conditioned_roll_shift_mean": 19.62499999809323,
+    "decoded_data_conditioned_roll_shift_std": 23.190255582438656,
+    "standalone_sidecar_validation_nrmse": 0.001981674036057911,
+    "absolute_delta_vs_standalone_sidecar": -1.4548390010510294e-08,
+    "reference_context_phase_validation_nrmse": 0.1379312547168074,
+    "improvement_fraction_vs_reference_context_phase": 0.9856337171015067
+  },
+  "decoded_scope": {
+    "uses_decoded_evaluator": true,
+    "decoded_rollout_steps": 16,
+    "uses_original_three_task_conditioning_vocab": true,
+    "skipped_missing_tasks": [
+      "burgers1d",
+      "darcy2d"
+    ],
+    "full_multitask_light_v1_candidate": false,
+    "official_advection_only": true
+  },
+  "teacher_context_dependency": {
+    "uses_beta_metadata": true,
+    "uses_observed_context_transitions": false,
+    "uses_source_identity_as_learned_key": false
+  },
+  "held_out_test_used": false,
+  "held_out_test_data_read": false,
+  "test_ledger_writes": [],
+  "decision": {
+    "status": "decoded_evaluator_integration_validated_for_p2_parameter_sidecar",
+    "held_out_test_allowed_by_this_evidence": false,
+    "primary_claim_replacement": false,
+    "next_step": "Integrate beta or equivalent PDE-parameter conditioning into a full multitask decoded path, or create a beta-provenance light root with Burgers and Darcy present before considering any broader pretest contract."
+  }
+}

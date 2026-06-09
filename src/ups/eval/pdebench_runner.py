@@ -570,6 +570,7 @@ def _data_conditioned_shift_features(
     horizon: int,
     rollout_steps: int,
     context_shift: float | None = None,
+    params: Mapping[str, torch.Tensor] | None = None,
 ) -> dict[str, float]:
     if field.dim() != 3:
         raise ValueError(
@@ -588,6 +589,19 @@ def _data_conditioned_shift_features(
     if context_shift is not None:
         features["context_shift"] = float(context_shift)
         features["context_shift_abs"] = abs(float(context_shift))
+    for name, value in (params or {}).items():
+        tensor = (
+            value.detach().float().reshape(-1)
+            if torch.is_tensor(value)
+            else torch.as_tensor(value, dtype=torch.float32).reshape(-1)
+        )
+        if tensor.numel() == 0:
+            continue
+        if tensor.numel() == 1:
+            features[f"param:{name}"] = float(tensor[0].item())
+            continue
+        for index, scalar in enumerate(tensor):
+            features[f"param:{name}:{index}"] = float(scalar.item())
     return features
 
 
@@ -598,12 +612,14 @@ def _estimate_data_conditioned_roll_shift(
     horizon: int,
     rollout_steps: int,
     context_shift: float | None = None,
+    params: Mapping[str, torch.Tensor] | None = None,
 ) -> float:
     features = _data_conditioned_shift_features(
         field,
         horizon=horizon,
         rollout_steps=rollout_steps,
         context_shift=context_shift,
+        params=params,
     )
     coefficients = cfg.get("coefficients", {})
     shift = 0.0
@@ -1191,6 +1207,7 @@ def evaluate_decoded_operator(
                             horizon=horizon,
                             rollout_steps=steps,
                             context_shift=data_conditioned_context_shift,
+                            params=params,
                         )
                         _append_stat(
                             shift_stats,
