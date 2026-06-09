@@ -1,0 +1,134 @@
+{
+  "advection_root": "data/pdebench_official_advection_light",
+  "base_root": "data/pdebench",
+  "held_out_test_data_read": false,
+  "measurement_type": "ups_p2_parameter_full_task_root_manifest",
+  "out_root": "reports/research/sota_loop/p2_parameter_canonical_root_sidecar/full_task_beta_val_root",
+  "source_policy": "Burgers and Darcy from base_root; Advection from official beta-provenance root; copies only the requested non-test split.",
+  "sources": {
+    "advection1d": {
+      "beta_provenance": {
+        "has_source_file_index": true,
+        "has_source_paths": true,
+        "required": true
+      },
+      "bytes": 47358339,
+      "datasets": {
+        "data": {
+          "attrs": {},
+          "dtype": "float32",
+          "shape": [
+            64,
+            201,
+            1024,
+            1
+          ]
+        },
+        "source_file_index": {
+          "attrs": {},
+          "dtype": "int32",
+          "shape": [
+            64
+          ]
+        },
+        "source_sample_index": {
+          "attrs": {},
+          "dtype": "int64",
+          "shape": [
+            64
+          ]
+        }
+      },
+      "file_attrs": {
+        "sequential_hydration_complete": true,
+        "source_paths": [
+          "1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta0.2.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta0.4.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta0.7.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta1.0.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta2.0.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta4.0.hdf5",
+          "1D/Advection/Train/1D_Advection_Sols_beta7.0.hdf5"
+        ]
+      },
+      "output_path": "reports/research/sota_loop/p2_parameter_canonical_root_sidecar/full_task_beta_val_root/advection1d_val.h5",
+      "sha256": "945058d21b18b1cc905307f71a0da6b4e14bddc18672ec46a490497f2fc44c11",
+      "source_path": "data/pdebench_official_advection_light/advection1d_val.h5",
+      "source_root": "data/pdebench_official_advection_light",
+      "source_root_kind": "official_advection_beta_provenance",
+      "source_sha256": "945058d21b18b1cc905307f71a0da6b4e14bddc18672ec46a490497f2fc44c11",
+      "split": "val",
+      "task": "advection1d",
+      "transfer": "hardlink"
+    },
+    "burgers1d": {
+      "beta_provenance": {
+        "has_source_file_index": false,
+        "has_source_paths": false,
+        "required": false
+      },
+      "bytes": 3456789,
+      "datasets": {
+        "data": {
+          "attrs": {},
+          "dtype": "float32",
+          "shape": [
+            32,
+            201,
+            1024,
+            1
+          ]
+        }
+      },
+      "file_attrs": {},
+      "output_path": "reports/research/sota_loop/p2_parameter_canonical_root_sidecar/full_task_beta_val_root/burgers1d_val.h5",
+      "sha256": "af8359e85cefb0c7fd04876f9948c98dd43aaa4a391654999ef8157a36469b0c",
+      "source_path": "data/pdebench/burgers1d_val.h5",
+      "source_root": "data/pdebench",
+      "source_root_kind": "base_light_v1",
+      "source_sha256": "af8359e85cefb0c7fd04876f9948c98dd43aaa4a391654999ef8157a36469b0c",
+      "split": "val",
+      "task": "burgers1d",
+      "transfer": "hardlink"
+    },
+    "darcy2d": {
+      "beta_provenance": {
+        "has_source_file_index": false,
+        "has_source_paths": false,
+        "required": false
+      },
+      "bytes": 45114,
+      "datasets": {
+        "data": {
+          "attrs": {},
+          "dtype": "float32",
+          "shape": [
+            32,
+            128,
+            128,
+            1
+          ]
+        }
+      },
+      "file_attrs": {},
+      "output_path": "reports/research/sota_loop/p2_parameter_canonical_root_sidecar/full_task_beta_val_root/darcy2d_val.h5",
+      "sha256": "4881d4af84982fd71a7e9955db047f8fdd0841c8df43332c79c105eef4f0cb64",
+      "source_path": "data/pdebench/darcy2d_val.h5",
+      "source_root": "data/pdebench",
+      "source_root_kind": "base_light_v1",
+      "source_sha256": "4881d4af84982fd71a7e9955db047f8fdd0841c8df43332c79c105eef4f0cb64",
+      "split": "val",
+      "task": "darcy2d",
+      "transfer": "hardlink"
+    }
+  },
+  "split": "val",
+  "tasks": [
+    "burgers1d",
+    "advection1d",
+    "darcy2d"
+  ],
+  "test_ledger_writes": [],
+  "version": 1
+}
