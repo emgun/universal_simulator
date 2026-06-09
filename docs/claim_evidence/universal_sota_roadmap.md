@@ -905,3 +905,25 @@ Next checkpoint:
 - Run the durable-inputs validator, focused audit tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the durable artifacts, evidence record, validator, audit fallback, and roadmap update.
 - Next technical path after merge: close the advection transport exploration track with scoped claim language for the P2 parameter-conditioned canonical-root validation result, then begin the Phase 1 minimum-credible-scale work from `docs/superpowers/plans/2026-06-09-universal-simulator-north-star-roadmap.md`.
+
+### 2026-06-09 Advection Transport Track Closure
+
+Status:
+
+- The advection transport exploration track that ran from the first roll-shift demo through the P2 parameter-conditioned sidecar is formally closed. Its endpoint results are already recorded in this roadmap and are summarized here with their scoped claim language.
+- Scoped validation-only result: the P2 parameter-conditioned transport sidecar, locked as `shift = 10.236877359639507 * beta - 0.08098891730605368` with `mode = roll_persistence`, reached canonical-root full-task validation `decoded_rollout_nrmse = 0.11122069865007121` (Advection `0.0017868130908052495`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`).
+- Reportable claim language for that result: "a beta-parameter-conditioned transport sidecar, evaluated validation-only on a generated full-task root that swaps Advection to the official beta-provenance shard, improves full-task decoded validation NRMSE to 0.111 versus the 0.138 data-conditioned context-phase reference." It is not a primary `light-v1` claim, not a held-out result, not an autonomous learned-operator result, and not comparable to published tables.
+- Held-out scoped variants already recorded with their own contracts remain unchanged: CT1 online transport-context `0.20177292896682064` and data-conditioned context-phase `0.1808155304023394`, both side-by-side with the primary CT8 claim `0.4165820594268877`.
+- The requirements of `docs/claim_evidence/ups_advection_next_validation_contracts.json` are satisfied: the data-conditioned ablation matrix and the P2 learned/parameter-conditioned sidecar path were both executed and recorded. The contract file is retained as the historical record of that work.
+
+Decision:
+
+- No further advection transport sidecar, warp, shift-estimator, or residual-gate work will be pursued under this track. The transport signal is saturated at validation Advection `~0.0018`, and the remaining light-v1 headroom (Burgers, Darcy) is not addressable by transport mechanisms.
+- Reopening transport work requires a new validation contract written against a concrete successor model (for example, model-side parameter conditioning inside a Phase 1 reference operator), not a continuation of this track.
+- The successor path is `docs/superpowers/plans/2026-06-09-universal-simulator-north-star-roadmap.md` Phase 1: a learned operator that beats persistence on the standard root with no roll-shift estimators, where the P2 transport signal can later be re-attached through the already-integrated `param:beta` decoded-evaluator hooks (roadmap task P1.6).
+- Newly deprioritized paths, extending the standing exclusions: additional advection warp/sidecar variants on the frozen toy-scale checkpoint, further refinement of the P2 sidecar fit, and any new transport-only pretest contract before a Phase 1 reference model exists.
+
+Next checkpoint:
+
+- Open a PR for this closure entry, the branch-archaeology research note, and the worklog update.
+- Next technical path after merge: Phase 1 (P1.1 GPU pipeline smoke run, then capacity and data sweeps) per the north-star roadmap.
