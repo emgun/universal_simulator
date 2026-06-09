@@ -883,3 +883,25 @@ Next checkpoint:
 - Run the standard-root residual-gate evidence validator, focused tests, lint/formatting, audit, and full pytest.
 - If checks pass, open a PR for the negative evidence package, validator, and roadmap update.
 - Next technical path after merge: build a transport-specific learned warp/phase head under standard-root train/val, or formally document the canonical beta-provenance validation-root protocol if the model-side route stalls.
+
+### 2026-06-09 Durable Audit Inputs For Clean-Checkout Readiness
+
+Status:
+
+- Located the canonical machine-local report files that `scripts/audit_universal_sota_status.py` reads from gitignored `reports/` paths and committed byte-exact copies as durable claim-evidence artifacts: `docs/claim_evidence/artifacts/transport_objective_status.json`, `docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json`, and `docs/claim_evidence/artifacts/light_v1_demo_scorecard.json`.
+- Added `docs/claim_evidence/durable_audit_inputs_evidence.json` with per-artifact byte sizes, SHA-256 hashes, original report paths, original modification timestamps, and provenance commits `4d939f1` (official transport achievement) and `dad9aea` (inferred transfer scorecard). No measurement was rerun, no held-out test data was read, and no ledger was written.
+- Added `scripts/validate_durable_audit_inputs_evidence.py`, a fail-closed validator covering hash/size integrity, `literal_achieved` transport status with empty blockers, transfer status in the validated set with `evaluated_task_count >= 2`, presence of the `persistence_light_v1_test` baseline row, and agreement between the scorecard baseline and `universal_sota_claim_evidence.json` claim documentation.
+- Extended the audit to prefer live `reports/` files and fall back to the validated durable artifacts only when a live input is missing. The audit output now records `source_kind` per input (`live_report`, `durable_claim_evidence_artifact`, or `missing`) and a `durable_audit_inputs` validation status.
+- Audit from a clean checkout now reports `status=sota_ready`, `sota_ready=true`, with all nine readiness checks passing: transport `literal_achieved`, light-v1 improvement fraction `0.2693636553585822` (best claim-eligible `0.4165820594268877` versus persistence `0.5701633411507036`), claim-eligible candidate present, transfer `partial_transfer_validated` with two evaluated tasks, medium confirmation, strong baseline comparison, complete scorecard metrics, artifact handles, and claim documentation.
+
+Decision:
+
+- This closes the clean-checkout reproducibility gap without changing any claim language or measured value: the audited claim remains the scoped light-v1 protocol claim already recorded in this roadmap.
+- A tampered or inconsistent durable artifact invalidates the entire fallback set, so the audit fails closed rather than reading unverified copies.
+- No held-out test is authorized by this change.
+
+Next checkpoint:
+
+- Run the durable-inputs validator, focused audit tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the durable artifacts, evidence record, validator, audit fallback, and roadmap update.
+- Next technical path after merge: close the advection transport exploration track with scoped claim language for the P2 parameter-conditioned canonical-root validation result, then begin the Phase 1 minimum-credible-scale work from `docs/superpowers/plans/2026-06-09-universal-simulator-north-star-roadmap.md`.

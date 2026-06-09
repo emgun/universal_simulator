@@ -1,0 +1,56 @@
+{
+  "artifacts": {
+    "light_v1_demo_scorecard": {
+      "artifact_path": "docs/claim_evidence/artifacts/light_v1_demo_scorecard.json",
+      "bytes": 50589,
+      "key_recorded_fields": {
+        "baseline_metric_name": "decoded_rollout_nrmse",
+        "baseline_metric_value": 0.5701633411507036,
+        "baseline_run_name": "persistence_light_v1_test",
+        "row_count": 4
+      },
+      "original_modified_at": "2026-05-11T20:00:40-0700",
+      "original_report_path": "reports/demo/light_latest/scorecard.json",
+      "sha256": "e5ea414b8b630e0b68ffd6be7cf2a2dad3a1abd3900310d214e6225cecd5d032"
+    },
+    "inferred_transport_transfer_scorecard": {
+      "artifact_path": "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json",
+      "bytes": 1228,
+      "key_recorded_fields": {
+        "evaluated_task_count": 2,
+        "mean_validation_nrmse": 0.00303644300924271,
+        "skipped_task_count": 1,
+        "status": "partial_transfer_validated"
+      },
+      "original_modified_at": "2026-05-24T16:20:06-0700",
+      "original_report_path": "reports/research/sota_loop/inferred_transfer_scorecard/scorecard.json",
+      "provenance_commit": "dad9aea21ce7b7a495793d05fa987f4a8d98020f",
+      "sha256": "f31a7113623fc2b7510b57ea9a9d1b4d51512ede077e5156b91aceb45f4efafc"
+    },
+    "transport_objective_status": {
+      "artifact_path": "docs/claim_evidence/artifacts/transport_objective_status.json",
+      "bytes": 6875,
+      "key_recorded_fields": {
+        "blockers": [],
+        "status": "literal_achieved"
+      },
+      "original_modified_at": "2026-05-23T18:17:48-0700",
+      "original_report_path": "reports/research/sota_loop/transport_objective_status.json",
+      "provenance_commit": "4d939f182c6bb8f454bcdbfa5c4a97af198136f1",
+      "sha256": "08bb6965f5ca043845864d3a27c7f409386ebee82fc8318e7108c86d7a52b6a6"
+    }
+  },
+  "date": "2026-06-09",
+  "held_out_test_data_read": false,
+  "measurement_type": "durable_audit_inputs_evidence",
+  "notes": [
+    "These artifacts are byte-exact copies of canonical machine-local report files that scripts/audit_universal_sota_status.py reads from gitignored reports/ paths.",
+    "They were copied from the original working tree where the recorded runs executed; no measurement was rerun and no held-out test data was read to produce this record.",
+    "The transport objective literal_achieved status was originally recorded by the official hydration and guarded test sequence around commit 4d939f1 (worklog 2026-05-22).",
+    "The inferred transfer scorecard was originally produced by scripts/run_inferred_transport_transfer_scorecard.py at commit dad9aea (worklog 2026-05-24) on train/validation splits only.",
+    "The light-v1 demo scorecard carries the persistence_light_v1_test baseline row used by the audit improvement gate; the same baseline value is independently recorded in docs/claim_evidence/universal_sota_claim_evidence.json claim_documentation.",
+    "The audit prefers live reports/ files when present and falls back to these durable artifacts only when the live files are missing, so a clean checkout audits identically to the original working tree."
+  ],
+  "status": "complete",
+  "test_ledger_writes": []
+}

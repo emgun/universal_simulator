@@ -1,0 +1,70 @@
+{
+  "accept_context_transport": false,
+  "accept_observed_context": false,
+  "blockers": [],
+  "evidence": {
+    "constant_audit_json": "reports/research/sota_loop/transport_shift_goal_audit.json",
+    "constant_status": "blocked_incompatible_splits",
+    "context_audit_json": "reports/research/sota_loop/context_transport_shift_goal_audit.json",
+    "context_status": "achieved",
+    "execution_readiness_json": "reports/research/sota_loop/official_execution_readiness.json",
+    "execution_readiness_route_blockers": {
+      "local_sequential_hydration": [],
+      "remote_launch": []
+    },
+    "execution_readiness_status": "ready",
+    "hydration_options_json": "reports/research/sota_loop/transport_data_hydration_options.json",
+    "hydration_plan_json": "reports/research/sota_loop/official_advection_hydration_plan.json",
+    "hydration_plan_run_json": "reports/research/sota_loop/official_advection_hydration_plan_run.json",
+    "hydration_plan_run_status": "executed",
+    "hydration_plan_status": "ready_for_explicit_hydration",
+    "hydration_plan_validation_json": "reports/research/sota_loop/official_advection_hydration_plan_validation.json",
+    "hydration_plan_validation_status": "valid",
+    "hydration_preflight_json": "reports/research/sota_loop/official_advection_hydration_preflight.json",
+    "hydration_preflight_status": "ready_for_sequential_download",
+    "hydration_status": "remote_official_hydration_required",
+    "hydration_storage_json": "reports/research/sota_loop/official_advection_hydration_storage_recommendation.json",
+    "hydration_storage_status": "storage_root_available",
+    "observed_audit_json": "reports/research/sota_loop/observed_transport_shift_goal_audit.json",
+    "observed_status": "achieved",
+    "official_hydrated_gate_json": "reports/research/sota_loop/official_hydrated_transport_shift_gate.json",
+    "official_hydrated_test_eligible": true,
+    "official_hydrated_test_result_count": 1,
+    "official_hydrated_validation_passed": true,
+    "remote_hydration_plan_json": "reports/research/sota_loop/remote_official_advection_hydration_plan.json",
+    "remote_hydration_plan_status": "ready_for_remote_hydration",
+    "train_feature_conclusion": "blocked_no_train_support_for_validation_shift",
+    "train_feature_diagnostic_json": "reports/research/sota_loop/train_only_transport_feature_diagnostic_full.json",
+    "train_identifiability_audit_json": "reports/research/sota_loop/train_only_transport_identifiability_audit.json",
+    "train_identifiability_status": "blocked_underidentified_train_only_shift"
+  },
+  "recommendation": "If two-frame context is benchmark-accepted, prefer the context transport result; if per-step observed context is accepted, promote observed-context result; otherwise rebuild split-compatible shards or pursue a richer train-only causal mechanism.",
+  "requirements": [
+    {
+      "evidence": "reports/research/sota_loop/transport_shift_goal_audit.json, reports/research/sota_loop/observed_transport_shift_goal_audit.json, reports/research/sota_loop/context_transport_shift_goal_audit.json, reports/research/sota_loop/train_only_transport_feature_diagnostic_full.json, reports/research/sota_loop/train_only_transport_identifiability_audit.json, reports/research/sota_loop/transport_data_hydration_options.json, reports/research/sota_loop/official_advection_hydration_plan.json, reports/research/sota_loop/official_advection_hydration_plan_validation.json, reports/research/sota_loop/official_advection_hydration_plan_run.json, reports/research/sota_loop/official_advection_hydration_preflight.json, reports/research/sota_loop/official_advection_hydration_storage_recommendation.json, reports/research/sota_loop/remote_official_advection_hydration_plan.json, reports/research/sota_loop/official_execution_readiness.json, reports/research/sota_loop/official_hydrated_transport_shift_gate.json",
+      "name": "real_light_v1_train_val_accessed",
+      "status": "satisfied"
+    },
+    {
+      "evidence": "constant_audit_status=blocked_incompatible_splits; feature_conclusion=blocked_no_train_support_for_validation_shift; identifiability_status=blocked_underidentified_train_only_shift; hydration_status=remote_official_hydration_required; hydration_plan_status=ready_for_explicit_hydration; hydration_plan_validation_status=valid; hydration_plan_run_status=executed; hydration_preflight_status=ready_for_sequential_download; hydration_storage_status=storage_root_available; remote_hydration_plan_status=ready_for_remote_hydration; execution_readiness_status=ready; official_hydrated_validation_passed=True; context_transport_achieved=False; observed_context_achieved=False",
+      "name": "fit_transport_shift_only_on_train",
+      "status": "satisfied"
+    },
+    {
+      "evidence": "constant_audit_status=blocked_incompatible_splits; official_hydrated_validation_passed=True; context_audit_status=achieved; observed_audit_status=achieved",
+      "name": "validate_on_val_against_sota_guard",
+      "status": "satisfied"
+    },
+    {
+      "evidence": "constant_policy={'exactly_one_test_after_validation': False, 'leaked_test_result': False, 'test_allowed_next': False, 'test_eligible': False, 'test_result_count': 0}; official_hydrated_validation_passed=True; official_hydrated_test_eligible=True; official_hydrated_test_result_count=1; context_policy={'exactly_one_test_after_validation': True, 'leaked_test_result': False, 'ledger': {'allow_repeat_test': False, 'ledger_path': 'reports/research/sota_loop/context_transport_shift_test_ledger.json', 'measurement_key': 'aad43ee28e0606013d01f8fcbfb525ea406a41925d16fbcf12084aecfeca2d06', 'recorded': True}, 'test_eligible': True, 'test_result_count': 1}; observed_policy={'exactly_one_test_after_validation': True, 'leaked_test_result': False, 'ledger': None, 'test_eligible': True, 'test_result_count': 1}",
+      "name": "exactly_one_held_out_test_only_after_validation",
+      "status": "satisfied"
+    },
+    {
+      "evidence": "constant_record_policy={'mismatches': [], 'passed': True, 'records': ['worklog.md', 'docs/superpowers/plans/2026-05-11-universal-physics-sota-improvement-plan.md'], 'required': True, 'required_tokens': ['blocked_incompatible_splits', '0.5140249729156494']}; context_record_policy={'mismatches': [], 'passed': True, 'records': ['worklog.md', 'docs/superpowers/plans/2026-05-11-universal-physics-sota-improvement-plan.md'], 'required': True, 'required_tokens': ['achieved', '0.12336619943380356', '0.040703773498535156']}; observed_record_policy={'mismatches': [], 'passed': True, 'records': ['worklog.md', 'docs/superpowers/plans/2026-05-11-universal-physics-sota-improvement-plan.md'], 'required': True, 'required_tokens': ['achieved', '0.012846261262893677', '0.004225204233080149']}",
+      "name": "results_recorded",
+      "status": "satisfied"
+    }
+  ],
+  "status": "literal_achieved"
+}

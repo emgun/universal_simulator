@@ -15,9 +15,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from scripts.validate_medium_confirmation_evidence import (
-    load_json as load_medium_confirmation_json,
+from scripts.validate_durable_audit_inputs_evidence import (
+    validate_evidence as validate_durable_audit_inputs_evidence,
 )
+from scripts.validate_medium_confirmation_evidence import load_json as load_medium_confirmation_json
 from scripts.validate_medium_confirmation_evidence import (
     validate_evidence as validate_medium_confirmation_evidence,
 )
@@ -31,6 +32,11 @@ DEFAULT_DIAGNOSTIC_RUN_FRAGMENTS = (
     "transport_horizon_gate",
     "transport_residual_gate",
 )
+
+DEFAULT_DURABLE_INPUTS_EVIDENCE_JSON = "docs/claim_evidence/durable_audit_inputs_evidence.json"
+DURABLE_LIGHT_SCORECARD_KEY = "light_v1_demo_scorecard"
+DURABLE_TRANSPORT_STATUS_KEY = "transport_objective_status"
+DURABLE_TRANSFER_SCORECARD_KEY = "inferred_transport_transfer_scorecard"
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -563,16 +569,76 @@ def _medium_confirmation_status(
     }
 
 
+def _durable_audit_artifacts(
+    evidence_json: str,
+    root: Path,
+    claim_evidence: Mapping[str, Any],
+) -> tuple[dict[str, Any], str]:
+    evidence = _maybe_load_json(evidence_json)
+    if not evidence:
+        return {}, "missing"
+    errors = validate_durable_audit_inputs_evidence(
+        evidence, root=root, claim_evidence=claim_evidence
+    )
+    if errors:
+        return {}, "invalid"
+    artifacts = evidence.get("artifacts", {})
+    if not isinstance(artifacts, Mapping):
+        return {}, "invalid"
+    return dict(artifacts), "valid"
+
+
+def _resolve_audit_input(
+    primary_path: str,
+    durable_artifacts: Mapping[str, Any],
+    durable_key: str,
+    durable_root: Path,
+) -> tuple[dict[str, Any], str, str]:
+    primary = Path(primary_path)
+    if primary.exists():
+        return _load_json(primary), str(primary_path), "live_report"
+    record = durable_artifacts.get(durable_key)
+    if isinstance(record, Mapping):
+        artifact_path = str(record.get("artifact_path", ""))
+        resolved = durable_root / artifact_path
+        if artifact_path and resolved.exists():
+            return _load_json(resolved), str(resolved), "durable_claim_evidence_artifact"
+    return {}, str(primary_path), "missing"
+
+
 def run_audit(args: argparse.Namespace) -> dict[str, Any]:
-    light_scorecard = _maybe_load_json(args.light_scorecard_json)
-    transport_status = _maybe_load_json(args.transport_status_json)
-    transfer_scorecard = _maybe_load_json(args.transfer_scorecard_json)
     claim_evidence_json = getattr(
         args,
         "claim_evidence_json",
         "",
     )
     claim_evidence = _maybe_load_json(claim_evidence_json)
+
+    durable_root = Path(str(getattr(args, "durable_inputs_root", "") or "."))
+    durable_inputs_evidence_json = str(getattr(args, "durable_inputs_evidence_json", "") or "")
+    durable_artifacts, durable_inputs_status = _durable_audit_artifacts(
+        durable_inputs_evidence_json, durable_root, claim_evidence
+    )
+    light_scorecard, light_scorecard_source, light_scorecard_source_kind = _resolve_audit_input(
+        args.light_scorecard_json,
+        durable_artifacts,
+        DURABLE_LIGHT_SCORECARD_KEY,
+        durable_root,
+    )
+    transport_status, transport_status_source, transport_status_source_kind = _resolve_audit_input(
+        args.transport_status_json,
+        durable_artifacts,
+        DURABLE_TRANSPORT_STATUS_KEY,
+        durable_root,
+    )
+    transfer_scorecard, transfer_scorecard_source, transfer_scorecard_source_kind = (
+        _resolve_audit_input(
+            args.transfer_scorecard_json,
+            durable_artifacts,
+            DURABLE_TRANSFER_SCORECARD_KEY,
+            durable_root,
+        )
+    )
 
     candidate_summary_globs = tuple(getattr(args, "candidate_summary_glob", None) or ())
     rows = _dedupe_rows(
@@ -729,13 +795,19 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
     record: dict[str, Any] = {
         "status": status,
         "sota_ready": status == "sota_ready",
+        "durable_audit_inputs": {
+            "evidence_json": durable_inputs_evidence_json,
+            "status": durable_inputs_status,
+        },
         "transport_objective": {
-            "source": str(args.transport_status_json),
+            "source": transport_status_source,
+            "source_kind": transport_status_source_kind,
             "status": transport_status.get("status", "missing"),
             "literal_achieved": transport_literal_achieved,
         },
         "light_v1": {
-            "scorecard_json": str(args.light_scorecard_json),
+            "scorecard_json": light_scorecard_source,
+            "scorecard_source_kind": light_scorecard_source_kind,
             "candidate_summary_globs": list(candidate_summary_globs),
             "claim_split": claim_split,
             "baseline_run_name": args.baseline_run_name,
@@ -756,7 +828,8 @@ def run_audit(args: argparse.Namespace) -> dict[str, Any]:
             "wandb_or_artifact_handles_present": _has_wandb_or_artifact_handles(best),
         },
         "transfer": {
-            "scorecard_json": str(args.transfer_scorecard_json),
+            "scorecard_json": transfer_scorecard_source,
+            "scorecard_source_kind": transfer_scorecard_source_kind,
             "status": transfer_scorecard.get("status", "missing"),
             "calibration_scope": transfer_scorecard.get("calibration_scope", ""),
             "evaluated_task_count": transfer_scorecard.get("evaluated_task_count", 0),
@@ -803,6 +876,19 @@ def main() -> None:
         "--transfer-scorecard-json",
         default="reports/research/sota_loop/inferred_transfer_scorecard/scorecard.json",
         help="Inferred transport transfer scorecard JSON",
+    )
+    parser.add_argument(
+        "--durable-inputs-evidence-json",
+        default=DEFAULT_DURABLE_INPUTS_EVIDENCE_JSON,
+        help=(
+            "Durable committed copies of the audit inputs, used only when the "
+            "corresponding live reports/ file is missing"
+        ),
+    )
+    parser.add_argument(
+        "--durable-inputs-root",
+        default=".",
+        help="Root for resolving durable artifact paths recorded in the evidence JSON",
     )
     parser.add_argument("--baseline-run-name", default="persistence_light_v1_test")
     parser.add_argument("--metric-name", default="decoded_rollout_nrmse")
