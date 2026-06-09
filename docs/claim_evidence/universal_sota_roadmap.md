@@ -859,3 +859,27 @@ Next checkpoint:
 - Run the canonical-root evidence validator, focused tests, lint/formatting, audit, and full pytest.
 - If checks pass, open a PR for the root builder, canonical-root evidence package, validator, and roadmap update.
 - Next technical path after merge: choose between a standard-root model-side parameter-conditioned transport head and a formally documented canonical-root validation protocol before any broader pretest contract.
+
+### 2026-06-09 Standard-Root Learned Residual Gate Probe
+
+Status:
+
+- Ran a validation-only standard-root learned decoded residual gate probe with `scripts/fit_decoded_residual_gate.py`.
+- Data scope: `data/pdebench` only, train split for fitting, validation split for measuring, `max_samples = 32`, `decoded_rollout_steps = 16`, no `data.task_roots`, no `param_keys = [beta]`, no generated root, no `--extra-eval-split test`, and no ledger writes.
+- The learned gate fits scalar decoded residual alpha from train rows using horizon and residual/persistence/prediction RMS features, then freezes that gate for validation.
+- Result: learned-gate validation `decoded_rollout_nrmse = 0.3636878653661531`, Advection `0.5083847207526389`, Burgers `0.14113626769664725`, Darcy `0.18774741739400247`.
+- Controls on the same standard root: pure persistence validation `0.3685752310100123`, default operator-residual validation `0.7077811986610774`.
+- The learned gate improves persistence by `0.0048873656438592206` absolute and `0.013260157581577845` relative, but remains far worse than canonical P2 validation `0.11122069865007121` and context-phase reference validation `0.1379312547168074`.
+- Added `docs/claim_evidence/ups_standard_root_learned_residual_gate_val_evidence.json`, durable fit/baseline artifacts under `docs/claim_evidence/artifacts/`, and validator `scripts/validate_standard_root_learned_residual_gate_evidence.py`.
+
+Decision:
+
+- This is useful negative evidence: a standard-root scalar residual gate is not enough to replace the P2 transport signal or justify held-out testing.
+- The failure mode remains transport phase-specific, especially Advection, not a generic decoded residual-alpha calibration problem.
+- No held-out test is authorized by this evidence.
+
+Next checkpoint:
+
+- Run the standard-root residual-gate evidence validator, focused tests, lint/formatting, audit, and full pytest.
+- If checks pass, open a PR for the negative evidence package, validator, and roadmap update.
+- Next technical path after merge: build a transport-specific learned warp/phase head under standard-root train/val, or formally document the canonical beta-provenance validation-root protocol if the model-side route stalls.
