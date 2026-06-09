@@ -51,6 +51,22 @@
       "published_numbers_directly_comparable": false,
       "external_paper_reproduction": false,
       "comparability_note": "CT1 uses the same light-v1 test split, task set, 16-step decoded rollout metric, and held-out ledger discipline as the CT8 primary claim, but it changes the online transport-context inference contract from CT8 shared transport/conservation roll-persistence correction to CT1 transport-only correction. Report it side by side with the primary claim, not as a replacement, autonomous rollout result, published-paper reproduction, or directly comparable published-table SOTA number."
+    },
+    {
+      "variant_id": "light_v1_data_conditioned_context_phase",
+      "status": "held_out_complete",
+      "run_name": "ups_light_advection_data_conditioned_context_phase_guarded",
+      "split": "test",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.1808155304023394,
+      "evidence_json": "docs/claim_evidence/ups_advection_data_conditioned_heldout_light_v1_evidence.json",
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_advection_data_conditioned_heldout_light_v1.tar.gz",
+      "artifact_sha256": "6f52e621d356c4e33e1b016eaef2ced8ba43f3e491eef87c005189ae0437275f",
+      "same_exact_inference_contract_as_primary": false,
+      "not_autonomous_rollout_claim": true,
+      "published_numbers_directly_comparable": false,
+      "external_paper_reproduction": false,
+      "comparability_note": "The data-conditioned context-phase variant uses the same light-v1 test split, task set, 16-step decoded rollout metric, and held-out ledger discipline as the CT8 primary claim, but it changes the inference contract by fitting a train-only context_shift coefficient and using one observed context transition at evaluation time before roll-persistence from horizon 2. Report it side by side as the best scoped data-conditioned variant, not as a replacement for the frozen CT8 primary claim, an autonomous rollout result, an external-paper reproduction, or a directly comparable published-table SOTA number."
     }
   ],
   "local_strong_baseline": {
