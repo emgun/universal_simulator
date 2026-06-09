@@ -763,3 +763,27 @@ Next checkpoint:
 - Run the ablation evidence validator, focused tests, lint/formatting, and full pytest.
 - If checks pass, open a PR for the ablation runner, evidence package, and roadmap update.
 - Next technical path after merge: implement the P2 learned warp/transport sidecar with acceptance gates below the full context-shift validation metrics recorded here.
+
+### 2026-06-09 P2 Parameter-Conditioned Transport Sidecar Validation
+
+Status:
+
+- Ran a validation-only reduced-context transport-sidecar probe using `scripts/run_parameter_conditioned_transport_shift_gate.py`.
+- Data scope: `data/pdebench_official_advection_light`, train split `256` rows, validation split `64` rows, `rollout_steps = 16`, dense candidate shifts `[-80, 80]`, fractional refinement step `0.5`, no held-out test split, and no ledger writes.
+- The sidecar fits a linear shift rule from official Advection `beta` metadata on train only: `shift = 10.236877359639507 * beta - 0.08098891730605368`.
+- Validation result: train NRMSE `0.0012031011109454775`, validation NRMSE `0.001981674036057911`.
+- The validation metric clears the P2 support threshold derived from the data-conditioned validation candidate reference `0.1379312547168074`.
+- Added `docs/claim_evidence/ups_advection_p2_parameter_conditioned_sidecar_val_evidence.json`, durable report artifacts under `docs/claim_evidence/artifacts/`, and `scripts/validate_p2_parameter_conditioned_sidecar_evidence.py`.
+- Also recorded a dense context-inferred comparison on `data/pdebench`: validation NRMSE `0.26177843531949696`, showing the beta-conditioned official-shard route is the stronger reduced-context signal.
+
+Decision:
+
+- This is real P2 progress: known PDE parameter metadata can recover advection transport phase without observed context transitions.
+- It is not yet a primary `light-v1` decoded claim replacement because it is an advection-only direct transport-sidecar measurement on official balanced shards, not a full multitask decoded rollout through the frozen `data/pdebench` claim protocol.
+- No held-out test is authorized by this evidence. The next step is to integrate this parameter-conditioned sidecar into the decoded evaluator or model-side conditioning path and evaluate it on validation before any pretest contract.
+
+Next checkpoint:
+
+- Run the P2 sidecar evidence validator, focused tests, lint/formatting, and full pytest.
+- If checks pass, open a PR for the evidence package and validator.
+- Next technical path after merge: implement a default-off decoded evaluator hook for parameter-conditioned transport sidecars, then validate it against the full light-v1 decoded rollout contract.
