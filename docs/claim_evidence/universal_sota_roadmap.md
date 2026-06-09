@@ -694,3 +694,26 @@ Next checkpoint:
 - Run `scripts/validate_ups_advection_data_conditioned_pretest_contract.py`, targeted tests, lint/formatting, and the full suite.
 - If checks pass, open a PR for the pre-test contract and validator.
 - After merge, run the intended held-out command exactly once if the scoped claim-language boundary is still accepted.
+
+### 2026-06-08 Data-Conditioned Context-Phase Held-Out Confirmation
+
+Status:
+
+- Ran the exact pre-registered held-out command from `docs/claim_evidence/ups_advection_data_conditioned_pretest_contract.json` once after the pre-test contract merged.
+- The held-out ledger recorded measurement key `361686cf61ebc532c34bd43be7920515c8864db05aa61226ca88a670dacdf88a` at `reports/research/sota_loop/data_conditioned_transport_phase/test_ledger.json`.
+- Packaged the evidence artifact at `docs/claim_evidence/artifacts/ups_advection_data_conditioned_heldout_light_v1.tar.gz` with SHA256 `6f52e621d356c4e33e1b016eaef2ced8ba43f3e491eef87c005189ae0437275f`.
+- Added `docs/claim_evidence/ups_advection_data_conditioned_heldout_light_v1_evidence.json` plus a validator for artifact hashes, ledger discipline, command-derived measurement key, summary metrics, and scoped claim language.
+- Held-out result: overall `decoded_rollout_nrmse = 0.1808155304023394`, advection rollout `0.18345021264323003`, advection h1 `0.7336025534824926`, advection h16 `0.004232970377814687`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`.
+- The result improves over the frozen CT8 primary metric by `0.2357665290245483` absolute overall and over the CT1 scoped variant by `0.02095739856448125` absolute overall.
+
+Decision:
+
+- This is the best scoped held-out `light-v1` UPS variant recorded so far by overall `decoded_rollout_nrmse`.
+- It remains a separate `light-v1 data-conditioned context-phase UPS variant`, not a replacement for the frozen CT8 primary claim, not a no-context autonomous rollout claim, and not an external-paper reproduction.
+- The key tradeoff is now explicit and measurable: one observed transition gives a strong phase estimate, but that makes the inference contract data-conditioned/online rather than initial-condition-only.
+
+Next checkpoint:
+
+- Run the held-out evidence validator, external mapping validator, audit, targeted tests, lint/formatting, and the full suite.
+- If checks pass, open a PR for the evidence package and scoped-variant claim updates.
+- Next technical path after merge: pursue a validation-only learned warp/transport sidecar or model-side objective that preserves the metric win while reducing the one-transition teacher-forced dependency before any broader primary-claim replacement.
