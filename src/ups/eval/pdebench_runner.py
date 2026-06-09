@@ -184,6 +184,14 @@ def _int_map(raw: Any, *, setting: str) -> dict[str, int]:
     return {str(key): int(value) for key, value in raw.items()}
 
 
+def _task_root_map(raw: Any, *, setting: str) -> dict[str, str]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{setting} must be a mapping")
+    return {str(key): str(value) for key, value in raw.items()}
+
+
 def _horizon_int_map(raw: Any, *, setting: str) -> dict[int, int]:
     if raw is None:
         return {}
@@ -991,6 +999,7 @@ def evaluate_decoded_operator(
     skip_missing_tasks = bool(
         eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
     )
+    task_roots = _task_root_map(data_cfg.get("task_roots"), setting="data.task_roots")
 
     total_pred = []
     total_target = []
@@ -1024,7 +1033,7 @@ def evaluate_decoded_operator(
                     PDEBenchConfig(
                         task=task_name,
                         split=data_cfg.get("split", "train"),
-                        root=data_cfg.get("root"),
+                        root=task_roots.get(task_name, data_cfg.get("root")),
                         param_keys=tuple(data_cfg.get("param_keys", ())),
                         bc_keys=tuple(data_cfg.get("bc_keys", ())),
                         max_samples=data_cfg.get("max_samples"),
@@ -1452,6 +1461,7 @@ def evaluate_decoded_operator(
             "report_all_horizon_metrics": report_all_horizon_metrics,
             "skip_missing_tasks": skip_missing_tasks,
             "skipped_missing_tasks": skipped_missing_tasks,
+            "task_roots": task_roots,
         },
     )
 
