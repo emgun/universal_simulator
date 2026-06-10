@@ -2663,3 +2663,8 @@ Capacity sweep runner (2026-06-09):
 - Added `scripts/run_remote_capacity_sweep.sh` for north-star roadmap P1.2: a validation-only operator capacity sweep on medium-v1 that hydrates train/val shards only (it never fetches the test split and refuses `EVAL_SPLIT=test`), measures a `persistence_medium_v1_val` baseline, then trains and evaluates five capacity tiers with no roll-shift estimators and `decoded_persistence_residual_alpha=0.0`.
 - Tier ladder (operator params measured locally): current `33,840`; tier_a dim32/h64/d[2,2,2] `198,752`; tier_b dim64/h128/d[2,2,2] `758,816`; tier_c dim96/h256/d[3,3,3] `4,287,504`; tier_d dim128/h384/d[4,4,4] `12,560,128`.
 - Validated the tier override path end-to-end locally at micro scale (tier_b dims, 2 samples, CPU, 4-step decoded rollout) before any GPU spend.
+
+Capacity sweep alpha fix (2026-06-10):
+- Caught a sweep-defeating bug live: the first capacity-sweep launch carried `evaluation.decoded_persistence_residual_alpha=0.0` (copied from the medium-confirmation eval contract), which makes decoded predictions pure persistence, so tier `current` scored bit-for-bit equal to `persistence_medium_v1_val` (`0.3826003501848785`). The instance was destroyed as soon as the identical metric appeared.
+- `scripts/run_remote_capacity_sweep.sh` now leaves the alpha at its `1.0` default (pure model prediction), which is the correct operator-capability measurement; the persistence val baseline itself is unaffected and was measured at `decoded_rollout_nrmse=0.3826003501848785` on medium-v1 val, 128 samples, 16-step rollout.
+- The medium-v1 val persistence reference for gate G1 comparisons is therefore `0.3826003501848785`.
