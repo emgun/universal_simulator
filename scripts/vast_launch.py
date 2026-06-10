@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import os
 import re
 import shlex
@@ -425,37 +426,38 @@ def cmd_launch(args: argparse.Namespace) -> None:
         env_parts.append(f"-e B2_S3_REGION={args.b2_s3_region}")
     env_str = " ".join(env_parts) if env_parts else None
 
+    search_cmd: list[str] | None = None
     if args.offer_id:
-        cmd = [
-            "vastai",
-            "create",
-            "instance",
-            str(args.offer_id),
-            "--image",
-            args.image,
-            "--disk",
-            str(args.disk),
-        ]
+        offer_token = str(args.offer_id)
     else:
-        cmd = [
-            "vastai",
-            "launch",
-            "instance",
-            "-g",
-            args.gpu,
-            "-n",
-            str(args.num_gpus),
-            "-i",
-            args.image,
-            "-d",
-            str(args.disk),
-        ]
+        # The 'vastai launch instance' endpoint rejects requests on current
+        # CLI/API versions, so resolve the cheapest matching offer explicitly
+        # and use 'vastai create instance' for both paths.
+        query = f"gpu_name={args.gpu} num_gpus={args.num_gpus} rentable=true verified=true"
         if args.region:
-            cmd.extend(["-r", args.region])
-        if args.order:
-            cmd.extend(["-o", args.order])
-        if args.limit is not None:
-            cmd.extend(["--limit", str(args.limit)])
+            query += f" geolocation={args.region}"
+        search_cmd = [
+            "vastai",
+            "search",
+            "offers",
+            query,
+            "-o",
+            args.order or "dph_total",
+            "--limit",
+            str(args.limit or 10),
+            "--raw",
+        ]
+        offer_token = "<cheapest-offer-from-search>"
+    cmd = [
+        "vastai",
+        "create",
+        "instance",
+        offer_token,
+        "--image",
+        args.image,
+        "--disk",
+        str(args.disk),
+    ]
     if env_str:
         cmd.extend(["--env", env_str])
     if args.args_mode:
@@ -465,6 +467,8 @@ def cmd_launch(args: argparse.Namespace) -> None:
             cmd.append("--ssh")
         cmd.extend(["--onstart", str(onstart)])
     if args.dry_run:
+        if search_cmd is not None:
+            print("DRY RUN: would resolve offer via ->", " ".join(search_cmd))
         print("DRY RUN: would execute ->", " ".join(_redact_command(cmd)))
         print("\nGenerated onstart script:\n" + onstart.read_text())
         return
@@ -476,6 +480,17 @@ def cmd_launch(args: argparse.Namespace) -> None:
             f"Vast API DNS preflight failed for {VAST_API_HOST}; "
             "not attempting paid instance creation."
         )
+    if search_cmd is not None:
+        search_out = subprocess.check_output(search_cmd, cwd=REPO_ROOT)
+        offers = json.loads(search_out.decode() or "[]")
+        if not offers:
+            raise SystemExit(f"No rentable Vast offers matched: {search_cmd[3]}")
+        resolved_offer = str(offers[0]["id"])
+        print(
+            f"Resolved cheapest offer {resolved_offer} "
+            f"(${offers[0].get('dph_total', '?')}/hr, {offers[0].get('gpu_name', '?')})"
+        )
+        cmd[cmd.index("<cheapest-offer-from-search>")] = resolved_offer
     run(
         cmd,
         display_cmd=_redact_command(cmd),

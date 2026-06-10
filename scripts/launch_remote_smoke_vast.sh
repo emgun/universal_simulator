@@ -21,7 +21,9 @@ REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_smoke_pipeline.sh}
 AUTO_SHUTDOWN=${AUTO_SHUTDOWN:-1}
 SSH=${SSH:-1}
 ARGS_MODE=${ARGS_MODE:-0}
-INSTALL_MODE=${INSTALL_MODE:-smoke}
+# 'experiment' includes matplotlib/wandb, which run_light_experiment.py needs
+# whenever the queue actually executes (RUN_EXPERIMENTS=1).
+INSTALL_MODE=${INSTALL_MODE:-experiment}
 BOOTSTRAP_MODE=${BOOTSTRAP_MODE:-inline}
 EXTRA_PIPELINE_ARGS=${EXTRA_PIPELINE_ARGS:-}
 
