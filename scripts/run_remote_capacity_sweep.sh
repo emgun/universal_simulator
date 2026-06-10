@@ -136,6 +136,7 @@ TRAIN_CONFIG=${TRAIN_CONFIG:-configs/train_multitask_heterogeneous_light_best.ya
 TASKS=${TASKS:-burgers1d,advection1d,darcy2d}
 STAGES=${STAGES:-operator,decoder,operator_decoded,joint_codec_operator}
 DEVICE=${DEVICE:-cuda}
+export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 TRAIN_COUNT=${TRAIN_COUNT:-512}
 EVAL_COUNT=${EVAL_COUNT:-128}
 EVAL_SPLIT=${EVAL_SPLIT:-val}
@@ -164,14 +165,16 @@ fi
 
 mkdir -p "$PIPELINE_ROOT" "$OUTPUT_ROOT" "$DATA_ROOT"
 
-# Tier definitions: latent_dim hidden_dim depths tokens decoder_hidden.
+# Tier definitions: latent_dim hidden_dim depths tokens decoder_hidden batch.
+# Larger tiers use smaller batches: decoded-rollout training graphs at 128
+# tokens OOM a 24GB card at batch 16.
 tier_overrides() {
   case "$1" in
-    current) echo "16 32 [1,1,1] 16 32" ;;
-    tier_a) echo "32 64 [2,2,2] 32 64" ;;
-    tier_b) echo "64 128 [2,2,2] 64 128" ;;
-    tier_c) echo "96 256 [3,3,3] 128 256" ;;
-    tier_d) echo "128 384 [4,4,4] 128 384" ;;
+    current) echo "16 32 [1,1,1] 16 32 $BATCH_SIZE" ;;
+    tier_a) echo "32 64 [2,2,2] 32 64 $BATCH_SIZE" ;;
+    tier_b) echo "64 128 [2,2,2] 64 128 $BATCH_SIZE" ;;
+    tier_c) echo "96 256 [3,3,3] 128 256 4" ;;
+    tier_d) echo "128 384 [4,4,4] 128 384 2" ;;
     *) return 1 ;;
   esac
 }
@@ -222,7 +225,7 @@ for tier in $(normalize_list "$TIERS"); do
     echo "Unknown capacity tier '${tier}'." >&2
     exit 2
   }
-  read -r latent_dim hidden_dim depths tokens decoder_hidden <<< "$spec"
+  read -r latent_dim hidden_dim depths tokens decoder_hidden tier_batch <<< "$spec"
   run_name="${RUN_NAME_PREFIX}_${tier}"
   tier_cmd=(
     python scripts/run_light_experiment.py
@@ -240,7 +243,7 @@ for tier in $(normalize_list "$TIERS"); do
     --override "operator.pdet.hidden_dim=$hidden_dim"
     --override "operator.pdet.depths=$depths"
     --override "decoder.hidden_dim=$decoder_hidden"
-    --override "training.batch_size=$BATCH_SIZE"
+    --override "training.batch_size=$tier_batch"
     --override "training.patience=$PATIENCE"
     --override "stages.operator.epochs=$OPERATOR_EPOCHS"
     --override "stages.decoder.epochs=$DECODER_EPOCHS"
@@ -260,9 +263,16 @@ for tier in $(normalize_list "$TIERS"); do
   if [ "$ALLOW_WANDB" -eq 1 ]; then
     tier_cmd+=(--allow-wandb)
   fi
-  echo "Capacity tier '${tier}' command (latent_dim=${latent_dim}, hidden=${hidden_dim}, depths=${depths}, tokens=${tokens}):"
-  run_or_echo "${tier_cmd[@]}"
+  echo "Capacity tier '${tier}' command (latent_dim=${latent_dim}, hidden=${hidden_dim}, depths=${depths}, tokens=${tokens}, batch=${tier_batch}):"
+  if ! run_or_echo "${tier_cmd[@]}"; then
+    echo "Capacity tier '${tier}' FAILED; continuing with remaining tiers." >&2
+    failed_tiers="${failed_tiers:-} ${tier}"
+  fi
 done
+
+if [ -n "${failed_tiers:-}" ]; then
+  echo "Failed tiers:${failed_tiers}" >&2
+fi
 
 if [ "$PUBLISH_SWEEP_ARTIFACTS" -eq 1 ]; then
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
