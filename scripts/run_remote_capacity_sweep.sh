@@ -5,9 +5,9 @@ set -euo pipefail
 #
 # Hydrates medium-v1 train/val shards only (the test split is never fetched),
 # measures a persistence validation baseline, then trains and evaluates one
-# candidate per capacity tier with no roll-shift estimators and
-# decoded_persistence_residual_alpha=0.0, so the score reflects the learned
-# operator alone. Selection happens on validation only.
+# candidate per capacity tier with no roll-shift estimators and the default
+# decoded_persistence_residual_alpha=1.0 (pure model prediction), so the
+# score reflects the learned operator alone. Selection is validation-only.
 #
 # Safe default: DRY_RUN=1 prints every command without running anything.
 #
@@ -250,7 +250,8 @@ for tier in $(normalize_list "$TIERS"); do
     --eval-override "data.root=$DATA_ROOT"
     --eval-override "data.split=$EVAL_SPLIT"
     --eval-override "data.max_samples=$EVAL_COUNT"
-    --eval-override "evaluation.decoded_persistence_residual_alpha=0.0"
+    # decoded_persistence_residual_alpha is intentionally left at its 1.0
+    # default (pure model prediction); 0.0 would score persistence itself.
     --promotion-rule "decoded_rollout_nrmse<=1.0"
   )
   for stage in $(normalize_list "$STAGES"); do
