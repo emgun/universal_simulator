@@ -2658,3 +2658,8 @@ Phase 1 GPU pipeline smoke run (2026-06-09):
 - Fixed two launcher defects found live: `vastai launch instance` returns HTTP 400 on the current API, so `scripts/vast_launch.py` now resolves the cheapest matching offer via `vastai search offers --raw` and always uses `vastai create instance`; `scripts/launch_remote_smoke_vast.sh` now defaults `INSTALL_MODE=experiment` because the queue path imports matplotlib/wandb (the first attempt died on `ModuleNotFoundError: matplotlib`, costing roughly half a GPU-hour).
 - Known limitation noted: in-container `poweroff` cannot stop a Vast instance (no systemd), so auto-shutdown is ineffective and instances must be destroyed via the API after completion; both instances were destroyed manually after collection.
 - Total Phase 1 spend so far: roughly 2.5 GPU-hours across one failed and one successful run, well inside the < 5 GPU-hour P1.1 budget.
+
+Capacity sweep runner (2026-06-09):
+- Added `scripts/run_remote_capacity_sweep.sh` for north-star roadmap P1.2: a validation-only operator capacity sweep on medium-v1 that hydrates train/val shards only (it never fetches the test split and refuses `EVAL_SPLIT=test`), measures a `persistence_medium_v1_val` baseline, then trains and evaluates five capacity tiers with no roll-shift estimators and `decoded_persistence_residual_alpha=0.0`.
+- Tier ladder (operator params measured locally): current `33,840`; tier_a dim32/h64/d[2,2,2] `198,752`; tier_b dim64/h128/d[2,2,2] `758,816`; tier_c dim96/h256/d[3,3,3] `4,287,504`; tier_d dim128/h384/d[4,4,4] `12,560,128`.
+- Validated the tier override path end-to-end locally at micro scale (tier_b dims, 2 samples, CPU, 4-step decoded rollout) before any GPU spend.
