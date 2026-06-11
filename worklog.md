@@ -88,6 +88,40 @@ Stop conditions:
 - a new change breaks the light experiment loop or its smoke verification
 - the next step requires real benchmark runs on remote held-out data rather than more local plumbing
 
+Experiment loop update (2026-06-10, P1 recipe-sweep preflight):
+- Branch:
+  - `codex/p1-recipe-sweep-preflight`
+- Goal:
+  - stage the Phase 1 fixed-tier_b rollout-stability recipe sweep before paid GPU spend
+  - keep the protocol validation-only: medium-v1 train/val only, no held-out/test split, no roll/context/data-conditioned estimators
+- Added:
+  - pre-registered contract: `docs/research/p1_rollout_stability_recipe_sweep_contract.json`
+  - result summarizer: `scripts/summarize_recipe_sweep.py`
+  - regression tests: `tests/unit/test_summarize_recipe_sweep.py`
+  - real-launch B2 preflight in `scripts/launch_remote_medium_vast.sh`
+- Guardrails:
+  - summarizer rejects `test` split metadata, test extra evaluations, non-empty task roots, and both short and decoded-runner roll-shift estimator metadata keys
+  - summarizer requires the contract to declare `estimators=none` and compares each run against the contract `eval_split`
+- Validation:
+  - `python -m pytest tests/unit/test_summarize_recipe_sweep.py -q`
+  - `python -m py_compile scripts/summarize_recipe_sweep.py tests/unit/test_summarize_recipe_sweep.py`
+  - `python -m black scripts/summarize_recipe_sweep.py tests/unit/test_summarize_recipe_sweep.py`
+  - `python -m ruff check scripts/summarize_recipe_sweep.py tests/unit/test_summarize_recipe_sweep.py`
+  - `python -m pytest tests/unit/test_launch_remote_medium_vast.py tests/unit/test_summarize_recipe_sweep.py -q`
+  - `bash -n scripts/run_remote_recipe_sweep.sh scripts/launch_remote_medium_vast.sh`
+  - `git diff --check`
+  - `DRY_RUN=1 RUN_SWEEP=1 FETCH_DATA=1 PUBLISH_SWEEP_ARTIFACTS=1 bash scripts/run_remote_recipe_sweep.sh`
+  - `REMOTE_SCRIPT=scripts/run_remote_recipe_sweep.sh EXTRA_PIPELINE_ARGS='RUN_SWEEP=1 PUBLISH_SWEEP_ARTIFACTS=1' GIT_REF=main DRY_RUN=1 bash scripts/launch_remote_medium_vast.sh`
+  - `REMOTE_SCRIPT=scripts/run_remote_recipe_sweep.sh EXTRA_PIPELINE_ARGS='RUN_SWEEP=1 PUBLISH_SWEEP_ARTIFACTS=1' GIT_REF=main DRY_RUN=0 bash scripts/launch_remote_medium_vast.sh` exits locally with code 2 when B2 credentials are absent
+  - `python scripts/summarize_recipe_sweep.py --output-root reports/research/sota_loop/standard_root_learned_residual_gate_baselines --output-json /tmp/p1_recipe_sweep_smoke.json --artifact smoke://existing-clean-val-summaries`
+- Launch status:
+  - Vast CLI authentication check passed with `vastai show user`
+  - local `.env` is absent and `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET`, and `VAST_API_KEY` are not set in the shell
+  - real `DRY_RUN=0` launch is intentionally not started from this state because `FETCH_DATA=1` and `PUBLISH_SWEEP_ARTIFACTS=1` require B2 credentials; the launcher now refuses this locally before paid instance creation
+- Next step:
+  - provide B2 credentials via `.env` or exported variables, then run the already-validated launch command
+  - after remote completion, fetch/publish the artifact and summarize it with `scripts/summarize_recipe_sweep.py`
+
 Experiment loop update (2026-05-05, remote smoke variant matrix):
 - Branch:
   - continued on `codex/remote-smoke-baseline`
