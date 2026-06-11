@@ -97,9 +97,9 @@ def summarize_data_budget_sweep(
         if budget in by_budget:
             raise ValueError(f"duplicate summary for train-sample budget {budget}")
         by_budget[budget] = run_name
-        runs[run_name] = {
-            key: value for key, value in record.items() if key != "run_name"
-        } | {"train_samples": budget}
+        runs[run_name] = {key: value for key, value in record.items() if key != "run_name"} | {
+            "train_samples": budget
+        }
 
     if not runs:
         raise FileNotFoundError(f"No data-budget run summaries under {output_root}")
