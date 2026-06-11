@@ -2776,3 +2776,9 @@ P1 data-budget sweep CI checkpoint (2026-06-11):
 - Local CI-equivalent checks passed after formatting `scripts/summarize_data_budget_sweep.py`: `python -m ruff check .`, `black --check --line-length 100 --target-version py310 .`, and `pytest -q tests/unit`.
 - GitHub Actions CI for PR #84 completed successfully on the data-budget branch: workflow `CI`, job `build`, conclusion `SUCCESS`.
 - Current state remains unchanged scientifically: the data-budget sweep has no complete four-budget `data_budget_sweep_summary.json`, no verified B2 tarball, and no promotion/kill decision. Resume the same recorded launch command once Vast credit or an alternate GPU runner is available.
+
+P1 data-budget sweep launch-blocker hardening (2026-06-11):
+- Fixed `scripts/vast_launch.py` so Vast CLI output containing `failed with error` or `Your account lacks credit` is treated as a failed launch even if the CLI process exits `0`. Added regression coverage in `tests/unit/test_vast_launch.py`.
+- Local verification passed: `python -m ruff check .`, `black --check --line-length 100 --target-version py310 .`, `pytest -q tests/unit`, and focused launcher tests.
+- Retried the exact safe data-budget launch command after the fix. Vast again selected an RTX 4090 offer, then failed before instance creation with `failed with error 400: Your account lacks credit; see the billing page.` The patched launcher returned `LAUNCH_RC=1`, proving this blocker now fails closed instead of looking successful.
+- Current state remains externally blocked: no new data-budget instance exists, no complete summary or B2 artifact exists, and no held-out/test split was touched.
