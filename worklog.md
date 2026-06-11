@@ -122,6 +122,22 @@ Experiment loop update (2026-06-10, P1 recipe-sweep preflight):
   - provide B2 credentials via `.env` or exported variables, then run the already-validated launch command
   - after remote completion, fetch/publish the artifact and summarize it with `scripts/summarize_recipe_sweep.py`
 
+Experiment loop update (2026-06-10, P1 recipe-sweep self-summary):
+- Branch:
+  - `codex/p1-recipe-sweep-self-summary`
+- Goal:
+  - make the remote recipe sweep publish a self-contained decision artifact, not only raw recipe summaries
+- Added:
+  - `scripts/run_remote_recipe_sweep.sh` now runs `scripts/summarize_recipe_sweep.py` after recipe execution by default
+  - summary output defaults to `reports/demo/remote_recipe_sweep/recipe_sweep_summary.json`, which is under `PIPELINE_ROOT` and therefore included in the published tarball
+  - when publishing is enabled, the summarizer receives the future B2 artifact handle via `--artifact`
+  - `SUMMARIZE_SWEEP=0`, `SWEEP_SUMMARY_JSON`, `SWEEP_BASELINE_JSON`, and `SWEEP_CONTRACT_JSON` remain override points for controlled reruns
+- Validation:
+  - `python -m pytest tests/unit/test_remote_recipe_sweep.py -q`
+  - `DRY_RUN=1 RUN_SWEEP=1 FETCH_DATA=1 PUBLISH_SWEEP_ARTIFACTS=1 bash scripts/run_remote_recipe_sweep.sh`
+- Next step:
+  - after B2 credentials are available, launch the already staged recipe sweep; the published tarball should contain both raw `summary.json` files and `recipe_sweep_summary.json`
+
 Experiment loop update (2026-05-05, remote smoke variant matrix):
 - Branch:
   - continued on `codex/remote-smoke-baseline`
