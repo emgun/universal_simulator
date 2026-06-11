@@ -24,6 +24,7 @@ ARGS_MODE=${ARGS_MODE:-0}
 INSTALL_MODE=${INSTALL_MODE:-experiment}
 BOOTSTRAP_MODE=${BOOTSTRAP_MODE:-inline}
 EXTRA_PIPELINE_ARGS=${EXTRA_PIPELINE_ARGS:-}
+ALLOW_MISSING_B2=${ALLOW_MISSING_B2:-0}
 
 read_env_key() {
   local file="$1"; shift
@@ -57,6 +58,18 @@ if [ -f "$ENV_FILE" ]; then
   : "${B2_BUCKET:=$(read_env_key "$ENV_FILE" B2_BUCKET || read_env_key "$ENV_FILE" B2_BUCKET_NAME || true)}"
   : "${B2_S3_ENDPOINT:=$(read_env_key "$ENV_FILE" B2_S3_ENDPOINT || true)}"
   : "${B2_S3_REGION:=$(read_env_key "$ENV_FILE" B2_S3_REGION || true)}"
+fi
+
+if [ "$DRY_RUN" -eq 0 ] && [ "$ALLOW_MISSING_B2" -ne 1 ]; then
+  missing_b2=()
+  [ -n "${B2_KEY_ID:-}" ] || missing_b2+=(B2_KEY_ID)
+  [ -n "${B2_APP_KEY:-}" ] || missing_b2+=(B2_APP_KEY)
+  [ -n "${B2_BUCKET:-}" ] || missing_b2+=(B2_BUCKET)
+  if [ "${#missing_b2[@]}" -gt 0 ]; then
+    echo "Refusing DRY_RUN=0: ${REMOTE_SCRIPT} expects B2 for data hydration/artifacts, but missing: ${missing_b2[*]}." >&2
+    echo "Set them in ENV_FILE=${ENV_FILE} or the environment, or set ALLOW_MISSING_B2=1 only for an intentionally prehydrated/no-publish run." >&2
+    exit 2
+  fi
 fi
 
 args=(
