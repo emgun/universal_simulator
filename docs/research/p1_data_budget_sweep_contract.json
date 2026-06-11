@@ -1,0 +1,61 @@
+{
+  "date": "2026-06-11",
+  "decision_policy": {
+    "continue_if": "best train-sample budget improves tier_b capacity but still misses persistence, then train the reference candidate at that data point once",
+    "kill_if": "no train-sample budget improves tier_b capacity or h16 remains worse than tier_b",
+    "promote_if": "best train-sample budget beats persistence_medium_v1_val on validation decoded_rollout_nrmse with no task catastrophic regression"
+  },
+  "gate": {
+    "continue_if_best_below": 0.38260034902058476,
+    "diagnostic_reference_run": "ups_medium_capacity_tier_b",
+    "metric": "decoded_rollout_nrmse",
+    "record_horizon16_delta": true,
+    "reference_run": "persistence_medium_v1_val"
+  },
+  "held_out_test_data_read": false,
+  "measurement_type": "p1_data_budget_sweep_contract",
+  "protocol": {
+    "capacity": {
+      "decoder_hidden_dim": 128,
+      "latent_dim": 64,
+      "latent_tokens": 64,
+      "operator_depths": [
+        2,
+        2,
+        2
+      ],
+      "operator_hidden_dim": 128
+    },
+    "data": "medium-v1",
+    "decoded_persistence_residual_alpha": 1.0,
+    "decoded_rollout_steps": 16,
+    "estimators": "none",
+    "eval_samples": 128,
+    "eval_split": "val",
+    "fixed_capacity_tier": "tier_b",
+    "recipe": "capacity_sweep_base_tier_b",
+    "train_sample_budgets": [
+      128,
+      256,
+      512,
+      1024
+    ],
+    "train_split": "train"
+  },
+  "runner": {
+    "expected_artifact_prefix": "remote-runs/data-budget-sweep",
+    "launch_args": "REMOTE_SCRIPT=scripts/run_remote_data_budget_sweep.sh EXTRA_PIPELINE_ARGS=\"RUN_SWEEP=1 PUBLISH_SWEEP_ARTIFACTS=1\" GIT_REF=<pushed-ref> DRY_RUN=0 bash scripts/launch_remote_medium_vast.sh",
+    "remote_launcher": "scripts/launch_remote_medium_vast.sh",
+    "run_name_prefix": "ups_medium_data_budget",
+    "safe_defaults": {
+      "ALLOW_MISSING_B2": 0,
+      "DRY_RUN": 1,
+      "FETCH_DATA": 1,
+      "PUBLISH_SWEEP_ARTIFACTS": 0,
+      "RUN_SWEEP": 0
+    },
+    "script": "scripts/run_remote_data_budget_sweep.sh"
+  },
+  "status": "pre_registered",
+  "test_ledger_writes": []
+}

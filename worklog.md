@@ -2753,3 +2753,8 @@ P1 recipe sweep complete (2026-06-11):
 - Final validation `decoded_rollout_nrmse`: `r_rollout8=0.8011641002837189`, `r_rollout16=0.7871739459416698`, `r_hpower=0.7620583413339258`, `r_semigroup=0.8024338475480444`, `r_long=0.838029201957462`, `r_combo=0.8113905817903249`.
 - Decision: best recipe `r_hpower` is worse than tier_b capacity `0.7449043873888164` and far worse than persistence `0.38260034902058476`; the pre-registered kill condition is met. Do not promote, do not touch held-out test, and stop this fixed-capacity rollout-stability recipe direction unless a future architecture change reopens it.
 - Cleanup: Vast instance `40512322` was destroyed after B2 artifact verification because in-container `poweroff` again failed under the non-systemd container.
+
+P1 data-budget sweep scaffold (2026-06-11):
+- Added the next Phase 1 scale-axis probe at fixed tier_b capacity: `docs/research/p1_data_budget_sweep_contract.json`, `scripts/run_remote_data_budget_sweep.sh`, and `scripts/summarize_data_budget_sweep.py`.
+- The contract varies only train-sample budget (`128`, `256`, `512`, `1024`) while preserving medium-v1 train/val-only access, pure model decoded prediction, no estimators, tier_b capacity, and validation-only selection.
+- Local safety checks passed: dry-run runner hydrates only train/val shard keys and prints the four data-budget train commands; dry-run Vast launcher redacts B2 secrets and targets `scripts/run_remote_data_budget_sweep.sh`; focused unit coverage passed for the summarizer, remote tarball/self-summary behavior, split refusal, and launch guardrails.
