@@ -44,4 +44,3 @@ Validation `decoded_rollout_nrmse`; lower is better.
 - Stop this fixed-tier_b rollout-stability recipe line. More horizon weighting, semigroup weight, or longer training at this architecture/scale is not the next high-signal path.
 - The next useful Phase 1 exploit step is a data-budget sweep only if it is treated as the remaining scale-axis check, not as another recipe tweak.
 - If the data-budget sweep does not materially close the gap to persistence, move the in-house core to explore-track status and prioritize the backbone-transplant or physics-primitive paths from the north-star roadmap.
-
