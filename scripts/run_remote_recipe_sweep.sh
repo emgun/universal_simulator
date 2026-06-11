@@ -149,6 +149,10 @@ ALLOW_WANDB=${ALLOW_WANDB:-1}
 PUBLISH_SWEEP_ARTIFACTS=${PUBLISH_SWEEP_ARTIFACTS:-0}
 SWEEP_ARTIFACT_PREFIX=${SWEEP_ARTIFACT_PREFIX:-remote-runs/recipe-sweep}
 RUN_NAME_PREFIX=${RUN_NAME_PREFIX:-ups_medium_recipe}
+SUMMARIZE_SWEEP=${SUMMARIZE_SWEEP:-1}
+SWEEP_SUMMARY_JSON=${SWEEP_SUMMARY_JSON:-$PIPELINE_ROOT/recipe_sweep_summary.json}
+SWEEP_BASELINE_JSON=${SWEEP_BASELINE_JSON:-docs/research/artifacts/p1_capacity_sweep_medium_v1_val.json}
+SWEEP_CONTRACT_JSON=${SWEEP_CONTRACT_JSON:-docs/research/p1_rollout_stability_recipe_sweep_contract.json}
 
 if [ "$EVAL_SPLIT" = "test" ]; then
   echo "Refusing EVAL_SPLIT=test: the recipe sweep is validation-only by contract." >&2
@@ -272,13 +276,34 @@ if [ -n "${failed_recipes:-}" ]; then
   echo "Failed recipes:${failed_recipes}" >&2
 fi
 
+artifact_name=""
+artifact_path=""
+remote_key=""
+artifact_handle=""
 if [ "$PUBLISH_SWEEP_ARTIFACTS" -eq 1 ]; then
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   artifact_name=${SWEEP_ARTIFACT_NAME:-recipe_sweep_${VERSION}_${stamp}.tar.gz}
   artifact_path="/tmp/${artifact_name}"
   remote_key="${SWEEP_ARTIFACT_PREFIX%/}/${artifact_name}"
+  artifact_handle="b2://${B2_BUCKET:-<bucket>}/${remote_key}"
+fi
+
+if [ "$SUMMARIZE_SWEEP" -eq 1 ]; then
+  summary_cmd=(
+    python scripts/summarize_recipe_sweep.py
+    --output-root "$OUTPUT_ROOT"
+    --baseline-json "$SWEEP_BASELINE_JSON"
+    --contract-json "$SWEEP_CONTRACT_JSON"
+    --output-json "$SWEEP_SUMMARY_JSON"
+  )
+  [ -n "$artifact_handle" ] && summary_cmd+=(--artifact "$artifact_handle")
+  echo "Recipe sweep summary command:"
+  run_or_echo "${summary_cmd[@]}"
+fi
+
+if [ "$PUBLISH_SWEEP_ARTIFACTS" -eq 1 ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "DRY_RUN=1: would publish sweep artifacts to b2://${B2_BUCKET:-<bucket>}/${remote_key}"
+    echo "DRY_RUN=1: would publish sweep artifacts to ${artifact_handle}"
   else
     tar -czf "$artifact_path" "$PIPELINE_ROOT" "$OUTPUT_ROOT"
     configure_b2_rclone "publish sweep artifacts"
