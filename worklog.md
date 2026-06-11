@@ -2678,3 +2678,8 @@ P1.2 capacity sweep complete (2026-06-10):
 - Full five-tier validation-only capacity sweep on medium-v1 finished; results and analysis in `docs/research/2026-06-10-p1-capacity-sweep-results.md` with metrics JSON at `docs/research/artifacts/p1_capacity_sweep_medium_v1_val.json` and the published bundle at `b2://pdebench/remote-runs/capacity-sweep/capacity_sweep_medium-v1_20260610T235516Z.tar.gz`.
 - Headline: every tier matches persistence at horizon 1 (~0.50 vs 0.524) and collapses by horizon 16 (0.77-1.11 vs 0.371); capacity saturates at ~750K params (tier_b 0.7449 best); tier_d (12.6M, batch 2) regressed to 0.9275, treated as an lr/batch recipe artifact.
 - Decision: gate G1 will not fall to capacity scaling under the current recipe; Phase 1 pivots to a rollout-stability recipe sweep at fixed tier_b capacity (longer-horizon decoded rollout pressure, semigroup/composition consistency, scaled lr), aligning with explore bet E1.
+
+Rollout-stability recipe sweep runner (2026-06-10):
+- Added `scripts/run_remote_recipe_sweep.sh` for north-star roadmap P1.3 / explore bet E1: six training-recipe variants at fixed tier_b capacity (latent 64, hidden 128, depths [2,2,2], tokens 64) on medium-v1 train/val, targeting the h1->h16 rollout collapse found by the P1.2 capacity sweep.
+- Recipes: decoded/joint stage `rollout_steps` 8 and 16, horizon-weighted rollout loss (`rollout_loss_horizon_power=2.0`), stronger semigroup consistency (`training.lambda_semigroup=0.3` vs config default 0.05), a 3x epoch budget, and a combination recipe.
+- Same contract as the capacity sweep: validation-only, test split never fetched, pure model decoded prediction, per-recipe failure isolation, B2 artifact publishing.
