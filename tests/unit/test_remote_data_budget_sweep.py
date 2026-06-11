@@ -105,6 +105,7 @@ fi
     python_calls = python_log.read_text(encoding="utf-8")
     assert "scripts/run_light_experiment.py" in python_calls
     assert "scripts/summarize_data_budget_sweep.py" in python_calls
+    assert "training.batch_size=4" in python_calls
     assert "data.max_samples=128" in python_calls
     assert "data.max_samples=256" in python_calls
     assert "copyto /tmp/" in rclone_log.read_text(encoding="utf-8")
