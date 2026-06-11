@@ -4,6 +4,8 @@ import importlib.util
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 def load_vast_launch_module():
     spec = importlib.util.spec_from_file_location("vast_launch", Path("scripts/vast_launch.py"))
@@ -201,6 +203,27 @@ def test_run_redacts_api_key_in_error_url(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "api_key=<redacted>" in captured.err
     assert "secret-api-key" not in captured.err
+
+
+def test_run_treats_vast_cli_error_text_as_failure_even_with_zero_returncode(monkeypatch, capsys):
+    vast_launch = load_vast_launch_module()
+
+    def fake_run(cmd, **kwargs):
+        class Result:
+            returncode = 0
+            stdout = "failed with error 400: Your account lacks credit; see the billing page.\n"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(vast_launch.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        vast_launch.run(["vastai", "create", "instance", "1"])
+
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert "failed with error 400" in captured.out
 
 
 def test_run_retries_transient_vast_cli_dns_failure(monkeypatch, capsys):
