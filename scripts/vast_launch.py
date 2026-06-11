@@ -45,15 +45,27 @@ def run(
             print(_redact_text(result.stdout), end="")
         if result.stderr:
             print(_redact_text(result.stderr), end="", file=sys.stderr)
-        if result.returncode == 0:
-            return result.returncode
+        effective_returncode = result.returncode
+        if result.returncode == 0 and _is_vast_cli_error_output(result.stdout, result.stderr):
+            effective_returncode = 1
+        if effective_returncode == 0:
+            return effective_returncode
         if attempt < attempts and _is_transient_vast_cli_failure(result.stdout, result.stderr):
             time.sleep(max(0.0, float(retry_backoff)) * attempt)
             continue
         if check:
-            raise SystemExit(result.returncode)
-        return result.returncode
-    return result.returncode
+            raise SystemExit(effective_returncode)
+        return effective_returncode
+    return effective_returncode
+
+
+def _is_vast_cli_error_output(stdout: str, stderr: str) -> bool:
+    combined = f"{stdout}\n{stderr}".lower()
+    error_markers = (
+        "failed with error",
+        "your account lacks credit",
+    )
+    return any(marker in combined for marker in error_markers)
 
 
 def _is_transient_vast_cli_failure(stdout: str, stderr: str) -> bool:
