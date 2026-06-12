@@ -115,9 +115,16 @@ def load_poseidon_scot_model(
     poseidon_repo: Path | None,
     checkpoint_handle: str,
     image_size: int | None,
-    channels: int,
+    channels: int | None,
     device: str | torch.device,
 ) -> tuple[nn.Module, dict[str, Any]]:
+    """Load ScOT, optionally overriding channel count.
+
+    ``channels=None`` keeps the checkpoint's native channel configuration, so
+    the pretrained patch embedding and recovery load intact; an integer
+    override replaces them with freshly initialized layers of that width.
+    """
+
     inserted_path = _insert_poseidon_path(poseidon_repo)
     try:
         module = importlib.import_module("scOT.model")
@@ -137,8 +144,12 @@ def load_poseidon_scot_model(
         }
         if image_size is not None:
             config.image_size = int(image_size)
-        config.num_channels = int(channels)
-        config.num_out_channels = int(channels)
+        embedding_recovery_replaced = channels is not None and int(channels) != int(
+            config.num_channels
+        )
+        if channels is not None:
+            config.num_channels = int(channels)
+            config.num_out_channels = int(channels)
         config.channel_slice_list_normalized_loss = None
         model = scot_cls.from_pretrained(
             checkpoint_handle,
@@ -165,7 +176,7 @@ def load_poseidon_scot_model(
             "learn_residual": bool(config.learn_residual),
             "channel_slice_list_normalized_loss": config.channel_slice_list_normalized_loss,
         },
-        "embedding_recovery_replaced": True,
+        "embedding_recovery_replaced": embedding_recovery_replaced,
         "parameter_count": int(sum(parameter.numel() for parameter in model.parameters())),
     }
 
