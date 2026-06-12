@@ -2733,3 +2733,9 @@ Rollout-stability recipe sweep runner (2026-06-10):
 - Added `scripts/run_remote_recipe_sweep.sh` for north-star roadmap P1.3 / explore bet E1: six training-recipe variants at fixed tier_b capacity (latent 64, hidden 128, depths [2,2,2], tokens 64) on medium-v1 train/val, targeting the h1->h16 rollout collapse found by the P1.2 capacity sweep.
 - Recipes: decoded/joint stage `rollout_steps` 8 and 16, horizon-weighted rollout loss (`rollout_loss_horizon_power=2.0`), stronger semigroup consistency (`training.lambda_semigroup=0.3` vs config default 0.05), a 3x epoch budget, and a combination recipe.
 - Same contract as the capacity sweep: validation-only, test split never fetched, pure model decoded prediction, per-recipe failure isolation, B2 artifact publishing.
+
+P1.3 recipe sweep complete; Phase 1 fallback invoked (2026-06-11):
+- Five of six rollout-stability recipes at fixed tier_b capacity completed on medium-v1 val (r_combo lost to credit exhaustion); analysis in `docs/research/2026-06-11-p1-recipe-sweep-results.md` with metrics at `docs/research/artifacts/p1_recipe_sweep_medium_v1_val.json`.
+- No lever moves the h16 collapse: best overall 0.7343 (r_hpower, -1.4% vs baseline 0.7449), h16 best 0.7498 vs baseline 0.7723 against persistence 0.3710; semigroup lambda 0.3 is metric-identical to baseline; 3x epochs regress to 0.7806.
+- Decision: with capacity (P1.2) and recipe (P1.3) both flat, the h1-competent/h16-collapsing behavior is structural to the current operator/decoder stack; the roadmap's Phase 1 fallback is invoked early (justification: drift on near-static tasks is not a data-volume failure) and explore bet E1 is killed at this scale per its pre-registered criterion.
+- Next: Phase 2 P2.1 Poseidon/DPOT adapter design doc (no GPU needed); transplant fine-tunes against gate G2a (validation <= 0.3634) once the Vast balance is topped up (currently $0; ~10 GPU-hours / ~$9 spent in Phase 1).
