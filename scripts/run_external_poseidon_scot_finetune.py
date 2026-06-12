@@ -39,11 +39,45 @@ from ups.data.pdebench import get_pdebench_spec
 MEASUREMENT_TYPE = "poseidon_scot_finetune_validation_measurement"
 ALLOWED_STATUSES = {"validation_finetune_measurement_complete", "invalid"}
 SCALAR_ADAPTER_MODE = "scalar_layers"
+CHANNEL_LIFT_ADAPTER_MODE = "channel_lift"
+ALLOWED_ADAPTER_MODES = (SCALAR_ADAPTER_MODE, CHANNEL_LIFT_ADAPTER_MODE)
 SCALAR_LAYER_PARAMETER_MARKERS = (
     "embeddings.patch_embeddings.projection",
     "patch_recovery.projection",
     "patch_recovery.mixup",
 )
+CHANNEL_LIFT_PARAMETER_PREFIXES = ("lift.", "readout.")
+
+
+class ChannelLiftScOT(nn.Module):
+    """Scalar adapter that keeps the pretrained multi-channel interface intact.
+
+    The backbone (including its pretrained patch embedding and recovery) stays
+    frozen and untouched. A 1x1 lift initialized to channel replication maps
+    the scalar field into the backbone's native channel space, and a 1x1
+    readout initialized to the channel mean maps the native output back to a
+    scalar field, so at initialization the wrapper computes exactly the
+    pretrained operator applied to a replicated scalar field.
+    """
+
+    def __init__(self, backbone: nn.Module, *, backbone_channels: int) -> None:
+        super().__init__()
+        if int(backbone_channels) < 1:
+            raise ValueError("backbone_channels must be positive")
+        self.backbone = backbone
+        self.backbone_channels = int(backbone_channels)
+        self.lift = nn.Conv2d(1, self.backbone_channels, kernel_size=1, bias=True)
+        self.readout = nn.Conv2d(self.backbone_channels, 1, kernel_size=1, bias=True)
+        with torch.no_grad():
+            self.lift.weight.fill_(1.0)
+            self.lift.bias.zero_()
+            self.readout.weight.fill_(1.0 / float(self.backbone_channels))
+            self.readout.bias.zero_()
+
+    def forward(self, *, pixel_values: torch.Tensor, time: torch.Tensor) -> torch.Tensor:
+        lifted = self.lift(pixel_values)
+        output = self.backbone(pixel_values=lifted, time=time)
+        return self.readout(_extract_model_output(output))
 
 
 def _field_step_count(fields: torch.Tensor) -> int:
@@ -82,10 +116,15 @@ def configure_trainable_poseidon_parameters(
     *,
     adapter_mode: str = SCALAR_ADAPTER_MODE,
 ) -> dict[str, Any]:
-    """Freeze the backbone and unfreeze only scalar input/output adapter layers."""
+    """Freeze the backbone and unfreeze only the configured adapter layers."""
 
-    if adapter_mode != SCALAR_ADAPTER_MODE:
-        raise ValueError(f"adapter_mode must be {SCALAR_ADAPTER_MODE!r}")
+    if adapter_mode not in ALLOWED_ADAPTER_MODES:
+        raise ValueError(f"adapter_mode must be one of {list(ALLOWED_ADAPTER_MODES)}")
+
+    def _is_trainable(name: str) -> bool:
+        if adapter_mode == CHANNEL_LIFT_ADAPTER_MODE:
+            return name.startswith(CHANNEL_LIFT_PARAMETER_PREFIXES)
+        return any(marker in name for marker in SCALAR_LAYER_PARAMETER_MARKERS)
 
     trainable_names: list[str] = []
     frozen_names: list[str] = []
@@ -93,7 +132,7 @@ def configure_trainable_poseidon_parameters(
     trainable_parameter_count = 0
     for name, parameter in model.named_parameters():
         total_parameter_count += int(parameter.numel())
-        trainable = any(marker in name for marker in SCALAR_LAYER_PARAMETER_MARKERS)
+        trainable = _is_trainable(name)
         parameter.requires_grad_(trainable)
         if trainable:
             trainable_names.append(name)
@@ -102,9 +141,14 @@ def configure_trainable_poseidon_parameters(
             frozen_names.append(name)
 
     if not trainable_names:
+        expected = (
+            list(CHANNEL_LIFT_PARAMETER_PREFIXES)
+            if adapter_mode == CHANNEL_LIFT_ADAPTER_MODE
+            else list(SCALAR_LAYER_PARAMETER_MARKERS)
+        )
         raise ValueError(
-            "No Poseidon scalar adapter parameters matched; expected names containing "
-            f"{list(SCALAR_LAYER_PARAMETER_MARKERS)}"
+            f"No Poseidon adapter parameters matched for mode {adapter_mode!r}; "
+            f"expected names matching {expected}"
         )
 
     return {
@@ -190,6 +234,49 @@ def collect_poseidon_training_pairs(
     return torch.cat(current_pixels, dim=0), torch.cat(target_pixels, dim=0), records
 
 
+def collect_poseidon_training_sequences(
+    cfg: Mapping[str, Any],
+    *,
+    tasks: Sequence[str],
+    split: str,
+    data_root: str | None,
+    max_train_samples: int,
+    sequence_steps: int,
+    image_size: int,
+) -> torch.Tensor | None:
+    """Collect (N, K+1, 1, H, W) pixel windows for composed rollout loss."""
+
+    if int(sequence_steps) < 2:
+        return None
+    window = int(sequence_steps) + 1
+    sequences: list[torch.Tensor] = []
+    for task in tasks:
+        dataset = fno_runner._dataset(
+            cfg,
+            task=task,
+            split=split,
+            data_root=data_root,
+            max_samples=max_train_samples,
+        )
+        for sample_idx in range(len(dataset)):
+            fields = dataset[sample_idx]["fields"].float()
+            grid_shape = infer_grid_shape(fields)
+            steps = _field_step_count(fields)
+            for start in range(0, steps - window + 1, int(sequence_steps)):
+                frames = [
+                    light_step_to_poseidon_pixels(
+                        fields[start + offset],
+                        grid_shape,
+                        image_size=image_size,
+                    )
+                    for offset in range(window)
+                ]
+                sequences.append(torch.cat(frames, dim=0))
+    if not sequences:
+        return None
+    return torch.stack(sequences, dim=0)
+
+
 def train_poseidon_scot_adapter(
     cfg: Mapping[str, Any],
     model: nn.Module,
@@ -206,6 +293,8 @@ def train_poseidon_scot_adapter(
     weight_decay: float,
     batch_size: int,
     grad_clip_norm: float = 1.0,
+    rollout_loss_steps: int = 0,
+    rollout_loss_weight: float = 1.0,
     seed: int,
     device: str | torch.device,
 ) -> dict[str, Any]:
@@ -218,6 +307,17 @@ def train_poseidon_scot_adapter(
         rollout_steps=rollout_steps,
         image_size=image_size,
     )
+    sequences = None
+    if int(rollout_loss_steps) >= 2 and float(rollout_loss_weight) > 0.0:
+        sequences = collect_poseidon_training_sequences(
+            cfg,
+            tasks=tasks,
+            split=split,
+            data_root=data_root,
+            max_train_samples=max_train_samples,
+            sequence_steps=rollout_loss_steps,
+            image_size=image_size,
+        )
     trainable_parameters = [
         parameter for parameter in model.parameters() if parameter.requires_grad
     ]
@@ -282,6 +382,39 @@ def train_poseidon_scot_adapter(
                     )
             total_loss += float(loss.detach().cpu().item())
             batches += 1
+        if sequences is not None:
+            sequence_order = torch.randperm(int(sequences.shape[0]), generator=generator)
+            for start in range(0, int(sequences.shape[0]), max(int(batch_size), 1)):
+                index = sequence_order[start : start + max(int(batch_size), 1)]
+                window = sequences.index_select(0, index).to(device)
+                state = window[:, 0]
+                rollout_loss = torch.zeros((), device=device)
+                for offset in range(1, int(window.shape[1])):
+                    state = _forward_poseidon_pixels(
+                        model,
+                        state,
+                        time_value=time_value,
+                        device=device,
+                    )
+                    rollout_loss = rollout_loss + torch.mean((state - window[:, offset]) ** 2)
+                rollout_loss = (
+                    float(rollout_loss_weight) * rollout_loss / float(window.shape[1] - 1)
+                )
+                if not torch.isfinite(rollout_loss):
+                    raise RuntimeError(
+                        "Non-finite Poseidon rollout loss during training; "
+                        "reduce learning rate or rollout_loss_steps"
+                    )
+                optimizer.zero_grad(set_to_none=True)
+                rollout_loss.backward()
+                if float(grad_clip_norm) > 0.0:
+                    torch.nn.utils.clip_grad_norm_(
+                        trainable_parameters,
+                        max_norm=float(grad_clip_norm),
+                    )
+                optimizer.step()
+                total_loss += float(rollout_loss.detach().cpu().item())
+                batches += 1
         mean_loss = total_loss / max(batches, 1)
         epoch_losses.append(mean_loss)
         if mean_loss < best_loss:
@@ -293,6 +426,9 @@ def train_poseidon_scot_adapter(
     return {
         "train_split": split,
         "train_pairs": int(currents.shape[0]),
+        "rollout_loss_steps": int(rollout_loss_steps),
+        "rollout_loss_weight": float(rollout_loss_weight),
+        "rollout_sequences": int(sequences.shape[0]) if sequences is not None else 0,
         "epochs": int(max(int(epochs), 1)),
         "learning_rate": float(learning_rate),
         "weight_decay": float(weight_decay),
@@ -345,6 +481,10 @@ def _command_record(args: argparse.Namespace) -> list[str]:
         str(args.grad_clip_norm),
         "--adapter-mode",
         args.adapter_mode,
+        "--rollout-loss-steps",
+        str(args.rollout_loss_steps),
+        "--rollout-loss-weight",
+        str(args.rollout_loss_weight),
         "--seed",
         str(args.seed),
         "--held-out-ledger-json",
@@ -486,8 +626,19 @@ def validate_poseidon_finetune_summary(summary: Mapping[str, Any]) -> list[str]:
         or int(trainable.get("trainable_parameter_count", 0)) <= 0
     ):
         errors.append("details.trainable_parameters.trainable_parameter_count must be positive")
-    if summary.get("details", {}).get("adapter_mode") != SCALAR_ADAPTER_MODE:
-        errors.append(f"details.adapter_mode must be {SCALAR_ADAPTER_MODE}")
+    adapter_mode = summary.get("details", {}).get("adapter_mode")
+    if adapter_mode not in ALLOWED_ADAPTER_MODES:
+        errors.append(f"details.adapter_mode must be one of {list(ALLOWED_ADAPTER_MODES)}")
+    if adapter_mode == CHANNEL_LIFT_ADAPTER_MODE:
+        model_details = summary.get("details", {}).get("model", {})
+        if (
+            isinstance(model_details, Mapping)
+            and model_details.get("embedding_recovery_replaced") is not False
+        ):
+            errors.append(
+                "channel_lift summaries must keep the pretrained embedding/recovery "
+                "(details.model.embedding_recovery_replaced must be false)"
+            )
     return errors
 
 
@@ -512,14 +663,22 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
         filename=args.checkpoint_file,
         expected_sha256=args.expected_checkpoint_sha256,
     )
+    channel_lift = args.adapter_mode == CHANNEL_LIFT_ADAPTER_MODE
     model, model_info = load_poseidon_scot_model(
         poseidon_repo=Path(args.poseidon_repo) if args.poseidon_repo else None,
         checkpoint_handle=checkpoint_handle,
         image_size=args.image_size if args.image_size else None,
-        channels=1,
+        channels=None if channel_lift else 1,
         device=args.device,
     )
     image_size = int(model_info["effective_config"]["image_size"])
+    if channel_lift:
+        backbone_channels = int(model_info["effective_config"]["num_channels"])
+        model = ChannelLiftScOT(model, backbone_channels=backbone_channels).to(
+            torch.device(args.device)
+        )
+        model_info = dict(model_info)
+        model_info["channel_lift_backbone_channels"] = backbone_channels
     trainable_info = configure_trainable_poseidon_parameters(
         model,
         adapter_mode=args.adapter_mode,
@@ -541,6 +700,8 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
         weight_decay=args.weight_decay,
         batch_size=args.batch_size,
         grad_clip_norm=args.grad_clip_norm,
+        rollout_loss_steps=args.rollout_loss_steps,
+        rollout_loss_weight=args.rollout_loss_weight,
         seed=args.seed,
         device=args.device,
     )
@@ -611,6 +772,9 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
                 "train_split_only": args.train_split != "test",
                 "teacher_forced_light_v1_steps": True,
                 "frozen_backbone_scalar_adapter_finetune": True,
+                "pretrained_embedding_recovery_intact": args.adapter_mode
+                == CHANNEL_LIFT_ADAPTER_MODE,
+                "rollout_loss_steps": int(args.rollout_loss_steps),
                 "published_numbers_directly_comparable": False,
             },
             "held_out_test_policy": held_out_test_policy,
@@ -665,7 +829,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--image-size", type=int, default=0)
     parser.add_argument("--time-value", type=float, default=1.0)
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--adapter-mode", default=SCALAR_ADAPTER_MODE)
+    parser.add_argument(
+        "--adapter-mode",
+        default=SCALAR_ADAPTER_MODE,
+        choices=list(ALLOWED_ADAPTER_MODES),
+    )
+    parser.add_argument("--rollout-loss-steps", type=int, default=0)
+    parser.add_argument("--rollout-loss-weight", type=float, default=1.0)
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)

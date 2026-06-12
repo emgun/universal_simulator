@@ -11,7 +11,10 @@ import torch
 from torch import nn
 
 from scripts.run_external_poseidon_scot_finetune import (
+    CHANNEL_LIFT_ADAPTER_MODE,
     SCALAR_ADAPTER_MODE,
+    ChannelLiftScOT,
+    collect_poseidon_training_sequences,
     configure_trainable_poseidon_parameters,
     train_poseidon_scot_adapter,
     validate_poseidon_finetune_summary,
@@ -205,3 +208,152 @@ def test_poseidon_finetune_cli_blocks_test_split_before_loading_data(tmp_path):
     assert proc.returncode != 0
     assert "--allow-held-out-test-eval" in proc.stderr
     assert not output_root.exists()
+
+
+class TinyMultiChannelPoseidon(nn.Module):
+    """Fake 4-channel ScOT backbone with the same call signature."""
+
+    def __init__(self, channels: int = 4) -> None:
+        super().__init__()
+        self.channels = channels
+        self.encoder = nn.Conv2d(channels, channels, kernel_size=1)
+
+    def forward(self, *, pixel_values: torch.Tensor, time: torch.Tensor) -> TinyOutput:
+        assert pixel_values.shape[1] == self.channels
+        assert time.shape == (pixel_values.shape[0],)
+        return TinyOutput(self.encoder(pixel_values))
+
+
+def test_channel_lift_replicate_init_matches_pretrained_channel_mean():
+    backbone = TinyMultiChannelPoseidon()
+    wrapper = ChannelLiftScOT(backbone, backbone_channels=4)
+    pixels = torch.randn(3, 1, 8, 8)
+    time = torch.ones(3)
+
+    wrapped = wrapper(pixel_values=pixels, time=time)
+    direct = backbone(pixel_values=pixels.expand(-1, 4, -1, -1), time=time).output.mean(
+        dim=1, keepdim=True
+    )
+
+    assert torch.allclose(wrapped, direct, atol=1e-6)
+
+
+def test_channel_lift_mode_trains_only_lift_and_readout():
+    wrapper = ChannelLiftScOT(TinyMultiChannelPoseidon(), backbone_channels=4)
+
+    info = configure_trainable_poseidon_parameters(wrapper, adapter_mode=CHANNEL_LIFT_ADAPTER_MODE)
+
+    trainable_names = {
+        name for name, parameter in wrapper.named_parameters() if parameter.requires_grad
+    }
+    assert trainable_names == {
+        "lift.weight",
+        "lift.bias",
+        "readout.weight",
+        "readout.bias",
+    }
+    # 1x1 lift (4 weights + 4 biases) + 1x1 readout (4 weights + 1 bias).
+    assert info["trainable_parameter_count"] == 13
+    assert info["adapter_mode"] == CHANNEL_LIFT_ADAPTER_MODE
+
+
+def test_channel_lift_backward_leaves_backbone_without_grads():
+    wrapper = ChannelLiftScOT(TinyMultiChannelPoseidon(), backbone_channels=4)
+    configure_trainable_poseidon_parameters(wrapper, adapter_mode=CHANNEL_LIFT_ADAPTER_MODE)
+
+    out = wrapper(pixel_values=torch.randn(2, 1, 8, 8), time=torch.ones(2))
+    out.sum().backward()
+
+    for name, parameter in wrapper.named_parameters():
+        if name.startswith(("lift.", "readout.")):
+            assert parameter.grad is not None, name
+        else:
+            assert parameter.grad is None, name
+
+
+def test_collect_poseidon_training_sequences_windows(tmp_path):
+    data_root = tmp_path / "data"
+    _write_h5(data_root / "advection1d_train.h5", (2, 5, 16, 1))
+
+    sequences = collect_poseidon_training_sequences(
+        {"data": {"root": str(data_root)}},
+        tasks=["advection1d"],
+        split="train",
+        data_root=str(data_root),
+        max_train_samples=2,
+        sequence_steps=2,
+        image_size=8,
+    )
+
+    assert sequences is not None
+    # 5 steps -> windows of 3 frames with stride 2 -> 2 windows per sample.
+    assert sequences.shape == (4, 3, 1, 8, 8)
+    assert (
+        collect_poseidon_training_sequences(
+            {"data": {"root": str(data_root)}},
+            tasks=["advection1d"],
+            split="train",
+            data_root=str(data_root),
+            max_train_samples=2,
+            sequence_steps=1,
+            image_size=8,
+        )
+        is None
+    )
+
+
+def test_train_with_rollout_loss_records_sequences(tmp_path):
+    data_root = tmp_path / "data"
+    _write_h5(data_root / "advection1d_train.h5", (2, 5, 16, 1))
+    wrapper = ChannelLiftScOT(TinyMultiChannelPoseidon(), backbone_channels=4)
+    configure_trainable_poseidon_parameters(wrapper, adapter_mode=CHANNEL_LIFT_ADAPTER_MODE)
+
+    info = train_poseidon_scot_adapter(
+        {"data": {"root": str(data_root)}},
+        wrapper,
+        tasks=["advection1d"],
+        split="train",
+        data_root=str(data_root),
+        max_train_samples=2,
+        rollout_steps=2,
+        image_size=8,
+        time_value=1.0,
+        epochs=1,
+        learning_rate=0.01,
+        weight_decay=0.0,
+        batch_size=2,
+        rollout_loss_steps=2,
+        rollout_loss_weight=1.0,
+        seed=7,
+        device="cpu",
+    )
+
+    assert info["rollout_loss_steps"] == 2
+    assert info["rollout_sequences"] == 4
+    assert np.isfinite(info["best_train_mse"])
+
+
+def test_channel_lift_summary_requires_intact_embedding_recovery():
+    summary = {
+        "schema_version": 1,
+        "status": "validation_finetune_measurement_complete",
+        "measurement_type": "poseidon_scot_finetune_validation_measurement",
+        "train_split": "train",
+        "split": "val",
+        "held_out_test_used": False,
+        "claim_comparable": False,
+        "published_numbers_directly_comparable": False,
+        "metrics": {"decoded_rollout_nrmse": 1.0},
+        "details": {
+            "pretrained_checkpoint": {"sha256": "abc"},
+            "adapter_mode": CHANNEL_LIFT_ADAPTER_MODE,
+            "trainable_parameters": {"trainable_parameter_count": 13},
+            "model": {"embedding_recovery_replaced": True},
+        },
+    }
+
+    errors = validate_poseidon_finetune_summary(summary)
+    assert any("embedding_recovery_replaced" in error for error in errors)
+
+    summary["details"]["model"]["embedding_recovery_replaced"] = False
+    assert validate_poseidon_finetune_summary(summary) == []
