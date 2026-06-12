@@ -1,0 +1,58 @@
+{
+  "date": "2026-06-11",
+  "decision": "E1 killed at this scale per pre-registered criterion; Phase 1 fallback invoked early; proceed to Phase 2 backbone transplant (P2.1)",
+  "held_out_test_data_read": false,
+  "measurement_type": "p1_recipe_sweep_results",
+  "metric_sources": "overall from instance-log run summaries; h1/h16 from W&B run summaries (instance died before artifact publish)",
+  "protocol": {
+    "capacity": "tier_b (latent 64, hidden 128, depths [2,2,2], tokens 64)",
+    "data": "medium-v1",
+    "decoded_rollout_steps": 16,
+    "estimators": "none",
+    "eval_samples": 128,
+    "eval_split": "val",
+    "train_samples": 512
+  },
+  "reference": {
+    "persistence_medium_v1_val": {
+      "h1": 0.524,
+      "h16": 0.371,
+      "overall": 0.3826003501848785
+    },
+    "tier_b_p12_baseline": {
+      "h1": 0.5021,
+      "h16": 0.7723,
+      "overall": 0.7449043873888164
+    }
+  },
+  "runs": {
+    "r_combo": {
+      "status": "incomplete_out_of_credit"
+    },
+    "r_hpower": {
+      "h1": 0.4924,
+      "h16": 0.7517,
+      "overall": 0.7343041882649183
+    },
+    "r_long": {
+      "h1": 0.51,
+      "h16": 0.808,
+      "overall": 0.7805928191773619
+    },
+    "r_rollout16": {
+      "h1": 0.4872,
+      "h16": 0.752,
+      "overall": 0.7405449443888977
+    },
+    "r_rollout8": {
+      "h1": 0.4981,
+      "h16": 0.7498,
+      "overall": 0.7531718332461533
+    },
+    "r_semigroup": {
+      "h1": 0.5021,
+      "h16": 0.7723,
+      "overall": 0.744903330100432
+    }
+  }
+}
