@@ -2782,3 +2782,9 @@ P1 data-budget sweep launch-blocker hardening (2026-06-11):
 - Local verification passed: `python -m ruff check .`, `black --check --line-length 100 --target-version py310 .`, `pytest -q tests/unit`, and focused launcher tests.
 - Retried the exact safe data-budget launch command after the fix. Vast again selected an RTX 4090 offer, then failed before instance creation with `failed with error 400: Your account lacks credit; see the billing page.` The patched launcher returned `LAUNCH_RC=1`, proving this blocker now fails closed instead of looking successful.
 - Current state remains externally blocked: no new data-budget instance exists, no complete summary or B2 artifact exists, and no held-out/test split was touched.
+
+P1 data-budget sweep resumed launch check (2026-06-18):
+- Revalidated the branch after the resumed goal turn: `docs/research/p1_data_budget_sweep_contract.json` parses, `scripts/run_remote_data_budget_sweep.sh` passes `bash -n`, and `git diff --check` passed.
+- PR #84 remained open as a draft with GitHub Actions `CI/build` green at head `40ad3bf87408a98600c2ef5724fec414f2843244`.
+- Vast API state was reachable outside the sandbox and rentable RTX 4090 offers existed. The sandboxed launch preflight failed DNS before creation; the escalated authoritative rerun reached Vast and again failed before instance creation with `failed with error 400: Your account lacks credit; see the billing page.` The patched launcher returned `LAUNCH_RC=1`.
+- Current state remains unchanged scientifically: no new data-budget instance exists, no complete four-budget summary or B2 artifact exists, and no held-out/test split was touched.
