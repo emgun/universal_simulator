@@ -2794,3 +2794,8 @@ P1 data-budget sweep resumed launch check 2 (2026-06-18):
 - PR #84 remained open as a draft at head `9bb9750d2ecc11795a1ab079d8dea141859bc4de`; GitHub did not attach a new check run to that worklog-only head, while the last code-changing CI run remained green at `40ad3bf87408a98600c2ef5724fec414f2843244`.
 - Vast listed rentable RTX 4090 offers and only the unrelated stopped instance `40586170`. The recorded safe batch-4 launch reached Vast and again failed before instance creation with `failed with error 400: Your account lacks credit; see the billing page.` The patched launcher returned `LAUNCH_RC=1`.
 - Current state remains externally blocked: no new data-budget instance exists, no complete four-budget summary or B2 artifact exists, and no held-out/test split was touched.
+
+P1 data-budget sweep resumed launch check 3 (2026-06-18):
+- Revalidated the contract and runner: `docs/research/p1_data_budget_sweep_contract.json` parses, `scripts/run_remote_data_budget_sweep.sh` passes `bash -n`, and `git diff --check` passed.
+- Vast listed rentable RTX 4090 offers and only the unrelated stopped instance `40586170`. The recorded safe batch-4 launch reached Vast and again failed before instance creation with `failed with error 400: Your account lacks credit; see the billing page.` The patched launcher returned `LAUNCH_RC=1`.
+- This is the third consecutive resumed-goal turn with the same external account-credit blocker. Current state remains externally blocked: no new data-budget instance exists, no complete four-budget summary or B2 artifact exists, and no held-out/test split was touched.
