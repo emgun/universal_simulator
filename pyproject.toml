@@ -5,10 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "universal-physics-stack"
 version = "0.0.1"
-description = "Universal Physics Stack – unified latent simulator with a transformer core, any-point decoding, and physics guards"
+description = "Universal Physics Stack - unified latent simulator with a transformer core, any-point decoding, and physics guards"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Universal Physics Stack Devs"}]
+license = {text = "Apache-2.0"}
+keywords = ["physics simulation", "neural operators", "pde", "machine learning", "scientific computing"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
   "torch>=2.3",
   "einops>=0.7",
@@ -32,6 +44,11 @@ dependencies = [
   "matplotlib>=3.7",
   "seaborn>=0.13",
 ]
+
+[project.urls]
+Homepage = "https://github.com/emgun/universal_simulator"
+Repository = "https://github.com/emgun/universal_simulator"
+Issues = "https://github.com/emgun/universal_simulator/issues"
 
 [project.optional-dependencies]
 dev = [

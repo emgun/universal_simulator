@@ -9,6 +9,7 @@ build/
 
 # Envs
 .env
+.env.*
 .venv/
 venv/
 
@@ -21,7 +22,13 @@ mlruns/
 artifacts/
 checkpoints/
 .vast/
+remote_artifacts/
+remote_run*/
+*.pt
+*.pth
+*.ckpt
 
 # IDE
 .idea/
 .vscode/
+.DS_Store
