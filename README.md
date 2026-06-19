@@ -1,50 +1,105 @@
 # Universal Physics Stack (UPS)
 
-Unified latent simulator with discretization-agnostic I/O, transformer core, few-step diffusion residual, steady-state latent prior, physics guards, multiphysics coupling, particles/contacts, DA, and safe control.
+Universal Physics Stack is research software for latent-space neural simulation
+of PDE-style physical systems. It encodes physical fields into compact latent
+states, evolves them with transformer-style operators, decodes predictions at
+query points, and evaluates physical-space rollouts with auditable evidence.
 
-Quickstart
-- Create env and install: `pip install -e .[dev]`
-- Prepare deterministic flags: `bash scripts/prepare_env.sh`
-- See milestone checklist: `MILESTONES_TODO.md`
-- For the current held-out demo push, start with `docs/demo_runbook.md`.
+This repository is public, but it is still an active research workbench. Treat
+the current results as narrow, protocol-bound evidence rather than as a finished
+production simulator or broad universal foundation-model claim.
 
-Repository Structure (namespaced under `ups`)
-- `src/ups/core`: latent state, conditioning, PDE‑Transformer blocks
-- `src/ups/io`: grid/mesh/particle encoders, any‑point decoder
-- `src/ups/models`: latent operator, diffusion residual, steady prior, guards, factor graph, particles
-- `src/ups/training`: losses, loops, EMA/clip, curricula
-- `src/ups/data`: schemas, datasets, transforms, collate
-- `src/ups/inference`: rollout, steady solve, DA, control
-- `src/ups/eval`: metrics, calibration, gates, reports
-- `src/ups/discovery`: nondim, symbolic discovery
-- `src/ups/active`: acquisition, mf calibration
+## Current Public Boundary
 
-Runbook (PoC)
-1) `bash scripts/prepare_env.sh && pre-commit run --all-files`
-2) `python scripts/prepare_data.py +dataset=poc_trio out=data/poc_trio.zarr`
-3) `python scripts/train.py +config=train_multi_pde.yaml stage=operator`
-4) `python scripts/train.py +config=train_multi_pde.yaml stage=diff_residual`
-5) `python scripts/train.py +config=train_multi_pde.yaml stage=consistency_distill`
-6) `python scripts/train.py +config=train_multi_pde.yaml stage=steady_prior`
-7) `python scripts/evaluate.py ckpt=checkpoints/op_latest.ckpt mode=transient`
-8) `python scripts/evaluate.py ckpt=checkpoints/steady_latest.ckpt mode=steady`
-9) `python scripts/infer.py mode=transient input=examples/state.nc --save`
-10) `python scripts/infer.py mode=steady bc=examples/bc.json --save`
+The strongest public surface is the bounded claim-evidence stack under
+`docs/claim_evidence/`. It records protocol, split, metric, command, artifact
+hashes, and baseline context for held-out PDEBench-shaped experiments.
 
-Artifact Workflow (scaling)
-- Package datasets with conversion scripts and upload once: `python scripts/upload_artifact.py <name> dataset artifacts/<file>.tar.gz` (metadata resides in `docs/dataset_registry.yaml`).
-- Convert raw PDEBench shards with `python scripts/convert_pdebench_multimodal.py burgers1d ...` (see `docs/data_artifacts.md`).
-- Hydrate datasets on any machine via registry helper: `python scripts/fetch_datasets.py burgers1d_subset_v1 --root data/pdebench --cache artifacts/cache`.
-- Remote scale run: `WANDB_DATASETS="burgers1d_subset_v1" bash scripts/run_remote_scale.sh` (downloads datasets, runs staged training/eval).
-- Reproduce published checkpoints: `bash scripts/repro_pdebench.sh` with `DATASETS`, `CHECKPOINT`, and `DIFFUSION_CHECKPOINT` env vars pointing to W&B artifacts.
-- Common Hydra overrides for tuning large runs live in `configs/scale_overrides.md`.
-- Pull run metrics for offline review: `python scripts/fetch_wandb_metrics.py jz11ge11 --project universal-simulator --out reports/wandb_jz11ge11.csv`.
-- Launch remote training via Vast.ai: `python scripts/vast_launch.py launch --datasets burgers1d_subset_v1 --wandb-project universal-simulator --wandb-entity <entity>` (set your Vast API key with `python scripts/vast_launch.py set-key`).
+Start here:
 
-CI
-- GitHub Actions runs lint and unit tests on Python 3.10.
+- `docs/public/README.md`: public overview and claim boundary.
+- `docs/public/reproducibility.md`: how to inspect evidence and reproduce local checks.
+- `docs/public/artifact_policy.md`: what belongs in Git versus external artifact storage.
+- `docs/claim_evidence/universal_sota_claim_evidence.json`: current machine-readable claim evidence.
+- `docs/research/2026-06-04-universal-simulator-literature-and-ecosystem-landscape.md`: current research landscape and technical blocker framing.
 
-Notes
-- Namespaced under `ups` to avoid stdlib collisions (e.g., `io`).
-- Prefer bf16 mixed precision; unit-aware training via nondim.
-- W&B logging is enabled by default (see `configs/defaults.yaml`). Run `wandb login` once per environment or set `logging.wandb.enabled=false` to disable.
+## Quickstart
+
+```bash
+pip install -e .[dev]
+pre-commit run --all-files
+pytest -q tests/unit
+```
+
+For deterministic local setup:
+
+```bash
+bash scripts/prepare_env.sh
+```
+
+Some experiments require PDEBench data, GPU hardware, W&B, B2/S3, or remote
+compute credentials. Keep those credentials in environment variables or ignored
+local files; do not commit them.
+
+## Repository Structure
+
+The Python package is namespaced under `ups`.
+
+- `src/ups/core`: latent state, conditioning, and PDE-transformer blocks.
+- `src/ups/io`: grid, mesh, particle, and any-point encode/decode paths.
+- `src/ups/models`: latent operators, residual/corrector modules, physics guards, and factor-graph pieces.
+- `src/ups/training`: losses, loops, optimizers, curricula, and distributed helpers.
+- `src/ups/data`: schemas, datasets, transforms, collate logic, and PDEBench helpers.
+- `src/ups/inference`: rollout, data assimilation, and control utilities.
+- `src/ups/eval`: metrics, calibration, gates, reports, and claim checks.
+- `src/ups/discovery`: nondimensionalization and symbolic discovery utilities.
+- `src/ups/active`: active-learning and multi-fidelity calibration experiments.
+- `configs/`: training and evaluation configs.
+- `scripts/`: local, remote, audit, and evidence-generation entrypoints.
+- `docs/`: public overview, research notes, runbooks, and claim evidence.
+
+## Evidence And Artifacts
+
+UPS intentionally separates source code from generated artifacts:
+
+- small, claim-relevant evidence lives in `docs/claim_evidence/`;
+- broader research notes live in `docs/research/`;
+- generated checkpoints, raw datasets, W&B runs, provider logs, and ad hoc remote outputs stay out of normal Git.
+
+The committed bundles under `docs/claim_evidence/artifacts/` are compact
+evidence bundles for auditability, not a general artifact store.
+
+## Common Commands
+
+Inspect the current claim status:
+
+```bash
+python scripts/audit_universal_sota_status.py --medium-confirmed
+```
+
+Run a bounded light experiment:
+
+```bash
+python scripts/run_light_experiment.py \
+  --config configs/train_multitask_heterogeneous_light_best.yaml \
+  --name local_light_check \
+  --output-root reports/research/local_light_check
+```
+
+Hydrate registered datasets when credentials and storage are configured:
+
+```bash
+python scripts/fetch_datasets.py burgers1d_subset_v1 --root data/pdebench --cache artifacts/cache
+```
+
+## Status
+
+- License: Apache-2.0.
+- Python: 3.10+.
+- Package status: research alpha.
+- CI: GitHub Actions runs lint and unit tests on Python 3.10.
+
+Current technical north star: improve decoded physical-space rollout quality
+across task families while preserving validation/test separation and artifact
+auditability. The most important measured blocker is long-horizon transport and
+advection phase tracking.

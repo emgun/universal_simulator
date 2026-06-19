@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use Universal Physics Stack, please cite this repository."
+title: "Universal Physics Stack"
+type: software
+authors:
+  - name: "Universal Physics Stack contributors"
+repository-code: "https://github.com/emgun/universal_simulator"
+url: "https://github.com/emgun/universal_simulator"
+license: "Apache-2.0"
+version: "0.0.1"
+date-released: "2026-06-19"
+abstract: "Research software for latent-space neural simulation of PDE-style physical systems with any-point decoding, transformer operators, rollout evaluation, and auditable claim evidence."
