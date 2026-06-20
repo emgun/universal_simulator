@@ -1,0 +1,723 @@
+{
+  "benchmark_rows": [
+    {
+      "artifact_handle": "",
+      "artifact_sha256": "",
+      "category": "baseline",
+      "claim_comparable": true,
+      "evidence_json": "",
+      "label": "Persistence baseline",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5701633411507036,
+      "notes": "Non-learned held-out light-v1 reference.",
+      "primary_improvement_fraction": 0.2693636553585822,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "persistence_light_v1_test",
+      "source_refs": "",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/physical_fourier_light_test_strong_baseline_9c5be72.tar.gz",
+      "artifact_sha256": "884b69334e0a34f0537ce009a0911199093820ede966c011232ed591c079e6a9",
+      "category": "local neural baseline",
+      "claim_comparable": true,
+      "evidence_json": "",
+      "label": "Fourier baseline",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5636730976415197,
+      "notes": "Repo-native neural baseline measured under the same claim protocol.",
+      "primary_improvement_fraction": 0.26095096400747125,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "physical_fourier_light_test_strong_baseline",
+      "source_refs": "",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/external_cno1d_test_light_v1_e3.tar.gz",
+      "artifact_sha256": "",
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "evidence_json": "docs/claim_evidence/external_cno1d_test_light_v1_e3_evidence.json",
+      "label": "CNO1d",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5918753212407414,
+      "notes": "Third-party model measured under the repo light-v1 protocol.",
+      "primary_improvement_fraction": 0.29616585710380433,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "external_cno1d_test_light_v1_e3",
+      "source_refs": "cno_official_repo,cno_arxiv",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_fno_test_light_v1_e3.tar.gz",
+      "artifact_sha256": "",
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "evidence_json": "docs/claim_evidence/external_neuraloperator_fno_test_light_v1_e3_evidence.json",
+      "label": "FNO",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.6391747076887233,
+      "notes": "Third-party model measured under the repo light-v1 protocol.",
+      "primary_improvement_fraction": 0.3482500880967864,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "external_neuraloperator_fno_test_light_v1_e3",
+      "source_refs": "pdebench_official_repo,pdebench_openreview,fno_arxiv,neuraloperator_official_repo",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/external_pdebench_unet_test_light_v1_e3.tar.gz",
+      "artifact_sha256": "",
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "evidence_json": "docs/claim_evidence/external_pdebench_unet_test_light_v1_e3_evidence.json",
+      "label": "U-Net",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.6095843876848097,
+      "notes": "Third-party model measured under the repo light-v1 protocol.",
+      "primary_improvement_fraction": 0.3166129778863617,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "external_pdebench_unet_test_light_v1_e3",
+      "source_refs": "pdebench_official_repo,pdebench_openreview",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/external_neuraloperator_uno_test_light_v1_e3.tar.gz",
+      "artifact_sha256": "",
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "evidence_json": "docs/claim_evidence/external_neuraloperator_uno_test_light_v1_e3_evidence.json",
+      "label": "UNO",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5560551396226746,
+      "notes": "Third-party model measured under the repo light-v1 protocol.",
+      "primary_improvement_fraction": 0.2508259887507378,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "external_neuraloperator_uno_test_light_v1_e3",
+      "source_refs": "uno_arxiv,neuraloperator_official_repo",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "",
+      "artifact_sha256": "7eb8473b294bbc97e3a26bdcc6b5a313d23528070ace1a70de116d8216089f0a",
+      "category": "ups primary",
+      "claim_comparable": true,
+      "evidence_json": "",
+      "label": "UPS primary claim",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.4165820594268877,
+      "notes": "Primary guarded held-out light-v1 UPS claim.",
+      "primary_improvement_fraction": 0.0,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "source_refs": "",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_advection_ct1_heldout_light_v1.tar.gz",
+      "artifact_sha256": "b3b0809afc58085433ba0bbe1efbfa87deb1c227c18b8e6154b7d343e372834d",
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "evidence_json": "docs/claim_evidence/ups_advection_ct1_heldout_light_v1_evidence.json",
+      "label": "CT1 scoped UPS",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.20177292896682064,
+      "notes": "light-v1 CT1 online transport-context UPS variant",
+      "primary_improvement_fraction": -1.0646082780281694,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+      "source_refs": "",
+      "split": "test"
+    },
+    {
+      "artifact_handle": "repo:docs/claim_evidence/artifacts/ups_advection_data_conditioned_heldout_light_v1.tar.gz",
+      "artifact_sha256": "6f52e621d356c4e33e1b016eaef2ced8ba43f3e491eef87c005189ae0437275f",
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "evidence_json": "docs/claim_evidence/ups_advection_data_conditioned_heldout_light_v1_evidence.json",
+      "label": "Data-conditioned scoped UPS",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.1808155304023394,
+      "notes": "light-v1 data-conditioned context-phase UPS variant",
+      "primary_improvement_fraction": -1.3039064094767487,
+      "primary_metric_value": 0.4165820594268877,
+      "published_numbers_directly_comparable": false,
+      "run_name": "ups_light_advection_data_conditioned_context_phase_guarded",
+      "source_refs": "",
+      "split": "test"
+    }
+  ],
+  "external_matrix_rows": [
+    {
+      "candidate_id": "cno_representative_pde_light_v1",
+      "claim_boundary": "Matched light-v1 repo protocol",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5918753212407414,
+      "model_family": "CNO1d",
+      "next_step": "Keep in matched-protocol table; do not mix with published-paper values.",
+      "source_refs": "cno_official_repo,cno_arxiv",
+      "status": "measured",
+      "surface": "CNO1d",
+      "what_it_proves": "Measured under the same light-v1 split, horizon, and metric."
+    },
+    {
+      "candidate_id": "pdebench_fno_neuraloperator_light_v1",
+      "claim_boundary": "Matched light-v1 repo protocol",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.6391747076887233,
+      "model_family": "FNO",
+      "next_step": "Keep in matched-protocol table; do not mix with published-paper values.",
+      "source_refs": "pdebench_official_repo,pdebench_openreview,fno_arxiv,neuraloperator_official_repo",
+      "status": "measured",
+      "surface": "FNO",
+      "what_it_proves": "Measured under the same light-v1 split, horizon, and metric."
+    },
+    {
+      "candidate_id": "pdebench_unet_official_light_v1",
+      "claim_boundary": "Matched light-v1 repo protocol",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.6095843876848097,
+      "model_family": "U-Net",
+      "next_step": "Keep in matched-protocol table; do not mix with published-paper values.",
+      "source_refs": "pdebench_official_repo,pdebench_openreview",
+      "status": "measured",
+      "surface": "U-Net",
+      "what_it_proves": "Measured under the same light-v1 split, horizon, and metric."
+    },
+    {
+      "candidate_id": "neuraloperator_uno_light_v1",
+      "claim_boundary": "Matched light-v1 repo protocol",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5560551396226746,
+      "model_family": "UNO",
+      "next_step": "Keep in matched-protocol table; do not mix with published-paper values.",
+      "source_refs": "uno_arxiv,neuraloperator_official_repo",
+      "status": "measured",
+      "surface": "UNO",
+      "what_it_proves": "Measured under the same light-v1 split, horizon, and metric."
+    },
+    {
+      "candidate_id": "cfo_continuous_time_operator",
+      "claim_boundary": "Not a current held-out claim-comparable benchmark",
+      "metric_name": "",
+      "metric_value": null,
+      "model_family": "continuous-time flow-matched neural operator",
+      "next_step": "CFO directly attacks rollout stability, but it is a newer continuous-time training recipe rather than a drop-in PDEBench/FNO baseline for the existing claim protocol.",
+      "source_refs": "cfo_arxiv",
+      "status": "future_or_partial",
+      "surface": "CFO",
+      "what_it_proves": "CFO directly attacks rollout stability, but it is a newer continuous-time training recipe rather than a drop-in PDEBench/FNO baseline for the existing claim protocol."
+    },
+    {
+      "candidate_id": "pdearena_official_protocol",
+      "claim_boundary": "External protocol, not directly comparable to light-v1.",
+      "metric_name": "",
+      "metric_value": null,
+      "model_family": "PDE surrogate benchmark suite",
+      "next_step": "Add a protocol adapter only after the current light-v1 showcase is stable.",
+      "source_refs": "pdearena_official_repo",
+      "status": "future_or_partial",
+      "surface": "PDEArena",
+      "what_it_proves": "Would test UPS under an independent multi-scale PDE benchmark protocol."
+    },
+    {
+      "candidate_id": "pdeformer2_equation_graph_transfer",
+      "claim_boundary": "Not a current held-out claim-comparable benchmark",
+      "metric_name": "",
+      "metric_value": null,
+      "model_family": "equation-graph PDE foundation model",
+      "next_step": "PDEformer-2 targets symbolic PDE conditioning and 2D problems; it is promising for architecture design but not the fastest matched reproduction against the current 1D/2D light-v1 task set.",
+      "source_refs": "pdeformer2_arxiv,pdeformer2_official_repo",
+      "status": "future_or_partial",
+      "surface": "PDEformer-2",
+      "what_it_proves": "PDEformer-2 targets symbolic PDE conditioning and 2D problems; it is promising for architecture design but not the fastest matched reproduction against the current 1D/2D light-v1 task set."
+    },
+    {
+      "candidate_id": "physicsnemo_compatibility_gate",
+      "claim_boundary": "Compatibility surface; no current UPS metric.",
+      "metric_name": "",
+      "metric_value": null,
+      "model_family": "SciML framework benchmark recipes",
+      "next_step": "Track as a compatibility benchmark, not a claim table, until a recipe is implemented.",
+      "source_refs": "physicsnemo_official_repo",
+      "status": "future_or_partial",
+      "surface": "PhysicsNeMo",
+      "what_it_proves": "Would show ecosystem compatibility and standard validation recipe coverage."
+    },
+    {
+      "candidate_id": "poseidon_foundation_model_transfer",
+      "claim_boundary": "Not a current held-out claim-comparable benchmark",
+      "metric_name": "",
+      "metric_value": null,
+      "model_family": "PDE foundation model",
+      "next_step": "Poseidon is important for the north star, but using pretrained foundation weights changes the claim from fair light-v1 baseline comparison to transfer/foundation-model evaluation. The readiness contract, adapter manifest, validation-only ScOT checkpoint run, and scalar-layer finetune validation are now recorded. Scalar-only finetuning improved over zero-shot but stopped above the validation gate, so no held-out Poseidon transfer test is justified.",
+      "source_refs": "poseidon_arxiv,poseidon_official_repo",
+      "status": "future_or_partial",
+      "surface": "Poseidon",
+      "what_it_proves": "Poseidon is important for the north star, but using pretrained foundation weights changes the claim from fair light-v1 baseline comparison to transfer/foundation-model evaluation. The readiness contract, adapter manifest, validation-only ScOT checkpoint run, and scalar-layer finetune validation are now recorded. Scalar-only finetuning improved over zero-shot but stopped above the validation gate, so no held-out Poseidon transfer test is justified."
+    },
+    {
+      "candidate_id": "realpdebench_sim_to_real_gate",
+      "claim_boundary": "Not a current held-out claim-comparable benchmark",
+      "metric_name": "",
+      "metric_value": null,
+      "model_family": "real-world PDE benchmark",
+      "next_step": "RealPDEBench is a separate sim-to-real benchmark and should be used to prevent overbroad physics-foundation claims after the simulated PDEBench baseline path is settled.",
+      "source_refs": "realpdebench_arxiv",
+      "status": "future_or_partial",
+      "surface": "RealPDEBench",
+      "what_it_proves": "RealPDEBench is a separate sim-to-real benchmark and should be used to prevent overbroad physics-foundation claims after the simulated PDEBench baseline path is settled."
+    }
+  ],
+  "horizon_rows": [
+    {
+      "claim_boundary": "Primary UPS artifact metrics",
+      "horizon": "step1",
+      "horizon_label": "Step 1",
+      "metric_name": "decoded_step1_nrmse",
+      "metric_value": 0.7176522026316365,
+      "series": "UPS primary claim"
+    },
+    {
+      "claim_boundary": "Primary UPS artifact metrics",
+      "horizon": "h4",
+      "horizon_label": "H4",
+      "metric_name": "decoded_h4_nrmse",
+      "metric_value": 0.5579563760666284,
+      "series": "UPS primary claim"
+    },
+    {
+      "claim_boundary": "Primary UPS artifact metrics",
+      "horizon": "h16",
+      "horizon_label": "H16",
+      "metric_name": "decoded_h16_nrmse",
+      "metric_value": 0.08770072386133382,
+      "series": "UPS primary claim"
+    },
+    {
+      "claim_boundary": "Held-out light-v1 persistence scorecard",
+      "horizon": "step1",
+      "horizon_label": "Step 1",
+      "metric_name": "decoded_step1_nrmse",
+      "metric_value": 0.7176522098041582,
+      "series": "Persistence baseline"
+    },
+    {
+      "claim_boundary": "Held-out light-v1 persistence scorecard",
+      "horizon": "h4",
+      "horizon_label": "H4",
+      "metric_name": "decoded_h4_nrmse",
+      "metric_value": 0.5579563803127553,
+      "series": "Persistence baseline"
+    },
+    {
+      "claim_boundary": "Held-out light-v1 persistence scorecard",
+      "horizon": "h16",
+      "horizon_label": "H16",
+      "metric_name": "decoded_h16_nrmse",
+      "metric_value": 0.5581596078582408,
+      "series": "Persistence baseline"
+    }
+  ],
+  "metric_suite_rows": [
+    {
+      "claim_boundary": "Primary public claim metric",
+      "claim_role": "primary",
+      "label": "Rollout NRMSE",
+      "metric_family": "aggregate error",
+      "metric_name": "decoded_rollout_nrmse",
+      "persistence_value": 0.5701633411507036,
+      "relative_improvement_fraction": 0.2693636553585822,
+      "ups_value": 0.4165820594268877
+    },
+    {
+      "claim_boundary": "Secondary diagnostic; not a standalone headline claim",
+      "claim_role": "diagnostic",
+      "label": "Rollout MAE",
+      "metric_family": "aggregate error",
+      "metric_name": "decoded_rollout_mae",
+      "persistence_value": 0.3006536168356353,
+      "relative_improvement_fraction": 0.4051291258414325,
+      "ups_value": 0.17885007986594936
+    },
+    {
+      "claim_boundary": "Secondary diagnostic; not a standalone headline claim",
+      "claim_role": "diagnostic",
+      "label": "Rollout MSE",
+      "metric_family": "aggregate error",
+      "metric_name": "decoded_rollout_mse",
+      "persistence_value": 0.3248778630062198,
+      "relative_improvement_fraction": 0.46617053769995864,
+      "ups_value": 0.1734293749217968
+    },
+    {
+      "claim_boundary": "Secondary diagnostic; not a standalone headline claim",
+      "claim_role": "diagnostic",
+      "label": "Spectral energy error",
+      "metric_family": "spectral shape",
+      "metric_name": "decoded_rollout_spectral_energy_error",
+      "persistence_value": 0.06721624190029686,
+      "relative_improvement_fraction": -1.9524977410041896e-07,
+      "ups_value": 0.06721625502425291
+    },
+    {
+      "claim_boundary": "Secondary diagnostic; not a standalone headline claim",
+      "claim_role": "diagnostic",
+      "label": "Step-1 NRMSE",
+      "metric_family": "horizon profile",
+      "metric_name": "decoded_step1_nrmse",
+      "persistence_value": 0.7176522098041582,
+      "relative_improvement_fraction": 9.994425697720773e-09,
+      "ups_value": 0.7176522026316365
+    },
+    {
+      "claim_boundary": "Secondary diagnostic; not a standalone headline claim",
+      "claim_role": "diagnostic",
+      "label": "H4 NRMSE",
+      "metric_family": "horizon profile",
+      "metric_name": "decoded_h4_nrmse",
+      "persistence_value": 0.5579563803127553,
+      "relative_improvement_fraction": 7.610141302006171e-09,
+      "ups_value": 0.5579563760666284
+    },
+    {
+      "claim_boundary": "Secondary diagnostic; not a standalone headline claim",
+      "claim_role": "diagnostic",
+      "label": "H16 NRMSE",
+      "metric_family": "horizon profile",
+      "metric_name": "decoded_h16_nrmse",
+      "persistence_value": 0.5581596078582408,
+      "relative_improvement_fraction": 0.8428751872643431,
+      "ups_value": 0.08770072386133382
+    }
+  ],
+  "source_files": {
+    "claim_evidence": "docs/claim_evidence/universal_sota_claim_evidence.json",
+    "durable_scorecard": "docs/claim_evidence/artifacts/light_v1_demo_scorecard.json",
+    "external_mapping": "docs/claim_evidence/external_baseline_mapping.json",
+    "transfer_scorecard": "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json",
+    "transport_ablation": "docs/claim_evidence/artifacts/ups_advection_data_conditioned_ablation_matrix.json"
+  },
+  "task_rows": [
+    {
+      "category": "baseline",
+      "claim_comparable": true,
+      "label": "Persistence baseline",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.8086701258529039,
+      "run_name": "persistence_light_v1_test",
+      "task": "advection1d"
+    },
+    {
+      "category": "baseline",
+      "claim_comparable": true,
+      "label": "Persistence baseline",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.17446879799698398,
+      "run_name": "persistence_light_v1_test",
+      "task": "burgers1d"
+    },
+    {
+      "category": "baseline",
+      "claim_comparable": true,
+      "label": "Persistence baseline",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.20909552146272067,
+      "run_name": "persistence_light_v1_test",
+      "task": "darcy2d"
+    },
+    {
+      "category": "local neural baseline",
+      "claim_comparable": true,
+      "label": "Fourier baseline",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.8005806466136989,
+      "run_name": "physical_fourier_light_test_strong_baseline",
+      "task": "advection1d"
+    },
+    {
+      "category": "local neural baseline",
+      "claim_comparable": true,
+      "label": "Fourier baseline",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.17402731307328595,
+      "run_name": "physical_fourier_light_test_strong_baseline",
+      "task": "burgers1d"
+    },
+    {
+      "category": "local neural baseline",
+      "claim_comparable": true,
+      "label": "Fourier baseline",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.15190208981440756,
+      "run_name": "physical_fourier_light_test_strong_baseline",
+      "task": "darcy2d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "FNO",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.8361653113266109,
+      "run_name": "external_neuraloperator_fno_test_light_v1_e3",
+      "task": "advection1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "FNO",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.34940269410388936,
+      "run_name": "external_neuraloperator_fno_test_light_v1_e3",
+      "task": "burgers1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "FNO",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.61749915638842,
+      "run_name": "external_neuraloperator_fno_test_light_v1_e3",
+      "task": "darcy2d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "UNO",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.7832092991802627,
+      "run_name": "external_neuraloperator_uno_test_light_v1_e3",
+      "task": "advection1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "UNO",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.19161098053598588,
+      "run_name": "external_neuraloperator_uno_test_light_v1_e3",
+      "task": "burgers1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "UNO",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.2195023373371189,
+      "run_name": "external_neuraloperator_uno_test_light_v1_e3",
+      "task": "darcy2d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "U-Net",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.8064919999936634,
+      "run_name": "external_pdebench_unet_test_light_v1_e3",
+      "task": "advection1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "U-Net",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.33417240157504896,
+      "run_name": "external_pdebench_unet_test_light_v1_e3",
+      "task": "burgers1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "U-Net",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.46772623600031776,
+      "run_name": "external_pdebench_unet_test_light_v1_e3",
+      "task": "darcy2d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "CNO1d",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.8083895641052449,
+      "run_name": "external_cno1d_test_light_v1_e3",
+      "task": "advection1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "CNO1d",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.20383907152341138,
+      "run_name": "external_cno1d_test_light_v1_e3",
+      "task": "burgers1d"
+    },
+    {
+      "category": "external matched baseline",
+      "claim_comparable": true,
+      "label": "CNO1d",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.6373976431871128,
+      "run_name": "external_cno1d_test_light_v1_e3",
+      "task": "darcy2d"
+    },
+    {
+      "category": "ups primary",
+      "claim_comparable": true,
+      "label": "UPS primary claim",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.5765863333379032,
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "task": "advection1d"
+    },
+    {
+      "category": "ups primary",
+      "claim_comparable": true,
+      "label": "UPS primary claim",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.17446857017795178,
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "task": "burgers1d"
+    },
+    {
+      "category": "ups primary",
+      "claim_comparable": true,
+      "label": "UPS primary claim",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.20909553062258152,
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "task": "darcy2d"
+    },
+    {
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "label": "CT1 scoped UPS",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.22508631227914033,
+      "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+      "task": "advection1d"
+    },
+    {
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "label": "Data-conditioned scoped UPS",
+      "metric_name": "task_advection1d_decoded_rollout_nrmse",
+      "metric_value": 0.18345021264323003,
+      "run_name": "ups_light_advection_data_conditioned_context_phase_guarded",
+      "task": "advection1d"
+    },
+    {
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "label": "CT1 scoped UPS",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.17446879896821743,
+      "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+      "task": "burgers1d"
+    },
+    {
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "label": "Data-conditioned scoped UPS",
+      "metric_name": "task_burgers1d_decoded_rollout_nrmse",
+      "metric_value": 0.17446879896821743,
+      "run_name": "ups_light_advection_data_conditioned_context_phase_guarded",
+      "task": "burgers1d"
+    },
+    {
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "label": "CT1 scoped UPS",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.20909553062258152,
+      "run_name": "ups_light_advection_context_transport_only_ct1_guarded",
+      "task": "darcy2d"
+    },
+    {
+      "category": "ups scoped variant",
+      "claim_comparable": false,
+      "label": "Data-conditioned scoped UPS",
+      "metric_name": "task_darcy2d_decoded_rollout_nrmse",
+      "metric_value": 0.20909553062258152,
+      "run_name": "ups_light_advection_data_conditioned_context_phase_guarded",
+      "task": "darcy2d"
+    }
+  ],
+  "transfer_rows": [
+    {
+      "claim_boundary": "train/validation transfer diagnostic",
+      "metric_name": "nrmse",
+      "metric_value": 0.0002474825485253347,
+      "reason": "",
+      "status": "validated",
+      "task": "advection1d",
+      "test_touched": false,
+      "train_metric_value": 2.1722591109190475e-05
+    },
+    {
+      "claim_boundary": "train/validation transfer diagnostic",
+      "metric_name": "nrmse",
+      "metric_value": 0.0058254034699600854,
+      "reason": "",
+      "status": "validated",
+      "task": "burgers1d",
+      "test_touched": false,
+      "train_metric_value": 0.062408372798664555
+    },
+    {
+      "claim_boundary": "train/validation transfer diagnostic",
+      "metric_name": "nrmse",
+      "metric_value": null,
+      "reason": "missing train split: data/pdebench/darcy2d_train.h5",
+      "status": "skipped",
+      "task": "darcy2d",
+      "test_touched": false,
+      "train_metric_value": null
+    }
+  ],
+  "transport_ablation_rows": [
+    {
+      "candidate_shift_max": 80.0,
+      "candidate_shift_min": -80.0,
+      "claim_boundary": "validation-only diagnostic",
+      "context_transitions": 1,
+      "held_out_test_used": false,
+      "label": "Full context shift",
+      "metric_name": "nrmse",
+      "metric_value": 0.0005432125951258969,
+      "split": "val",
+      "variant_id": "full_context_shift"
+    },
+    {
+      "candidate_shift_max": 8.0,
+      "candidate_shift_min": -8.0,
+      "claim_boundary": "validation-only diagnostic",
+      "context_transitions": 1,
+      "held_out_test_used": false,
+      "label": "Bounded context shift",
+      "metric_name": "nrmse",
+      "metric_value": 0.421816253136215,
+      "split": "val",
+      "variant_id": "weaker_context_shift"
+    },
+    {
+      "candidate_shift_max": 80.0,
+      "candidate_shift_min": -80.0,
+      "claim_boundary": "validation-only diagnostic",
+      "context_transitions": null,
+      "held_out_test_used": false,
+      "label": "No data conditioning",
+      "metric_name": "nrmse",
+      "metric_value": 0.5027994693398018,
+      "split": "val",
+      "variant_id": "no_data_conditioning"
+    }
+  ]
+}

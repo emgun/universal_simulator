@@ -1,0 +1,109 @@
+{
+  "check_command": "python scripts/build_showcase_assets.py --check",
+  "generator": "scripts/build_showcase_assets.py",
+  "inputs": [
+    {
+      "bytes": 15163,
+      "path": "docs/claim_evidence/universal_sota_claim_evidence.json",
+      "sha256": "9685adaa590e4907f6bd510c1180d9ae846317097e1dc21900bf726f7810c698"
+    },
+    {
+      "bytes": 44024,
+      "path": "docs/claim_evidence/external_baseline_mapping.json",
+      "sha256": "79abd13d24d36d98c5f91e5942bd2f83fcd1c2630e38af6bfa99489aee8b2692"
+    },
+    {
+      "bytes": 50589,
+      "path": "docs/claim_evidence/artifacts/light_v1_demo_scorecard.json",
+      "sha256": "e5ea414b8b630e0b68ffd6be7cf2a2dad3a1abd3900310d214e6225cecd5d032"
+    },
+    {
+      "bytes": 9918,
+      "path": "docs/claim_evidence/artifacts/ups_advection_data_conditioned_ablation_matrix.json",
+      "sha256": "f8205f0a0afeea96a85521968e26afe6fdff46f284f72c0732183b01691a568a"
+    },
+    {
+      "bytes": 1228,
+      "path": "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json",
+      "sha256": "f31a7113623fc2b7510b57ea9a9d1b4d51512ede077e5156b91aceb45f4efafc"
+    }
+  ],
+  "outputs": [
+    {
+      "bytes": 29611,
+      "path": "benchmark_summary.json",
+      "sha256": "6cb5a11250f8642a94d1784bbaf3f701bcd8f0ae891175456dfbf127c12fecc3"
+    },
+    {
+      "bytes": 3774,
+      "path": "benchmark_summary.tsv",
+      "sha256": "39bb4b04cb6795a30c42cfba8428f1fe252d3e4e27534bb8d9395d0496e2de7a"
+    },
+    {
+      "bytes": 4095,
+      "path": "per_task_summary.tsv",
+      "sha256": "9104086f5038136a3cca1be5d78ab15ceeae8d2f0f9ca90d9fb955033c33fedc"
+    },
+    {
+      "bytes": 1319,
+      "path": "metric_suite_summary.tsv",
+      "sha256": "571fb399d904c9c774f73c2242ae58c0cb1fc4d434c613abb768720973370c95"
+    },
+    {
+      "bytes": 679,
+      "path": "horizon_summary.tsv",
+      "sha256": "6bd96b4dd48ab585b51d9c4688b5c7c4756aceb773d928c88caf411b37c84dcf"
+    },
+    {
+      "bytes": 481,
+      "path": "transport_ablation_summary.tsv",
+      "sha256": "fcd752ee14c315028721e5c59606aac314820f73a784dc013aa38fd259008207"
+    },
+    {
+      "bytes": 441,
+      "path": "transfer_validation_summary.tsv",
+      "sha256": "282c89bb62e1dc2ce8c05600bd80ab030ea1279caf2839a178abad55e6ac34fb"
+    },
+    {
+      "bytes": 4628,
+      "path": "external_benchmark_matrix.tsv",
+      "sha256": "6d6395270a6d9ad505819436489b5dadf5e2dc9e6b968bf98ead227ef6790030"
+    },
+    {
+      "bytes": 75179,
+      "path": "claim_scorecard.png",
+      "sha256": "c4bba6160bbadb70d1950e403cd69b7d874887af1580f0e00452e1b7daf4d076"
+    },
+    {
+      "bytes": 98236,
+      "path": "per_task_breakdown.png",
+      "sha256": "3e4274b1296cd10f4dc88fb6efd07aed6671013dc3f03c719f6b72d7e1449fe5"
+    },
+    {
+      "bytes": 90667,
+      "path": "primary_metric_suite.png",
+      "sha256": "ecc2249b0e4a650c525d8d78624d9672e1e318f5f9349c48f3211551863d1ce8"
+    },
+    {
+      "bytes": 46971,
+      "path": "horizon_profile.png",
+      "sha256": "41d6c6250137b9ef4844b348a237698a415c9c16414f7dafc2598739f0b2260c"
+    },
+    {
+      "bytes": 63630,
+      "path": "transport_ablation.png",
+      "sha256": "d92d71f7e2680b1fb87f63d4c15630fd7aed8d8517b3118a45f7e346e1f43a19"
+    },
+    {
+      "bytes": 46826,
+      "path": "transfer_validation.png",
+      "sha256": "24e21d57b8b48cfa47fe7e1b36150f950580aa27839fc4c44b65c636fd8bba23"
+    },
+    {
+      "bytes": 51148,
+      "path": "external_benchmarks.png",
+      "sha256": "dc8a9ccc20f81548af385f8061ca34d5dbe6032da7deae11d0798ec2a4fe3e1b"
+    }
+  ],
+  "schema_version": 1
+}

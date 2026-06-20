@@ -69,6 +69,34 @@ UPS intentionally separates source code from generated artifacts:
 The committed bundles under `docs/claim_evidence/artifacts/` are compact
 evidence bundles for auditability, not a general artifact store.
 
+## Showcase
+
+For a public visual summary of the current bounded evidence, see
+`docs/showcase/README.md`.
+
+- `docs/showcase/generated/claim_scorecard.png`: matched `light-v1` scorecard
+  with persistence, local neural, third-party, and UPS rows.
+- `docs/showcase/generated/per_task_breakdown.png`: task-level view of the
+  transport/advection bottleneck.
+- `docs/showcase/generated/primary_metric_suite.png`: secondary metrics beyond
+  NRMSE for the primary UPS claim versus persistence.
+- `docs/showcase/generated/horizon_profile.png`: step-1, H4, and H16 rollout
+  profile for the primary claim.
+- `docs/showcase/research_diagnostics.md`: validation-only transport ablation
+  and transfer diagnostics, kept separate from held-out claims.
+- `docs/showcase/external_benchmarks.md`: measured external baselines and
+  future third-party benchmark surfaces.
+
+These figures are generated from committed evidence JSON. They are not a
+substitute for the claim manifests under `docs/claim_evidence/`.
+
+Regenerate or check them with:
+
+```bash
+python scripts/build_showcase_assets.py
+python scripts/build_showcase_assets.py --check
+```
+
 ## Common Commands
 
 Inspect the current claim status:
