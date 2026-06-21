@@ -568,6 +568,7 @@
       "status": "defined"
     }
   ],
+  "rollout_preview_summary_rows": [],
   "source_files": {
     "claim_evidence": "docs/claim_evidence/universal_sota_claim_evidence.json",
     "durable_scorecard": "docs/claim_evidence/artifacts/light_v1_demo_scorecard.json",

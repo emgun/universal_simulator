@@ -30,9 +30,9 @@
   ],
   "outputs": [
     {
-      "bytes": 36645,
+      "bytes": 36683,
       "path": "benchmark_summary.json",
-      "sha256": "25e76e3c1fb5ffc5e33a7e90c1733a9bc904964570ef6fdd08d7de73b596b580"
+      "sha256": "f64bc0ef7ccc24e0744e0827779040e1fa31960e3217f4fa37ddb6303a57203c"
     },
     {
       "bytes": 3774,

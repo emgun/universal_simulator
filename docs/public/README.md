@@ -50,7 +50,8 @@ The showcase also includes credibility cards for cost/reproducibility,
 benchmark readiness, ecosystem compatibility, and qualitative-preview status.
 Those cards are descriptive: they mark cost as unrecorded where evidence is
 missing and keep official external benchmarks separate from measured
-repo-protocol baselines.
+repo-protocol baselines. Qualitative rollout panels render only after a compact
+claim-linked preview manifest and artifact are committed.
 
 The showcase is repeatable:
 
