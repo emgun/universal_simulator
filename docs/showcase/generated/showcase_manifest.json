@@ -8,9 +8,9 @@
       "sha256": "9685adaa590e4907f6bd510c1180d9ae846317097e1dc21900bf726f7810c698"
     },
     {
-      "bytes": 44024,
+      "bytes": 52078,
       "path": "docs/claim_evidence/external_baseline_mapping.json",
-      "sha256": "79abd13d24d36d98c5f91e5942bd2f83fcd1c2630e38af6bfa99489aee8b2692"
+      "sha256": "e37b6bb9f3acbf882db0a20c3cf73d857d9d5ef7e38a42d7c1825aa4b73c7cb9"
     },
     {
       "bytes": 50589,
@@ -40,9 +40,9 @@
   ],
   "outputs": [
     {
-      "bytes": 37567,
+      "bytes": 43897,
       "path": "benchmark_summary.json",
-      "sha256": "224fd0684e5fb520b9c9f38704eb637f222540f206690756726e2e4b49452d28"
+      "sha256": "b5801f8746c5bb0fcee5ba2609de70394a01522e9e0e55943fe47c03254f0ad7"
     },
     {
       "bytes": 3764,
@@ -75,14 +75,14 @@
       "sha256": "facb40b28a9a14ecaf90946ad897bf7ec12338e307a214d19ea1732c26b0fbf6"
     },
     {
-      "bytes": 1123,
+      "bytes": 1171,
       "path": "reproducibility_card.tsv",
-      "sha256": "3a80ef066d680dff230e8cfc1e1fdff72ea9ea0af6e975305b991371dee843af"
+      "sha256": "b13afad5dc024f79091976fc1e9c245013a539c714a41506b500994178fff38f"
     },
     {
-      "bytes": 2456,
+      "bytes": 2486,
       "path": "benchmark_readiness_summary.tsv",
-      "sha256": "2e92808b4aa65e0f106fd510ae6dfaa6d64e5853d81aaf7c1782f3e9d8c135f6"
+      "sha256": "e37ed2fc455668eb45dce2197f7f71b5723ef483c30976dd80131442e5574678"
     },
     {
       "bytes": 650,
@@ -90,9 +90,9 @@
       "sha256": "3b76161b5b726cb0cab92cd6d54bb63d7062f2c2631da55ab53b493f868a4c52"
     },
     {
-      "bytes": 4617,
+      "bytes": 4619,
       "path": "external_benchmark_matrix.tsv",
-      "sha256": "7cc78b028803d49e737f8511bc40c2acd91cebbf16849192aa2c9ad378c08177"
+      "sha256": "33835742cfc326f13c8f361659a68a1237ee9ae6165ff25ec77ffd136a36412a"
     },
     {
       "bytes": 75179,
@@ -125,9 +125,9 @@
       "sha256": "24e21d57b8b48cfa47fe7e1b36150f950580aa27839fc4c44b65c636fd8bba23"
     },
     {
-      "bytes": 158064,
+      "bytes": 163222,
       "path": "reproducibility_card.png",
-      "sha256": "a9252ce769d415aabd5d851881a5a15cfc3757042b54c10650b597bca23a9e0a"
+      "sha256": "b8c7042a5845ddc3b8dc72828a638d3e76aa53ea50dfd9343dd137a8b2e2f3af"
     },
     {
       "bytes": 153819,
@@ -143,6 +143,16 @@
       "bytes": 51148,
       "path": "external_benchmarks.png",
       "sha256": "dc8a9ccc20f81548af385f8061ca34d5dbe6032da7deae11d0798ec2a4fe3e1b"
+    },
+    {
+      "bytes": 3990,
+      "path": "ecosystem_compatibility_summary.tsv",
+      "sha256": "2a77e74186188b88f498a5f83249f42374b3705773cebeff9aae30c8b820db86"
+    },
+    {
+      "bytes": 141550,
+      "path": "ecosystem_compatibility.png",
+      "sha256": "ea87643a3ef4590a5ea225314804a2c7ec5377375de914d3699fb1b91053f366"
     },
     {
       "bytes": 695,

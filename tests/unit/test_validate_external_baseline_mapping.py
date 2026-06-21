@@ -89,6 +89,30 @@ def test_external_baseline_mapping_rejects_unknown_source_reference():
     assert "selected_reproduction_path references unknown source_ref: missing_source" in errors
 
 
+def test_external_baseline_mapping_rejects_unknown_ecosystem_source_reference():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    mutated.setdefault("ecosystem_compatibility", []).append(
+        {
+            "surface": "Example",
+            "candidate_id": "example_ecosystem_gate",
+            "status": "planned",
+            "readiness_lane": "ecosystem compatibility",
+            "source_refs": ["missing_source"],
+            "claim_boundary": "Compatibility surface; no current UPS metric.",
+            "next_step": "Add adapter.",
+        }
+    )
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert (
+        "ecosystem_compatibility[example_ecosystem_gate] references unknown source_ref: missing_source"
+        in errors
+    )
+
+
 def test_external_baseline_mapping_rejects_published_number_overclaim():
     mapping = _load(MAPPING_PATH)
     claim_evidence = _load(CLAIM_EVIDENCE_PATH)

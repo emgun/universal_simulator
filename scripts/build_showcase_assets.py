@@ -127,6 +127,22 @@ EXTERNAL_FIELDS = (
     "claim_boundary",
 )
 
+ECOSYSTEM_COMPATIBILITY_FIELDS = (
+    "surface",
+    "candidate_id",
+    "status",
+    "readiness_lane",
+    "source_refs",
+    "adapter_entrypoint",
+    "validation_command",
+    "evidence_json",
+    "metric_name",
+    "metric_value",
+    "test_metric_value",
+    "next_step",
+    "claim_boundary",
+)
+
 METRIC_SUITE_FIELDS = (
     "label",
     "metric_name",
@@ -967,7 +983,10 @@ def build_reproducibility_card_rows(
             label="Generated outputs",
             value=str(generated_output_count),
             status="tracked",
-            claim_boundary="Outputs are listed and hashed in showcase_manifest.json.",
+            claim_boundary=(
+                "Generated assets are listed and hashed in showcase_manifest.json; "
+                "this count also includes the manifest."
+            ),
         ),
         _card_row(
             key="primary_metric",
@@ -1008,6 +1027,51 @@ def _readiness_lane(surface: str, status: str) -> str:
     if surface == "PhysicsNeMo":
         return "ecosystem compatibility"
     return "future model or recipe surface"
+
+
+def build_ecosystem_compatibility_rows(external_mapping: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Build official-protocol and ecosystem compatibility rows from evidence."""
+    rows: list[dict[str, Any]] = []
+    for item in external_mapping.get("ecosystem_compatibility", []):
+        if not isinstance(item, Mapping):
+            continue
+        source_refs = item.get("source_refs", [])
+        source_refs_text = (
+            source_refs
+            if isinstance(source_refs, str)
+            else ",".join(str(ref) for ref in source_refs)
+        )
+        rows.append(
+            {
+                "surface": str(item.get("surface", "")),
+                "candidate_id": str(item.get("candidate_id", "")),
+                "status": str(item.get("status", "planned")),
+                "readiness_lane": str(item.get("readiness_lane", "")),
+                "source_refs": source_refs_text,
+                "adapter_entrypoint": str(item.get("adapter_entrypoint", "")),
+                "validation_command": str(item.get("validation_command", "")),
+                "evidence_json": str(item.get("evidence_json", "")),
+                "metric_name": str(item.get("metric_name", "")),
+                "metric_value": _as_float(item.get("metric_value")),
+                "test_metric_value": _as_float(item.get("test_metric_value")),
+                "next_step": str(item.get("next_step", "")),
+                "claim_boundary": str(item.get("claim_boundary", "")),
+            }
+        )
+    lane_order = {
+        "official architecture adapter": 0,
+        "validation-only transfer": 1,
+        "official external protocol": 2,
+        "ecosystem compatibility": 3,
+        "future model or recipe surface": 4,
+    }
+    rows.sort(
+        key=lambda row: (
+            lane_order.get(str(row["readiness_lane"]), 9),
+            str(row["surface"]),
+        )
+    )
+    return rows
 
 
 def build_benchmark_readiness_rows(
@@ -1192,9 +1256,11 @@ def build_rollout_preview_status_rows(
 def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Build a public matrix of external benchmark surfaces and readiness."""
     rows: list[dict[str, Any]] = []
+    seen_candidate_ids: set[str] = set()
     for candidate in external_mapping.get("baseline_candidates", []):
         if not isinstance(candidate, Mapping):
             continue
+        candidate_id = str(candidate.get("candidate_id", ""))
         measurements = [
             item
             for item in candidate.get("test_measurements", [])
@@ -1227,7 +1293,7 @@ def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict
         rows.append(
             {
                 "surface": surface,
-                "candidate_id": str(candidate.get("candidate_id", "")),
+                "candidate_id": candidate_id,
                 "status": status,
                 "model_family": model_family,
                 "source_refs": ",".join(candidate.get("source_refs", [])),
@@ -1248,35 +1314,35 @@ def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict
                 ),
             }
         )
+        seen_candidate_ids.add(candidate_id)
 
-    rows.extend(
-        [
+    for item in build_ecosystem_compatibility_rows(external_mapping):
+        candidate_id = str(item["candidate_id"])
+        if candidate_id in seen_candidate_ids:
+            continue
+        measured = (
+            str(item["status"]) == "matched_protocol_measured"
+            and item.get("test_metric_value") is not None
+        )
+        metric_value = item.get("test_metric_value") if measured else item.get("metric_value")
+        rows.append(
             {
-                "surface": "PDEArena",
-                "candidate_id": "pdearena_official_protocol",
-                "status": "future_or_partial",
-                "model_family": "PDE surrogate benchmark suite",
-                "source_refs": "pdearena_official_repo",
-                "metric_name": "",
-                "metric_value": None,
-                "what_it_proves": "Would test UPS under an independent multi-scale PDE benchmark protocol.",
-                "next_step": "Add a protocol adapter only after the current light-v1 showcase is stable.",
-                "claim_boundary": "External protocol, not directly comparable to light-v1.",
-            },
-            {
-                "surface": "PhysicsNeMo",
-                "candidate_id": "physicsnemo_compatibility_gate",
-                "status": "future_or_partial",
-                "model_family": "SciML framework benchmark recipes",
-                "source_refs": "physicsnemo_official_repo",
-                "metric_name": "",
-                "metric_value": None,
-                "what_it_proves": "Would show ecosystem compatibility and standard validation recipe coverage.",
-                "next_step": "Track as a compatibility benchmark, not a claim table, until a recipe is implemented.",
-                "claim_boundary": "Compatibility surface; no current UPS metric.",
-            },
-        ]
-    )
+                "surface": str(item["surface"]),
+                "candidate_id": candidate_id,
+                "status": "measured" if measured else "future_or_partial",
+                "model_family": str(item.get("readiness_lane", "")),
+                "source_refs": str(item["source_refs"]),
+                "metric_name": str(item["metric_name"] if metric_value is not None else ""),
+                "metric_value": metric_value,
+                "what_it_proves": str(
+                    item.get("claim_boundary")
+                    or item.get("next_step")
+                    or "Tracked as an ecosystem compatibility surface."
+                ),
+                "next_step": str(item["next_step"]),
+                "claim_boundary": str(item["claim_boundary"]),
+            }
+        )
     rows.sort(key=lambda row: (row["status"] != "measured", row["surface"]))
     return rows
 
@@ -1612,6 +1678,44 @@ def render_benchmark_readiness(rows: Sequence[Mapping[str, Any]], path: str | Pa
     )
 
 
+def render_ecosystem_compatibility(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    display_rows: list[dict[str, Any]] = []
+    for row in rows:
+        status = str(row.get("status", ""))
+        if status == "matched_protocol_measured":
+            boundary = "Matched light-v1 adapter; published tables unmapped."
+        elif status == "validation_stopped":
+            boundary = "Validation-only transfer; no held-out test."
+        elif str(row.get("readiness_lane")) == "official external protocol":
+            boundary = "Planned external protocol; not light-v1 comparable."
+        elif str(row.get("readiness_lane")) == "ecosystem compatibility":
+            boundary = "Planned compatibility gate; no UPS metric yet."
+        else:
+            boundary = str(row.get("claim_boundary", ""))
+        metric_value = _as_float(row.get("metric_value"))
+        display_rows.append(
+            {
+                "surface": str(row.get("surface", "")),
+                "status": status,
+                "readiness_lane": str(row.get("readiness_lane", "")),
+                "metric_value": "" if metric_value is None else f"{metric_value:.4f}",
+                "claim_boundary": boundary,
+            }
+        )
+    _render_text_rows(
+        display_rows,
+        path=path,
+        title="Official and ecosystem compatibility",
+        columns=(
+            ("surface", "Surface", 18),
+            ("status", "Status", 18),
+            ("readiness_lane", "Lane", 24),
+            ("metric_value", "Val metric", 12),
+            ("claim_boundary", "Boundary", 32),
+        ),
+    )
+
+
 def render_rollout_preview_status(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
     _render_text_rows(
         rows,
@@ -1770,6 +1874,7 @@ def build_showcase(
     transport_ablation_rows = build_transport_ablation_rows(transport_ablation)
     transfer_rows = build_transfer_rows(transfer_scorecard)
     external_rows = build_external_matrix_rows(external_mapping)
+    ecosystem_compatibility_rows = build_ecosystem_compatibility_rows(external_mapping)
     benchmark_readiness_rows = build_benchmark_readiness_rows(external_rows)
 
     paths = [
@@ -1794,6 +1899,8 @@ def build_showcase(
         output_dir / "benchmark_readiness.png",
         output_dir / "rollout_preview_status.png",
         output_dir / "external_benchmarks.png",
+        output_dir / "ecosystem_compatibility_summary.tsv",
+        output_dir / "ecosystem_compatibility.png",
     ]
     if rollout_preview_manifest is not None:
         paths.extend(
@@ -1846,6 +1953,7 @@ def build_showcase(
             "rollout_preview_status_rows": rollout_preview_rows,
             "rollout_preview_summary_rows": rollout_preview_summary_rows,
             "external_matrix_rows": external_rows,
+            "ecosystem_compatibility_rows": ecosystem_compatibility_rows,
         },
         paths[0],
     )
@@ -1859,6 +1967,7 @@ def build_showcase(
     write_tsv(benchmark_readiness_rows, paths[8], BENCHMARK_READINESS_FIELDS)
     write_tsv(rollout_preview_rows, paths[9], ROLLOUT_PREVIEW_FIELDS)
     write_tsv(external_rows, paths[10], EXTERNAL_FIELDS)
+    write_tsv(ecosystem_compatibility_rows, paths[21], ECOSYSTEM_COMPATIBILITY_FIELDS)
     render_claim_scorecard(benchmark_rows, paths[11])
     render_task_breakdown(task_rows, paths[12])
     render_metric_suite(metric_suite_rows, paths[13])
@@ -1869,11 +1978,12 @@ def build_showcase(
     render_benchmark_readiness(benchmark_readiness_rows, paths[18])
     render_rollout_preview_status(rollout_preview_rows, paths[19])
     render_external_benchmarks(external_rows, paths[20])
+    render_ecosystem_compatibility(ecosystem_compatibility_rows, paths[22])
     if rollout_preview_manifest is not None:
-        write_tsv(rollout_preview_summary_rows, paths[21], ROLLOUT_PREVIEW_SUMMARY_FIELDS)
+        write_tsv(rollout_preview_summary_rows, paths[23], ROLLOUT_PREVIEW_SUMMARY_FIELDS)
         render_rollout_preview_panel(
             rollout_preview_manifest,
-            paths[22],
+            paths[24],
             artifact_root=artifact_root,
         )
 

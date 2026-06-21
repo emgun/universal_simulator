@@ -177,6 +177,26 @@ budget. If Poseidon remains worth pursuing, the next path is controlled unfreeze
 or low-rank adaptation on train/validation only; otherwise the higher-signal
 work is UPS-side advection robustness.
 
+## Official/Ecosystem Compatibility
+
+`ecosystem_compatibility` records the public-facing compatibility layer behind
+the showcase readiness card. It is separate from the numeric claim table:
+
+- NeuralOperator FNO and UNO, PDEBench U-Net, and CNO1d are measured official or
+  official-source architecture adapters under the matched `light-v1` protocol.
+- Poseidon ScOT is validation-only transfer evidence and is explicitly stopped
+  before held-out test because the scalar-layer finetune did not clear the
+  validation gate.
+- PDEArena is tracked as a future official external protocol, not as a direct
+  `light-v1` claim comparison.
+- NVIDIA PhysicsNeMo is tracked as an ecosystem compatibility gate. It should
+  get a recipe adapter before any UPS metric is reported.
+
+The generated `docs/showcase/generated/ecosystem_compatibility_summary.tsv` and
+`ecosystem_compatibility.png` are derived from this evidence section. This keeps
+official protocol and ecosystem rows source-of-truth driven instead of
+hard-coded in the showcase generator.
+
 ## Tradeoff
 
 The local strong baseline is fast and already comparable to the current claim,

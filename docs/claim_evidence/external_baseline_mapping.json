@@ -200,6 +200,42 @@
       "year": 2023,
       "primary_source": true,
       "relevance": "Official CNO implementation and representative PDE benchmarks; useful as a second external baseline family after FNO."
+    },
+    {
+      "source_id": "pdearena_official_repo",
+      "title": "PDEArena official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/pdearena/pdearena",
+      "year": 2022,
+      "primary_source": true,
+      "relevance": "Independent PDE surrogate learning benchmark suite and architecture zoo; useful as a future external protocol rather than a direct light-v1 claim comparison."
+    },
+    {
+      "source_id": "pdearena_docs",
+      "title": "PDEArena documentation",
+      "kind": "official_docs",
+      "url": "https://pdearena.github.io/pdearena/",
+      "year": 2022,
+      "primary_source": true,
+      "relevance": "Documents PDEArena as a scalable framework for PDE surrogate learning with baseline implementations and distributed training support."
+    },
+    {
+      "source_id": "physicsnemo_official_repo",
+      "title": "NVIDIA PhysicsNeMo official repository",
+      "kind": "official_repo",
+      "url": "https://github.com/NVIDIA/physicsnemo",
+      "year": 2026,
+      "primary_source": true,
+      "relevance": "Open-source NVIDIA SciML framework for building, training, fine-tuning, and inferring Physics AI models; useful as an ecosystem compatibility surface."
+    },
+    {
+      "source_id": "physicsnemo_docs",
+      "title": "NVIDIA PhysicsNeMo documentation",
+      "kind": "official_docs",
+      "url": "https://nvidia.github.io/physicsnemo/",
+      "year": 2026,
+      "primary_source": true,
+      "relevance": "Documents PhysicsNeMo framework modules, training/inference pipelines, and reference applications for physics AI."
     }
   ],
   "baseline_candidates": [
@@ -709,6 +745,135 @@
         "realpdebench_arxiv"
       ],
       "why_not_primary": "RealPDEBench is a separate sim-to-real benchmark and should be used to prevent overbroad physics-foundation claims after the simulated PDEBench baseline path is settled."
+    }
+  ],
+  "ecosystem_compatibility": [
+    {
+      "surface": "NeuralOperator FNO",
+      "candidate_id": "pdebench_fno_neuraloperator_light_v1",
+      "status": "matched_protocol_measured",
+      "readiness_lane": "official architecture adapter",
+      "source_refs": [
+        "neuraloperator_official_repo",
+        "pdebench_official_repo",
+        "fno_arxiv"
+      ],
+      "adapter_entrypoint": "scripts/run_external_neuraloperator_fno_baseline.py",
+      "validation_command": "python scripts/run_external_neuraloperator_fno_baseline.py --eval-split val --tasks advection1d burgers1d darcy2d",
+      "evidence_json": "docs/claim_evidence/external_neuraloperator_fno_val_light_v1_e3_evidence.json",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.46753981278379725,
+      "test_metric_value": 0.6391747076887233,
+      "claim_boundary": "Official NeuralOperator FNO adapter is measured under the matched light-v1 protocol; published FNO paper-table values remain unmapped.",
+      "next_step": "Keep as the primary external architecture reproduction path and do not mix with published table values."
+    },
+    {
+      "surface": "NeuralOperator UNO",
+      "candidate_id": "neuraloperator_uno_light_v1",
+      "status": "matched_protocol_measured",
+      "readiness_lane": "official architecture adapter",
+      "source_refs": [
+        "neuraloperator_official_repo",
+        "uno_arxiv"
+      ],
+      "adapter_entrypoint": "scripts/run_external_neuraloperator_uno_baseline.py",
+      "validation_command": "python scripts/run_external_neuraloperator_uno_baseline.py --eval-split val --tasks advection1d burgers1d darcy2d",
+      "evidence_json": "docs/claim_evidence/external_neuraloperator_uno_val_light_v1_e3_evidence.json",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.363424243629033,
+      "test_metric_value": 0.5560551396226746,
+      "claim_boundary": "Official NeuralOperator UNO adapter is measured under the matched light-v1 protocol; published UNO table values remain unmapped.",
+      "next_step": "Keep as a second official NeuralOperator family in the matched-protocol table."
+    },
+    {
+      "surface": "PDEBench U-Net",
+      "candidate_id": "pdebench_unet_official_light_v1",
+      "status": "matched_protocol_measured",
+      "readiness_lane": "official architecture adapter",
+      "source_refs": [
+        "pdebench_official_repo",
+        "pdebench_openreview"
+      ],
+      "adapter_entrypoint": "scripts/run_external_pdebench_unet_baseline.py",
+      "validation_command": "python scripts/run_external_pdebench_unet_baseline.py --eval-split val --tasks advection1d burgers1d darcy2d",
+      "evidence_json": "docs/claim_evidence/external_pdebench_unet_val_light_v1_e3_evidence.json",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5394672411385386,
+      "test_metric_value": 0.6095843876848097,
+      "claim_boundary": "Official PDEBench U-Net architecture adapter is measured under the matched light-v1 protocol; published PDEBench baseline tables remain unmapped.",
+      "next_step": "Keep as the non-NeuralOperator official architecture baseline."
+    },
+    {
+      "surface": "CNO1d",
+      "candidate_id": "cno_representative_pde_light_v1",
+      "status": "matched_protocol_measured",
+      "readiness_lane": "official architecture adapter",
+      "source_refs": [
+        "cno_official_repo",
+        "cno_arxiv"
+      ],
+      "adapter_entrypoint": "scripts/run_external_cno_baseline.py",
+      "validation_command": "python scripts/run_external_cno_baseline.py --eval-split val --tasks advection1d burgers1d darcy2d",
+      "evidence_json": "docs/claim_evidence/external_cno1d_val_light_v1_e3_evidence.json",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.40815509179677445,
+      "test_metric_value": 0.5918753212407414,
+      "claim_boundary": "Official simplified CNO1d architecture adapter is measured on the height-1 light-v1 protocol; CNO2d square-grid paper settings remain unmapped.",
+      "next_step": "Keep as a distinct official neural-operator family while preserving the CNO2d caveat."
+    },
+    {
+      "surface": "Poseidon ScOT",
+      "candidate_id": "poseidon_foundation_model_transfer",
+      "status": "validation_stopped",
+      "readiness_lane": "validation-only transfer",
+      "source_refs": [
+        "poseidon_official_repo",
+        "poseidon_arxiv"
+      ],
+      "adapter_entrypoint": "scripts/run_external_poseidon_scot_finetune.py",
+      "validation_command": "python scripts/run_external_poseidon_scot_finetune.py --eval-split val",
+      "evidence_json": "docs/claim_evidence/poseidon_scot_scalar_ft_val_light_v1_e3_lr1e4_clip1_evidence.json",
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.5453508470039229,
+      "test_metric_value": null,
+      "claim_boundary": "Validation-only foundation transfer path stopped before held-out test because scalar-layer finetuning did not clear the validation gate.",
+      "next_step": "Do not spend held-out Poseidon transfer budget from the scalar-only adapter; require controlled-unfreeze or LoRA validation improvement first."
+    },
+    {
+      "surface": "PDEArena",
+      "candidate_id": "pdearena_official_protocol",
+      "status": "planned",
+      "readiness_lane": "official external protocol",
+      "source_refs": [
+        "pdearena_official_repo",
+        "pdearena_docs"
+      ],
+      "adapter_entrypoint": "",
+      "validation_command": "",
+      "evidence_json": "",
+      "metric_name": "",
+      "metric_value": null,
+      "test_metric_value": null,
+      "claim_boundary": "External protocol, not directly comparable to light-v1.",
+      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 showcase remains stable."
+    },
+    {
+      "surface": "PhysicsNeMo",
+      "candidate_id": "physicsnemo_compatibility_gate",
+      "status": "planned",
+      "readiness_lane": "ecosystem compatibility",
+      "source_refs": [
+        "physicsnemo_official_repo",
+        "physicsnemo_docs"
+      ],
+      "adapter_entrypoint": "",
+      "validation_command": "",
+      "evidence_json": "",
+      "metric_name": "",
+      "metric_value": null,
+      "test_metric_value": null,
+      "claim_boundary": "Compatibility surface; no current UPS metric.",
+      "next_step": "Track as a compatibility benchmark and add a PhysicsNeMo recipe adapter before reporting UPS metrics."
     }
   ],
   "selected_reproduction_path": {

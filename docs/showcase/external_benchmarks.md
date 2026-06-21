@@ -18,3 +18,8 @@ credibility targets, but they are not current benchmark claims.
 
 The durable machine-readable version of the current matrix is
 `docs/showcase/generated/external_benchmark_matrix.tsv`.
+
+The official-source adapter and ecosystem-protocol expansion is generated from
+`docs/claim_evidence/external_baseline_mapping.json` as
+`docs/showcase/generated/ecosystem_compatibility_summary.tsv` and
+`docs/showcase/generated/ecosystem_compatibility.png`.

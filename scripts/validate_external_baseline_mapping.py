@@ -756,6 +756,44 @@ def validate_mapping(
     if selected_primary_count != 1:
         errors.append("exactly one baseline candidate must be selected_primary_reproduction_path")
 
+    ecosystem_rows = _as_list(
+        mapping.get("ecosystem_compatibility", []),
+        "ecosystem_compatibility",
+        errors,
+    )
+    ecosystem_ids: set[str] = set()
+    for index, row_value in enumerate(ecosystem_rows):
+        row = _as_mapping(row_value, f"ecosystem_compatibility[{index}]", errors)
+        candidate_id = row.get("candidate_id")
+        label = (
+            f"ecosystem_compatibility[{candidate_id}]"
+            if isinstance(candidate_id, str) and candidate_id
+            else f"ecosystem_compatibility[{index}]"
+        )
+        for key in (
+            "surface",
+            "candidate_id",
+            "status",
+            "readiness_lane",
+            "claim_boundary",
+            "next_step",
+        ):
+            if not row.get(key):
+                errors.append(f"{label}.{key} is required")
+        if isinstance(candidate_id, str) and candidate_id:
+            if candidate_id in ecosystem_ids:
+                errors.append(f"duplicate ecosystem_compatibility candidate_id: {candidate_id}")
+            ecosystem_ids.add(candidate_id)
+        for source_ref in _as_list(row.get("source_refs"), f"{label}.source_refs", errors):
+            if source_ref not in source_ids:
+                errors.append(f"{label} references unknown source_ref: {source_ref}")
+        for metric_key in ("metric_value", "test_metric_value"):
+            metric_value = row.get(metric_key)
+            if metric_value is None:
+                continue
+            if not isinstance(metric_value, (int, float)) or float(metric_value) < 0.0:
+                errors.append(f"{label}.{metric_key} must be a non-negative number when set")
+
     selected_path = _as_mapping(
         mapping.get("selected_reproduction_path"), "selected_reproduction_path", errors
     )
