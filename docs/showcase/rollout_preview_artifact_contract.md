@@ -20,6 +20,10 @@ Required arrays:
   baseline.
 - `time_index`: integer or float frame indices.
 
+Latent debug previews, including `details.preview_predicted` and
+`details.preview_target` arrays from latent evaluation summaries, do not satisfy
+this contract. The public panel is only for decoded physical-space rollouts.
+
 Required shape convention:
 
 ```text

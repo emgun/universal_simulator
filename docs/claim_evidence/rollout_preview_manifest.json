@@ -1,0 +1,14 @@
+{
+  "access_boundary": "validation-only; no held-out test access",
+  "artifact_path": "docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val.npz",
+  "artifact_sha256": "9070ad6b6ee8c5c2042e89013592d19b203bcb2c8754bf7a78d4ff370cf2fc92",
+  "command": "scripts/export_rollout_preview_artifact.py --config configs/train_multitask_heterogeneous_light_best.yaml --checkpoint-source /tmp/ups_rollout_preview_checkpoint/ups_light_shared_context_transport_guarded --run-name ups_light_shared_context_transport_guarded --task advection1d --data-task burgers1d --data-task advection1d --data-task darcy2d --skip-missing-tasks --split val --data-root data/pdebench --max-samples 1 --rollout-steps 16 --device cpu --override 'operator.conditioning.sources={\"task_id\":3,\"equation_signature\":15}' --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override 'evaluation.decoded_context_roll_shift_estimator={candidate_shifts: [-4, -2, -1, 0, 1, 2, 4, 8, 16, 24, 32, 40, 48, 64], context_transitions: 8, coefficients: {slope: 0.9974352988185539, intercept: 0.0}, families: [transport, conservation], mode: roll_persistence, calibration_scope: shared_1d_transport}'",
+  "frame_count": 16,
+  "metric_name": "decoded_rollout_nrmse",
+  "metric_value": 0.6816012256249533,
+  "run_name": "ups_light_shared_context_transport_guarded",
+  "sample_count": 1,
+  "source_summary_json": "docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val_summary.json",
+  "split": "val",
+  "task": "advection1d"
+}

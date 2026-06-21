@@ -72,6 +72,19 @@ def _flatten_field_step(field_step: torch.Tensor, grid_shape: tuple[int, int]) -
     return data
 
 
+def _unflatten_preview_field(flat_field: torch.Tensor, grid_shape: tuple[int, int]) -> torch.Tensor:
+    """Return a preview frame as channel x spatial... from a flattened decoded field."""
+
+    H, W = grid_shape
+    if flat_field.dim() != 3 or flat_field.shape[0] != 1:
+        raise ValueError(f"Expected flattened field shape (1, N, C), got {tuple(flat_field.shape)}")
+    frame = flat_field.detach().cpu().squeeze(0).transpose(0, 1).contiguous()
+    channels = int(frame.shape[0])
+    if H == 1:
+        return frame.view(channels, W)
+    return frame.view(channels, H, W)
+
+
 def _encode_grid_trajectory(
     encoder: Any,
     fields: torch.Tensor,
@@ -901,6 +914,7 @@ def evaluate_decoded_operator(
     *,
     device: str | torch.device = "cpu",
     rollout_steps: int | None = None,
+    preview_sample_count: int = 0,
 ) -> MetricReport:
     """Evaluate decoded physical-space rollout metrics for grid PDEBench tasks.
 
@@ -1000,9 +1014,11 @@ def evaluate_decoded_operator(
         eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
     )
     task_roots = _task_root_map(data_cfg.get("task_roots"), setting="data.task_roots")
+    preview_sample_count = max(int(preview_sample_count), 0)
 
     total_pred = []
     total_target = []
+    preview_records: list[dict[str, Any]] = []
     alpha_stats: dict[str, list[float]] = {}
     shift_stats: dict[str, list[float]] = {}
     horizon_pred: dict[int, list[torch.Tensor]] = {
@@ -1063,6 +1079,9 @@ def evaluate_decoded_operator(
                 fields = sample["fields"].float()
                 params = sample.get("params")
                 bc = sample.get("bc")
+                collect_preview = len(preview_records) < preview_sample_count
+                preview_prediction_frames: list[torch.Tensor] = []
+                preview_target_frames: list[torch.Tensor] = []
                 latent_seq = _encode_grid_trajectory(
                     encoder,
                     fields,
@@ -1336,6 +1355,13 @@ def evaluate_decoded_operator(
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
                     total_target.append(target_field)
+                    if collect_preview:
+                        preview_prediction_frames.append(
+                            _unflatten_preview_field(pred_field, grid_shape)
+                        )
+                        preview_target_frames.append(
+                            _unflatten_preview_field(target_field, grid_shape)
+                        )
                     per_task_pred.setdefault(task_name, []).append(pred_field)
                     per_task_target.setdefault(task_name, []).append(target_field)
                     per_family_pred.setdefault(task_family, []).append(pred_field)
@@ -1363,6 +1389,21 @@ def evaluate_decoded_operator(
                         per_task_step1_target.setdefault(task_name, []).append(target_field)
                         per_family_step1_pred.setdefault(task_family, []).append(pred_field)
                         per_family_step1_target.setdefault(task_family, []).append(target_field)
+                if collect_preview and preview_prediction_frames:
+                    preview_records.append(
+                        {
+                            "task": task_name,
+                            "sample_index": int(idx),
+                            "grid_shape": tuple(int(value) for value in grid_shape),
+                            "prediction": torch.stack(preview_prediction_frames, dim=0),
+                            "target": torch.stack(preview_target_frames, dim=0),
+                            "time_index": torch.arange(
+                                1,
+                                len(preview_prediction_frames) + 1,
+                                dtype=torch.float32,
+                            ),
+                        }
+                    )
 
     if not total_pred:
         raise RuntimeError("Decoded evaluation received no valid rollout steps")
@@ -1438,32 +1479,33 @@ def evaluate_decoded_operator(
     _add_alpha_stats(metrics, alpha_stats)
     _add_alpha_stats(metrics, shift_stats)
     task_extra: str | list[str] = task_names[0] if len(task_names) == 1 else task_names
-    return MetricReport(
-        metrics=metrics,
-        extra={
-            "task": task_extra,
-            "split": data_cfg.get("split", "train"),
-            "decoded_persistence_residual_alpha": residual_alpha,
-            "decoded_persistence_residual_alpha_by_task": residual_alpha_by_task,
-            "decoded_persistence_residual_alpha_by_family": residual_alpha_by_family,
-            "decoded_persistence_residual_alpha_by_horizon": residual_alpha_by_horizon,
-            "decoded_persistence_residual_alpha_by_task_horizon": residual_alpha_by_task_horizon,
-            "decoded_persistence_residual_alpha_by_family_horizon": residual_alpha_by_family_horizon,
-            "decoded_persistence_residual_gate": residual_gate_cfg,
-            "decoded_roll_shift_by_task": roll_shift_by_task,
-            "decoded_roll_shift_by_family": roll_shift_by_family,
-            "decoded_roll_shift_by_task_horizon": roll_shift_by_task_horizon,
-            "decoded_roll_shift_by_family_horizon": roll_shift_by_family_horizon,
-            "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
-            "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
-            "decoded_context_roll_shift_estimator": context_roll_shift_cfg,
-            "decoded_data_conditioned_roll_shift_estimator": data_conditioned_roll_shift_cfg,
-            "report_all_horizon_metrics": report_all_horizon_metrics,
-            "skip_missing_tasks": skip_missing_tasks,
-            "skipped_missing_tasks": skipped_missing_tasks,
-            "task_roots": task_roots,
-        },
-    )
+    extra = {
+        "task": task_extra,
+        "split": data_cfg.get("split", "train"),
+        "decoded_persistence_residual_alpha": residual_alpha,
+        "decoded_persistence_residual_alpha_by_task": residual_alpha_by_task,
+        "decoded_persistence_residual_alpha_by_family": residual_alpha_by_family,
+        "decoded_persistence_residual_alpha_by_horizon": residual_alpha_by_horizon,
+        "decoded_persistence_residual_alpha_by_task_horizon": residual_alpha_by_task_horizon,
+        "decoded_persistence_residual_alpha_by_family_horizon": residual_alpha_by_family_horizon,
+        "decoded_persistence_residual_gate": residual_gate_cfg,
+        "decoded_roll_shift_by_task": roll_shift_by_task,
+        "decoded_roll_shift_by_family": roll_shift_by_family,
+        "decoded_roll_shift_by_task_horizon": roll_shift_by_task_horizon,
+        "decoded_roll_shift_by_family_horizon": roll_shift_by_family_horizon,
+        "decoded_observed_roll_shift_estimator": observed_roll_shift_cfg,
+        "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
+        "decoded_context_roll_shift_estimator": context_roll_shift_cfg,
+        "decoded_data_conditioned_roll_shift_estimator": data_conditioned_roll_shift_cfg,
+        "report_all_horizon_metrics": report_all_horizon_metrics,
+        "skip_missing_tasks": skip_missing_tasks,
+        "skipped_missing_tasks": skipped_missing_tasks,
+        "task_roots": task_roots,
+    }
+    if preview_records:
+        extra["rollout_preview"] = preview_records
+
+    return MetricReport(metrics=metrics, extra=extra)
 
 
 def evaluate_latent_model(
