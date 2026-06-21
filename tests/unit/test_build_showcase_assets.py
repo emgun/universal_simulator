@@ -354,6 +354,20 @@ def test_build_rollout_preview_status_rows_excludes_ignored_local_preview():
     assert "not public evidence" in by_key["ignored_local_preview"]["claim_boundary"]
 
 
+def test_build_rollout_preview_status_rows_default_ignores_checkout_local_preview(
+    tmp_path, monkeypatch
+):
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "evaluation_preview.npz").write_bytes(b"ignored local preview")
+    monkeypatch.chdir(tmp_path)
+
+    rows = build_rollout_preview_status_rows()
+    by_key = {row["key"]: row for row in rows}
+
+    assert by_key["ignored_local_preview"]["status"] == "absent"
+
+
 def test_build_rows_are_json_serializable():
     claim_evidence, external_mapping, durable_scorecard = _fixture_payloads()
     external_rows = build_external_matrix_rows(external_mapping)
