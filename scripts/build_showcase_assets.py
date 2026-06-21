@@ -1020,7 +1020,7 @@ def build_rollout_preview_status_rows(
 ) -> list[dict[str, Any]]:
     """Build rollout-preview status rows without treating ignored reports as evidence."""
     if local_preview_exists is None:
-        local_preview_exists = Path("reports/evaluation_preview.npz").exists()
+        local_preview_exists = False
     ignored_status = "excluded" if local_preview_exists else "absent"
     return [
         {
