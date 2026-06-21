@@ -1082,7 +1082,12 @@ def build_benchmark_readiness_rows(
     for row in external_rows:
         surface = str(row.get("surface", ""))
         status = str(row.get("status", ""))
-        readiness = "measured" if status == "measured" else "planned"
+        if status == "measured":
+            readiness = "measured"
+        elif status == "smoke_ready":
+            readiness = "smoke_ready"
+        else:
+            readiness = "planned"
         rows.append(
             {
                 "surface": surface,
@@ -1325,11 +1330,14 @@ def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict
             and item.get("test_metric_value") is not None
         )
         metric_value = item.get("test_metric_value") if measured else item.get("metric_value")
+        status = "measured" if measured else "future_or_partial"
+        if str(item["status"]) == "compatibility_smoke_ready":
+            status = "smoke_ready"
         rows.append(
             {
                 "surface": str(item["surface"]),
                 "candidate_id": candidate_id,
-                "status": "measured" if measured else "future_or_partial",
+                "status": status,
                 "model_family": str(item.get("readiness_lane", "")),
                 "source_refs": str(item["source_refs"]),
                 "metric_name": str(item["metric_name"] if metric_value is not None else ""),
@@ -1686,6 +1694,8 @@ def render_ecosystem_compatibility(rows: Sequence[Mapping[str, Any]], path: str 
             boundary = "Matched light-v1 adapter; published tables unmapped."
         elif status == "validation_stopped":
             boundary = "Validation-only transfer; no held-out test."
+        elif status == "compatibility_smoke_ready":
+            boundary = "Recipe smoke ready; no UPS metric yet."
         elif str(row.get("readiness_lane")) == "official external protocol":
             boundary = "Planned external protocol; not light-v1 comparable."
         elif str(row.get("readiness_lane")) == "ecosystem compatibility":

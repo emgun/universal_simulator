@@ -793,6 +793,22 @@ def validate_mapping(
                 continue
             if not isinstance(metric_value, (int, float)) or float(metric_value) < 0.0:
                 errors.append(f"{label}.{metric_key} must be a non-negative number when set")
+        if row.get("status") == "compatibility_smoke_ready":
+            if (
+                row.get("metric_name")
+                or row.get("metric_value") is not None
+                or row.get("test_metric_value") is not None
+            ):
+                errors.append(
+                    f"{label} compatibility smoke must not set metric_name, "
+                    "metric_value, or test_metric_value"
+                )
+            if not row.get("adapter_entrypoint"):
+                errors.append(f"{label}.adapter_entrypoint is required for compatibility smoke")
+            if not row.get("validation_command"):
+                errors.append(f"{label}.validation_command is required for compatibility smoke")
+            if not row.get("evidence_json"):
+                errors.append(f"{label}.evidence_json is required for compatibility smoke")
 
     selected_path = _as_mapping(
         mapping.get("selected_reproduction_path"), "selected_reproduction_path", errors

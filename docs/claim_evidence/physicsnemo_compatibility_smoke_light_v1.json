@@ -1,0 +1,92 @@
+{
+  "claim_comparable": false,
+  "details": {
+    "claim_boundary": "Compatibility smoke only; no model training, no PhysicsNeMo metric, and no held-out test access.",
+    "package": {
+      "declared_python_requires": ">=3.11,<=3.14",
+      "docs_url": "https://docs.nvidia.com/physicsnemo/latest/",
+      "import_name": "physicsnemo",
+      "install_url": "https://docs.nvidia.com/physicsnemo/latest/getting-started/installation.html",
+      "live_import_requested": false,
+      "live_import_required": false,
+      "live_import_status": "not_requested",
+      "module_spec_checked": false,
+      "pip_name": "nvidia-physicsnemo",
+      "source_url": "https://github.com/NVIDIA/physicsnemo"
+    },
+    "recipe_contract": {
+      "candidate_recipe": {
+        "examples_catalog_url": "https://docs.nvidia.com/physicsnemo/latest/examples_catalog.html",
+        "first_target": "PhysicsNeMo data-driven neural-operator recipe adapted to light-v1 train/validation tensors",
+        "why_first": "Recipe compatibility proves framework interop before reporting a framework metric."
+      },
+      "data_interface": {
+        "candidate_adapter": "repo PDEBench tensors to a PhysicsNeMo data-driven recipe/datapipe",
+        "expected_shard_pattern": "{task}_{split}.h5",
+        "held_out_test_data_read": false,
+        "source": "repo light-v1 PDEBench-shaped HDF5 shards"
+      },
+      "held_out_test_policy": "No test split or held-out ledger write in this smoke gate.",
+      "inspected_splits": [
+        "train",
+        "val"
+      ],
+      "live_metric_allowed": false,
+      "model_training_performed": false,
+      "next_gate": "Run a live PhysicsNeMo recipe adapter on train/val in a Python 3.11+ or PhysicsNeMo container environment, record validation-only provenance, then decide whether any held-out test budget is justified.",
+      "scope": "dry ecosystem compatibility recipe manifest",
+      "tasks": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ]
+    }
+  },
+  "evidence_json": "docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json",
+  "extra": {
+    "baseline": "external_physicsnemo_compatibility",
+    "command": [
+      "python",
+      "scripts/run_physicsnemo_compatibility_smoke.py",
+      "--name",
+      "physicsnemo_compatibility_smoke_light_v1",
+      "--output-root",
+      "reports/research/sota_loop/external_baselines",
+      "--evidence-json",
+      "docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json",
+      "--train-split",
+      "train",
+      "--eval-split",
+      "val",
+      "--tasks",
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "docs_url": "https://docs.nvidia.com/physicsnemo/latest/",
+    "examples_catalog_url": "https://docs.nvidia.com/physicsnemo/latest/examples_catalog.html",
+    "implementation": "physicsnemo",
+    "source_url": "https://github.com/NVIDIA/physicsnemo"
+  },
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "inspected_splits": [
+    "train",
+    "val"
+  ],
+  "measurement_type": "physicsnemo_compatibility_smoke",
+  "metrics": {},
+  "published_numbers_directly_comparable": false,
+  "run_name": "physicsnemo_compatibility_smoke_light_v1",
+  "schema_version": 1,
+  "source_refs": [
+    "physicsnemo_official_repo",
+    "physicsnemo_docs"
+  ],
+  "split": "val",
+  "stages": [
+    "external_physicsnemo_compatibility_smoke"
+  ],
+  "status": "compatibility_smoke_ready",
+  "summary_json": "reports/research/sota_loop/external_baselines/physicsnemo_compatibility_smoke_light_v1/summary.json"
+}

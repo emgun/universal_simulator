@@ -189,8 +189,11 @@ the showcase readiness card. It is separate from the numeric claim table:
   validation gate.
 - PDEArena is tracked as a future official external protocol, not as a direct
   `light-v1` claim comparison.
-- NVIDIA PhysicsNeMo is tracked as an ecosystem compatibility gate. It should
-  get a recipe adapter before any UPS metric is reported.
+- NVIDIA PhysicsNeMo has a dry recipe-compatibility smoke manifest at
+  `docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json`. It
+  records the package/docs/source links, light-v1 train/validation task
+  interface, and no-test/no-metric boundary without requiring a local
+  PhysicsNeMo install.
 
 The generated `docs/showcase/generated/ecosystem_compatibility_summary.tsv` and
 `ecosystem_compatibility.png` are derived from this evidence section. This keeps
@@ -210,3 +213,6 @@ protocols remain unmapped. The scalar-only Poseidon finetune gate is now
 measured and stopped on validation, so broader public-baseline claims need either
 a stronger train/validation-only foundation adapter or UPS-side validation
 improvement before any new held-out transfer measurement.
+For PhysicsNeMo, the next gate is deliberately narrower: run a live recipe
+adapter on train/validation in a Python 3.11+ or PhysicsNeMo container
+environment and record provenance before reporting any UPS metric.

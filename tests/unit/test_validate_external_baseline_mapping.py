@@ -113,6 +113,34 @@ def test_external_baseline_mapping_rejects_unknown_ecosystem_source_reference():
     )
 
 
+def test_external_baseline_mapping_rejects_physicsnemo_smoke_metric_overclaim():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    physicsnemo = next(
+        row
+        for row in mutated["ecosystem_compatibility"]
+        if row["candidate_id"] == "physicsnemo_compatibility_gate"
+    )
+    physicsnemo["status"] = "compatibility_smoke_ready"
+    physicsnemo["metric_name"] = "decoded_rollout_nrmse"
+    physicsnemo["metric_value"] = 0.1
+    physicsnemo["evidence_json"] = (
+        "docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json"
+    )
+    physicsnemo["adapter_entrypoint"] = "scripts/run_physicsnemo_compatibility_smoke.py"
+    physicsnemo["validation_command"] = (
+        "python scripts/run_physicsnemo_compatibility_smoke.py --check"
+    )
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert (
+        "ecosystem_compatibility[physicsnemo_compatibility_gate] compatibility smoke "
+        "must not set metric_name, metric_value, or test_metric_value"
+    ) in errors
+
+
 def test_external_baseline_mapping_rejects_published_number_overclaim():
     mapping = _load(MAPPING_PATH)
     claim_evidence = _load(CLAIM_EVIDENCE_PATH)

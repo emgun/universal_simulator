@@ -152,17 +152,17 @@ def _fixture_payloads():
         {
             "surface": "PhysicsNeMo",
             "candidate_id": "physicsnemo_compatibility_gate",
-            "status": "planned",
+            "status": "compatibility_smoke_ready",
             "readiness_lane": "ecosystem compatibility",
             "source_refs": ["physicsnemo_official_repo"],
-            "adapter_entrypoint": "",
-            "validation_command": "",
-            "evidence_json": "",
+            "adapter_entrypoint": "scripts/run_physicsnemo_compatibility_smoke.py",
+            "validation_command": "python scripts/run_physicsnemo_compatibility_smoke.py --check",
+            "evidence_json": "docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json",
             "metric_name": "",
             "metric_value": None,
             "test_metric_value": None,
-            "claim_boundary": "Compatibility surface; no current UPS metric.",
-            "next_step": "Add a recipe adapter before reporting metrics.",
+            "claim_boundary": "Compatibility smoke manifest only; no current UPS metric.",
+            "next_step": "Run a live recipe adapter before reporting metrics.",
         },
     ]
     return claim_evidence, external_mapping, durable_scorecard
@@ -324,10 +324,11 @@ def test_build_external_matrix_rows_keeps_future_surfaces_separate():
     assert by_surface["FNO"]["claim_boundary"] == "Matched light-v1 repo protocol"
     assert by_surface["Poseidon"]["status"] == "future_or_partial"
     assert "Validation-only transfer path" in by_surface["Poseidon"]["next_step"]
+    assert by_surface["PhysicsNeMo"]["status"] == "smoke_ready"
     assert by_surface["PhysicsNeMo"]["source_refs"] == "physicsnemo_official_repo"
     assert (
         by_surface["PhysicsNeMo"]["claim_boundary"]
-        == "Compatibility surface; no current UPS metric."
+        == "Compatibility smoke manifest only; no current UPS metric."
     )
 
 
@@ -341,7 +342,7 @@ def test_build_ecosystem_compatibility_rows_are_evidence_driven():
     assert by_surface["PDEBench U-Net"]["metric_value"] == 0.53
     assert by_surface["PDEBench U-Net"]["test_metric_value"] == 0.7
     assert by_surface["PDEBench U-Net"]["readiness_lane"] == "official architecture adapter"
-    assert by_surface["PhysicsNeMo"]["status"] == "planned"
+    assert by_surface["PhysicsNeMo"]["status"] == "compatibility_smoke_ready"
     assert by_surface["PhysicsNeMo"]["readiness_lane"] == "ecosystem compatibility"
 
 
@@ -385,7 +386,7 @@ def test_build_benchmark_readiness_rows_splits_measured_protocols_and_ecosystem(
             },
             {
                 "surface": "PhysicsNeMo",
-                "status": "future_or_partial",
+                "status": "smoke_ready",
                 "metric_value": None,
                 "next_step": "Track compatibility.",
                 "claim_boundary": "Compatibility surface; no current UPS metric.",
@@ -398,6 +399,7 @@ def test_build_benchmark_readiness_rows_splits_measured_protocols_and_ecosystem(
     assert by_surface["FNO"]["readiness"] == "measured"
     assert by_surface["PDEArena"]["readiness_lane"] == "official external protocol"
     assert by_surface["PhysicsNeMo"]["readiness_lane"] == "ecosystem compatibility"
+    assert by_surface["PhysicsNeMo"]["readiness"] == "smoke_ready"
 
 
 def test_build_rollout_preview_status_rows_excludes_ignored_local_preview():
