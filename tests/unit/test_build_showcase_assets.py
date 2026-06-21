@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import tarfile
 
+import numpy as np
+
 from scripts.build_showcase_assets import (
     build_benchmark_readiness_rows,
     build_benchmark_rows,
@@ -11,6 +13,7 @@ from scripts.build_showcase_assets import (
     build_metric_suite_rows,
     build_reproducibility_card_rows,
     build_rollout_preview_status_rows,
+    build_showcase,
     build_task_rows,
     build_transfer_rows,
     build_transport_ablation_rows,
@@ -366,6 +369,128 @@ def test_build_rollout_preview_status_rows_default_ignores_checkout_local_previe
     by_key = {row["key"]: row for row in rows}
 
     assert by_key["ignored_local_preview"]["status"] == "absent"
+
+
+def _write_rollout_preview_fixture(tmp_path):
+    artifact_path = tmp_path / "docs/claim_evidence/artifacts/rollout_preview_ups_primary.npz"
+    artifact_path.parent.mkdir(parents=True)
+    target = np.linspace(0.0, 1.0, 16, dtype=np.float32).reshape(1, 2, 1, 8)
+    prediction = target + np.float32(0.05)
+    baseline = np.zeros_like(target)
+    time_index = np.asarray([1, 16], dtype=np.int64)
+    np.savez_compressed(
+        artifact_path,
+        target=target,
+        prediction=prediction,
+        baseline=baseline,
+        time_index=time_index,
+    )
+
+    manifest_path = tmp_path / "docs/claim_evidence/rollout_preview_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "command": "python scripts/run_light_experiment.py --name ups_primary",
+                "run_name": "ups_primary",
+                "split": "test",
+                "metric_name": "decoded_rollout_nrmse",
+                "metric_value": 0.4,
+                "task": "advection1d",
+                "sample_count": 1,
+                "frame_count": 2,
+                "source_summary_json": "reports/example/summary_test.json",
+                "artifact_path": str(artifact_path.relative_to(tmp_path)),
+                "artifact_sha256": sha256_file(artifact_path),
+                "access_boundary": "validation-only fixture",
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    return manifest_path, artifact_path
+
+
+def test_build_rollout_preview_status_rows_marks_valid_manifest_available(tmp_path):
+    manifest_path, artifact_path = _write_rollout_preview_fixture(tmp_path)
+
+    rows = build_rollout_preview_status_rows(
+        preview_manifest_path=manifest_path,
+        artifact_root=tmp_path,
+    )
+    by_key = {row["key"]: row for row in rows}
+
+    assert by_key["claim_linked_preview_artifact"]["status"] == "available"
+    assert (
+        str(artifact_path.relative_to(tmp_path))
+        in by_key["claim_linked_preview_artifact"]["next_step"]
+    )
+    assert "validation-only fixture" in by_key["claim_linked_preview_artifact"]["claim_boundary"]
+
+
+def test_build_showcase_renders_rollout_preview_panel_when_manifest_exists(tmp_path):
+    claim_evidence, external_mapping, durable_scorecard = _fixture_payloads()
+    manifest_path, _ = _write_rollout_preview_fixture(tmp_path)
+    claim_path = tmp_path / "claim.json"
+    external_path = tmp_path / "external.json"
+    scorecard_path = tmp_path / "scorecard.json"
+    transport_path = tmp_path / "transport.json"
+    transfer_path = tmp_path / "transfer.json"
+    claim_path.write_text(json.dumps(claim_evidence), encoding="utf-8")
+    external_path.write_text(json.dumps(external_mapping), encoding="utf-8")
+    scorecard_path.write_text(json.dumps(durable_scorecard), encoding="utf-8")
+    transport_path.write_text(
+        json.dumps(
+            {
+                "variants": {
+                    "full_context_shift": {
+                        "metrics": {"validation_nrmse": 0.1},
+                        "context_transitions": 1,
+                        "candidate_shift_min": -4,
+                        "candidate_shift_max": 4,
+                        "held_out_test_used": False,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    transfer_path.write_text(
+        json.dumps(
+            {
+                "tasks": {
+                    "advection1d": {
+                        "status": "validated",
+                        "validation_nrmse": 0.2,
+                        "train_nrmse": 0.1,
+                        "test_touched": False,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output_paths = build_showcase(
+        claim_evidence_path=claim_path,
+        external_mapping_path=external_path,
+        durable_scorecard_path=scorecard_path,
+        transport_ablation_path=transport_path,
+        transfer_scorecard_path=transfer_path,
+        rollout_preview_manifest_path=manifest_path,
+        output_dir=tmp_path / "generated",
+        artifact_root=tmp_path,
+    )
+    by_name = {path.name: path for path in output_paths}
+
+    assert by_name["rollout_preview_panel.png"].stat().st_size > 0
+    assert (
+        by_name["rollout_preview_summary.tsv"]
+        .read_text(encoding="utf-8")
+        .splitlines()[1]
+        .startswith("ups_primary\t")
+    )
 
 
 def test_build_rows_are_json_serializable():

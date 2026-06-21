@@ -70,6 +70,9 @@ future model/recipe surfaces.
 
 Qualitative rollout panels remain gated on a compact claim-linked preview
 artifact. Ignored local `reports/` files are not used as public evidence.
+When `docs/claim_evidence/rollout_preview_manifest.json` exists and validates,
+the generator also writes a qualitative `generated/rollout_preview_panel.png`
+and `generated/rollout_preview_summary.tsv`.
 
 ## Generated Tables
 
@@ -89,6 +92,8 @@ artifact. Ignored local `reports/` files are not used as public evidence.
   official external protocols, and ecosystem compatibility surfaces.
 - `generated/rollout_preview_status.tsv`: current status of qualitative rollout
   preview evidence.
+- `generated/rollout_preview_summary.tsv`: conditional metadata table for a
+  validated qualitative rollout preview artifact.
 - `generated/external_benchmark_matrix.tsv`: measured and future external
   benchmark surfaces.
 - `generated/benchmark_summary.json`: machine-readable bundle containing all
@@ -115,6 +120,8 @@ The generator reads:
 - `docs/claim_evidence/universal_sota_claim_evidence.json`
 - `docs/claim_evidence/external_baseline_mapping.json`
 - `docs/claim_evidence/artifacts/light_v1_demo_scorecard.json`
+- `docs/claim_evidence/rollout_preview_manifest.json` when a claim-linked
+  preview artifact has been committed.
 
 No GPU, dataset hydration, or remote credentials are required. If any claim
 evidence changes, regenerate these assets in the same change so the public

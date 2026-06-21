@@ -31,7 +31,13 @@ examples, not a hidden dataset.
 
 ## Required Manifest
 
-A JSON evidence manifest should live beside the numeric evidence and record:
+A JSON evidence manifest should live beside the numeric evidence:
+
+```text
+docs/claim_evidence/rollout_preview_manifest.json
+```
+
+It should record:
 
 - command;
 - run name;
@@ -45,6 +51,15 @@ A JSON evidence manifest should live beside the numeric evidence and record:
 - artifact SHA-256;
 - statement that held-out access was authorized or that the artifact is
   validation-only.
+
+When this manifest exists, `python scripts/build_showcase_assets.py` validates
+the artifact hash and required arrays. It then writes:
+
+- `generated/rollout_preview_summary.tsv`
+- `generated/rollout_preview_panel.png`
+
+If the manifest is missing, the public showcase remains in the current gated
+status and no qualitative panel is rendered.
 
 ## Current Status
 

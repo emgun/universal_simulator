@@ -26,6 +26,7 @@ DEFAULT_TRANSPORT_ABLATION = Path(
 DEFAULT_TRANSFER_SCORECARD = Path(
     "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json"
 )
+DEFAULT_ROLLOUT_PREVIEW_MANIFEST = Path("docs/claim_evidence/rollout_preview_manifest.json")
 DEFAULT_OUTPUT_DIR = Path("docs/showcase/generated")
 
 TASK_METRICS = {
@@ -195,6 +196,21 @@ ROLLOUT_PREVIEW_FIELDS = (
     "claim_boundary",
 )
 
+ROLLOUT_PREVIEW_SUMMARY_FIELDS = (
+    "run_name",
+    "split",
+    "task",
+    "metric_name",
+    "metric_value",
+    "sample_count",
+    "frame_count",
+    "source_summary_json",
+    "artifact_path",
+    "artifact_sha256",
+    "access_boundary",
+    "claim_boundary",
+)
+
 
 def load_json(path: str | Path) -> dict[str, Any]:
     with Path(path).open("r", encoding="utf-8") as handle:
@@ -210,6 +226,13 @@ def sha256_file(path: str | Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _resolve_artifact_path(artifact_root: Path, artifact_path: str | Path) -> Path:
+    path = Path(artifact_path)
+    if path.is_absolute():
+        return path
+    return artifact_root / path
 
 
 def write_json(payload: Mapping[str, Any], path: str | Path) -> None:
@@ -1014,24 +1037,138 @@ def build_benchmark_readiness_rows(
     return rows
 
 
+def load_rollout_preview_manifest(
+    preview_manifest_path: Path | None,
+    *,
+    artifact_root: Path = Path("."),
+) -> dict[str, Any] | None:
+    """Load and validate an optional claim-linked rollout preview manifest."""
+    if preview_manifest_path is None or not preview_manifest_path.exists():
+        return None
+    manifest = load_json(preview_manifest_path)
+    required = {
+        "command",
+        "run_name",
+        "split",
+        "metric_name",
+        "metric_value",
+        "task",
+        "sample_count",
+        "frame_count",
+        "source_summary_json",
+        "artifact_path",
+        "artifact_sha256",
+        "access_boundary",
+    }
+    missing = sorted(required - manifest.keys())
+    if missing:
+        raise ValueError(f"{preview_manifest_path} missing required keys: {', '.join(missing)}")
+
+    artifact_path = _resolve_artifact_path(artifact_root, str(manifest["artifact_path"]))
+    if not artifact_path.exists():
+        raise FileNotFoundError(f"rollout preview artifact not found: {artifact_path}")
+    actual_sha = sha256_file(artifact_path)
+    expected_sha = str(manifest["artifact_sha256"])
+    if actual_sha != expected_sha:
+        raise ValueError(
+            f"rollout preview artifact hash mismatch for {artifact_path}: "
+            f"{actual_sha} != {expected_sha}"
+        )
+
+    import numpy as np
+
+    with np.load(artifact_path) as preview:
+        files = set(preview.files)
+        for key in ("target", "prediction", "time_index"):
+            if key not in files:
+                raise ValueError(f"{artifact_path} missing required array: {key}")
+        target = preview["target"]
+        prediction = preview["prediction"]
+        time_index = preview["time_index"]
+        if target.shape != prediction.shape:
+            raise ValueError(
+                f"{artifact_path} target/prediction shape mismatch: "
+                f"{target.shape} vs {prediction.shape}"
+            )
+        if target.ndim < 4:
+            raise ValueError(
+                f"{artifact_path} arrays must follow sample x time x channel x spatial... shape"
+            )
+        if int(manifest["sample_count"]) != int(target.shape[0]):
+            raise ValueError(f"{artifact_path} sample_count does not match target shape")
+        if int(manifest["frame_count"]) != int(target.shape[1]):
+            raise ValueError(f"{artifact_path} frame_count does not match target shape")
+        if len(time_index) != int(target.shape[1]):
+            raise ValueError(f"{artifact_path} time_index length does not match frame count")
+        if "baseline" in files and preview["baseline"].shape != target.shape:
+            raise ValueError(f"{artifact_path} baseline shape does not match target shape")
+
+    return manifest
+
+
+def build_rollout_preview_summary_rows(
+    rollout_preview_manifest: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if rollout_preview_manifest is None:
+        return []
+    access_boundary = str(rollout_preview_manifest["access_boundary"])
+    return [
+        {
+            "run_name": str(rollout_preview_manifest["run_name"]),
+            "split": str(rollout_preview_manifest["split"]),
+            "task": str(rollout_preview_manifest["task"]),
+            "metric_name": str(rollout_preview_manifest["metric_name"]),
+            "metric_value": _as_float(rollout_preview_manifest["metric_value"]),
+            "sample_count": int(rollout_preview_manifest["sample_count"]),
+            "frame_count": int(rollout_preview_manifest["frame_count"]),
+            "source_summary_json": str(rollout_preview_manifest["source_summary_json"]),
+            "artifact_path": str(rollout_preview_manifest["artifact_path"]),
+            "artifact_sha256": str(rollout_preview_manifest["artifact_sha256"]),
+            "access_boundary": access_boundary,
+            "claim_boundary": (
+                f"{access_boundary}; qualitative preview only, numeric claims remain source-of-truth"
+            ),
+        }
+    ]
+
+
 def build_rollout_preview_status_rows(
     *,
     local_preview_exists: bool | None = None,
+    preview_manifest_path: Path | None = None,
+    artifact_root: Path = Path("."),
 ) -> list[dict[str, Any]]:
     """Build rollout-preview status rows without treating ignored reports as evidence."""
     if local_preview_exists is None:
         local_preview_exists = False
     ignored_status = "excluded" if local_preview_exists else "absent"
+    rollout_preview_manifest = load_rollout_preview_manifest(
+        preview_manifest_path,
+        artifact_root=artifact_root,
+    )
+    if rollout_preview_manifest is None:
+        artifact_status = "missing"
+        artifact_next_step = (
+            "Add a compact prediction/target preview artifact with command, split, "
+            "metric, and SHA-256 before rendering qualitative rollout panels."
+        )
+        artifact_boundary = "No qualitative rollout panel is currently claim-linked."
+    else:
+        artifact_status = "available"
+        artifact_next_step = (
+            f"Render generated/rollout_preview_panel.png from "
+            f"{rollout_preview_manifest['artifact_path']}."
+        )
+        artifact_boundary = (
+            f"{rollout_preview_manifest['access_boundary']}; qualitative preview only."
+        )
     return [
         {
             "key": "claim_linked_preview_artifact",
             "label": "Claim-linked preview artifact",
-            "status": "missing",
-            "next_step": (
-                "Add a compact prediction/target preview artifact with command, split, "
-                "metric, and SHA-256 before rendering qualitative rollout panels."
-            ),
-            "claim_boundary": "No qualitative rollout panel is currently claim-linked.",
+            "status": artifact_status,
+            "next_step": artifact_next_step,
+            "claim_boundary": artifact_boundary,
         },
         {
             "key": "ignored_local_preview",
@@ -1487,6 +1624,84 @@ def render_rollout_preview_status(rows: Sequence[Mapping[str, Any]], path: str |
     )
 
 
+def _preview_frame_for_display(array: Any) -> Any:
+    import numpy as np
+
+    frame = np.asarray(array[0, -1, 0], dtype=float)
+    if frame.ndim == 1:
+        return frame.reshape(1, -1)
+    if frame.ndim == 2:
+        return frame
+    return frame.reshape(frame.shape[0], -1)
+
+
+def render_rollout_preview_panel(
+    rollout_preview_manifest: Mapping[str, Any],
+    path: str | Path,
+    *,
+    artifact_root: Path = Path("."),
+) -> None:
+    """Render a qualitative target/prediction/error panel from a validated preview artifact."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    artifact_path = _resolve_artifact_path(
+        artifact_root,
+        str(rollout_preview_manifest["artifact_path"]),
+    )
+    with np.load(artifact_path) as preview:
+        target = preview["target"]
+        prediction = preview["prediction"]
+        baseline = preview["baseline"] if "baseline" in preview.files else None
+        time_index = preview["time_index"]
+
+    target_frame = _preview_frame_for_display(target)
+    prediction_frame = _preview_frame_for_display(prediction)
+    error_frame = prediction_frame - target_frame
+    panels: list[tuple[str, Any, str]] = [
+        (f"Target t={time_index[-1]}", target_frame, "viridis"),
+        ("UPS prediction", prediction_frame, "viridis"),
+        ("Prediction error", error_frame, "coolwarm"),
+    ]
+    if baseline is not None:
+        panels.insert(2, ("Baseline", _preview_frame_for_display(baseline), "viridis"))
+
+    comparable = np.concatenate(
+        [np.asarray(panel[1]).reshape(-1) for panel in panels if panel[2] == "viridis"]
+    )
+    value_min = float(np.nanmin(comparable))
+    value_max = float(np.nanmax(comparable))
+    error_max = float(max(abs(np.nanmin(error_frame)), abs(np.nanmax(error_frame)), 1e-12))
+
+    width = 3.7 * len(panels)
+    fig, axes = plt.subplots(1, len(panels), figsize=(width, 3.6), constrained_layout=True)
+    if len(panels) == 1:
+        axes = [axes]
+    fig.suptitle(
+        (
+            f"{rollout_preview_manifest['run_name']} | {rollout_preview_manifest['task']} | "
+            f"{rollout_preview_manifest['split']} | "
+            f"{rollout_preview_manifest['metric_name']}="
+            f"{float(rollout_preview_manifest['metric_value']):.4g}"
+        ),
+        fontsize=12,
+        fontweight="bold",
+    )
+    for ax, (title, data, cmap) in zip(axes, panels, strict=True):
+        if cmap == "coolwarm":
+            image = ax.imshow(data, aspect="auto", cmap=cmap, vmin=-error_max, vmax=error_max)
+        else:
+            image = ax.imshow(data, aspect="auto", cmap=cmap, vmin=value_min, vmax=value_max)
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel("space")
+        ax.set_yticks([])
+        fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=180)
+    plt.close(fig)
+
+
 def build_repeatability_manifest(
     *,
     input_paths: Sequence[Path],
@@ -1523,6 +1738,7 @@ def build_showcase(
     durable_scorecard_path: Path,
     transport_ablation_path: Path,
     transfer_scorecard_path: Path,
+    rollout_preview_manifest_path: Path | None = DEFAULT_ROLLOUT_PREVIEW_MANIFEST,
     output_dir: Path,
     artifact_root: Path = Path("."),
 ) -> list[Path]:
@@ -1531,6 +1747,10 @@ def build_showcase(
     durable_scorecard = load_json(durable_scorecard_path)
     transport_ablation = load_json(transport_ablation_path)
     transfer_scorecard = load_json(transfer_scorecard_path)
+    rollout_preview_manifest = load_rollout_preview_manifest(
+        rollout_preview_manifest_path,
+        artifact_root=artifact_root,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     benchmark_rows = build_benchmark_rows(claim_evidence, external_mapping, durable_scorecard)
@@ -1573,6 +1793,13 @@ def build_showcase(
         output_dir / "rollout_preview_status.png",
         output_dir / "external_benchmarks.png",
     ]
+    if rollout_preview_manifest is not None:
+        paths.extend(
+            [
+                output_dir / "rollout_preview_summary.tsv",
+                output_dir / "rollout_preview_panel.png",
+            ]
+        )
     source_paths = [
         claim_evidence_path,
         external_mapping_path,
@@ -1580,13 +1807,23 @@ def build_showcase(
         transport_ablation_path,
         transfer_scorecard_path,
     ]
+    if rollout_preview_manifest is not None:
+        if rollout_preview_manifest_path is not None:
+            source_paths.append(rollout_preview_manifest_path)
+        source_paths.append(
+            _resolve_artifact_path(artifact_root, str(rollout_preview_manifest["artifact_path"]))
+        )
     reproducibility_rows = build_reproducibility_card_rows(
         claim_evidence,
         durable_scorecard,
         source_paths=source_paths,
         generated_output_count=len(paths) + 1,
     )
-    rollout_preview_rows = build_rollout_preview_status_rows()
+    rollout_preview_rows = build_rollout_preview_status_rows(
+        preview_manifest_path=rollout_preview_manifest_path,
+        artifact_root=artifact_root,
+    )
+    rollout_preview_summary_rows = build_rollout_preview_summary_rows(rollout_preview_manifest)
     write_json(
         {
             "source_files": {
@@ -1605,6 +1842,7 @@ def build_showcase(
             "reproducibility_rows": reproducibility_rows,
             "benchmark_readiness_rows": benchmark_readiness_rows,
             "rollout_preview_status_rows": rollout_preview_rows,
+            "rollout_preview_summary_rows": rollout_preview_summary_rows,
             "external_matrix_rows": external_rows,
         },
         paths[0],
@@ -1629,6 +1867,13 @@ def build_showcase(
     render_benchmark_readiness(benchmark_readiness_rows, paths[18])
     render_rollout_preview_status(rollout_preview_rows, paths[19])
     render_external_benchmarks(external_rows, paths[20])
+    if rollout_preview_manifest is not None:
+        write_tsv(rollout_preview_summary_rows, paths[21], ROLLOUT_PREVIEW_SUMMARY_FIELDS)
+        render_rollout_preview_panel(
+            rollout_preview_manifest,
+            paths[22],
+            artifact_root=artifact_root,
+        )
 
     manifest_path = output_dir / "showcase_manifest.json"
     write_json(
@@ -1649,6 +1894,7 @@ def check_showcase_assets(
     durable_scorecard_path: Path,
     transport_ablation_path: Path,
     transfer_scorecard_path: Path,
+    rollout_preview_manifest_path: Path | None,
     output_dir: Path,
     artifact_root: Path = Path("."),
 ) -> bool:
@@ -1659,6 +1905,7 @@ def check_showcase_assets(
             durable_scorecard_path=durable_scorecard_path,
             transport_ablation_path=transport_ablation_path,
             transfer_scorecard_path=transfer_scorecard_path,
+            rollout_preview_manifest_path=rollout_preview_manifest_path,
             output_dir=Path(tmpdir),
             artifact_root=artifact_root,
         )
@@ -1684,6 +1931,15 @@ def main() -> None:
     parser.add_argument("--durable-scorecard", type=Path, default=DEFAULT_DURABLE_SCORECARD)
     parser.add_argument("--transport-ablation", type=Path, default=DEFAULT_TRANSPORT_ABLATION)
     parser.add_argument("--transfer-scorecard", type=Path, default=DEFAULT_TRANSFER_SCORECARD)
+    parser.add_argument(
+        "--rollout-preview-manifest",
+        type=Path,
+        default=DEFAULT_ROLLOUT_PREVIEW_MANIFEST,
+        help=(
+            "Optional manifest for a compact claim-linked rollout preview artifact. "
+            "Missing default path leaves qualitative panels gated."
+        ),
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
         "--check",
@@ -1699,6 +1955,7 @@ def main() -> None:
             durable_scorecard_path=args.durable_scorecard,
             transport_ablation_path=args.transport_ablation,
             transfer_scorecard_path=args.transfer_scorecard,
+            rollout_preview_manifest_path=args.rollout_preview_manifest,
             output_dir=args.output_dir,
             artifact_root=Path("."),
         ):
@@ -1712,6 +1969,7 @@ def main() -> None:
         durable_scorecard_path=args.durable_scorecard,
         transport_ablation_path=args.transport_ablation,
         transfer_scorecard_path=args.transfer_scorecard,
+        rollout_preview_manifest_path=args.rollout_preview_manifest,
         output_dir=args.output_dir,
         artifact_root=Path("."),
     ):
