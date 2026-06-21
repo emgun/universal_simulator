@@ -141,6 +141,26 @@ def test_external_baseline_mapping_rejects_physicsnemo_smoke_metric_overclaim():
     ) in errors
 
 
+def test_external_baseline_mapping_rejects_physicsnemo_validation_test_metric():
+    mapping = _load(MAPPING_PATH)
+    claim_evidence = _load(CLAIM_EVIDENCE_PATH)
+    mutated = copy.deepcopy(mapping)
+    physicsnemo = next(
+        row
+        for row in mutated["ecosystem_compatibility"]
+        if row["candidate_id"] == "physicsnemo_compatibility_gate"
+    )
+    physicsnemo["status"] = "validation_recipe_adapter_complete"
+    physicsnemo["test_metric_value"] = 0.1
+
+    errors = validate_mapping(mutated, claim_evidence)
+
+    assert (
+        "ecosystem_compatibility[physicsnemo_compatibility_gate].test_metric_value "
+        "must remain null for validation-only evidence"
+    ) in errors
+
+
 def test_external_baseline_mapping_rejects_published_number_overclaim():
     mapping = _load(MAPPING_PATH)
     claim_evidence = _load(CLAIM_EVIDENCE_PATH)

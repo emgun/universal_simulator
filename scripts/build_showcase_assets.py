@@ -1084,6 +1084,8 @@ def build_benchmark_readiness_rows(
         status = str(row.get("status", ""))
         if status == "measured":
             readiness = "measured"
+        elif status == "validation":
+            readiness = "validation"
         elif status == "smoke_ready":
             readiness = "smoke_ready"
         else:
@@ -1333,6 +1335,8 @@ def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict
         status = "measured" if measured else "future_or_partial"
         if str(item["status"]) == "compatibility_smoke_ready":
             status = "smoke_ready"
+        elif str(item["status"]) == "validation_recipe_adapter_complete":
+            status = "validation"
         rows.append(
             {
                 "surface": str(item["surface"]),
@@ -1696,6 +1700,8 @@ def render_ecosystem_compatibility(rows: Sequence[Mapping[str, Any]], path: str 
             boundary = "Validation-only transfer; no held-out test."
         elif status == "compatibility_smoke_ready":
             boundary = "Recipe smoke ready; no UPS metric yet."
+        elif status == "validation_recipe_adapter_complete":
+            boundary = "Validation recipe metric; no held-out test."
         elif str(row.get("readiness_lane")) == "official external protocol":
             boundary = "Planned external protocol; not light-v1 comparable."
         elif str(row.get("readiness_lane")) == "ecosystem compatibility":
