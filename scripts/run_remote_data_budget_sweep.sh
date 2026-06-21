@@ -250,6 +250,7 @@ fi
 
 if [ "$SUMMARIZE_SWEEP" -eq 1 ]; then
   summary_cmd=(
+    env PYTHONPATH=.
     python scripts/summarize_data_budget_sweep.py
     --output-root "$OUTPUT_ROOT"
     --baseline-json "$SWEEP_BASELINE_JSON"
