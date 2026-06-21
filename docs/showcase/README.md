@@ -71,8 +71,8 @@ future model/recipe surfaces.
 The compatibility card expands the readiness view into concrete official
 adapters and protocol gates: NeuralOperator, PDEBench U-Net, and CNO1d are
 measured matched-protocol adapters; Poseidon is validation-only and stopped
-before held-out test; PDEArena and PhysicsNeMo remain planned protocol or
-ecosystem surfaces.
+before held-out test; PDEArena remains a planned protocol surface; PhysicsNeMo
+now has a dry recipe-compatibility smoke manifest but no live framework metric.
 
 ![Qualitative rollout preview status](generated/rollout_preview_status.png)
 
@@ -99,8 +99,8 @@ and `generated/rollout_preview_summary.tsv`.
 - `generated/benchmark_readiness_summary.tsv`: measured third-party baselines,
   official external protocols, and ecosystem compatibility surfaces.
 - `generated/ecosystem_compatibility_summary.tsv`: official architecture
-  adapters, validation-only transfer gates, and planned ecosystem/protocol
-  adapters.
+  adapters, validation-only transfer gates, planned protocol adapters, and
+  smoke-ready ecosystem adapters.
 - `generated/rollout_preview_status.tsv`: current status of qualitative rollout
   preview evidence.
 - `generated/rollout_preview_summary.tsv`: conditional metadata table for a
