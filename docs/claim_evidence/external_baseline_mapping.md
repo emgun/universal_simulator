@@ -214,5 +214,6 @@ measured and stopped on validation, so broader public-baseline claims need eithe
 a stronger train/validation-only foundation adapter or UPS-side validation
 improvement before any new held-out transfer measurement.
 For PhysicsNeMo, the next gate is deliberately narrower: run a live recipe
-adapter on train/validation in a Python 3.11+ or PhysicsNeMo container
-environment and record provenance before reporting any UPS metric.
+adapter on train/validation with `python scripts/run_physicsnemo_compatibility_smoke.py --live-recipe --eval-split val`
+in a Python 3.11+ or PhysicsNeMo container environment and record provenance
+before reporting any UPS metric.

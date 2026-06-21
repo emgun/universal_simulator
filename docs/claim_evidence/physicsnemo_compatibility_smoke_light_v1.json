@@ -33,7 +33,7 @@
       ],
       "live_metric_allowed": false,
       "model_training_performed": false,
-      "next_gate": "Run a live PhysicsNeMo recipe adapter on train/val in a Python 3.11+ or PhysicsNeMo container environment, record validation-only provenance, then decide whether any held-out test budget is justified.",
+      "next_gate": "Run a live PhysicsNeMo recipe adapter with `python scripts/run_physicsnemo_compatibility_smoke.py --live-recipe --eval-split val` in a Python 3.11+ or PhysicsNeMo container environment, record validation-only provenance, then decide whether any held-out test budget is justified.",
       "scope": "dry ecosystem compatibility recipe manifest",
       "tasks": [
         "advection1d",
