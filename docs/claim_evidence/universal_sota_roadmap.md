@@ -927,3 +927,28 @@ Next checkpoint:
 
 - Open a PR for this closure entry, the branch-archaeology research note, and the worklog update.
 - Next technical path after merge: Phase 1 (P1.1 GPU pipeline smoke run, then capacity and data sweeps) per the north-star roadmap.
+
+### 2026-06-20 Phase 1 Learned-Core Scale Probes Closed Negative
+
+Status:
+
+- Completed the Phase 1 minimum-credible-scale probe series from `docs/superpowers/plans/2026-06-09-universal-simulator-north-star-roadmap.md`: remote GPU smoke, medium-v1 capacity sweep, fixed-tier_b rollout-stability recipe sweep, and fixed-tier_b data-budget sweep.
+- Evidence artifacts are research-only and validation-only: `docs/research/artifacts/p1_capacity_sweep_medium_v1_val.json`, `docs/research/artifacts/p1_recipe_sweep_medium_v1_val.json`, and `docs/research/artifacts/p1_data_budget_sweep_medium_v1_val.json`.
+- Published B2 artifacts:
+  - `b2://pdebench/remote-runs/capacity-sweep/capacity_sweep_medium-v1_20260610T235516Z.tar.gz`
+  - `b2://pdebench/remote-runs/recipe-sweep/recipe_sweep_medium-v1_20260611T185755Z.tar.gz`
+  - `b2://pdebench/remote-runs/data-budget-sweep/data_budget_sweep_medium-v1_20260621T020525Z.tar.gz`
+- Best medium-v1 validation learned-core results remained below the persistence gate: capacity tier_b `decoded_rollout_nrmse = 0.7449043873888164`, recipe `r_hpower = 0.7620583413339258`, and data-budget `n128 = 0.7905242942784613`, all worse than persistence `0.38260034902058476`.
+- The data-budget run preserved train/val-only access, completed all four budgets, published a verified tarball with SHA256 `aebcdbf4993170b46aaa67a5421d26555fda7d979077ba00a90c6887d8ffe305`, and wrote no held-out ledger entry.
+
+Decision:
+
+- Gate G1 in the north-star roadmap is missed for the current in-house core. Capacity, rollout-stability recipes, and train-sample budget did not produce a learned operator that beats persistence under the standard root without roll-shift/context estimators.
+- No held-out test run is authorized by these Phase 1 research artifacts, and no claim language changes.
+- The current in-house core is moved to explore-track status for this north-star path unless a new architecture changes the bottleneck.
+- The roadmap fallback is active: prioritize the Phase 2 backbone-transplant adapter path, with a tightly capped physics-primitive research contract as the UPS-native counter-bet.
+
+Next checkpoint:
+
+- Open or continue PR #84 with the Phase 1 result note, durable summary JSON, roadmap update, and runner fix.
+- Next technical path after merge: write the P2.1 backbone-transplant adapter/provenance design, then decide whether to run the E3 physics-primitive research contract in parallel.

@@ -19,7 +19,7 @@ Two nested goals, in order:
 
 The system north star is reached through the claim north star, never around it. No capability is "done" until it has a protocol, baselines, and committed evidence.
 
-## 2. Current State (evidence snapshot, 2026-06-09)
+## 2. Current State (evidence snapshot, updated 2026-06-20)
 
 What is already strong:
 
@@ -33,9 +33,15 @@ What blocks the north star:
 
 - **The learned operator is below persistence.** Standard-root validation: operator `0.7077811986610774` vs persistence `0.3685752310100123` (persistence per task: advection `0.5140255043059492`, Burgers `0.14738121412908425`, Darcy `0.188979512124482`). Every headline win uses `roll_persistence` transport mechanisms, not the neural core.
 - **Advection transport is saturated** (P2 validation `~0.0018`); remaining light-v1 headroom is Burgers/Darcy, which only a genuinely learned operator can move.
-- **Model and compute scale are toy:** few-KB checkpoints, CPU training, 32-sample caps.
+- **Phase 1 scale probes did not rescue the in-house core.** Medium-v1 GPU smoke, capacity, rollout-stability recipe, and data-budget sweeps all completed validation-only with verified artifacts. Best capacity result was tier_b `0.7449043873888164`, best recipe result was `r_hpower = 0.7620583413339258`, and best data-budget result was `n128 = 0.7905242942784613`; all are far worse than medium-v1 persistence `0.38260034902058476`.
 - **Breadth is thin:** three tasks, 1D-heavy, grid-only in the claim protocol despite multimodal code.
-- **Audit bookkeeping:** `audit_universal_sota_status.py` reports `sota_ready=false` from a clean checkout only because three report surfaces are not durable committed evidence (transport objective status, transfer scorecard, persistence baseline row).
+- **The in-house core failure mode is now specific, not speculative:** one-step prediction can be competitive, but decoded autoregressive rollouts inject drift, especially on Burgers/Darcy where persistence is naturally strong. Raw parameter count, longer-horizon training pressure, semigroup weighting, longer training, and more train samples did not reverse that.
+
+Phase 1 execution artifacts:
+
+- Capacity sweep: `docs/research/2026-06-10-p1-capacity-sweep-results.md`, artifact `b2://pdebench/remote-runs/capacity-sweep/capacity_sweep_medium-v1_20260610T235516Z.tar.gz`.
+- Rollout-stability recipe sweep: `docs/research/2026-06-11-p1-recipe-sweep-results.md`, artifact `b2://pdebench/remote-runs/recipe-sweep/recipe_sweep_medium-v1_20260611T185755Z.tar.gz`.
+- Data-budget sweep: `docs/research/2026-06-20-p1-data-budget-sweep-results.md`, artifact `b2://pdebench/remote-runs/data-budget-sweep/data_budget_sweep_medium-v1_20260621T020525Z.tar.gz`.
 
 ## 3. Strategy
 
@@ -57,22 +63,20 @@ Objective: `audit_universal_sota_status.py` returns `sota_ready=true` from a cle
 
 Exit gate G0: audit green from clean checkout; transport track closed; one consolidated "state of the claim" roadmap entry.
 
-## 5. Phase 1 — Minimum Credible Scale: Operator Beats Persistence (1–3 weeks; first GPU spend)
+## 5. Phase 1 — Minimum Credible Scale: Operator Beats Persistence (completed negative)
 
 Objective: a learned UPS operator — no roll-shift estimators, no context oracles, standard `data/pdebench` root — whose decoded rollout beats persistence on validation. This model becomes the **reference architecture** for all explore-track bets.
 
-- [ ] P1.1: Stand the GPU pipeline back up. One Vast.ai smoke run end-to-end (hydrate datasets from B2, train, eval, push W&B artifact). Budget: < 5 GPU-hours. (DoD) A medium-v1 training run completes remotely and its summary lands locally.
-- [ ] P1.2: Scale a capacity sweep on medium-v1 (512 train / 128 val). Sweep latent dim, depth, and token count from the current toy size up through ~1M–20M params, with the existing decoded-rollout loss. Selection on validation only. (DoD) Capacity-vs-validation curve committed; best candidate identified.
-- [ ] P1.3: Data-budget sweep. The light caps (32 samples) and even medium (512) are small; measure validation NRMSE vs train-sample count using full available PDEBench trajectories for the three families. (DoD) Data-scaling curve committed; chosen operating point recorded.
-- [ ] P1.4: Train the reference model at the chosen capacity/data point with the existing training levers already in `scripts/train.py` (decoded field loss, rollout pressure, horizon weighting). (DoD) **Gate G1:** standard-root validation `decoded_rollout_nrmse < 0.3685752310100123` (persistence) with no roll-shift/context estimators, and per-task no worse than persistence by more than 5% on any task.
-- [ ] P1.5: Light-v1 mapping. Evaluate the reference model under the frozen light-v1 validation contract; if it clears the existing phase-gate thresholds, write a pre-test contract and spend one held-out measurement. (DoD) Either a new clean primary claim or a documented gap analysis.
-- [ ] P1.6: Re-attach the transport signal. With the reference model in place, enable the already-integrated `param:beta` / data-conditioned hooks and measure the combined candidate on validation. (DoD) Combined-candidate validation evidence; promotion decision recorded.
+- [x] P1.1: Stand the GPU pipeline back up. Completed with a remote smoke run and verified B2 artifact.
+- [x] P1.2: Scale a capacity sweep on medium-v1 (512 train / 128 val). Completed; best tier_b `decoded_rollout_nrmse = 0.7449043873888164`, worse than persistence `0.38260034902058476`.
+- [x] P1.3: Data-budget sweep. Completed; best run `n128 = 0.7905242942784613`, larger data budgets did not improve the curve.
+- [x] P1.4: Reference-model scale line. Closed negative: existing capacity/data/recipe levers did not produce a learned operator near the G1 persistence gate, so no reference model is promotable.
+- [ ] P1.5: Light-v1 mapping. Blocked by failed G1; do not spend a held-out measurement from the in-house core.
+- [ ] P1.6: Re-attach the transport signal. Deferred until there is a successor learned model; do not re-open transport sidecars against the failed fixed-tier_b core.
 
-Exit gate G1 (hard): learned-operator-only validation beats persistence on the standard root. **No Phase 2 GPU spend on transplant fine-tuning and no explore-track bets start until G1 passes**, with one exception: P2.1 (adapter design) is paper/code work and may proceed in parallel.
+Exit gate G1 (hard): learned-operator-only validation beats persistence on the standard root. **Status: missed.** The best completed Phase 1 learned-operator result is still roughly 2x worse than persistence. The declared fallback is now active: skip directly to Phase 2 adapter/transplant work and treat the current in-house core as explore-track only.
 
-Fallback: if G1 fails after the capacity and data sweeps (~50–100 GPU-hours), that is strong evidence the current core architecture is the problem — skip directly to Phase 2 (transplant) and treat the in-house core as explore-track only.
-
-## 6. Phase 2 — Backbone Transplant, Path B (2–6 weeks)
+## 6. Phase 2 — Backbone Transplant, Path B (active fallback, 2–6 weeks)
 
 Objective: a pretrained foundation backbone running inside the UPS harness (UPS encoders/decoder/guards around it), fine-tuned on repo splits, beating both the Phase 1 reference and the best external baseline under the claim protocol.
 
@@ -107,7 +111,9 @@ These convert dormant, already-implemented capabilities (M6–M11) into headline
 - [ ] P4.5: Safe control demo on one controllable task, using the existing control module with the guarded simulator in the loop. (DoD) Control evidence package.
 - [ ] P4.6: M13 packaging. Export, repro scripts, model cards, and a public-facing results README that states exactly what is and is not claimed. (DoD) M13 checklist complete; a third party can reproduce the headline numbers from artifacts.
 
-## 9. Explore Track — Architecture Bets (continuous, ~30% of effort, starts after G1)
+## 9. Explore Track — Architecture Bets (post-P1 fallback)
+
+Post-P1 update: because G1 missed after the capacity, recipe, and data-budget axes were measured, the explore track is now allowed only for architecture-changing bets. Do not continue fixed-tier_b scaling, alpha schedules, more data-budget sweeps, or minor recipe tweaks against the failed core.
 
 Rules of engagement:
 
@@ -127,12 +133,22 @@ Bets, in priority order (from `docs/cutting_edge_architecture_research_2026-04-0
 
 Standing exclusions (carried over from existing docs, still binding): more alpha sweeps on old checkpoints; fixed train-fitted shift regularization; scalar-only Poseidon transfer; full-stack replacement with PhysicsNeMo/DeepXDE; MoE scaling; text multimodality; published-table comparisons without protocol mapping; any held-out access from the explore track.
 
+## 9.1 Post-P1 Next-Direction Fork (2026-06-20)
+
+The completed Phase 1 evidence narrows the next move to a real architecture fork, not more hardening:
+
+1. **Backbone transplant first (recommended exploit path).** Write P2.1 as an adapter design and provenance spec, then run a validation-only Poseidon/ScOT or DPOT adapter with the failed scalar-only path explicitly excluded. This has the best claim leverage because it can produce a learned, non-heuristic candidate under the existing harness without pretending the in-house core will scale itself out of the hole.
+2. **Physics-primitive library first (recommended explore path if we want novel UPS-side architecture).** Pre-register a small research-v1 bet with gated differentiable primitives: semi-Lagrangian warp, local stencil residual, and spectral filter/corrector. This attacks the measured failure directly: attention-only rollouts drift, while explicit transport primitives solved advection when allowed. The risk is scope: it can become another sidecar treadmill unless the contract requires shared routing across advection+Burgers without Darcy regression.
+3. **`universal-v1` protocol first (infrastructure path).** Freeze the broader protocol and data plumbing before another model bet. This improves future claim quality and prevents overfitting to three PDE families, but it is unlikely to improve the immediate learned-operator metric by itself.
+
+Recommendation: run two short specs in sequence. First, P2.1 backbone-transplant adapter design because the roadmap fallback explicitly points there and it is mostly CPU/design work. Second, an E3 physics-primitive research contract as the UPS-native counter-bet, capped tightly so it cannot become more transport-only drift.
+
 ## 10. Decision Gates Summary
 
 | Gate | Condition | Unlocks |
 |---|---|---|
 | G0 | Audit `sota_ready=true` from clean checkout; transport track closed | Phase 1 GPU spend |
-| G1 | Learned operator (no estimators) validation `< 0.3685752310100123` on standard root | Phase 2 fine-tuning; explore track opens |
+| G1 | Learned operator (no estimators) validation `< 0.3685752310100123` on standard root | **Missed on 2026-06-20; fallback to Phase 2 transplant is active** |
 | G2a | Transplant validation `<= 0.363424243629033` | Held-out pre-test contract (G2b) |
 | G2b | Transplant held-out `< 0.4165820594268877` | New primary claim; Phase 3 candidate runs |
 | G3 | `universal-v1` held-out: ≥ 20% over persistence, beats strong baseline on majority of families | Phase 4 demos; "universal" claim language |
