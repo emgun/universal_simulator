@@ -32,8 +32,8 @@ run evidence records provider, hardware, wall-clock, GPU-hours, and dollar cost.
   measured under the repo `light-v1` protocol;
 - official external protocols: PDEArena and RealPDEBench are planned external
   protocol checks, not directly comparable to `light-v1`;
-- ecosystem compatibility: PhysicsNeMo has a dry compatibility smoke manifest,
-  but no live framework metric yet;
+- ecosystem compatibility: PhysicsNeMo has a dry compatibility smoke manifest
+  and a live validation-only FNO recipe-adapter repeat under Torch 2.10;
 - future model or recipe surfaces: CFO, PDEformer-2, and Poseidon remain useful
   research tracks but are not current held-out claim-comparable benchmarks.
 
@@ -43,7 +43,7 @@ are not the same thing as published-paper leaderboard results.
 `generated/ecosystem_compatibility.png` and
 `generated/ecosystem_compatibility_summary.tsv` expand those lanes into the
 concrete official-source adapters, validation-only transfer gate, and planned
-PDEArena plus smoke-ready PhysicsNeMo compatibility surfaces.
+PDEArena plus validation-only PhysicsNeMo compatibility surfaces.
 
 ## Repeatability
 

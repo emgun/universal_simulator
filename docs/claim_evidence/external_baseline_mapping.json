@@ -232,10 +232,10 @@
       "source_id": "physicsnemo_docs",
       "title": "NVIDIA PhysicsNeMo documentation",
       "kind": "official_docs",
-      "url": "https://nvidia.github.io/physicsnemo/",
+      "url": "https://docs.nvidia.com/physicsnemo/latest/",
       "year": 2026,
       "primary_source": true,
-      "relevance": "Documents PhysicsNeMo framework modules, training/inference pipelines, and reference applications for physics AI."
+      "relevance": "Documents PhysicsNeMo framework modules, training/inference pipelines, examples, and installation options for physics AI."
     }
   ],
   "baseline_candidates": [
@@ -867,13 +867,13 @@
         "physicsnemo_docs"
       ],
       "adapter_entrypoint": "scripts/run_physicsnemo_compatibility_smoke.py",
-      "validation_command": "python scripts/run_physicsnemo_compatibility_smoke.py --live-recipe --config configs/train_multitask_heterogeneous_light_best.yaml --name physicsnemo_live_recipe_val_light_v1_e3 --output-root reports/research/sota_loop/external_baselines --data-root data/pdebench --eval-split val --tasks advection1d burgers1d darcy2d --max-train-samples 2 --max-eval-samples 2 --max-pairs-per-task 32 --rollout-steps 4 --train-stride 4 --epochs 3 --batch-size 8 --device cpu",
-      "evidence_json": "docs/claim_evidence/physicsnemo_live_recipe_val_light_v1_e3_evidence.json",
+      "validation_command": "python scripts/run_physicsnemo_compatibility_smoke.py --live-recipe --config configs/train_multitask_heterogeneous_light_best.yaml --name physicsnemo_live_recipe_val_light_v1_e3_torch210 --output-root reports/research/sota_loop/external_baselines --data-root data/pdebench --eval-split val --tasks advection1d burgers1d darcy2d --max-train-samples 2 --max-eval-samples 2 --max-pairs-per-task 32 --rollout-steps 4 --train-stride 4 --epochs 3 --batch-size 8 --device cpu",
+      "evidence_json": "docs/claim_evidence/physicsnemo_live_recipe_val_light_v1_e3_torch210_evidence.json",
       "metric_name": "decoded_rollout_nrmse",
       "metric_value": 0.994514587233567,
       "test_metric_value": null,
-      "claim_boundary": "Validation-only live PhysicsNeMo FNO recipe adapter; no held-out test access and not comparable to published PhysicsNeMo benchmark protocols.",
-      "next_step": "Repeat in an official PhysicsNeMo container or Torch>=2.10 runtime before considering any held-out test budget."
+      "claim_boundary": "Validation-only PhysicsNeMo FNO recipe; Torch 2.10 repeat; no held-out test.",
+      "next_step": "Optional official-container repeat when Docker/disk are ready; no held-out test without a full external protocol."
     }
   ],
   "selected_reproduction_path": {
