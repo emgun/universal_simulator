@@ -84,6 +84,10 @@ For a public visual summary of the current bounded evidence, see
   profile for the primary claim.
 - `docs/showcase/research_diagnostics.md`: validation-only transport ablation
   and transfer diagnostics, kept separate from held-out claims.
+- `docs/showcase/credibility_cards.md`: reproducibility, cost-status, official
+  benchmark readiness, and ecosystem compatibility cards.
+- `docs/showcase/rollout_preview_artifact_contract.md`: required artifact
+  contract before qualitative rollout panels are public evidence.
 - `docs/showcase/external_benchmarks.md`: measured external baselines and
   future third-party benchmark surfaces.
 

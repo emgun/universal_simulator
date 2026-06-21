@@ -53,6 +53,9 @@ The command regenerates the showcase packet in a temporary directory and
 compares it with the committed files. A failure means the generated public
 assets are stale relative to the evidence inputs or generator.
 
+The generated credibility cards under `docs/showcase/generated/` are covered by
+the same check. They should not be edited by hand.
+
 ## Data And Artifact Notes
 
 The repository intentionally keeps compact evidence bundles when they are needed

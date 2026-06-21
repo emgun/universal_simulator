@@ -46,6 +46,12 @@ profile, validation-only research diagnostics, and external benchmark matrix.
 Use it for a quick public read of the evidence, then trace any claim back to
 the machine-readable manifests in `docs/claim_evidence/`.
 
+The showcase also includes credibility cards for cost/reproducibility,
+benchmark readiness, ecosystem compatibility, and qualitative-preview status.
+Those cards are descriptive: they mark cost as unrecorded where evidence is
+missing and keep official external benchmarks separate from measured
+repo-protocol baselines.
+
 The showcase is repeatable:
 
 ```bash

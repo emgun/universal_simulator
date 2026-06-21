@@ -1,0 +1,4 @@
+key	label	status	next_step	claim_boundary
+claim_linked_preview_artifact	Claim-linked preview artifact	missing	Add a compact prediction/target preview artifact with command, split, metric, and SHA-256 before rendering qualitative rollout panels.	No qualitative rollout panel is currently claim-linked.
+ignored_local_preview	Ignored local preview	absent	Do not use ignored reports as public showcase evidence.	Ignored local reports are not public evidence.
+preview_contract	Preview contract	defined	Use docs/showcase/rollout_preview_artifact_contract.md.	Contract defines future artifact shape; it is not a result.

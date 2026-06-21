@@ -12,6 +12,7 @@ import math
 import sys
 import tarfile
 import tempfile
+import textwrap
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -166,6 +167,31 @@ TRANSFER_FIELDS = (
     "train_metric_value",
     "test_touched",
     "reason",
+    "claim_boundary",
+)
+
+REPRODUCIBILITY_FIELDS = (
+    "key",
+    "label",
+    "value",
+    "status",
+    "claim_boundary",
+)
+
+BENCHMARK_READINESS_FIELDS = (
+    "surface",
+    "readiness_lane",
+    "readiness",
+    "metric_value",
+    "next_step",
+    "claim_boundary",
+)
+
+ROLLOUT_PREVIEW_FIELDS = (
+    "key",
+    "label",
+    "status",
+    "next_step",
     "claim_boundary",
 )
 
@@ -834,6 +860,196 @@ def build_transfer_rows(transfer_scorecard: Mapping[str, Any]) -> list[dict[str,
     return rows
 
 
+def _card_row(
+    *,
+    key: str,
+    label: str,
+    value: Any,
+    status: str,
+    claim_boundary: str,
+) -> dict[str, Any]:
+    return {
+        "key": key,
+        "label": label,
+        "value": _stringify(value),
+        "status": status,
+        "claim_boundary": claim_boundary,
+    }
+
+
+def build_reproducibility_card_rows(
+    claim_evidence: Mapping[str, Any],
+    durable_scorecard: Mapping[str, Any],
+    *,
+    source_paths: Sequence[Path],
+    generated_output_count: int,
+) -> list[dict[str, Any]]:
+    """Build a compact public reproducibility/cost card from committed evidence."""
+    docs = claim_evidence.get("claim_documentation", {})
+    primary_metric = (
+        str(docs.get("metric_name", "decoded_rollout_nrmse"))
+        if isinstance(docs, Mapping)
+        else "decoded_rollout_nrmse"
+    )
+    artifact_sha256 = str(docs.get("artifact_sha256", "")) if isinstance(docs, Mapping) else ""
+    rows_payload = durable_scorecard.get("rows", [])
+    scorecard_rows = [row for row in rows_payload if isinstance(row, Mapping)]
+    cost_values = [
+        value
+        for value in (_as_float(row.get("cost_estimated_usd")) for row in scorecard_rows)
+        if value is not None
+    ]
+    duration_values = [
+        value
+        for value in (_as_float(row.get("duration_sec")) for row in scorecard_rows)
+        if value is not None
+    ]
+    benchmark_cost_value = f"${sum(cost_values):.2f}" if cost_values else "not recorded"
+    benchmark_cost_status = "recorded" if cost_values else "not_recorded"
+    total_duration = f"{sum(duration_values):.1f}s" if duration_values else "not recorded"
+    duration_status = "recorded" if duration_values else "not_recorded"
+    return [
+        _card_row(
+            key="showcase_check",
+            label="Showcase check",
+            value="python scripts/build_showcase_assets.py --check",
+            status="repeatable",
+            claim_boundary="Regenerates public showcase assets from committed evidence.",
+        ),
+        _card_row(
+            key="showcase_gpu_required",
+            label="GPU for showcase",
+            value="no",
+            status="zero_gpu",
+            claim_boundary="Showcase regeneration does not rerun benchmarks.",
+        ),
+        _card_row(
+            key="showcase_data_required",
+            label="Dataset hydration",
+            value="no",
+            status="zero_data_hydration",
+            claim_boundary="Showcase regeneration reads committed evidence files only.",
+        ),
+        _card_row(
+            key="evidence_input_count",
+            label="Evidence inputs",
+            value=str(len(source_paths)),
+            status="tracked",
+            claim_boundary="Inputs are listed and hashed in showcase_manifest.json.",
+        ),
+        _card_row(
+            key="generated_output_count",
+            label="Generated outputs",
+            value=str(generated_output_count),
+            status="tracked",
+            claim_boundary="Outputs are listed and hashed in showcase_manifest.json.",
+        ),
+        _card_row(
+            key="primary_metric",
+            label="Primary metric",
+            value=primary_metric,
+            status="claim_metric",
+            claim_boundary="Primary held-out claim metric; secondary metrics are diagnostic.",
+        ),
+        _card_row(
+            key="primary_artifact_hash",
+            label="Primary artifact hash",
+            value=artifact_sha256[:12] if artifact_sha256 else "not recorded",
+            status="recorded" if artifact_sha256 else "not_recorded",
+            claim_boundary="Full artifact hash remains in claim evidence.",
+        ),
+        _card_row(
+            key="benchmark_cost_status",
+            label="Benchmark dollar cost",
+            value=benchmark_cost_value,
+            status=benchmark_cost_status,
+            claim_boundary="Dollar cost is shown only when recorded in committed scorecards.",
+        ),
+        _card_row(
+            key="recorded_eval_duration",
+            label="Recorded eval duration",
+            value=total_duration,
+            status=duration_status,
+            claim_boundary="Duration comes from committed scorecard rows, not a fresh run.",
+        ),
+    ]
+
+
+def _readiness_lane(surface: str, status: str) -> str:
+    if status == "measured":
+        return "matched third-party baseline"
+    if surface in {"PDEArena", "RealPDEBench"}:
+        return "official external protocol"
+    if surface == "PhysicsNeMo":
+        return "ecosystem compatibility"
+    return "future model or recipe surface"
+
+
+def build_benchmark_readiness_rows(
+    external_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build public benchmark-readiness card rows from the external matrix."""
+    rows: list[dict[str, Any]] = []
+    for row in external_rows:
+        surface = str(row.get("surface", ""))
+        status = str(row.get("status", ""))
+        readiness = "measured" if status == "measured" else "planned"
+        rows.append(
+            {
+                "surface": surface,
+                "readiness_lane": _readiness_lane(surface, status),
+                "readiness": readiness,
+                "metric_value": _as_float(row.get("metric_value")),
+                "next_step": str(row.get("next_step", "")),
+                "claim_boundary": str(row.get("claim_boundary", "")),
+            }
+        )
+    lane_order = {
+        "matched third-party baseline": 0,
+        "official external protocol": 1,
+        "ecosystem compatibility": 2,
+        "future model or recipe surface": 3,
+    }
+    rows.sort(key=lambda item: (lane_order.get(str(item["readiness_lane"]), 9), item["surface"]))
+    return rows
+
+
+def build_rollout_preview_status_rows(
+    *,
+    local_preview_exists: bool | None = None,
+) -> list[dict[str, Any]]:
+    """Build rollout-preview status rows without treating ignored reports as evidence."""
+    if local_preview_exists is None:
+        local_preview_exists = Path("reports/evaluation_preview.npz").exists()
+    ignored_status = "excluded" if local_preview_exists else "absent"
+    return [
+        {
+            "key": "claim_linked_preview_artifact",
+            "label": "Claim-linked preview artifact",
+            "status": "missing",
+            "next_step": (
+                "Add a compact prediction/target preview artifact with command, split, "
+                "metric, and SHA-256 before rendering qualitative rollout panels."
+            ),
+            "claim_boundary": "No qualitative rollout panel is currently claim-linked.",
+        },
+        {
+            "key": "ignored_local_preview",
+            "label": "Ignored local preview",
+            "status": ignored_status,
+            "next_step": "Do not use ignored reports as public showcase evidence.",
+            "claim_boundary": "Ignored local reports are not public evidence.",
+        },
+        {
+            "key": "preview_contract",
+            "label": "Preview contract",
+            "status": "defined",
+            "next_step": "Use docs/showcase/rollout_preview_artifact_contract.md.",
+            "claim_boundary": "Contract defines future artifact shape; it is not a result.",
+        },
+    ]
+
+
 def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Build a public matrix of external benchmark surfaces and readiness."""
     rows: list[dict[str, Any]] = []
@@ -1186,6 +1402,91 @@ def render_transfer_validation(rows: Sequence[Mapping[str, Any]], path: str | Pa
     plt.close(fig)
 
 
+def _render_text_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    path: str | Path,
+    title: str,
+    columns: Sequence[tuple[str, str, int]],
+) -> None:
+    import matplotlib.pyplot as plt
+
+    if not rows:
+        return
+    height = max(4.2, 1.0 + 0.55 * len(rows))
+    fig, ax = plt.subplots(figsize=(12.0, height), constrained_layout=True)
+    ax.axis("off")
+    ax.text(0.0, 1.02, title, transform=ax.transAxes, fontsize=16, fontweight="bold", va="bottom")
+    total_width = sum(width for _, _, width in columns)
+    x_positions: list[float] = []
+    cursor = 0.0
+    for _, _, width in columns:
+        x_positions.append(cursor / total_width)
+        cursor += width
+    for x, (_, heading, _) in zip(x_positions, columns, strict=True):
+        ax.text(x, 0.94, heading, transform=ax.transAxes, fontsize=10, fontweight="bold", va="top")
+    y = 0.86
+    row_gap = 0.76 / max(len(rows), 1)
+    for row in rows:
+        for x, (field, _, wrap_width) in zip(x_positions, columns, strict=True):
+            text = _stringify(row.get(field))
+            if field in {"status", "readiness"}:
+                text = text.replace("_", "-")
+            ax.text(
+                x,
+                y,
+                textwrap.fill(text, width=wrap_width),
+                transform=ax.transAxes,
+                fontsize=9,
+                va="top",
+            )
+        y -= row_gap
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def render_reproducibility_card(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    _render_text_rows(
+        rows,
+        path=path,
+        title="Showcase cost and reproducibility card",
+        columns=(
+            ("label", "Item", 22),
+            ("value", "Value", 32),
+            ("status", "Status", 18),
+            ("claim_boundary", "Boundary", 42),
+        ),
+    )
+
+
+def render_benchmark_readiness(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    _render_text_rows(
+        rows,
+        path=path,
+        title="Benchmark and ecosystem readiness",
+        columns=(
+            ("surface", "Surface", 18),
+            ("readiness_lane", "Lane", 26),
+            ("readiness", "Readiness", 14),
+            ("claim_boundary", "Boundary", 42),
+        ),
+    )
+
+
+def render_rollout_preview_status(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    _render_text_rows(
+        rows,
+        path=path,
+        title="Qualitative rollout preview status",
+        columns=(
+            ("label", "Item", 24),
+            ("status", "Status", 16),
+            ("next_step", "Next step", 42),
+            ("claim_boundary", "Boundary", 36),
+        ),
+    )
+
+
 def build_repeatability_manifest(
     *,
     input_paths: Sequence[Path],
@@ -1247,6 +1548,7 @@ def build_showcase(
     transport_ablation_rows = build_transport_ablation_rows(transport_ablation)
     transfer_rows = build_transfer_rows(transfer_scorecard)
     external_rows = build_external_matrix_rows(external_mapping)
+    benchmark_readiness_rows = build_benchmark_readiness_rows(external_rows)
 
     paths = [
         output_dir / "benchmark_summary.json",
@@ -1256,6 +1558,9 @@ def build_showcase(
         output_dir / "horizon_summary.tsv",
         output_dir / "transport_ablation_summary.tsv",
         output_dir / "transfer_validation_summary.tsv",
+        output_dir / "reproducibility_card.tsv",
+        output_dir / "benchmark_readiness_summary.tsv",
+        output_dir / "rollout_preview_status.tsv",
         output_dir / "external_benchmark_matrix.tsv",
         output_dir / "claim_scorecard.png",
         output_dir / "per_task_breakdown.png",
@@ -1263,8 +1568,25 @@ def build_showcase(
         output_dir / "horizon_profile.png",
         output_dir / "transport_ablation.png",
         output_dir / "transfer_validation.png",
+        output_dir / "reproducibility_card.png",
+        output_dir / "benchmark_readiness.png",
+        output_dir / "rollout_preview_status.png",
         output_dir / "external_benchmarks.png",
     ]
+    source_paths = [
+        claim_evidence_path,
+        external_mapping_path,
+        durable_scorecard_path,
+        transport_ablation_path,
+        transfer_scorecard_path,
+    ]
+    reproducibility_rows = build_reproducibility_card_rows(
+        claim_evidence,
+        durable_scorecard,
+        source_paths=source_paths,
+        generated_output_count=len(paths) + 1,
+    )
+    rollout_preview_rows = build_rollout_preview_status_rows()
     write_json(
         {
             "source_files": {
@@ -1280,6 +1602,9 @@ def build_showcase(
             "horizon_rows": horizon_rows,
             "transport_ablation_rows": transport_ablation_rows,
             "transfer_rows": transfer_rows,
+            "reproducibility_rows": reproducibility_rows,
+            "benchmark_readiness_rows": benchmark_readiness_rows,
+            "rollout_preview_status_rows": rollout_preview_rows,
             "external_matrix_rows": external_rows,
         },
         paths[0],
@@ -1290,25 +1615,25 @@ def build_showcase(
     write_tsv(horizon_rows, paths[4], HORIZON_FIELDS)
     write_tsv(transport_ablation_rows, paths[5], TRANSPORT_ABLATION_FIELDS)
     write_tsv(transfer_rows, paths[6], TRANSFER_FIELDS)
-    write_tsv(external_rows, paths[7], EXTERNAL_FIELDS)
-    render_claim_scorecard(benchmark_rows, paths[8])
-    render_task_breakdown(task_rows, paths[9])
-    render_metric_suite(metric_suite_rows, paths[10])
-    render_horizon_profile(horizon_rows, paths[11])
-    render_transport_ablation(transport_ablation_rows, paths[12])
-    render_transfer_validation(transfer_rows, paths[13])
-    render_external_benchmarks(external_rows, paths[14])
+    write_tsv(reproducibility_rows, paths[7], REPRODUCIBILITY_FIELDS)
+    write_tsv(benchmark_readiness_rows, paths[8], BENCHMARK_READINESS_FIELDS)
+    write_tsv(rollout_preview_rows, paths[9], ROLLOUT_PREVIEW_FIELDS)
+    write_tsv(external_rows, paths[10], EXTERNAL_FIELDS)
+    render_claim_scorecard(benchmark_rows, paths[11])
+    render_task_breakdown(task_rows, paths[12])
+    render_metric_suite(metric_suite_rows, paths[13])
+    render_horizon_profile(horizon_rows, paths[14])
+    render_transport_ablation(transport_ablation_rows, paths[15])
+    render_transfer_validation(transfer_rows, paths[16])
+    render_reproducibility_card(reproducibility_rows, paths[17])
+    render_benchmark_readiness(benchmark_readiness_rows, paths[18])
+    render_rollout_preview_status(rollout_preview_rows, paths[19])
+    render_external_benchmarks(external_rows, paths[20])
 
     manifest_path = output_dir / "showcase_manifest.json"
     write_json(
         build_repeatability_manifest(
-            input_paths=[
-                claim_evidence_path,
-                external_mapping_path,
-                durable_scorecard_path,
-                transport_ablation_path,
-                transfer_scorecard_path,
-            ],
+            input_paths=source_paths,
             output_paths=paths,
             output_dir=output_dir,
         ),

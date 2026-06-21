@@ -53,6 +53,24 @@ claim. It shows the currently tracked inferred transport transfer result on the
 tasks that were evaluated; Darcy is skipped in the source scorecard because the
 train split was missing.
 
+![Showcase cost and reproducibility card](generated/reproducibility_card.png)
+
+The reproducibility card records the current public evidence surface: showcase
+regeneration is zero-GPU and reads committed evidence only, generated outputs
+are hashed, and benchmark dollar cost is not shown because it is not recorded in
+the committed scorecards.
+
+![Benchmark and ecosystem readiness](generated/benchmark_readiness.png)
+
+The readiness card separates measured matched-protocol third-party baselines
+from planned official external protocols, ecosystem compatibility checks, and
+future model/recipe surfaces.
+
+![Qualitative rollout preview status](generated/rollout_preview_status.png)
+
+Qualitative rollout panels remain gated on a compact claim-linked preview
+artifact. Ignored local `reports/` files are not used as public evidence.
+
 ## Generated Tables
 
 - `generated/benchmark_summary.tsv`: aggregate metric table for primary UPS,
@@ -65,6 +83,12 @@ train split was missing.
   metrics for the transport result.
 - `generated/transfer_validation_summary.tsv`: train/validation inferred
   transport transfer rows, including skipped tasks.
+- `generated/reproducibility_card.tsv`: cost, input/output, hash, and local
+  regeneration facts.
+- `generated/benchmark_readiness_summary.tsv`: measured third-party baselines,
+  official external protocols, and ecosystem compatibility surfaces.
+- `generated/rollout_preview_status.tsv`: current status of qualitative rollout
+  preview evidence.
 - `generated/external_benchmark_matrix.tsv`: measured and future external
   benchmark surfaces.
 - `generated/benchmark_summary.json`: machine-readable bundle containing all
@@ -114,3 +138,7 @@ next metrics that would require new evaluator outputs.
 
 See `research_diagnostics.md` for the validation-only diagnostic figures and
 their claim boundaries.
+
+See `credibility_cards.md` for the cost/reproducibility and benchmark-readiness
+cards, and `rollout_preview_artifact_contract.md` for the artifact format that
+should gate future qualitative panels.
