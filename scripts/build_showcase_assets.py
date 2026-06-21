@@ -245,7 +245,9 @@ def write_tsv(rows: Sequence[Mapping[str, Any]], path: str | Path, fields: Seque
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(fields), delimiter="\t")
+        writer = csv.DictWriter(
+            handle, fieldnames=list(fields), delimiter="\t", lineterminator="\n"
+        )
         writer.writeheader()
         for row in rows:
             writer.writerow({field: _stringify(row.get(field)) for field in fields})

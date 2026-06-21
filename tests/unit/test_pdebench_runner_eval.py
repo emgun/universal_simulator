@@ -153,6 +153,39 @@ def test_evaluate_decoded_operator_runs_on_constant_sequence(tmp_path):
     assert report.metrics["decoded_step1_nrmse"] == 0.0
 
 
+def test_evaluate_decoded_operator_can_return_rollout_preview(tmp_path):
+    data = torch.ones(1, 3, 4, dtype=torch.float32)
+    file_path = tmp_path / "burgers1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "data": {
+            "task": "burgers1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+        preview_sample_count=1,
+    )
+
+    preview = report.extra["rollout_preview"]
+    assert len(preview) == 1
+    assert preview[0]["task"] == "burgers1d"
+    assert tuple(preview[0]["target"].shape) == (2, 1, 4)
+    assert tuple(preview[0]["prediction"].shape) == (2, 1, 4)
+    assert preview[0]["time_index"].tolist() == [1.0, 2.0]
+
+
 def test_flatten_field_step_handles_channel_first_scalar_2d():
     field_step = torch.randn(1, 4, 4)
     grid_shape = (4, 4)

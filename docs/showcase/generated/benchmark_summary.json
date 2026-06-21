@@ -507,14 +507,14 @@
       "key": "evidence_input_count",
       "label": "Evidence inputs",
       "status": "tracked",
-      "value": "5"
+      "value": "7"
     },
     {
       "claim_boundary": "Outputs are listed and hashed in showcase_manifest.json.",
       "key": "generated_output_count",
       "label": "Generated outputs",
       "status": "tracked",
-      "value": "22"
+      "value": "24"
     },
     {
       "claim_boundary": "Primary held-out claim metric; secondary metrics are diagnostic.",
@@ -547,11 +547,11 @@
   ],
   "rollout_preview_status_rows": [
     {
-      "claim_boundary": "No qualitative rollout panel is currently claim-linked.",
+      "claim_boundary": "validation-only; no held-out test access; qualitative preview only.",
       "key": "claim_linked_preview_artifact",
       "label": "Claim-linked preview artifact",
-      "next_step": "Add a compact prediction/target preview artifact with command, split, metric, and SHA-256 before rendering qualitative rollout panels.",
-      "status": "missing"
+      "next_step": "Render generated/rollout_preview_panel.png from docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val.npz.",
+      "status": "available"
     },
     {
       "claim_boundary": "Ignored local reports are not public evidence.",
@@ -568,7 +568,22 @@
       "status": "defined"
     }
   ],
-  "rollout_preview_summary_rows": [],
+  "rollout_preview_summary_rows": [
+    {
+      "access_boundary": "validation-only; no held-out test access",
+      "artifact_path": "docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val.npz",
+      "artifact_sha256": "9070ad6b6ee8c5c2042e89013592d19b203bcb2c8754bf7a78d4ff370cf2fc92",
+      "claim_boundary": "validation-only; no held-out test access; qualitative preview only, numeric claims remain source-of-truth",
+      "frame_count": 16,
+      "metric_name": "decoded_rollout_nrmse",
+      "metric_value": 0.6816012256249533,
+      "run_name": "ups_light_shared_context_transport_guarded",
+      "sample_count": 1,
+      "source_summary_json": "docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val_summary.json",
+      "split": "val",
+      "task": "advection1d"
+    }
+  ],
   "source_files": {
     "claim_evidence": "docs/claim_evidence/universal_sota_claim_evidence.json",
     "durable_scorecard": "docs/claim_evidence/artifacts/light_v1_demo_scorecard.json",
