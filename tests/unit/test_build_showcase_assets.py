@@ -4,10 +4,13 @@ import json
 import tarfile
 
 from scripts.build_showcase_assets import (
+    build_benchmark_readiness_rows,
     build_benchmark_rows,
     build_external_matrix_rows,
     build_horizon_rows,
     build_metric_suite_rows,
+    build_reproducibility_card_rows,
+    build_rollout_preview_status_rows,
     build_task_rows,
     build_transfer_rows,
     build_transport_ablation_rows,
@@ -287,18 +290,91 @@ def test_build_external_matrix_rows_keeps_future_surfaces_separate():
     assert "Validation-only transfer path" in by_surface["Poseidon"]["next_step"]
 
 
+def test_build_reproducibility_card_rows_marks_missing_cost_as_not_recorded(tmp_path):
+    claim_evidence, _, durable_scorecard = _fixture_payloads()
+    source_path = tmp_path / "claim.json"
+    source_path.write_text("{}", encoding="utf-8")
+
+    rows = build_reproducibility_card_rows(
+        claim_evidence,
+        durable_scorecard,
+        source_paths=[source_path],
+        generated_output_count=4,
+    )
+    by_key = {row["key"]: row for row in rows}
+
+    assert by_key["showcase_check"]["value"] == "python scripts/build_showcase_assets.py --check"
+    assert by_key["showcase_gpu_required"]["value"] == "no"
+    assert by_key["evidence_input_count"]["value"] == "1"
+    assert by_key["generated_output_count"]["value"] == "4"
+    assert by_key["benchmark_cost_status"]["status"] == "not_recorded"
+    assert by_key["primary_metric"]["value"] == "decoded_rollout_nrmse"
+
+
+def test_build_benchmark_readiness_rows_splits_measured_protocols_and_ecosystem():
+    rows = build_benchmark_readiness_rows(
+        [
+            {
+                "surface": "FNO",
+                "status": "measured",
+                "metric_value": 0.7,
+                "next_step": "Keep in table.",
+                "claim_boundary": "Matched light-v1 repo protocol",
+            },
+            {
+                "surface": "PDEArena",
+                "status": "future_or_partial",
+                "metric_value": None,
+                "next_step": "Add adapter.",
+                "claim_boundary": "External protocol, not directly comparable to light-v1.",
+            },
+            {
+                "surface": "PhysicsNeMo",
+                "status": "future_or_partial",
+                "metric_value": None,
+                "next_step": "Track compatibility.",
+                "claim_boundary": "Compatibility surface; no current UPS metric.",
+            },
+        ]
+    )
+    by_surface = {row["surface"]: row for row in rows}
+
+    assert by_surface["FNO"]["readiness_lane"] == "matched third-party baseline"
+    assert by_surface["FNO"]["readiness"] == "measured"
+    assert by_surface["PDEArena"]["readiness_lane"] == "official external protocol"
+    assert by_surface["PhysicsNeMo"]["readiness_lane"] == "ecosystem compatibility"
+
+
+def test_build_rollout_preview_status_rows_excludes_ignored_local_preview():
+    rows = build_rollout_preview_status_rows(local_preview_exists=True)
+    by_key = {row["key"]: row for row in rows}
+
+    assert by_key["claim_linked_preview_artifact"]["status"] == "missing"
+    assert by_key["ignored_local_preview"]["status"] == "excluded"
+    assert "not public evidence" in by_key["ignored_local_preview"]["claim_boundary"]
+
+
 def test_build_rows_are_json_serializable():
     claim_evidence, external_mapping, durable_scorecard = _fixture_payloads()
+    external_rows = build_external_matrix_rows(external_mapping)
 
     json.dumps(
         {
             "benchmark": build_benchmark_rows(claim_evidence, external_mapping, durable_scorecard),
             "tasks": build_task_rows(claim_evidence, external_mapping, durable_scorecard),
-            "external": build_external_matrix_rows(external_mapping),
+            "external": external_rows,
             "metric_suite": build_metric_suite_rows(claim_evidence, durable_scorecard),
             "horizons": build_horizon_rows(claim_evidence, durable_scorecard),
             "transport_ablation": build_transport_ablation_rows({"variants": {}}),
             "transfer": build_transfer_rows({"tasks": {}}),
+            "reproducibility": build_reproducibility_card_rows(
+                claim_evidence,
+                durable_scorecard,
+                source_paths=[],
+                generated_output_count=0,
+            ),
+            "benchmark_readiness": build_benchmark_readiness_rows(external_rows),
+            "rollout_preview_status": build_rollout_preview_status_rows(),
         }
     )
 

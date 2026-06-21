@@ -1,0 +1,10 @@
+key	label	value	status	claim_boundary
+showcase_check	Showcase check	python scripts/build_showcase_assets.py --check	repeatable	Regenerates public showcase assets from committed evidence.
+showcase_gpu_required	GPU for showcase	no	zero_gpu	Showcase regeneration does not rerun benchmarks.
+showcase_data_required	Dataset hydration	no	zero_data_hydration	Showcase regeneration reads committed evidence files only.
+evidence_input_count	Evidence inputs	5	tracked	Inputs are listed and hashed in showcase_manifest.json.
+generated_output_count	Generated outputs	22	tracked	Outputs are listed and hashed in showcase_manifest.json.
+primary_metric	Primary metric	decoded_rollout_nrmse	claim_metric	Primary held-out claim metric; secondary metrics are diagnostic.
+primary_artifact_hash	Primary artifact hash	7eb8473b294b	recorded	Full artifact hash remains in claim evidence.
+benchmark_cost_status	Benchmark dollar cost	not recorded	not_recorded	Dollar cost is shown only when recorded in committed scorecards.
+recorded_eval_duration	Recorded eval duration	35.2s	recorded	Duration comes from committed scorecard rows, not a fresh run.
