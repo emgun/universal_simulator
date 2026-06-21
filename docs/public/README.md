@@ -30,11 +30,27 @@ rerun under an auditable contract.
 - `docs/public/reproducibility.md`: how to reproduce or inspect evidence.
 - `docs/public/artifact_policy.md`: what belongs in Git and what belongs in
   external artifact storage.
+- `docs/showcase/README.md`: generated public-facing benchmark figures and
+  third-party baseline tables.
 - `docs/claim_evidence/`: machine-readable evidence, pretest contracts, and
   committed compact artifact bundles.
 - `docs/research/`: literature and design notes that inform future work.
 - `worklog.md`: append-only operational trace. Useful for provenance, not a
   polished public narrative.
+
+## Public Showcase
+
+The current showcase layer renders the committed claim evidence into a
+matched-protocol scorecard, per-task breakdown, secondary metric suite, horizon
+profile, validation-only research diagnostics, and external benchmark matrix.
+Use it for a quick public read of the evidence, then trace any claim back to
+the machine-readable manifests in `docs/claim_evidence/`.
+
+The showcase is repeatable:
+
+```bash
+python scripts/build_showcase_assets.py --check
+```
 
 ## What This Is Not Yet
 

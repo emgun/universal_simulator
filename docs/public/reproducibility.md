@@ -40,6 +40,19 @@ Then inspect:
 Every held-out result should record the command, split, metric, artifact handle,
 and artifact hash needed for review.
 
+## Showcase Asset Check
+
+The public-facing figures and tables under `docs/showcase/generated/` are
+derived from committed evidence. Verify they are current with:
+
+```bash
+python scripts/build_showcase_assets.py --check
+```
+
+The command regenerates the showcase packet in a temporary directory and
+compares it with the committed files. A failure means the generated public
+assets are stale relative to the evidence inputs or generator.
+
 ## Data And Artifact Notes
 
 The repository intentionally keeps compact evidence bundles when they are needed

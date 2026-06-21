@@ -1,0 +1,1397 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+"""Build public showcase tables and figures from committed UPS evidence."""
+
+import argparse
+import csv
+import filecmp
+import hashlib
+import json
+import math
+import sys
+import tarfile
+import tempfile
+from collections.abc import Iterable, Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+DEFAULT_CLAIM_EVIDENCE = Path("docs/claim_evidence/universal_sota_claim_evidence.json")
+DEFAULT_EXTERNAL_MAPPING = Path("docs/claim_evidence/external_baseline_mapping.json")
+DEFAULT_DURABLE_SCORECARD = Path("docs/claim_evidence/artifacts/light_v1_demo_scorecard.json")
+DEFAULT_TRANSPORT_ABLATION = Path(
+    "docs/claim_evidence/artifacts/ups_advection_data_conditioned_ablation_matrix.json"
+)
+DEFAULT_TRANSFER_SCORECARD = Path(
+    "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json"
+)
+DEFAULT_OUTPUT_DIR = Path("docs/showcase/generated")
+
+TASK_METRICS = {
+    "advection1d": "task_advection1d_decoded_rollout_nrmse",
+    "burgers1d": "task_burgers1d_decoded_rollout_nrmse",
+    "darcy2d": "task_darcy2d_decoded_rollout_nrmse",
+}
+
+METRIC_SUITE = (
+    {
+        "label": "Rollout NRMSE",
+        "metric_name": "decoded_rollout_nrmse",
+        "metric_family": "aggregate error",
+        "claim_role": "primary",
+    },
+    {
+        "label": "Rollout MAE",
+        "metric_name": "decoded_rollout_mae",
+        "metric_family": "aggregate error",
+        "claim_role": "diagnostic",
+    },
+    {
+        "label": "Rollout MSE",
+        "metric_name": "decoded_rollout_mse",
+        "metric_family": "aggregate error",
+        "claim_role": "diagnostic",
+    },
+    {
+        "label": "Spectral energy error",
+        "metric_name": "decoded_rollout_spectral_energy_error",
+        "metric_family": "spectral shape",
+        "claim_role": "diagnostic",
+    },
+    {
+        "label": "Step-1 NRMSE",
+        "metric_name": "decoded_step1_nrmse",
+        "metric_family": "horizon profile",
+        "claim_role": "diagnostic",
+    },
+    {
+        "label": "H4 NRMSE",
+        "metric_name": "decoded_h4_nrmse",
+        "metric_family": "horizon profile",
+        "claim_role": "diagnostic",
+    },
+    {
+        "label": "H16 NRMSE",
+        "metric_name": "decoded_h16_nrmse",
+        "metric_family": "horizon profile",
+        "claim_role": "diagnostic",
+    },
+)
+
+HORIZON_METRICS = (
+    ("step1", "Step 1", "decoded_step1_nrmse"),
+    ("h4", "H4", "decoded_h4_nrmse"),
+    ("h16", "H16", "decoded_h16_nrmse"),
+)
+
+BENCHMARK_FIELDS = (
+    "label",
+    "run_name",
+    "category",
+    "metric_name",
+    "metric_value",
+    "split",
+    "primary_metric_value",
+    "primary_improvement_fraction",
+    "claim_comparable",
+    "published_numbers_directly_comparable",
+    "artifact_sha256",
+    "artifact_handle",
+    "evidence_json",
+    "source_refs",
+    "notes",
+)
+
+TASK_FIELDS = (
+    "label",
+    "run_name",
+    "category",
+    "task",
+    "metric_name",
+    "metric_value",
+    "claim_comparable",
+)
+
+EXTERNAL_FIELDS = (
+    "surface",
+    "candidate_id",
+    "status",
+    "model_family",
+    "source_refs",
+    "metric_name",
+    "metric_value",
+    "what_it_proves",
+    "next_step",
+    "claim_boundary",
+)
+
+METRIC_SUITE_FIELDS = (
+    "label",
+    "metric_name",
+    "metric_family",
+    "claim_role",
+    "ups_value",
+    "persistence_value",
+    "relative_improvement_fraction",
+    "claim_boundary",
+)
+
+HORIZON_FIELDS = (
+    "series",
+    "horizon",
+    "horizon_label",
+    "metric_name",
+    "metric_value",
+    "claim_boundary",
+)
+
+TRANSPORT_ABLATION_FIELDS = (
+    "variant_id",
+    "label",
+    "split",
+    "metric_name",
+    "metric_value",
+    "context_transitions",
+    "candidate_shift_min",
+    "candidate_shift_max",
+    "held_out_test_used",
+    "claim_boundary",
+)
+
+TRANSFER_FIELDS = (
+    "task",
+    "status",
+    "metric_name",
+    "metric_value",
+    "train_metric_value",
+    "test_touched",
+    "reason",
+    "claim_boundary",
+)
+
+
+def load_json(path: str | Path) -> dict[str, Any]:
+    with Path(path).open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise TypeError(f"{path} must contain a JSON object")
+    return payload
+
+
+def sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_json(payload: Mapping[str, Any], path: str | Path) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def write_tsv(rows: Sequence[Mapping[str, Any]], path: str | Path, fields: Sequence[str]) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(fields), delimiter="\t")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: _stringify(row.get(field)) for field in fields})
+
+
+def _stringify(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and math.isnan(value):
+            return ""
+        return f"{value:.16g}"
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, sort_keys=True)
+
+
+def _as_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _metric(metrics: Mapping[str, Any], key: str) -> float | None:
+    return _as_float(metrics.get(key))
+
+
+def _task_key_from_scorecard(task: str) -> str:
+    return f"metric:{TASK_METRICS[task]}"
+
+
+def _scorecard_row(
+    durable_scorecard: Mapping[str, Any],
+    run_name: str,
+) -> Mapping[str, Any] | None:
+    for row in durable_scorecard.get("rows", []):
+        if isinstance(row, Mapping) and row.get("run_name") == run_name:
+            return row
+    return None
+
+
+def _primary_candidate(claim_evidence: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    candidates = claim_evidence.get("candidate_evidence", [])
+    if candidates and isinstance(candidates[0], Mapping):
+        return candidates[0]
+    return None
+
+
+def _repo_path_from_handle(handle: Any, artifact_root: Path) -> Path | None:
+    raw = str(handle or "")
+    if not raw.startswith("repo:"):
+        return None
+    relative = raw.removeprefix("repo:")
+    path = Path(relative)
+    if path.is_absolute():
+        return path
+    return artifact_root / path
+
+
+def _read_summary_metrics_from_tar(path: Path, run_name: str) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    preferred_members = [
+        f"{run_name}/summary_test.json",
+        f"{run_name}/summary.json",
+    ]
+    with tarfile.open(path, "r:*") as archive:
+        members = {member.name: member for member in archive.getmembers() if member.isfile()}
+        selected_name = next((name for name in preferred_members if name in members), None)
+        if selected_name is None:
+            selected_name = next(
+                (
+                    name
+                    for name in sorted(members)
+                    if name.endswith("/summary_test.json") or name.endswith("/summary.json")
+                ),
+                None,
+            )
+        if selected_name is None:
+            return {}
+        extracted = archive.extractfile(members[selected_name])
+        if extracted is None:
+            return {}
+        payload = json.load(extracted)
+    if not isinstance(payload, Mapping):
+        return {}
+    metrics = payload.get("metrics", {})
+    return dict(metrics) if isinstance(metrics, Mapping) else {}
+
+
+def _primary_metrics(
+    claim_evidence: Mapping[str, Any],
+    *,
+    artifact_root: Path = Path("."),
+) -> dict[str, Any]:
+    candidate = _primary_candidate(claim_evidence)
+    if candidate is None:
+        return {}
+    metrics = candidate.get("metrics", {})
+    resolved: dict[str, Any] = dict(metrics) if isinstance(metrics, Mapping) else {}
+    run_name = str(candidate.get("run_name", ""))
+    for handle in candidate.get("artifact_handles", []):
+        path = _repo_path_from_handle(handle, artifact_root)
+        if path is None:
+            continue
+        artifact_metrics = _read_summary_metrics_from_tar(path, run_name)
+        if artifact_metrics:
+            resolved.update(artifact_metrics)
+            break
+    return resolved
+
+
+def _persistence_metrics(durable_scorecard: Mapping[str, Any]) -> dict[str, Any]:
+    row = _scorecard_row(durable_scorecard, "persistence_light_v1_test")
+    if row is None:
+        return {}
+    metrics: dict[str, Any] = {}
+    for key, value in row.items():
+        if isinstance(key, str) and key.startswith("metric:"):
+            metrics[key.removeprefix("metric:")] = value
+    return metrics
+
+
+def _short_baseline_label(value: Any) -> str:
+    label = str(value or "Local strong baseline")
+    lowered = label.lower()
+    if "fourier" in lowered and len(label) > 24:
+        return "Fourier baseline"
+    return label
+
+
+def _surface_label(candidate: Mapping[str, Any]) -> str:
+    candidate_id = str(candidate.get("candidate_id", ""))
+    model_family = str(candidate.get("model_family", candidate_id))
+    lowered = candidate_id.lower()
+    if "poseidon" in lowered:
+        return "Poseidon"
+    if "pdeformer" in lowered:
+        return "PDEformer-2"
+    if lowered.startswith("cfo") or "continuous_time" in lowered:
+        return "CFO"
+    if "realpdebench" in lowered:
+        return "RealPDEBench"
+    return model_family
+
+
+def _variant_label(variant: Mapping[str, Any]) -> str:
+    raw = str(variant.get("claim_contract_label", variant.get("variant_id", "")))
+    lowered = raw.lower()
+    if "ct1" in lowered and len(raw) > 25:
+        return "CT1 scoped UPS"
+    if ("data-conditioned" in lowered or "data_conditioned" in lowered) and len(raw) > 25:
+        return "Data-conditioned scoped UPS"
+    return raw
+
+
+def _primary_metric(claim_evidence: Mapping[str, Any]) -> float:
+    docs = claim_evidence.get("claim_documentation", {})
+    if isinstance(docs, Mapping):
+        value = _as_float(docs.get("metric_value"))
+        if value is not None:
+            return value
+    candidates = claim_evidence.get("candidate_evidence", [])
+    if candidates and isinstance(candidates[0], Mapping):
+        metrics = candidates[0].get("metrics", {})
+        if isinstance(metrics, Mapping):
+            value = _metric(metrics, "decoded_rollout_nrmse")
+            if value is not None:
+                return value
+    raise ValueError("Could not resolve primary decoded_rollout_nrmse")
+
+
+def _primary_improvement_fraction(primary_value: float, metric_value: float | None) -> float | None:
+    if metric_value is None or metric_value == 0:
+        return None
+    return (metric_value - primary_value) / metric_value
+
+
+def _benchmark_row(
+    *,
+    label: str,
+    run_name: str,
+    category: str,
+    metric_name: str,
+    metric_value: float | None,
+    split: str,
+    primary_metric_value: float,
+    claim_comparable: bool,
+    published_numbers_directly_comparable: bool,
+    artifact_sha256: str = "",
+    artifact_handle: str = "",
+    evidence_json: str = "",
+    source_refs: Iterable[str] = (),
+    notes: str = "",
+    sort_key: tuple[int, str] = (99, ""),
+) -> dict[str, Any]:
+    return {
+        "label": label,
+        "run_name": run_name,
+        "category": category,
+        "metric_name": metric_name,
+        "metric_value": metric_value,
+        "split": split,
+        "primary_metric_value": primary_metric_value,
+        "primary_improvement_fraction": _primary_improvement_fraction(
+            primary_metric_value, metric_value
+        ),
+        "claim_comparable": claim_comparable,
+        "published_numbers_directly_comparable": published_numbers_directly_comparable,
+        "artifact_sha256": artifact_sha256,
+        "artifact_handle": artifact_handle,
+        "evidence_json": evidence_json,
+        "source_refs": ",".join(source_refs),
+        "notes": notes,
+        "_sort_key": sort_key,
+    }
+
+
+def build_benchmark_rows(
+    claim_evidence: Mapping[str, Any],
+    external_mapping: Mapping[str, Any],
+    durable_scorecard: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Build aggregate benchmark rows for README-grade scorecards."""
+    primary_value = _primary_metric(claim_evidence)
+    rows: list[dict[str, Any]] = []
+
+    persistence = _scorecard_row(durable_scorecard, "persistence_light_v1_test")
+    if persistence is not None:
+        rows.append(
+            _benchmark_row(
+                label="Persistence baseline",
+                run_name=str(persistence.get("run_name", "")),
+                category="baseline",
+                metric_name="decoded_rollout_nrmse",
+                metric_value=_as_float(persistence.get("metric:decoded_rollout_nrmse")),
+                split=str(persistence.get("split", "test") or "test"),
+                primary_metric_value=primary_value,
+                claim_comparable=True,
+                published_numbers_directly_comparable=False,
+                notes="Non-learned held-out light-v1 reference.",
+                sort_key=(10, "persistence"),
+            )
+        )
+
+    strong_baseline = claim_evidence.get("strong_baseline_comparison", {})
+    if isinstance(strong_baseline, Mapping) and strong_baseline.get("baseline_metric_value"):
+        rows.append(
+            _benchmark_row(
+                label=_short_baseline_label(strong_baseline.get("baseline_family")),
+                run_name=str(strong_baseline.get("baseline_run_name", "")),
+                category="local neural baseline",
+                metric_name=str(strong_baseline.get("metric_name", "decoded_rollout_nrmse")),
+                metric_value=_as_float(strong_baseline.get("baseline_metric_value")),
+                split=str(strong_baseline.get("split", "test")),
+                primary_metric_value=primary_value,
+                claim_comparable=True,
+                published_numbers_directly_comparable=False,
+                artifact_sha256=str(strong_baseline.get("baseline_artifact_sha256", "")),
+                artifact_handle=str(strong_baseline.get("baseline_artifact_handles", [""])[0]),
+                notes="Repo-native neural baseline measured under the same claim protocol.",
+                sort_key=(20, "local"),
+            )
+        )
+
+    for candidate in external_mapping.get("baseline_candidates", []):
+        if not isinstance(candidate, Mapping):
+            continue
+        measurements = candidate.get("test_measurements", [])
+        if not isinstance(measurements, list):
+            continue
+        for measurement in measurements:
+            if not isinstance(measurement, Mapping):
+                continue
+            if measurement.get("split") != "test":
+                continue
+            if measurement.get("claim_comparable") is not True:
+                continue
+            rows.append(
+                _benchmark_row(
+                    label=str(candidate.get("model_family", candidate.get("candidate_id", ""))),
+                    run_name=str(measurement.get("run_name", "")),
+                    category="external matched baseline",
+                    metric_name=str(measurement.get("metric_name", "decoded_rollout_nrmse")),
+                    metric_value=_as_float(measurement.get("metric_value")),
+                    split=str(measurement.get("split", "")),
+                    primary_metric_value=primary_value,
+                    claim_comparable=True,
+                    published_numbers_directly_comparable=bool(
+                        measurement.get("published_numbers_directly_comparable", False)
+                    ),
+                    artifact_handle=str(measurement.get("artifact_handle", "")),
+                    evidence_json=str(measurement.get("evidence_json", "")),
+                    source_refs=candidate.get("source_refs", []),
+                    notes="Third-party model measured under the repo light-v1 protocol.",
+                    sort_key=(30, str(candidate.get("model_family", ""))),
+                )
+            )
+
+    candidates = claim_evidence.get("candidate_evidence", [])
+    if candidates and isinstance(candidates[0], Mapping):
+        candidate = candidates[0]
+        metrics = candidate.get("metrics", {})
+        rows.append(
+            _benchmark_row(
+                label="UPS primary claim",
+                run_name=str(candidate.get("run_name", "")),
+                category="ups primary",
+                metric_name="decoded_rollout_nrmse",
+                metric_value=(
+                    _metric(metrics, "decoded_rollout_nrmse")
+                    if isinstance(metrics, Mapping)
+                    else primary_value
+                ),
+                split=str(candidate.get("split", "test")),
+                primary_metric_value=primary_value,
+                claim_comparable=True,
+                published_numbers_directly_comparable=False,
+                artifact_sha256=str(candidate.get("artifact_sha256", "")),
+                notes="Primary guarded held-out light-v1 UPS claim.",
+                sort_key=(40, "ups-primary"),
+            )
+        )
+
+    for variant in claim_evidence.get("scoped_claim_variants", []):
+        if not isinstance(variant, Mapping):
+            continue
+        rows.append(
+            _benchmark_row(
+                label=_variant_label(variant),
+                run_name=str(variant.get("run_name", "")),
+                category="ups scoped variant",
+                metric_name=str(variant.get("metric_name", "decoded_rollout_nrmse")),
+                metric_value=_as_float(variant.get("metric_value")),
+                split=str(variant.get("split", "test")),
+                primary_metric_value=primary_value,
+                claim_comparable=bool(
+                    variant.get("same_exact_inference_contract_as_primary", False)
+                ),
+                published_numbers_directly_comparable=bool(
+                    variant.get("published_numbers_directly_comparable", False)
+                ),
+                artifact_sha256=str(variant.get("artifact_sha256", "")),
+                artifact_handle=str(variant.get("artifact_handles", [""])[0]),
+                evidence_json=str(variant.get("evidence_json", "")),
+                notes=str(
+                    variant.get(
+                        "claim_contract_label",
+                        "Scoped variant; not the same inference contract as primary.",
+                    )
+                ),
+                sort_key=(50, str(variant.get("variant_id", ""))),
+            )
+        )
+
+    rows.sort(key=lambda row: row["_sort_key"])
+    for row in rows:
+        row.pop("_sort_key", None)
+    return rows
+
+
+def _row_task_metrics(
+    *,
+    label: str,
+    run_name: str,
+    category: str,
+    metrics: Mapping[str, Any],
+    claim_comparable: bool,
+    scorecard_style: bool = False,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for task, metric_key in TASK_METRICS.items():
+        lookup_key = f"metric:{metric_key}" if scorecard_style else metric_key
+        value = _as_float(metrics.get(lookup_key))
+        if value is None:
+            continue
+        rows.append(
+            {
+                "label": label,
+                "run_name": run_name,
+                "category": category,
+                "task": task,
+                "metric_name": metric_key,
+                "metric_value": value,
+                "claim_comparable": claim_comparable,
+            }
+        )
+    return rows
+
+
+def build_task_rows(
+    claim_evidence: Mapping[str, Any],
+    external_mapping: Mapping[str, Any],
+    durable_scorecard: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Build per-task breakdown rows from available committed metrics."""
+    rows: list[dict[str, Any]] = []
+
+    persistence = _scorecard_row(durable_scorecard, "persistence_light_v1_test")
+    if persistence is not None:
+        rows.extend(
+            _row_task_metrics(
+                label="Persistence baseline",
+                run_name=str(persistence.get("run_name", "")),
+                category="baseline",
+                metrics=persistence,
+                claim_comparable=True,
+                scorecard_style=True,
+            )
+        )
+
+    strong_baseline = claim_evidence.get("strong_baseline_comparison", {})
+    if isinstance(strong_baseline, Mapping):
+        metrics = strong_baseline.get("baseline_metrics", {})
+        if isinstance(metrics, Mapping):
+            rows.extend(
+                _row_task_metrics(
+                    label=_short_baseline_label(strong_baseline.get("baseline_family")),
+                    run_name=str(strong_baseline.get("baseline_run_name", "")),
+                    category="local neural baseline",
+                    metrics=metrics,
+                    claim_comparable=True,
+                )
+            )
+
+    for candidate in claim_evidence.get("candidate_evidence", []):
+        if not isinstance(candidate, Mapping):
+            continue
+        metrics = candidate.get("metrics", {})
+        if isinstance(metrics, Mapping):
+            rows.extend(
+                _row_task_metrics(
+                    label="UPS primary claim",
+                    run_name=str(candidate.get("run_name", "")),
+                    category="ups primary",
+                    metrics=metrics,
+                    claim_comparable=True,
+                )
+            )
+
+    for variant in claim_evidence.get("scoped_claim_variants", []):
+        if not isinstance(variant, Mapping):
+            continue
+        metrics = variant.get("metrics", {})
+        if isinstance(metrics, Mapping):
+            rows.extend(
+                _row_task_metrics(
+                    label=_variant_label(variant),
+                    run_name=str(variant.get("run_name", "")),
+                    category="ups scoped variant",
+                    metrics=metrics,
+                    claim_comparable=False,
+                )
+            )
+
+    for candidate in external_mapping.get("baseline_candidates", []):
+        if not isinstance(candidate, Mapping):
+            continue
+        for measurement in candidate.get("test_measurements", []):
+            if not isinstance(measurement, Mapping):
+                continue
+            evidence_path = measurement.get("evidence_json")
+            if not evidence_path:
+                continue
+            path = Path(str(evidence_path))
+            if not path.exists():
+                continue
+            evidence = load_json(path)
+            task_metrics = evidence.get("task_metrics", {})
+            if not isinstance(task_metrics, Mapping):
+                continue
+            rows.extend(
+                _row_task_metrics(
+                    label=_surface_label(candidate),
+                    run_name=str(measurement.get("run_name", "")),
+                    category="external matched baseline",
+                    metrics=task_metrics,
+                    claim_comparable=measurement.get("claim_comparable") is True,
+                )
+            )
+
+    order = {
+        "Persistence baseline": 0,
+        "Fourier baseline": 1,
+        "FNO": 2,
+        "UNO": 3,
+        "U-Net": 4,
+        "CNO1d": 5,
+        "UPS primary claim": 6,
+    }
+    rows.sort(key=lambda row: (order.get(str(row["label"]), 20), str(row["task"])))
+    return rows
+
+
+def build_metric_suite_rows(
+    claim_evidence: Mapping[str, Any],
+    durable_scorecard: Mapping[str, Any],
+    *,
+    artifact_root: Path = Path("."),
+) -> list[dict[str, Any]]:
+    """Build secondary metric rows for the primary UPS claim versus persistence."""
+    ups_metrics = _primary_metrics(claim_evidence, artifact_root=artifact_root)
+    persistence_metrics = _persistence_metrics(durable_scorecard)
+    rows: list[dict[str, Any]] = []
+    for definition in METRIC_SUITE:
+        metric_name = str(definition["metric_name"])
+        ups_value = _as_float(ups_metrics.get(metric_name))
+        persistence_value = _as_float(persistence_metrics.get(metric_name))
+        if ups_value is None or persistence_value is None:
+            continue
+        relative_improvement = (
+            None if persistence_value == 0 else (persistence_value - ups_value) / persistence_value
+        )
+        rows.append(
+            {
+                "label": str(definition["label"]),
+                "metric_name": metric_name,
+                "metric_family": str(definition["metric_family"]),
+                "claim_role": str(definition["claim_role"]),
+                "ups_value": ups_value,
+                "persistence_value": persistence_value,
+                "relative_improvement_fraction": relative_improvement,
+                "claim_boundary": (
+                    "Primary public claim metric"
+                    if definition["claim_role"] == "primary"
+                    else "Secondary diagnostic; not a standalone headline claim"
+                ),
+            }
+        )
+    return rows
+
+
+def build_horizon_rows(
+    claim_evidence: Mapping[str, Any],
+    durable_scorecard: Mapping[str, Any],
+    *,
+    artifact_root: Path = Path("."),
+) -> list[dict[str, Any]]:
+    """Build step/horizon profile rows for UPS and persistence."""
+    ups_metrics = _primary_metrics(claim_evidence, artifact_root=artifact_root)
+    persistence_metrics = _persistence_metrics(durable_scorecard)
+    rows: list[dict[str, Any]] = []
+    for series, metrics, boundary in (
+        ("UPS primary claim", ups_metrics, "Primary UPS artifact metrics"),
+        ("Persistence baseline", persistence_metrics, "Held-out light-v1 persistence scorecard"),
+    ):
+        for horizon, horizon_label, metric_name in HORIZON_METRICS:
+            value = _as_float(metrics.get(metric_name))
+            if value is None:
+                continue
+            rows.append(
+                {
+                    "series": series,
+                    "horizon": horizon,
+                    "horizon_label": horizon_label,
+                    "metric_name": metric_name,
+                    "metric_value": value,
+                    "claim_boundary": boundary,
+                }
+            )
+    return rows
+
+
+def _transport_ablation_label(variant_id: str) -> str:
+    labels = {
+        "full_context_shift": "Full context shift",
+        "weaker_context_shift": "Bounded context shift",
+        "no_data_conditioning": "No data conditioning",
+    }
+    return labels.get(variant_id, variant_id.replace("_", " ").title())
+
+
+def build_transport_ablation_rows(ablation_matrix: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Build validation-only transport-context ablation rows."""
+    variants = ablation_matrix.get("variants", {})
+    if not isinstance(variants, Mapping):
+        return []
+    rows: list[dict[str, Any]] = []
+    for variant_id, variant in variants.items():
+        if not isinstance(variant, Mapping):
+            continue
+        metrics = variant.get("metrics", {})
+        value = _as_float(metrics.get("validation_nrmse")) if isinstance(metrics, Mapping) else None
+        rows.append(
+            {
+                "variant_id": str(variant_id),
+                "label": _transport_ablation_label(str(variant_id)),
+                "split": str(ablation_matrix.get("split", "val")),
+                "metric_name": str(ablation_matrix.get("metric_name", "nrmse")),
+                "metric_value": value,
+                "context_transitions": variant.get("context_transitions", ""),
+                "candidate_shift_min": _as_float(variant.get("candidate_shift_min")),
+                "candidate_shift_max": _as_float(variant.get("candidate_shift_max")),
+                "held_out_test_used": bool(
+                    variant.get(
+                        "held_out_test_used", ablation_matrix.get("held_out_test_used", False)
+                    )
+                ),
+                "claim_boundary": "validation-only diagnostic",
+            }
+        )
+    order = {"full_context_shift": 0, "weaker_context_shift": 1, "no_data_conditioning": 2}
+    rows.sort(key=lambda row: (order.get(str(row["variant_id"]), 20), str(row["variant_id"])))
+    return rows
+
+
+def build_transfer_rows(transfer_scorecard: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Build train/validation transfer diagnostic rows."""
+    tasks = transfer_scorecard.get("tasks", {})
+    if not isinstance(tasks, Mapping):
+        return []
+    rows: list[dict[str, Any]] = []
+    for task, task_payload in tasks.items():
+        if not isinstance(task_payload, Mapping):
+            continue
+        rows.append(
+            {
+                "task": str(task),
+                "status": str(task_payload.get("status", "")),
+                "metric_name": str(transfer_scorecard.get("metric", "nrmse")),
+                "metric_value": _as_float(task_payload.get("validation_nrmse")),
+                "train_metric_value": _as_float(task_payload.get("train_nrmse")),
+                "test_touched": bool(task_payload.get("test_touched", False)),
+                "reason": str(task_payload.get("reason", "")),
+                "claim_boundary": "train/validation transfer diagnostic",
+            }
+        )
+    task_order = {"advection1d": 0, "burgers1d": 1, "darcy2d": 2}
+    rows.sort(key=lambda row: (task_order.get(str(row["task"]), 20), str(row["task"])))
+    return rows
+
+
+def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Build a public matrix of external benchmark surfaces and readiness."""
+    rows: list[dict[str, Any]] = []
+    for candidate in external_mapping.get("baseline_candidates", []):
+        if not isinstance(candidate, Mapping):
+            continue
+        measurements = [
+            item
+            for item in candidate.get("test_measurements", [])
+            if isinstance(item, Mapping) and item.get("claim_comparable") is True
+        ]
+        measured = bool(measurements)
+        metric_value = _as_float(measurements[0].get("metric_value")) if measured else None
+        status = "measured" if measured else "future_or_partial"
+        model_family = str(candidate.get("model_family", candidate.get("candidate_id", "")))
+        surface = _surface_label(candidate)
+        why = str(
+            candidate.get(
+                "why_selected",
+                candidate.get("why_not_primary", "Tracked as an external benchmark surface."),
+            )
+        )
+        next_step = (
+            "Keep in matched-protocol table; do not mix with published-paper values."
+            if measured
+            else str(
+                candidate.get(
+                    "why_not_primary",
+                    candidate.get(
+                        "required_next_step",
+                        "Define adapter and validation gate before held-out test use.",
+                    ),
+                )
+            )
+        )
+        rows.append(
+            {
+                "surface": surface,
+                "candidate_id": str(candidate.get("candidate_id", "")),
+                "status": status,
+                "model_family": model_family,
+                "source_refs": ",".join(candidate.get("source_refs", [])),
+                "metric_name": str(
+                    measurements[0].get("metric_name", "decoded_rollout_nrmse") if measured else ""
+                ),
+                "metric_value": metric_value,
+                "what_it_proves": (
+                    "Measured under the same light-v1 split, horizon, and metric."
+                    if measured
+                    else why
+                ),
+                "next_step": next_step,
+                "claim_boundary": (
+                    "Matched light-v1 repo protocol"
+                    if measured
+                    else "Not a current held-out claim-comparable benchmark"
+                ),
+            }
+        )
+
+    rows.extend(
+        [
+            {
+                "surface": "PDEArena",
+                "candidate_id": "pdearena_official_protocol",
+                "status": "future_or_partial",
+                "model_family": "PDE surrogate benchmark suite",
+                "source_refs": "pdearena_official_repo",
+                "metric_name": "",
+                "metric_value": None,
+                "what_it_proves": "Would test UPS under an independent multi-scale PDE benchmark protocol.",
+                "next_step": "Add a protocol adapter only after the current light-v1 showcase is stable.",
+                "claim_boundary": "External protocol, not directly comparable to light-v1.",
+            },
+            {
+                "surface": "PhysicsNeMo",
+                "candidate_id": "physicsnemo_compatibility_gate",
+                "status": "future_or_partial",
+                "model_family": "SciML framework benchmark recipes",
+                "source_refs": "physicsnemo_official_repo",
+                "metric_name": "",
+                "metric_value": None,
+                "what_it_proves": "Would show ecosystem compatibility and standard validation recipe coverage.",
+                "next_step": "Track as a compatibility benchmark, not a claim table, until a recipe is implemented.",
+                "claim_boundary": "Compatibility surface; no current UPS metric.",
+            },
+        ]
+    )
+    rows.sort(key=lambda row: (row["status"] != "measured", row["surface"]))
+    return rows
+
+
+def _plot_bar(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    path: Path,
+    title: str,
+    label_key: str = "label",
+    value_key: str = "metric_value",
+    color_by_category: bool = True,
+) -> None:
+    import matplotlib.pyplot as plt
+
+    labels = [str(row[label_key]) for row in rows if _as_float(row.get(value_key)) is not None]
+    values = [
+        _as_float(row[value_key]) for row in rows if _as_float(row.get(value_key)) is not None
+    ]
+    if not labels or not values:
+        return
+    palette = {
+        "baseline": "#6b7280",
+        "local neural baseline": "#7c3aed",
+        "external matched baseline": "#2563eb",
+        "ups primary": "#15803d",
+        "ups scoped variant": "#0f766e",
+    }
+    colors = [
+        palette.get(str(row.get("category", "")), "#334155") if color_by_category else "#2563eb"
+        for row in rows
+        if _as_float(row.get(value_key)) is not None
+    ]
+    width = max(8.0, min(15.0, 1.05 * len(labels)))
+    fig, ax = plt.subplots(figsize=(width, 5.0), constrained_layout=True)
+    bars = ax.bar(labels, values, color=colors)
+    ax.set_title(title)
+    ax.set_ylabel("decoded rollout NRMSE (lower is better)")
+    ax.tick_params(axis="x", rotation=30)
+    ax.grid(axis="y", alpha=0.25)
+    for bar, value in zip(bars, values, strict=True):
+        if value is None:
+            continue
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{value:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def _save_figure(fig: Any, path: str | Path) -> None:
+    fig.savefig(
+        path,
+        dpi=180,
+        metadata={"Software": "universal_simulator showcase generator"},
+    )
+
+
+def render_claim_scorecard(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    visible = [
+        row
+        for row in rows
+        if row.get("category")
+        in {"baseline", "local neural baseline", "external matched baseline", "ups primary"}
+    ]
+    _plot_bar(
+        visible,
+        path=Path(path),
+        title="UPS light-v1 matched-protocol scorecard",
+    )
+
+
+def render_external_benchmarks(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    measured = [row for row in rows if row.get("status") == "measured"]
+    _plot_bar(
+        measured,
+        path=Path(path),
+        title="Measured third-party baselines under light-v1",
+        label_key="surface",
+        color_by_category=False,
+    )
+
+
+def render_task_breakdown(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    import matplotlib.pyplot as plt
+
+    labels = []
+    for row in rows:
+        label = str(row["label"])
+        if label not in labels:
+            labels.append(label)
+    tasks = list(TASK_METRICS)
+    values_by_task = {
+        task: {
+            str(row["label"]): _as_float(row["metric_value"]) for row in rows if row["task"] == task
+        }
+        for task in tasks
+    }
+    if not labels:
+        return
+    width = max(9.0, min(15.5, 1.15 * len(labels)))
+    fig, ax = plt.subplots(figsize=(width, 5.2), constrained_layout=True)
+    x = list(range(len(labels)))
+    bar_width = 0.24
+    colors = {"advection1d": "#dc2626", "burgers1d": "#2563eb", "darcy2d": "#16a34a"}
+    offsets = {"advection1d": -bar_width, "burgers1d": 0.0, "darcy2d": bar_width}
+    for task in tasks:
+        values = [
+            (
+                values_by_task[task].get(label, float("nan"))
+                if values_by_task[task].get(label) is not None
+                else float("nan")
+            )
+            for label in labels
+        ]
+        ax.bar(
+            [item + offsets[task] for item in x],
+            values,
+            width=bar_width,
+            label=task,
+            color=colors[task],
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=30, ha="right")
+    ax.set_ylabel("task decoded rollout NRMSE (lower is better)")
+    ax.set_title("Per-task light-v1 breakdown")
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend()
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def render_metric_suite(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    import matplotlib.pyplot as plt
+
+    visible = [
+        row for row in rows if _as_float(row.get("relative_improvement_fraction")) is not None
+    ]
+    if not visible:
+        return
+    labels = [str(row["label"]) for row in visible]
+    values = [100.0 * float(row["relative_improvement_fraction"]) for row in visible]
+    colors = ["#15803d" if value >= 0 else "#b91c1c" for value in values]
+    fig, ax = plt.subplots(figsize=(10.0, 5.2), constrained_layout=True)
+    bars = ax.bar(labels, values, color=colors)
+    ax.axhline(0.0, color="#111827", linewidth=0.8)
+    ax.set_title("UPS vs persistence across secondary metrics")
+    ax.set_ylabel("relative reduction vs persistence, % (higher is better)")
+    ax.tick_params(axis="x", rotation=30)
+    ax.grid(axis="y", alpha=0.25)
+    for bar, value in zip(bars, values, strict=True):
+        va = "bottom" if value >= 0 else "top"
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value,
+            f"{value:.1f}%",
+            ha="center",
+            va=va,
+            fontsize=8,
+        )
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def render_horizon_profile(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    import matplotlib.pyplot as plt
+
+    horizons = [item[0] for item in HORIZON_METRICS]
+    horizon_labels = {item[0]: item[1] for item in HORIZON_METRICS}
+    series_order = ["Persistence baseline", "UPS primary claim"]
+    values = {
+        (str(row["series"]), str(row["horizon"])): _as_float(row["metric_value"]) for row in rows
+    }
+    if not values:
+        return
+    fig, ax = plt.subplots(figsize=(8.5, 5.0), constrained_layout=True)
+    x = list(range(len(horizons)))
+    colors = {"Persistence baseline": "#6b7280", "UPS primary claim": "#15803d"}
+    offsets = {"Persistence baseline": -0.18, "UPS primary claim": 0.18}
+    bar_width = 0.34
+    for series in series_order:
+        y = [values.get((series, horizon), float("nan")) for horizon in horizons]
+        bar_x = [item + offsets[series] for item in x]
+        bars = ax.bar(bar_x, y, width=bar_width, label=series, color=colors[series])
+        for bar, item_y in zip(bars, y, strict=True):
+            if item_y is None or math.isnan(float(item_y)):
+                continue
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                item_y,
+                f"{item_y:.3f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+    ax.set_xticks(x)
+    ax.set_xticklabels([horizon_labels[horizon] for horizon in horizons])
+    ax.set_ylabel("decoded NRMSE (lower is better)")
+    ax.set_title("Primary claim horizon profile")
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend()
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def render_transport_ablation(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    import matplotlib.pyplot as plt
+
+    visible = [row for row in rows if _as_float(row.get("metric_value")) is not None]
+    if not visible:
+        return
+    labels = [str(row["label"]) for row in visible]
+    values = [float(row["metric_value"]) for row in visible]
+    colors = ["#15803d", "#f59e0b", "#b91c1c", "#6b7280"][: len(values)]
+    fig, ax = plt.subplots(figsize=(9.0, 5.0), constrained_layout=True)
+    bars = ax.bar(labels, values, color=colors)
+    ax.set_title("Validation-only transport context ablation")
+    ax.set_ylabel("validation NRMSE (lower is better)")
+    ax.tick_params(axis="x", rotation=20)
+    ax.grid(axis="y", alpha=0.25)
+    for bar, value in zip(bars, values, strict=True):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value,
+            f"{value:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def render_transfer_validation(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+    import matplotlib.pyplot as plt
+
+    visible = [row for row in rows if _as_float(row.get("metric_value")) is not None]
+    if not visible:
+        return
+    labels = [str(row["task"]) for row in visible]
+    values = [float(row["metric_value"]) for row in visible]
+    fig, ax = plt.subplots(figsize=(8.0, 4.8), constrained_layout=True)
+    bars = ax.bar(labels, values, color="#2563eb")
+    ax.set_title("Train/validation inferred transport transfer")
+    ax.set_ylabel("validation NRMSE (lower is better)")
+    ax.grid(axis="y", alpha=0.25)
+    for bar, value in zip(bars, values, strict=True):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value,
+            f"{value:.4f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    _save_figure(fig, path)
+    plt.close(fig)
+
+
+def build_repeatability_manifest(
+    *,
+    input_paths: Sequence[Path],
+    output_paths: Sequence[Path],
+    output_dir: Path,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "generator": "scripts/build_showcase_assets.py",
+        "check_command": "python scripts/build_showcase_assets.py --check",
+        "inputs": [
+            {
+                "path": str(path),
+                "sha256": sha256_file(path),
+                "bytes": path.stat().st_size,
+            }
+            for path in input_paths
+        ],
+        "outputs": [
+            {
+                "path": str(path.relative_to(output_dir)),
+                "sha256": sha256_file(path),
+                "bytes": path.stat().st_size,
+            }
+            for path in output_paths
+        ],
+    }
+
+
+def build_showcase(
+    *,
+    claim_evidence_path: Path,
+    external_mapping_path: Path,
+    durable_scorecard_path: Path,
+    transport_ablation_path: Path,
+    transfer_scorecard_path: Path,
+    output_dir: Path,
+    artifact_root: Path = Path("."),
+) -> list[Path]:
+    claim_evidence = load_json(claim_evidence_path)
+    external_mapping = load_json(external_mapping_path)
+    durable_scorecard = load_json(durable_scorecard_path)
+    transport_ablation = load_json(transport_ablation_path)
+    transfer_scorecard = load_json(transfer_scorecard_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    benchmark_rows = build_benchmark_rows(claim_evidence, external_mapping, durable_scorecard)
+    task_rows = build_task_rows(claim_evidence, external_mapping, durable_scorecard)
+    metric_suite_rows = build_metric_suite_rows(
+        claim_evidence,
+        durable_scorecard,
+        artifact_root=artifact_root,
+    )
+    horizon_rows = build_horizon_rows(
+        claim_evidence,
+        durable_scorecard,
+        artifact_root=artifact_root,
+    )
+    transport_ablation_rows = build_transport_ablation_rows(transport_ablation)
+    transfer_rows = build_transfer_rows(transfer_scorecard)
+    external_rows = build_external_matrix_rows(external_mapping)
+
+    paths = [
+        output_dir / "benchmark_summary.json",
+        output_dir / "benchmark_summary.tsv",
+        output_dir / "per_task_summary.tsv",
+        output_dir / "metric_suite_summary.tsv",
+        output_dir / "horizon_summary.tsv",
+        output_dir / "transport_ablation_summary.tsv",
+        output_dir / "transfer_validation_summary.tsv",
+        output_dir / "external_benchmark_matrix.tsv",
+        output_dir / "claim_scorecard.png",
+        output_dir / "per_task_breakdown.png",
+        output_dir / "primary_metric_suite.png",
+        output_dir / "horizon_profile.png",
+        output_dir / "transport_ablation.png",
+        output_dir / "transfer_validation.png",
+        output_dir / "external_benchmarks.png",
+    ]
+    write_json(
+        {
+            "source_files": {
+                "claim_evidence": str(claim_evidence_path),
+                "external_mapping": str(external_mapping_path),
+                "durable_scorecard": str(durable_scorecard_path),
+                "transport_ablation": str(transport_ablation_path),
+                "transfer_scorecard": str(transfer_scorecard_path),
+            },
+            "benchmark_rows": benchmark_rows,
+            "task_rows": task_rows,
+            "metric_suite_rows": metric_suite_rows,
+            "horizon_rows": horizon_rows,
+            "transport_ablation_rows": transport_ablation_rows,
+            "transfer_rows": transfer_rows,
+            "external_matrix_rows": external_rows,
+        },
+        paths[0],
+    )
+    write_tsv(benchmark_rows, paths[1], BENCHMARK_FIELDS)
+    write_tsv(task_rows, paths[2], TASK_FIELDS)
+    write_tsv(metric_suite_rows, paths[3], METRIC_SUITE_FIELDS)
+    write_tsv(horizon_rows, paths[4], HORIZON_FIELDS)
+    write_tsv(transport_ablation_rows, paths[5], TRANSPORT_ABLATION_FIELDS)
+    write_tsv(transfer_rows, paths[6], TRANSFER_FIELDS)
+    write_tsv(external_rows, paths[7], EXTERNAL_FIELDS)
+    render_claim_scorecard(benchmark_rows, paths[8])
+    render_task_breakdown(task_rows, paths[9])
+    render_metric_suite(metric_suite_rows, paths[10])
+    render_horizon_profile(horizon_rows, paths[11])
+    render_transport_ablation(transport_ablation_rows, paths[12])
+    render_transfer_validation(transfer_rows, paths[13])
+    render_external_benchmarks(external_rows, paths[14])
+
+    manifest_path = output_dir / "showcase_manifest.json"
+    write_json(
+        build_repeatability_manifest(
+            input_paths=[
+                claim_evidence_path,
+                external_mapping_path,
+                durable_scorecard_path,
+                transport_ablation_path,
+                transfer_scorecard_path,
+            ],
+            output_paths=paths,
+            output_dir=output_dir,
+        ),
+        manifest_path,
+    )
+    return [*paths, manifest_path]
+
+
+def check_showcase_assets(
+    *,
+    claim_evidence_path: Path,
+    external_mapping_path: Path,
+    durable_scorecard_path: Path,
+    transport_ablation_path: Path,
+    transfer_scorecard_path: Path,
+    output_dir: Path,
+    artifact_root: Path = Path("."),
+) -> bool:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        generated_paths = build_showcase(
+            claim_evidence_path=claim_evidence_path,
+            external_mapping_path=external_mapping_path,
+            durable_scorecard_path=durable_scorecard_path,
+            transport_ablation_path=transport_ablation_path,
+            transfer_scorecard_path=transfer_scorecard_path,
+            output_dir=Path(tmpdir),
+            artifact_root=artifact_root,
+        )
+        mismatches: list[str] = []
+        for generated_path in generated_paths:
+            committed_path = output_dir / generated_path.name
+            if not committed_path.exists():
+                mismatches.append(f"missing {committed_path}")
+                continue
+            if not filecmp.cmp(generated_path, committed_path, shallow=False):
+                mismatches.append(f"stale {committed_path}")
+        if mismatches:
+            for mismatch in mismatches:
+                print(mismatch, file=sys.stderr)
+            return False
+    return True
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--claim-evidence", type=Path, default=DEFAULT_CLAIM_EVIDENCE)
+    parser.add_argument("--external-mapping", type=Path, default=DEFAULT_EXTERNAL_MAPPING)
+    parser.add_argument("--durable-scorecard", type=Path, default=DEFAULT_DURABLE_SCORECARD)
+    parser.add_argument("--transport-ablation", type=Path, default=DEFAULT_TRANSPORT_ABLATION)
+    parser.add_argument("--transfer-scorecard", type=Path, default=DEFAULT_TRANSFER_SCORECARD)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Regenerate into a temporary directory and fail if committed assets are stale.",
+    )
+    args = parser.parse_args()
+
+    if args.check:
+        if not check_showcase_assets(
+            claim_evidence_path=args.claim_evidence,
+            external_mapping_path=args.external_mapping,
+            durable_scorecard_path=args.durable_scorecard,
+            transport_ablation_path=args.transport_ablation,
+            transfer_scorecard_path=args.transfer_scorecard,
+            output_dir=args.output_dir,
+            artifact_root=Path("."),
+        ):
+            sys.exit(1)
+        print("showcase assets are up to date")
+        return
+
+    for path in build_showcase(
+        claim_evidence_path=args.claim_evidence,
+        external_mapping_path=args.external_mapping,
+        durable_scorecard_path=args.durable_scorecard,
+        transport_ablation_path=args.transport_ablation,
+        transfer_scorecard_path=args.transfer_scorecard,
+        output_dir=args.output_dir,
+        artifact_root=Path("."),
+    ):
+        print(path)
+
+
+if __name__ == "__main__":
+    main()
