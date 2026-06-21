@@ -873,7 +873,7 @@
       "metric_value": null,
       "test_metric_value": null,
       "claim_boundary": "Compatibility smoke manifest only; no model training, no PhysicsNeMo metric, and no held-out test access.",
-      "next_step": "Run a live PhysicsNeMo recipe adapter on train/validation in Python 3.11+ or a PhysicsNeMo container before reporting UPS metrics."
+      "next_step": "Run python scripts/run_physicsnemo_compatibility_smoke.py --live-recipe --eval-split val in Python 3.11+ or a PhysicsNeMo container before reporting UPS metrics."
     }
   ],
   "selected_reproduction_path": {
