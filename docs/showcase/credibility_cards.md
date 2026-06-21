@@ -13,8 +13,9 @@ Current facts:
 - Showcase regeneration is zero-GPU.
 - Showcase regeneration does not hydrate datasets or rerun benchmarks.
 - The repeatability command is `python scripts/build_showcase_assets.py --check`.
-- Five evidence input files and twenty-two generated outputs are hashed in
-  `generated/showcase_manifest.json`.
+- Seven evidence input files and the generated asset set are tracked in
+  `generated/showcase_manifest.json`; the reproducibility card reports
+  twenty-six generated files, including the manifest itself.
 - The primary artifact hash is recorded in claim evidence.
 - Benchmark dollar cost is not displayed because the committed scorecards do not
   record dollar cost.
@@ -38,6 +39,11 @@ run evidence records provider, hardware, wall-clock, GPU-hours, and dollar cost.
 
 The card exists to prevent a common overclaim: measured repo-protocol baselines
 are not the same thing as published-paper leaderboard results.
+
+`generated/ecosystem_compatibility.png` and
+`generated/ecosystem_compatibility_summary.tsv` expand those lanes into the
+concrete official-source adapters, validation-only transfer gate, and planned
+PDEArena/PhysicsNeMo compatibility surfaces.
 
 ## Repeatability
 

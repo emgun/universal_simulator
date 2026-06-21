@@ -66,6 +66,14 @@ The readiness card separates measured matched-protocol third-party baselines
 from planned official external protocols, ecosystem compatibility checks, and
 future model/recipe surfaces.
 
+![Official and ecosystem compatibility](generated/ecosystem_compatibility.png)
+
+The compatibility card expands the readiness view into concrete official
+adapters and protocol gates: NeuralOperator, PDEBench U-Net, and CNO1d are
+measured matched-protocol adapters; Poseidon is validation-only and stopped
+before held-out test; PDEArena and PhysicsNeMo remain planned protocol or
+ecosystem surfaces.
+
 ![Qualitative rollout preview status](generated/rollout_preview_status.png)
 
 Qualitative rollout panels remain gated on a compact claim-linked preview
@@ -90,6 +98,9 @@ and `generated/rollout_preview_summary.tsv`.
   regeneration facts.
 - `generated/benchmark_readiness_summary.tsv`: measured third-party baselines,
   official external protocols, and ecosystem compatibility surfaces.
+- `generated/ecosystem_compatibility_summary.tsv`: official architecture
+  adapters, validation-only transfer gates, and planned ecosystem/protocol
+  adapters.
 - `generated/rollout_preview_status.tsv`: current status of qualitative rollout
   preview evidence.
 - `generated/rollout_preview_summary.tsv`: conditional metadata table for a

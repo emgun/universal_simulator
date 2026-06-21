@@ -8,6 +8,7 @@ import numpy as np
 from scripts.build_showcase_assets import (
     build_benchmark_readiness_rows,
     build_benchmark_rows,
+    build_ecosystem_compatibility_rows,
     build_external_matrix_rows,
     build_horizon_rows,
     build_metric_suite_rows,
@@ -132,6 +133,38 @@ def _fixture_payloads():
             }
         ]
     }
+    external_mapping["ecosystem_compatibility"] = [
+        {
+            "surface": "PDEBench U-Net",
+            "candidate_id": "pdebench_unet_official_light_v1",
+            "status": "matched_protocol_measured",
+            "readiness_lane": "official architecture adapter",
+            "source_refs": ["pdebench_official_repo"],
+            "adapter_entrypoint": "scripts/run_external_pdebench_unet_baseline.py",
+            "validation_command": "python scripts/run_external_pdebench_unet_baseline.py --eval-split val",
+            "evidence_json": "docs/claim_evidence/external_pdebench_unet_val_light_v1_e3_evidence.json",
+            "metric_name": "decoded_rollout_nrmse",
+            "metric_value": 0.53,
+            "test_metric_value": 0.7,
+            "claim_boundary": "Matched light-v1 protocol when run on held-out test.",
+            "next_step": "Keep as measured official architecture baseline.",
+        },
+        {
+            "surface": "PhysicsNeMo",
+            "candidate_id": "physicsnemo_compatibility_gate",
+            "status": "planned",
+            "readiness_lane": "ecosystem compatibility",
+            "source_refs": ["physicsnemo_official_repo"],
+            "adapter_entrypoint": "",
+            "validation_command": "",
+            "evidence_json": "",
+            "metric_name": "",
+            "metric_value": None,
+            "test_metric_value": None,
+            "claim_boundary": "Compatibility surface; no current UPS metric.",
+            "next_step": "Add a recipe adapter before reporting metrics.",
+        },
+    ]
     return claim_evidence, external_mapping, durable_scorecard
 
 
@@ -291,6 +324,25 @@ def test_build_external_matrix_rows_keeps_future_surfaces_separate():
     assert by_surface["FNO"]["claim_boundary"] == "Matched light-v1 repo protocol"
     assert by_surface["Poseidon"]["status"] == "future_or_partial"
     assert "Validation-only transfer path" in by_surface["Poseidon"]["next_step"]
+    assert by_surface["PhysicsNeMo"]["source_refs"] == "physicsnemo_official_repo"
+    assert (
+        by_surface["PhysicsNeMo"]["claim_boundary"]
+        == "Compatibility surface; no current UPS metric."
+    )
+
+
+def test_build_ecosystem_compatibility_rows_are_evidence_driven():
+    _, external_mapping, _ = _fixture_payloads()
+
+    rows = build_ecosystem_compatibility_rows(external_mapping)
+    by_surface = {row["surface"]: row for row in rows}
+
+    assert by_surface["PDEBench U-Net"]["status"] == "matched_protocol_measured"
+    assert by_surface["PDEBench U-Net"]["metric_value"] == 0.53
+    assert by_surface["PDEBench U-Net"]["test_metric_value"] == 0.7
+    assert by_surface["PDEBench U-Net"]["readiness_lane"] == "official architecture adapter"
+    assert by_surface["PhysicsNeMo"]["status"] == "planned"
+    assert by_surface["PhysicsNeMo"]["readiness_lane"] == "ecosystem compatibility"
 
 
 def test_build_reproducibility_card_rows_marks_missing_cost_as_not_recorded(tmp_path):
@@ -514,6 +566,7 @@ def test_build_rows_are_json_serializable():
             ),
             "benchmark_readiness": build_benchmark_readiness_rows(external_rows),
             "rollout_preview_status": build_rollout_preview_status_rows(),
+            "ecosystem_compatibility": build_ecosystem_compatibility_rows(external_mapping),
         }
     )
 
