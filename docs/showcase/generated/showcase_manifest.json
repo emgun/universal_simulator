@@ -8,9 +8,9 @@
       "sha256": "9685adaa590e4907f6bd510c1180d9ae846317097e1dc21900bf726f7810c698"
     },
     {
-      "bytes": 52823,
+      "bytes": 52792,
       "path": "docs/claim_evidence/external_baseline_mapping.json",
-      "sha256": "2fecdc82ec645d629310ed95c15a9d9cf410f34867aa0b89a395cf4547a34f8e"
+      "sha256": "de41d4d24157901fd7a27ad9191ea4b83056dab6e6f1ae8325f0907700bcd506"
     },
     {
       "bytes": 50589,
@@ -40,9 +40,9 @@
   ],
   "outputs": [
     {
-      "bytes": 44993,
+      "bytes": 44757,
       "path": "benchmark_summary.json",
-      "sha256": "6e43a1782d48cc7b5ebc9eaaf972194c346076d77a8251aadf85ca30b945e851"
+      "sha256": "d76e4503fd69446ad22dbfafc08a3c48a1202cf182e16d28f215217891b8a08b"
     },
     {
       "bytes": 3764,
@@ -80,9 +80,9 @@
       "sha256": "b13afad5dc024f79091976fc1e9c245013a539c714a41506b500994178fff38f"
     },
     {
-      "bytes": 2612,
+      "bytes": 2549,
       "path": "benchmark_readiness_summary.tsv",
-      "sha256": "53e2c404c4c653a94e1fb6dc340757122cb481c5f6b697b0683693f20eaeee4b"
+      "sha256": "bf307526cec71ab04cddaf3fdc96087e590bb7b46a088da5a54086e046271c75"
     },
     {
       "bytes": 650,
@@ -90,9 +90,9 @@
       "sha256": "3b76161b5b726cb0cab92cd6d54bb63d7062f2c2631da55ab53b493f868a4c52"
     },
     {
-      "bytes": 4852,
+      "bytes": 4724,
       "path": "external_benchmark_matrix.tsv",
-      "sha256": "430f1f303920be26315d648279d8a598c0e319bf1a5e105c7d7abaed2d2c1e36"
+      "sha256": "64394df364c3f6e15affa497aac48779fc27ac0fcceb2a3848c9cfbecac31827"
     },
     {
       "bytes": 75179,
@@ -130,9 +130,9 @@
       "sha256": "b8c7042a5845ddc3b8dc72828a638d3e76aa53ea50dfd9343dd137a8b2e2f3af"
     },
     {
-      "bytes": 167633,
+      "bytes": 159520,
       "path": "benchmark_readiness.png",
-      "sha256": "7a6cb2f36c03ee091453b3a8a0fb6b07bc12426e0e0176944e5913db9e4ce56e"
+      "sha256": "2b11b8af1c79b0242f9d39290329fb26fb45ffff6be512f485dea3e4a3f14c99"
     },
     {
       "bytes": 93319,
@@ -145,9 +145,9 @@
       "sha256": "dc8a9ccc20f81548af385f8061ca34d5dbe6032da7deae11d0798ec2a4fe3e1b"
     },
     {
-      "bytes": 4739,
+      "bytes": 4694,
       "path": "ecosystem_compatibility_summary.tsv",
-      "sha256": "e3c77dac4d77b2b13cfa2db380771385d216d44eaa3f44044d49dda97272bca9"
+      "sha256": "f547f00b2479d11af546487f43b7090fc8e551e9ba7d8325bb894283880e650c"
     },
     {
       "bytes": 146288,

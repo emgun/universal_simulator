@@ -191,10 +191,11 @@ the showcase readiness card. It is separate from the numeric claim table:
   `light-v1` claim comparison.
 - NVIDIA PhysicsNeMo now has both a dry recipe-compatibility smoke manifest at
   `docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json` and a
-  live train/validation FNO recipe-adapter measurement at
-  `docs/claim_evidence/physicsnemo_live_recipe_val_light_v1_e3_evidence.json`.
-  The live adapter records a validation-only `decoded_rollout_nrmse` and keeps
-  held-out test access blocked.
+  live train/validation FNO recipe-adapter measurement repeated in a Torch 2.10
+  runtime at
+  `docs/claim_evidence/physicsnemo_live_recipe_val_light_v1_e3_torch210_evidence.json`.
+  The live adapter records validation-only `decoded_rollout_nrmse`, MAE, MSE,
+  RRMSE, and spectral-energy error while keeping held-out test access blocked.
 
 The generated `docs/showcase/generated/ecosystem_compatibility_summary.tsv` and
 `ecosystem_compatibility.png` are derived from this evidence section. This keeps
@@ -214,6 +215,7 @@ protocols remain unmapped. The scalar-only Poseidon finetune gate is now
 measured and stopped on validation, so broader public-baseline claims need either
 a stronger train/validation-only foundation adapter or UPS-side validation
 improvement before any new held-out transfer measurement.
-For PhysicsNeMo, the next gate is deliberately narrower: repeat the live
-recipe-adapter measurement in an official PhysicsNeMo container or Torch>=2.10
-runtime before considering any held-out test budget.
+For PhysicsNeMo, the Torch 2.10 repeat closes the local Torch-version caveat.
+The remaining gate is optional vendor-runtime parity in an official PhysicsNeMo
+container once Docker and disk constraints are cleared; it still does not
+justify held-out test budget until a full external protocol is defined.
