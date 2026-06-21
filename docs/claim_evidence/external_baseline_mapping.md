@@ -189,11 +189,12 @@ the showcase readiness card. It is separate from the numeric claim table:
   validation gate.
 - PDEArena is tracked as a future official external protocol, not as a direct
   `light-v1` claim comparison.
-- NVIDIA PhysicsNeMo has a dry recipe-compatibility smoke manifest at
-  `docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json`. It
-  records the package/docs/source links, light-v1 train/validation task
-  interface, and no-test/no-metric boundary without requiring a local
-  PhysicsNeMo install.
+- NVIDIA PhysicsNeMo now has both a dry recipe-compatibility smoke manifest at
+  `docs/claim_evidence/physicsnemo_compatibility_smoke_light_v1.json` and a
+  live train/validation FNO recipe-adapter measurement at
+  `docs/claim_evidence/physicsnemo_live_recipe_val_light_v1_e3_evidence.json`.
+  The live adapter records a validation-only `decoded_rollout_nrmse` and keeps
+  held-out test access blocked.
 
 The generated `docs/showcase/generated/ecosystem_compatibility_summary.tsv` and
 `ecosystem_compatibility.png` are derived from this evidence section. This keeps
@@ -213,7 +214,6 @@ protocols remain unmapped. The scalar-only Poseidon finetune gate is now
 measured and stopped on validation, so broader public-baseline claims need either
 a stronger train/validation-only foundation adapter or UPS-side validation
 improvement before any new held-out transfer measurement.
-For PhysicsNeMo, the next gate is deliberately narrower: run a live recipe
-adapter on train/validation with `python scripts/run_physicsnemo_compatibility_smoke.py --live-recipe --eval-split val`
-in a Python 3.11+ or PhysicsNeMo container environment and record provenance
-before reporting any UPS metric.
+For PhysicsNeMo, the next gate is deliberately narrower: repeat the live
+recipe-adapter measurement in an official PhysicsNeMo container or Torch>=2.10
+runtime before considering any held-out test budget.

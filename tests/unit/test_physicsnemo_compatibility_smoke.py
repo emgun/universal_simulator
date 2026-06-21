@@ -247,6 +247,8 @@ def test_physicsnemo_live_recipe_dry_run_writes_validation_contract(tmp_path):
     assert summary["details"]["contract"]["requires_optional_dependency"] == "nvidia-physicsnemo"
     assert summary["details"]["contract"]["live_test_allowed"] is False
     assert summary["extra"]["implementation"] == PHYSICSNEMO_FNO_IMPORT
+    assert summary["extra"]["runtime"]["python_version"]
+    assert summary["extra"]["runtime"]["torch_version"]
     assert "--live-recipe" in summary["extra"]["command"]
     assert "--dry-run" in summary["extra"]["command"]
 

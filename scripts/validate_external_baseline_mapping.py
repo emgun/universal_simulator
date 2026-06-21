@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -151,6 +152,73 @@ def _validate_test_measurements(
         for key in ("measurement_key", "evidence_json", "artifact_handle"):
             if not measurement.get(key):
                 errors.append(f"{label}[{index}].{key} is required")
+
+
+def _validate_physicsnemo_validation_adapter(
+    row: Mapping[str, Any],
+    *,
+    label: str,
+    errors: list[str],
+) -> None:
+    if row.get("metric_name") != "decoded_rollout_nrmse":
+        errors.append(f"{label}.metric_name must be decoded_rollout_nrmse")
+    metric_value = row.get("metric_value")
+    if not isinstance(metric_value, (int, float)) or float(metric_value) < 0.0:
+        errors.append(f"{label}.metric_value must be a non-negative validation metric")
+    if row.get("test_metric_value") is not None:
+        errors.append(f"{label}.test_metric_value must remain null for validation-only evidence")
+    for key in ("adapter_entrypoint", "validation_command", "evidence_json"):
+        if not row.get(key):
+            errors.append(f"{label}.{key} is required for validation adapter evidence")
+
+    evidence_json = row.get("evidence_json")
+    if not isinstance(evidence_json, str) or not evidence_json:
+        return
+    evidence_path = Path(evidence_json)
+    if not evidence_path.exists():
+        errors.append(f"{label}.evidence_json does not exist: {evidence_json}")
+        return
+    try:
+        evidence = load_json(evidence_path)
+    except Exception as exc:
+        errors.append(f"{label}.evidence_json failed to load: {type(exc).__name__}: {exc}")
+        return
+
+    checks = {
+        "measurement_type": "physicsnemo_recipe_validation_adapter",
+        "status": "validation_recipe_adapter_complete",
+        "split": "val",
+        "train_split": "train",
+        "metric_name": row.get("metric_name"),
+        "metric_value": row.get("metric_value"),
+    }
+    for key, expected in checks.items():
+        if not _close_enough(evidence.get(key), expected):
+            errors.append(f"{label}.evidence_json {key} must match mapping")
+    if evidence.get("claim_comparable") is not False:
+        errors.append(f"{label}.evidence_json claim_comparable must be false")
+    if evidence.get("published_numbers_directly_comparable") is not False:
+        errors.append(f"{label}.evidence_json published_numbers_directly_comparable must be false")
+    if evidence.get("held_out_test_used") is not False:
+        errors.append(f"{label}.evidence_json held_out_test_used must be false")
+    if evidence.get("held_out_test_data_read") is not False:
+        errors.append(f"{label}.evidence_json held_out_test_data_read must be false")
+    artifact_handle = evidence.get("artifact_handle")
+    if artifact_handle and not str(artifact_handle).startswith("repo:"):
+        errors.append(f"{label}.evidence_json artifact_handle must be repo-scoped")
+    if isinstance(artifact_handle, str) and artifact_handle.startswith("repo:"):
+        artifact_path = Path(artifact_handle.removeprefix("repo:"))
+        if not artifact_path.exists():
+            errors.append(f"{label}.evidence_json artifact_handle does not exist")
+        else:
+            digest = hashlib.sha256()
+            with artifact_path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            if evidence.get("artifact_sha256") != digest.hexdigest():
+                errors.append(f"{label}.evidence_json artifact_sha256 must match file bytes")
+            if evidence.get("artifact_bytes") != artifact_path.stat().st_size:
+                errors.append(f"{label}.evidence_json artifact_bytes must match file size")
 
 
 def _validate_scoped_claim_variants(
@@ -809,6 +877,8 @@ def validate_mapping(
                 errors.append(f"{label}.validation_command is required for compatibility smoke")
             if not row.get("evidence_json"):
                 errors.append(f"{label}.evidence_json is required for compatibility smoke")
+        if row.get("status") == "validation_recipe_adapter_complete":
+            _validate_physicsnemo_validation_adapter(row, label=label, errors=errors)
 
     selected_path = _as_mapping(
         mapping.get("selected_reproduction_path"), "selected_reproduction_path", errors

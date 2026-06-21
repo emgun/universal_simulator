@@ -386,10 +386,10 @@ def test_build_benchmark_readiness_rows_splits_measured_protocols_and_ecosystem(
             },
             {
                 "surface": "PhysicsNeMo",
-                "status": "smoke_ready",
-                "metric_value": None,
-                "next_step": "Track compatibility.",
-                "claim_boundary": "Compatibility surface; no current UPS metric.",
+                "status": "validation",
+                "metric_value": 0.99,
+                "next_step": "Repeat in official runtime.",
+                "claim_boundary": "Validation surface; no held-out metric.",
             },
         ]
     )
@@ -399,7 +399,7 @@ def test_build_benchmark_readiness_rows_splits_measured_protocols_and_ecosystem(
     assert by_surface["FNO"]["readiness"] == "measured"
     assert by_surface["PDEArena"]["readiness_lane"] == "official external protocol"
     assert by_surface["PhysicsNeMo"]["readiness_lane"] == "ecosystem compatibility"
-    assert by_surface["PhysicsNeMo"]["readiness"] == "smoke_ready"
+    assert by_surface["PhysicsNeMo"]["readiness"] == "validation"
 
 
 def test_build_rollout_preview_status_rows_excludes_ignored_local_preview():

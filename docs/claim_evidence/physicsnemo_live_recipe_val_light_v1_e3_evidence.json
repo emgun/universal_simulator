@@ -1,0 +1,194 @@
+{
+  "artifact_bytes": 2664,
+  "artifact_handle": "repo:docs/claim_evidence/artifacts/physicsnemo_live_recipe_val_light_v1_e3.tar.gz",
+  "artifact_sha256": "99c5e4a4a52b0929a32db12828253593fd362d6e0c0526a069ea04d5a1556428",
+  "claim_comparable": false,
+  "command": [
+    "python",
+    "scripts/run_physicsnemo_compatibility_smoke.py",
+    "--live-recipe",
+    "--config",
+    "configs/train_multitask_heterogeneous_light_best.yaml",
+    "--name",
+    "physicsnemo_live_recipe_val_light_v1_e3",
+    "--output-root",
+    "reports/research/sota_loop/external_baselines",
+    "--train-split",
+    "train",
+    "--eval-split",
+    "val",
+    "--max-train-samples",
+    "2",
+    "--max-eval-samples",
+    "2",
+    "--max-pairs-per-task",
+    "32",
+    "--rollout-steps",
+    "4",
+    "--train-stride",
+    "4",
+    "--latent-channels",
+    "32",
+    "--fourier-modes",
+    "12",
+    "--num-fno-layers",
+    "4",
+    "--decoder-layers",
+    "1",
+    "--decoder-layer-size",
+    "32",
+    "--padding",
+    "5",
+    "--epochs",
+    "3",
+    "--learning-rate",
+    "0.001",
+    "--weight-decay",
+    "0.0001",
+    "--batch-size",
+    "8",
+    "--seed",
+    "17",
+    "--device",
+    "cpu",
+    "--metric",
+    "decoded_rollout_nrmse",
+    "--tasks",
+    "advection1d",
+    "burgers1d",
+    "darcy2d",
+    "--data-root",
+    "data/pdebench"
+  ],
+  "config": "configs/train_multitask_heterogeneous_light_best.yaml",
+  "data_root": "data/pdebench",
+  "data_sources": {
+    "advection1d": {
+      "train": {
+        "bytes": 93508109,
+        "exists": true,
+        "path": "data/pdebench/advection1d_train.h5",
+        "sha256": "67925f6765b64695818e36087bc69efaa9adee42253db6ef7c89b723118581d1",
+        "split": "train",
+        "task": "advection1d"
+      },
+      "val": {
+        "bytes": 24158705,
+        "exists": true,
+        "path": "data/pdebench/advection1d_val.h5",
+        "sha256": "9b6fcf88ae8d92b42107c840a9fef9c17eea1992c84024ed0dd61be0b0fe7329",
+        "split": "val",
+        "task": "advection1d"
+      }
+    },
+    "burgers1d": {
+      "train": {
+        "bytes": 94372462,
+        "exists": true,
+        "path": "data/pdebench/burgers1d_train.h5",
+        "sha256": "5d16ddd3b602c8c8f7c2f37d87f8e602f1348c420cea6311da36e5f9af796ad7",
+        "split": "train",
+        "task": "burgers1d"
+      },
+      "val": {
+        "bytes": 3456789,
+        "exists": true,
+        "path": "data/pdebench/burgers1d_val.h5",
+        "sha256": "af8359e85cefb0c7fd04876f9948c98dd43aaa4a391654999ef8157a36469b0c",
+        "split": "val",
+        "task": "burgers1d"
+      }
+    },
+    "darcy2d": {
+      "train": {
+        "bytes": 144542,
+        "exists": true,
+        "path": "data/pdebench/darcy2d_train.h5",
+        "sha256": "fde77ce8268cfb5dbb5b20c32f8c52c796beb9246cf643ff2035871853b62213",
+        "split": "train",
+        "task": "darcy2d"
+      },
+      "val": {
+        "bytes": 45114,
+        "exists": true,
+        "path": "data/pdebench/darcy2d_val.h5",
+        "sha256": "4881d4af84982fd71a7e9955db047f8fdd0841c8df43332c79c105eef4f0cb64",
+        "split": "val",
+        "task": "darcy2d"
+      }
+    }
+  },
+  "duration_sec": 0.2439730167388916,
+  "family_metrics": {
+    "family_conservation_decoded_rollout_nrmse": 0.9927456420508375,
+    "family_elliptic_decoded_rollout_nrmse": 1.0232700983007785,
+    "family_transport_decoded_rollout_nrmse": 0.9927112724448514
+  },
+  "fit": {
+    "group_count": 3,
+    "train_frames": 6
+  },
+  "group_manifest_sha256": "c2ac78db090b468bbdb39cb368f2eea8eaa674babbc8b890b4e972569a4fda67",
+  "group_manifest_tsv": "reports/research/sota_loop/external_baselines/physicsnemo_live_recipe_val_light_v1_e3/physicsnemo_groups.tsv",
+  "held_out_test_data_read": false,
+  "held_out_test_used": false,
+  "inspected_splits": [
+    "train",
+    "val"
+  ],
+  "measurement_type": "physicsnemo_recipe_validation_adapter",
+  "metric_name": "decoded_rollout_nrmse",
+  "metric_value": 0.994514587233567,
+  "notes": [
+    "Executed on validation split only; split=test is blocked by the adapter.",
+    "Local run used an isolated temporary venv with nvidia-physicsnemo 2.1.1 and existing CPU PyTorch packages.",
+    "This evidence proves live PhysicsNeMo FNO recipe interoperability, not claim-comparable SOTA performance."
+  ],
+  "physicsnemo": {
+    "available": true,
+    "declared_python_requires": ">=3.11,<=3.14",
+    "docs_url": "https://docs.nvidia.com/physicsnemo/latest/",
+    "import": "physicsnemo.models.fno.fno.FNO",
+    "pip_name": "nvidia-physicsnemo",
+    "recipe_docs_url": "https://docs.nvidia.com/physicsnemo/latest/user-guide/simple_training_example.html",
+    "source_url": "https://github.com/NVIDIA/physicsnemo",
+    "version": "2.1.1"
+  },
+  "protocol_subset": {
+    "batch_size": 8,
+    "device": "cpu",
+    "epochs": 3,
+    "max_eval_samples": 2,
+    "max_pairs_per_task": 32,
+    "max_train_samples": 2,
+    "rollout_steps": 4,
+    "seed": 17,
+    "train_stride": 4
+  },
+  "published_numbers_directly_comparable": false,
+  "reason_not_claim_comparable": "Validation-only PhysicsNeMo recipe adapter measurement; no held-out test access and not a published PhysicsNeMo benchmark protocol.",
+  "run_name": "physicsnemo_live_recipe_val_light_v1_e3",
+  "runtime": {
+    "platform": "macOS-26.0.1-arm64-arm-64bit",
+    "python_executable": "/tmp/ups-physicsnemo-venv/bin/python",
+    "python_version": "3.12.7",
+    "torch_version": "2.7.0",
+    "torchvision_version": "0.22.0"
+  },
+  "schema_version": 1,
+  "split": "val",
+  "status": "validation_recipe_adapter_complete",
+  "summary_json": "reports/research/sota_loop/external_baselines/physicsnemo_live_recipe_val_light_v1_e3/summary.json",
+  "summary_sha256": "2c92a42bea4c7c6e7073809684e136efde6160349cf40b64b712c72c4ce1b0b9",
+  "task_metrics": {
+    "task_advection1d_decoded_rollout_nrmse": 0.9927112724448514,
+    "task_burgers1d_decoded_rollout_nrmse": 0.9927456420508375,
+    "task_darcy2d_decoded_rollout_nrmse": 1.0232700983007785
+  },
+  "task_set": [
+    "advection1d",
+    "burgers1d",
+    "darcy2d"
+  ],
+  "train_split": "train"
+}

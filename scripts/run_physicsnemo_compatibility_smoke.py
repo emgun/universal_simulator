@@ -15,6 +15,7 @@ import importlib
 import importlib.metadata as metadata
 import importlib.util
 import json
+import platform
 import sys
 import time
 from collections.abc import Mapping
@@ -342,10 +343,28 @@ def physicsnemo_import_status() -> dict[str, Any]:
         "available": True,
         "pip_name": PHYSICSNEMO_PACKAGE,
         "import": PHYSICSNEMO_FNO_IMPORT,
+        "declared_python_requires": ">=3.11,<=3.14",
         "source_url": PHYSICSNEMO_SOURCE_URL,
         "docs_url": PHYSICSNEMO_DOCS_URL,
         "recipe_docs_url": PHYSICSNEMO_RECIPE_DOCS_URL,
         "version": version,
+    }
+
+
+def live_recipe_runtime_status() -> dict[str, Any]:
+    torch_version = str(getattr(torch, "__version__", "unknown"))
+    try:
+        import torchvision
+
+        torchvision_version = str(getattr(torchvision, "__version__", "unknown"))
+    except Exception as exc:
+        torchvision_version = f"unavailable:{type(exc).__name__}"
+    return {
+        "python_executable": sys.executable,
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "torch_version": torch_version,
+        "torchvision_version": torchvision_version,
     }
 
 
@@ -748,6 +767,7 @@ def _live_recipe_common(args: argparse.Namespace, *, tasks: list[str]) -> dict[s
             "docs_url": PHYSICSNEMO_DOCS_URL,
             "recipe_docs_url": PHYSICSNEMO_RECIPE_DOCS_URL,
             "physicsnemo": physicsnemo_import_status(),
+            "runtime": live_recipe_runtime_status(),
             "task": tasks[0] if len(tasks) == 1 else list(tasks),
             "train_split": args.train_split,
             "split": args.eval_split,

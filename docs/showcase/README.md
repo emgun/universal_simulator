@@ -72,8 +72,8 @@ The compatibility card expands the readiness view into concrete official
 adapters and protocol gates: NeuralOperator, PDEBench U-Net, and CNO1d are
 measured matched-protocol adapters; Poseidon is validation-only and stopped
 before held-out test; PDEArena remains a planned protocol surface; PhysicsNeMo
-now has a dry recipe-compatibility smoke manifest and repeatable train/validation
-live-adapter command, but no committed live framework metric.
+now has a validation-only live FNO recipe-adapter metric, but no held-out or
+published-protocol framework claim.
 
 ![Qualitative rollout preview status](generated/rollout_preview_status.png)
 
