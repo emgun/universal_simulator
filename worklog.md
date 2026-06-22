@@ -2669,7 +2669,7 @@ Inferred context transport successor (2026-05-24):
 - Re-ran the beta-conditioned validation baseline on the merged branch: validation `nrmse=0.001981674036057911`.
 - Train/val-only sweep found the best inferred setting at `context_transitions=8`, `refine_radius=4`, `fractional_refine_step=0.025`, with validation `nrmse=0.00029621962142020844`.
 - Because that validation result beat the current beta-conditioned validation baseline and passed the guard, ran exactly one held-out test using `reports/research/sota_loop/inferred_transport_head/inferred_transport_test_ledger.json`; held-out test `nrmse=0.0001883979016384957`.
-- This is the strongest narrow official Advection transport result so far and removes explicit beta conditioning, but it still depends on observed early-context frames and is not yet broad universal SOTA across PDE families.
+- This is the strongest narrow official Advection transport result so far and removes explicit beta conditioning, but it still depends on observed early-context frames and is not yet a cross-family SOTA result.
 
 Inferred transport transfer scorecard (2026-05-24):
 - Added `scripts/run_inferred_transport_transfer_scorecard.py` to run the inferred context transport gate across local train/validation splits without passing any held-out test split to the task gates.

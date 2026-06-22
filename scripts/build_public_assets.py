@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-"""Build public showcase tables and figures from committed UPS evidence."""
+"""Build public evidence tables and figures from committed UPS evidence."""
 
 import argparse
 import csv
@@ -27,7 +27,7 @@ DEFAULT_TRANSFER_SCORECARD = Path(
     "docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json"
 )
 DEFAULT_ROLLOUT_PREVIEW_MANIFEST = Path("docs/claim_evidence/rollout_preview_manifest.json")
-DEFAULT_OUTPUT_DIR = Path("docs/showcase/generated")
+DEFAULT_OUTPUT_DIR = Path("docs/results/generated")
 
 TASK_METRICS = {
     "advection1d": "task_advection1d_decoded_rollout_nrmse",
@@ -951,32 +951,32 @@ def build_reproducibility_card_rows(
     duration_status = "recorded" if duration_values else "not_recorded"
     return [
         _card_row(
-            key="showcase_check",
-            label="Showcase check",
-            value="python scripts/build_showcase_assets.py --check",
+            key="evidence_asset_check",
+            label="Asset check",
+            value="python scripts/build_public_assets.py --check",
             status="repeatable",
-            claim_boundary="Regenerates public showcase assets from committed evidence.",
+            claim_boundary="Regenerates public assets from committed evidence.",
         ),
         _card_row(
-            key="showcase_gpu_required",
-            label="GPU for showcase",
+            key="evidence_asset_gpu_required",
+            label="GPU for assets",
             value="no",
             status="zero_gpu",
-            claim_boundary="Showcase regeneration does not rerun benchmarks.",
+            claim_boundary="Asset regeneration does not rerun benchmarks.",
         ),
         _card_row(
-            key="showcase_data_required",
+            key="evidence_asset_data_required",
             label="Dataset hydration",
             value="no",
             status="zero_data_hydration",
-            claim_boundary="Showcase regeneration reads committed evidence files only.",
+            claim_boundary="Asset regeneration reads committed evidence files only.",
         ),
         _card_row(
             key="evidence_input_count",
             label="Evidence inputs",
             value=str(len(source_paths)),
             status="tracked",
-            claim_boundary="Inputs are listed and hashed in showcase_manifest.json.",
+            claim_boundary="Inputs are listed and hashed in asset_manifest.json.",
         ),
         _card_row(
             key="generated_output_count",
@@ -984,7 +984,7 @@ def build_reproducibility_card_rows(
             value=str(generated_output_count),
             status="tracked",
             claim_boundary=(
-                "Generated assets are listed and hashed in showcase_manifest.json; "
+                "Generated assets are listed and hashed in asset_manifest.json; "
                 "this count also includes the manifest."
             ),
         ),
@@ -1247,14 +1247,14 @@ def build_rollout_preview_status_rows(
             "key": "ignored_local_preview",
             "label": "Ignored local preview",
             "status": ignored_status,
-            "next_step": "Do not use ignored reports as public showcase evidence.",
+            "next_step": "Do not use ignored reports as public evidence.",
             "claim_boundary": "Ignored local reports are not public evidence.",
         },
         {
             "key": "preview_contract",
             "label": "Preview contract",
             "status": "defined",
-            "next_step": "Use docs/showcase/rollout_preview_artifact_contract.md.",
+            "next_step": "Use the rollout preview artifact contract.",
             "claim_boundary": "Contract defines future artifact shape; it is not a result.",
         },
     ]
@@ -1414,7 +1414,7 @@ def _save_figure(fig: Any, path: str | Path) -> None:
     fig.savefig(
         path,
         dpi=180,
-        metadata={"Software": "universal_simulator showcase generator"},
+        metadata={"Software": "universal_simulator public evidence generator"},
     )
 
 
@@ -1666,7 +1666,7 @@ def render_reproducibility_card(rows: Sequence[Mapping[str, Any]], path: str | P
     _render_text_rows(
         rows,
         path=path,
-        title="Showcase cost and reproducibility card",
+        title="Cost and reproducibility",
         columns=(
             ("label", "Item", 22),
             ("value", "Value", 32),
@@ -1832,8 +1832,8 @@ def build_repeatability_manifest(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "generator": "scripts/build_showcase_assets.py",
-        "check_command": "python scripts/build_showcase_assets.py --check",
+        "generator": "scripts/build_public_assets.py",
+        "check_command": "python scripts/build_public_assets.py --check",
         "inputs": [
             {
                 "path": str(path),
@@ -1853,7 +1853,7 @@ def build_repeatability_manifest(
     }
 
 
-def build_showcase(
+def build_public_assets(
     *,
     claim_evidence_path: Path,
     external_mapping_path: Path,
@@ -2003,7 +2003,7 @@ def build_showcase(
             artifact_root=artifact_root,
         )
 
-    manifest_path = output_dir / "showcase_manifest.json"
+    manifest_path = output_dir / "asset_manifest.json"
     write_json(
         build_repeatability_manifest(
             input_paths=source_paths,
@@ -2015,7 +2015,7 @@ def build_showcase(
     return [*paths, manifest_path]
 
 
-def check_showcase_assets(
+def check_public_assets(
     *,
     claim_evidence_path: Path,
     external_mapping_path: Path,
@@ -2027,7 +2027,7 @@ def check_showcase_assets(
     artifact_root: Path = Path("."),
 ) -> bool:
     with tempfile.TemporaryDirectory() as tmpdir:
-        generated_paths = build_showcase(
+        generated_paths = build_public_assets(
             claim_evidence_path=claim_evidence_path,
             external_mapping_path=external_mapping_path,
             durable_scorecard_path=durable_scorecard_path,
@@ -2077,7 +2077,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.check:
-        if not check_showcase_assets(
+        if not check_public_assets(
             claim_evidence_path=args.claim_evidence,
             external_mapping_path=args.external_mapping,
             durable_scorecard_path=args.durable_scorecard,
@@ -2088,10 +2088,10 @@ def main() -> None:
             artifact_root=Path("."),
         ):
             sys.exit(1)
-        print("showcase assets are up to date")
+        print("public assets are up to date")
         return
 
-    for path in build_showcase(
+    for path in build_public_assets(
         claim_evidence_path=args.claim_evidence,
         external_mapping_path=args.external_mapping,
         durable_scorecard_path=args.durable_scorecard,

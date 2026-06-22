@@ -10,11 +10,11 @@ the benchmark claim.
 
 Current facts:
 
-- Showcase regeneration is zero-GPU.
-- Showcase regeneration does not hydrate datasets or rerun benchmarks.
-- The repeatability command is `python scripts/build_showcase_assets.py --check`.
+- Asset regeneration is zero-GPU.
+- Asset regeneration does not hydrate datasets or rerun benchmarks.
+- The repeatability command is `python scripts/build_public_assets.py --check`.
 - Seven evidence input files and the generated asset set are tracked in
-  `generated/showcase_manifest.json`; the reproducibility card reports
+  `generated/asset_manifest.json`; the reproducibility card reports
   twenty-six generated files, including the manifest itself.
 - The primary artifact hash is recorded in claim evidence.
 - Benchmark dollar cost is not displayed because the committed scorecards do not
@@ -50,6 +50,6 @@ PDEArena plus validation-only PhysicsNeMo compatibility surfaces.
 Regenerate and check all credibility cards with:
 
 ```bash
-python scripts/build_showcase_assets.py
-python scripts/build_showcase_assets.py --check
+python scripts/build_public_assets.py
+python scripts/build_public_assets.py --check
 ```

@@ -1,8 +1,8 @@
-# Showcase
+# Evidence Figures
 
 This directory contains public-facing figures and benchmark tables generated from
 committed UPS evidence. The source of truth is still `docs/claim_evidence/`;
-the files under `docs/showcase/generated/` are a visual and tabular rendering of
+the files under `docs/results/generated/` are a visual and tabular rendering of
 that evidence.
 
 ## Current Figures
@@ -53,12 +53,12 @@ claim. It shows the currently tracked inferred transport transfer result on the
 tasks that were evaluated; Darcy is skipped in the source scorecard because the
 train split was missing.
 
-![Showcase cost and reproducibility card](generated/reproducibility_card.png)
+![Cost and reproducibility card](generated/reproducibility_card.png)
 
-The reproducibility card records the current public evidence surface: showcase
-regeneration is zero-GPU and reads committed evidence only, generated outputs
-are hashed, and benchmark dollar cost is not shown because it is not recorded in
-the committed scorecards.
+The reproducibility card records the current public evidence surface: asset
+regeneration is zero-GPU and reads committed evidence only, generated outputs are
+hashed, and benchmark dollar cost is omitted when it is not recorded in the
+committed scorecards.
 
 ![Benchmark and ecosystem readiness](generated/benchmark_readiness.png)
 
@@ -110,7 +110,7 @@ and `generated/rollout_preview_summary.tsv`.
   benchmark surfaces.
 - `generated/benchmark_summary.json`: machine-readable bundle containing all
   rows and input evidence paths.
-- `generated/showcase_manifest.json`: input and output hashes plus the
+- `generated/asset_manifest.json`: input and output hashes plus the
   repeatability check command.
 
 ## Regeneration
@@ -118,13 +118,13 @@ and `generated/rollout_preview_summary.tsv`.
 Run from the repository root:
 
 ```bash
-python scripts/build_showcase_assets.py
+python scripts/build_public_assets.py
 ```
 
-To verify committed showcase assets are up to date without rewriting them:
+To verify committed generated assets are up to date without rewriting them:
 
 ```bash
-python scripts/build_showcase_assets.py --check
+python scripts/build_public_assets.py --check
 ```
 
 The generator reads:

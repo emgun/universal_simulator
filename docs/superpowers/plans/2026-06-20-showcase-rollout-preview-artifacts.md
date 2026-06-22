@@ -1,4 +1,4 @@
-# Showcase Rollout Preview Artifact Support Plan
+# Public Results Rollout Preview Artifact Support Plan
 
 Goal: make qualitative rollout previews repeatable and claim-linked without
 promoting ignored local `reports/` files or latent-space debug previews as public
@@ -10,12 +10,12 @@ evidence.
 - Validate artifact hash, required arrays, and shape conventions before rendering.
 - Render a qualitative target/prediction/error panel only when the manifest and
   artifact exist.
-- Keep the public showcase gated until a real decoded preview artifact is
+- Keep public figures gated until a real decoded preview artifact is
   committed.
 
 ## Implementation
 
-- [x] Extend `scripts/build_showcase_assets.py` with optional rollout preview
+- [x] Extend `scripts/build_public_assets.py` with optional rollout preview
   manifest validation.
 - [x] Add conditional `generated/rollout_preview_summary.tsv` and
   `generated/rollout_preview_panel.png` outputs for valid artifacts.
@@ -75,8 +75,8 @@ Committed outputs:
 - `docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val.npz`
 - `docs/claim_evidence/artifacts/rollout_preview_ups_light_shared_context_transport_guarded_advection1d_val_summary.json`
 - `docs/claim_evidence/rollout_preview_manifest.json`
-- `docs/showcase/generated/rollout_preview_summary.tsv`
-- `docs/showcase/generated/rollout_preview_panel.png`
+- `docs/results/generated/rollout_preview_summary.tsv`
+- `docs/results/generated/rollout_preview_panel.png`
 
 Repeatable validation-only preview path:
 
