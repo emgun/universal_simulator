@@ -1,8 +1,8 @@
 # Research Diagnostics
 
 These figures are useful public context, but they are not held-out benchmark
-claims. They help explain the current technical path and why the main public
-claim stays narrow.
+results. They help explain the current technical path and why the main public
+result stays narrow.
 
 ## Transport Context Ablation
 
@@ -17,7 +17,7 @@ It compares validation-only advection variants:
 | Bounded context shift | 0.4218 | Degrades when the shift search is bounded. |
 | No data conditioning | 0.5028 | Degrades without the context-derived shift signal. |
 
-The result supports a technical conclusion, not a broad public claim: the
+The result supports a technical conclusion, not a broad public result: the
 transport win is context-dependent and should remain scoped until a learned or
 reduced-context sidecar carries the same behavior under a stricter contract.
 
@@ -26,7 +26,7 @@ reduced-context sidecar carries the same behavior under a stricter contract.
 `generated/transfer_validation.png` is generated from
 `docs/claim_evidence/artifacts/inferred_transport_transfer_scorecard.json`.
 
-It records train/validation transfer evidence:
+It records train/validation transfer results:
 
 | Task | Status | Validation NRMSE |
 | --- | --- | ---: |
@@ -37,7 +37,7 @@ It records train/validation transfer evidence:
 The source scorecard explicitly records train/validation scope and no held-out
 test touch. This is useful for the roadmap because it shows cross-task transfer
 signal on two tasks, but it is not a replacement for held-out `light-v1`
-evidence.
+results.
 
 ## Repeatability
 
@@ -48,5 +48,5 @@ python scripts/build_public_assets.py
 python scripts/build_public_assets.py --check
 ```
 
-Future diagnostic figures should follow the same rule: tracked evidence in,
-generated artifact out, explicit claim boundary in the docs.
+Future diagnostic figures should follow the same rule: tracked record in,
+generated artifact out, explicit scope note in the docs.

@@ -3,20 +3,21 @@
 Universal Physics Stack is research software for latent-space neural simulation
 of PDE-style physical systems. It encodes physical fields into compact latent
 states, evolves them with transformer-style operators, decodes predictions at
-query points, and evaluates physical-space rollouts with auditable evidence.
+query points, and evaluates physical-space rollouts with reproducible result
+records.
 
-## Current Evidence
+## Current Results
 
-The claim-evidence stack under `docs/claim_evidence/` records protocol, split,
-metric, command, artifact hashes, and baseline context for held-out
-PDEBench-shaped experiments.
+The records under `docs/claim_evidence/` capture protocol, split, metric,
+command, artifact hashes, and baseline context for held-out PDEBench-shaped
+experiments.
 
 Start here:
 
-- `docs/public/README.md`: public overview and evidence boundary.
-- `docs/public/reproducibility.md`: how to inspect evidence and reproduce local checks.
+- `docs/public/README.md`: public overview and current result scope.
+- `docs/public/reproducibility.md`: how to inspect records and reproduce local checks.
 - `docs/public/artifact_policy.md`: what belongs in Git versus external artifact storage.
-- `docs/claim_evidence/universal_sota_claim_evidence.json`: current machine-readable claim evidence.
+- `docs/claim_evidence/universal_sota_claim_evidence.json`: current machine-readable result record.
 - `docs/research/2026-06-04-universal-simulator-literature-and-ecosystem-landscape.md`: current research landscape and technical blocker framing.
 
 ## Quickstart
@@ -47,37 +48,36 @@ The Python package is namespaced under `ups`.
 - `src/ups/training`: losses, loops, optimizers, curricula, and distributed helpers.
 - `src/ups/data`: schemas, datasets, transforms, collate logic, and PDEBench helpers.
 - `src/ups/inference`: rollout, data assimilation, and control utilities.
-- `src/ups/eval`: metrics, calibration, gates, reports, and claim checks.
+- `src/ups/eval`: metrics, calibration, gates, and reports.
 - `src/ups/discovery`: nondimensionalization and symbolic discovery utilities.
 - `src/ups/active`: active-learning and multi-fidelity calibration experiments.
 - `configs/`: training and evaluation configs.
-- `scripts/`: local, remote, audit, and evidence-generation entrypoints.
-- `docs/`: public overview, research notes, runbooks, and claim evidence.
+- `scripts/`: local, remote, audit, and asset-generation entrypoints.
+- `docs/`: public overview, research notes, runbooks, and result records.
 
-## Evidence And Artifacts
+## Artifacts
 
 UPS intentionally separates source code from generated artifacts:
 
-- small, claim-relevant evidence lives in `docs/claim_evidence/`;
+- small result records live in `docs/claim_evidence/`;
 - broader research notes live in `docs/research/`;
 - generated checkpoints, raw datasets, W&B runs, provider logs, and ad hoc remote outputs stay out of normal Git.
 
 The committed bundles under `docs/claim_evidence/artifacts/` are compact
-evidence bundles for auditability, not a general artifact store.
+result bundles for reproducibility, not a general artifact store.
 
-## Evidence Figures
+## Figures And Benchmarks
 
 Generated figures and benchmark tables cover the matched `light-v1` scorecard,
 per-task breakdown, secondary metrics, horizon profile, validation diagnostics,
 external baselines, and reproducibility cards. They are generated from committed
-evidence JSON and should be read with the claim manifests under
-`docs/claim_evidence/`.
+records under `docs/claim_evidence/`.
 
 See `docs/public/reproducibility.md` for the generated-asset check.
 
 ## Common Commands
 
-Inspect the current claim status:
+Inspect the current result status:
 
 ```bash
 python scripts/audit_universal_sota_status.py --medium-confirmed
@@ -107,5 +107,5 @@ python scripts/fetch_datasets.py burgers1d_subset_v1 --root data/pdebench --cach
 
 Current technical north star: improve decoded physical-space rollout quality
 across task families while preserving validation/test separation and artifact
-auditability. The most important measured blocker is long-horizon transport and
+traceability. The most important measured blocker is long-horizon transport and
 advection phase tracking.

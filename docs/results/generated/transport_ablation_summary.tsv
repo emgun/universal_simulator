@@ -1,4 +1,4 @@
-variant_id	label	split	metric_name	metric_value	context_transitions	candidate_shift_min	candidate_shift_max	held_out_test_used	claim_boundary
+variant_id	label	split	metric_name	metric_value	context_transitions	candidate_shift_min	candidate_shift_max	held_out_test_used	scope_note
 full_context_shift	Full context shift	val	nrmse	0.0005432125951258969	1	-80	80	false	validation-only diagnostic
 weaker_context_shift	Bounded context shift	val	nrmse	0.421816253136215	1	-8	8	false	validation-only diagnostic
 no_data_conditioning	No data conditioning	val	nrmse	0.5027994693398018		-80	80	false	validation-only diagnostic

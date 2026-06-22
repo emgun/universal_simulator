@@ -1,7 +1,7 @@
-series	horizon	horizon_label	metric_name	metric_value	claim_boundary
-UPS primary claim	step1	Step 1	decoded_step1_nrmse	0.7176522026316365	Primary UPS artifact metrics
-UPS primary claim	h4	H4	decoded_h4_nrmse	0.5579563760666284	Primary UPS artifact metrics
-UPS primary claim	h16	H16	decoded_h16_nrmse	0.08770072386133382	Primary UPS artifact metrics
+series	horizon	horizon_label	metric_name	metric_value	scope_note
+UPS primary	step1	Step 1	decoded_step1_nrmse	0.7176522026316365	Primary UPS artifact metrics
+UPS primary	h4	H4	decoded_h4_nrmse	0.5579563760666284	Primary UPS artifact metrics
+UPS primary	h16	H16	decoded_h16_nrmse	0.08770072386133382	Primary UPS artifact metrics
 Persistence baseline	step1	Step 1	decoded_step1_nrmse	0.7176522098041582	Held-out light-v1 persistence scorecard
 Persistence baseline	h4	H4	decoded_h4_nrmse	0.5579563803127553	Held-out light-v1 persistence scorecard
 Persistence baseline	h16	H16	decoded_h16_nrmse	0.5581596078582408	Held-out light-v1 persistence scorecard

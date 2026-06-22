@@ -1,4 +1,4 @@
-task	status	metric_name	metric_value	train_metric_value	test_touched	reason	claim_boundary
+task	status	metric_name	metric_value	train_metric_value	test_touched	reason	scope_note
 advection1d	validated	nrmse	0.0002474825485253347	2.172259110919047e-05	false		train/validation transfer diagnostic
 burgers1d	validated	nrmse	0.005825403469960085	0.06240837279866455	false		train/validation transfer diagnostic
 darcy2d	skipped	nrmse			false	missing train split: data/pdebench/darcy2d_train.h5	train/validation transfer diagnostic
