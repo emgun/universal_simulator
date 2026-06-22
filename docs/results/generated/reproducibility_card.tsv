@@ -1,0 +1,10 @@
+key	label	value	status	claim_boundary
+evidence_asset_check	Asset check	python scripts/build_public_assets.py --check	repeatable	Regenerates public assets from committed evidence.
+evidence_asset_gpu_required	GPU for assets	no	zero_gpu	Asset regeneration does not rerun benchmarks.
+evidence_asset_data_required	Dataset hydration	no	zero_data_hydration	Asset regeneration reads committed evidence files only.
+evidence_input_count	Evidence inputs	7	tracked	Inputs are listed and hashed in asset_manifest.json.
+generated_output_count	Generated outputs	26	tracked	Generated assets are listed and hashed in asset_manifest.json; this count also includes the manifest.
+primary_metric	Primary metric	decoded_rollout_nrmse	claim_metric	Primary held-out claim metric; secondary metrics are diagnostic.
+primary_artifact_hash	Primary artifact hash	7eb8473b294b	recorded	Full artifact hash remains in claim evidence.
+benchmark_cost_status	Benchmark dollar cost	not recorded	not_recorded	Dollar cost is shown only when recorded in committed scorecards.
+recorded_eval_duration	Recorded eval duration	35.2s	recorded	Duration comes from committed scorecard rows, not a fresh run.

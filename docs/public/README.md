@@ -5,11 +5,7 @@ simulation of PDE-style physical systems. It combines grid and field encoders,
 latent transformer operators, any-point decoders, rollout evaluation, and
 claim-evidence artifacts.
 
-This repository is public, but it should be read as an active research workbench
-with auditable evidence, not as a production simulator or a finished foundation
-model.
-
-## Current Public Claim Boundary
+## Evidence Boundary
 
 UPS currently supports a guarded research claim around bounded PDEBench-shaped
 experiments. The most important public contract is:
@@ -20,54 +16,39 @@ experiments. The most important public contract is:
 - evidence root: `docs/claim_evidence/`
 - latest claim manifest: `docs/claim_evidence/universal_sota_claim_evidence.json`
 
-The claim evidence is intentionally narrower than the project name. Results
-outside the recorded protocol should be treated as research notes until they are
-rerun under an auditable contract.
+Results outside the recorded protocol need their own evidence contract before
+they become public claims.
 
 ## Where To Start
 
-- `README.md`: top-level installation, repo map, and claim boundary.
+- `README.md`: top-level installation, repo map, and evidence boundary.
 - `docs/public/reproducibility.md`: how to reproduce or inspect evidence.
 - `docs/public/artifact_policy.md`: what belongs in Git and what belongs in
   external artifact storage.
-- `docs/showcase/README.md`: generated public-facing benchmark figures and
-  third-party baseline tables.
+- `docs/results/README.md`: generated benchmark figures and third-party
+  baseline tables.
 - `docs/claim_evidence/`: machine-readable evidence, pretest contracts, and
   committed compact artifact bundles.
 - `docs/research/`: literature and design notes that inform future work.
 - `worklog.md`: append-only operational trace. Useful for provenance, not a
   polished public narrative.
 
-## Public Showcase
+## Evidence Figures
 
-The current showcase layer renders the committed claim evidence into a
-matched-protocol scorecard, per-task breakdown, secondary metric suite, horizon
-profile, validation-only research diagnostics, and external benchmark matrix.
-Use it for a quick public read of the evidence, then trace any claim back to
+The generated figures render committed claim evidence into a matched-protocol
+scorecard, per-task breakdown, secondary metric suite, horizon profile,
+validation-only diagnostics, and external benchmark matrix. Trace claims back to
 the machine-readable manifests in `docs/claim_evidence/`.
 
-The showcase also includes credibility cards for cost/reproducibility,
-benchmark readiness, ecosystem compatibility, and qualitative-preview status.
-Those cards are descriptive: they mark cost as unrecorded where evidence is
-missing and keep official external benchmarks separate from measured
-repo-protocol baselines. Qualitative rollout panels render only after a compact
-claim-linked preview manifest and artifact are committed.
+The generated cards cover cost/reproducibility, benchmark readiness, ecosystem
+compatibility, and qualitative-preview status. Qualitative rollout panels render
+only after a compact claim-linked preview manifest and artifact are committed.
 
-The showcase is repeatable:
+Check generated assets with:
 
 ```bash
-python scripts/build_showcase_assets.py --check
+python scripts/build_public_assets.py --check
 ```
-
-## What This Is Not Yet
-
-- Not a production-supported solver API.
-- Not a general physics foundation model claim across arbitrary physical
-  systems.
-- Not a benchmark leaderboard unless the relevant evidence manifest records the
-  exact protocol, split, metric, and baseline comparison.
-- Not a place to store large generated checkpoints or raw datasets in normal Git
-  history.
 
 ## North Star
 

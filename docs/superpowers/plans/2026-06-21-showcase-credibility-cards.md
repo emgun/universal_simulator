@@ -1,6 +1,6 @@
-# Showcase Credibility Cards Plan
+# Public Results Credibility Cards Plan
 
-Goal: extend the public showcase with repeatable credibility cards for
+Goal: extend the public results packet with repeatable credibility cards for
 cost/reproducibility, official benchmark readiness, ecosystem compatibility, and
 qualitative rollout-preview status.
 
@@ -16,11 +16,11 @@ qualitative rollout-preview status.
 
 ## Implementation
 
-- [x] Extend `scripts/build_showcase_assets.py` with card row builders and PNG
+- [x] Extend `scripts/build_public_assets.py` with card row builders and PNG
   renderers.
 - [x] Add unit coverage for card row classification.
-- [x] Regenerate `docs/showcase/generated/` assets.
-- [x] Keep `python scripts/build_showcase_assets.py --check` as the repeatable
+- [x] Regenerate `docs/results/generated/` assets.
+- [x] Keep `python scripts/build_public_assets.py --check` as the repeatable
   source-of-truth check.
 - [x] Document the new cards and rollout-preview contract.
 

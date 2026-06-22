@@ -2,7 +2,7 @@
 
 Qualitative rollout panels should not be rendered from ignored local `reports/`
 files. They need a compact committed artifact tied to the same evidence rules as
-the numeric showcase.
+the numeric evidence figures.
 
 ## Required Artifact
 
@@ -56,18 +56,18 @@ It should record:
 - statement that held-out access was authorized or that the artifact is
   validation-only.
 
-When this manifest exists, `python scripts/build_showcase_assets.py` validates
+When this manifest exists, `python scripts/build_public_assets.py` validates
 the artifact hash and required arrays. It then writes:
 
 - `generated/rollout_preview_summary.tsv`
 - `generated/rollout_preview_panel.png`
 
-If the manifest is missing, the public showcase remains in the current gated
+If the manifest is missing, the public figures remain in the current gated
 status and no qualitative panel is rendered.
 
 ## Current Status
 
 `generated/rollout_preview_status.tsv` records that no claim-linked preview
 artifact exists yet. Local ignored files such as `reports/evaluation_preview.npz`
-must stay excluded from public showcase evidence until they are promoted through
+must stay excluded from public evidence until they are promoted through
 this contract.

@@ -41,11 +41,11 @@ evidence.
 
 ## Repeatability
 
-Both diagnostics are regenerated with the main showcase command:
+Both diagnostics are regenerated with the generated asset command:
 
 ```bash
-python scripts/build_showcase_assets.py
-python scripts/build_showcase_assets.py --check
+python scripts/build_public_assets.py
+python scripts/build_public_assets.py --check
 ```
 
 Future diagnostic figures should follow the same rule: tracked evidence in,

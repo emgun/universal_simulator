@@ -180,7 +180,7 @@ work is UPS-side advection robustness.
 ## Official/Ecosystem Compatibility
 
 `ecosystem_compatibility` records the public-facing compatibility layer behind
-the showcase readiness card. It is separate from the numeric claim table:
+the readiness card. It is separate from the numeric claim table:
 
 - NeuralOperator FNO and UNO, PDEBench U-Net, and CNO1d are measured official or
   official-source architecture adapters under the matched `light-v1` protocol.
@@ -197,10 +197,10 @@ the showcase readiness card. It is separate from the numeric claim table:
   The live adapter records validation-only `decoded_rollout_nrmse`, MAE, MSE,
   RRMSE, and spectral-energy error while keeping held-out test access blocked.
 
-The generated `docs/showcase/generated/ecosystem_compatibility_summary.tsv` and
+The generated `docs/results/generated/ecosystem_compatibility_summary.tsv` and
 `ecosystem_compatibility.png` are derived from this evidence section. This keeps
 official protocol and ecosystem rows source-of-truth driven instead of
-hard-coded in the showcase generator.
+hard-coded in the generated asset pipeline.
 
 ## Tradeoff
 

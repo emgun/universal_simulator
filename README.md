@@ -5,19 +5,15 @@ of PDE-style physical systems. It encodes physical fields into compact latent
 states, evolves them with transformer-style operators, decodes predictions at
 query points, and evaluates physical-space rollouts with auditable evidence.
 
-This repository is public, but it is still an active research workbench. Treat
-the current results as narrow, protocol-bound evidence rather than as a finished
-production simulator or broad universal foundation-model claim.
+## Current Evidence
 
-## Current Public Boundary
-
-The strongest public surface is the bounded claim-evidence stack under
-`docs/claim_evidence/`. It records protocol, split, metric, command, artifact
-hashes, and baseline context for held-out PDEBench-shaped experiments.
+The claim-evidence stack under `docs/claim_evidence/` records protocol, split,
+metric, command, artifact hashes, and baseline context for held-out
+PDEBench-shaped experiments.
 
 Start here:
 
-- `docs/public/README.md`: public overview and claim boundary.
+- `docs/public/README.md`: public overview and evidence boundary.
 - `docs/public/reproducibility.md`: how to inspect evidence and reproduce local checks.
 - `docs/public/artifact_policy.md`: what belongs in Git versus external artifact storage.
 - `docs/claim_evidence/universal_sota_claim_evidence.json`: current machine-readable claim evidence.
@@ -69,38 +65,15 @@ UPS intentionally separates source code from generated artifacts:
 The committed bundles under `docs/claim_evidence/artifacts/` are compact
 evidence bundles for auditability, not a general artifact store.
 
-## Showcase
+## Evidence Figures
 
-For a public visual summary of the current bounded evidence, see
-`docs/showcase/README.md`.
+Generated figures and benchmark tables cover the matched `light-v1` scorecard,
+per-task breakdown, secondary metrics, horizon profile, validation diagnostics,
+external baselines, and reproducibility cards. They are generated from committed
+evidence JSON and should be read with the claim manifests under
+`docs/claim_evidence/`.
 
-- `docs/showcase/generated/claim_scorecard.png`: matched `light-v1` scorecard
-  with persistence, local neural, third-party, and UPS rows.
-- `docs/showcase/generated/per_task_breakdown.png`: task-level view of the
-  transport/advection bottleneck.
-- `docs/showcase/generated/primary_metric_suite.png`: secondary metrics beyond
-  NRMSE for the primary UPS claim versus persistence.
-- `docs/showcase/generated/horizon_profile.png`: step-1, H4, and H16 rollout
-  profile for the primary claim.
-- `docs/showcase/research_diagnostics.md`: validation-only transport ablation
-  and transfer diagnostics, kept separate from held-out claims.
-- `docs/showcase/credibility_cards.md`: reproducibility, cost-status, official
-  benchmark readiness, and ecosystem compatibility cards.
-- `docs/showcase/rollout_preview_artifact_contract.md`: required artifact
-  contract and generator path before qualitative rollout panels are public
-  evidence.
-- `docs/showcase/external_benchmarks.md`: measured external baselines and
-  future third-party benchmark surfaces.
-
-These figures are generated from committed evidence JSON. They are not a
-substitute for the claim manifests under `docs/claim_evidence/`.
-
-Regenerate or check them with:
-
-```bash
-python scripts/build_showcase_assets.py
-python scripts/build_showcase_assets.py --check
-```
+See `docs/public/reproducibility.md` for the generated-asset check.
 
 ## Common Commands
 

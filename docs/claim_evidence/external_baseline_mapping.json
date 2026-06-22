@@ -855,7 +855,7 @@
       "metric_value": null,
       "test_metric_value": null,
       "claim_boundary": "External protocol, not directly comparable to light-v1.",
-      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 showcase remains stable."
+      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 results package is stable."
     },
     {
       "surface": "PhysicsNeMo",

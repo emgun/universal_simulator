@@ -35,7 +35,7 @@
     {
       "claim_boundary": "External protocol, not directly comparable to light-v1.",
       "metric_value": null,
-      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 showcase remains stable.",
+      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 results package is stable.",
       "readiness": "planned",
       "readiness_lane": "official external protocol",
       "surface": "PDEArena"
@@ -319,7 +319,7 @@
       "evidence_json": "",
       "metric_name": "",
       "metric_value": null,
-      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 showcase remains stable.",
+      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 results package is stable.",
       "readiness_lane": "official external protocol",
       "source_refs": "pdearena_official_repo,pdearena_docs",
       "status": "planned",
@@ -410,7 +410,7 @@
       "metric_name": "",
       "metric_value": null,
       "model_family": "official external protocol",
-      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 showcase remains stable.",
+      "next_step": "Add a PDEArena protocol adapter only after the current light-v1 results package is stable.",
       "source_refs": "pdearena_official_repo,pdearena_docs",
       "status": "future_or_partial",
       "surface": "PDEArena",
@@ -589,35 +589,35 @@
   ],
   "reproducibility_rows": [
     {
-      "claim_boundary": "Regenerates public showcase assets from committed evidence.",
-      "key": "showcase_check",
-      "label": "Showcase check",
+      "claim_boundary": "Regenerates public assets from committed evidence.",
+      "key": "evidence_asset_check",
+      "label": "Asset check",
       "status": "repeatable",
-      "value": "python scripts/build_showcase_assets.py --check"
+      "value": "python scripts/build_public_assets.py --check"
     },
     {
-      "claim_boundary": "Showcase regeneration does not rerun benchmarks.",
-      "key": "showcase_gpu_required",
-      "label": "GPU for showcase",
+      "claim_boundary": "Asset regeneration does not rerun benchmarks.",
+      "key": "evidence_asset_gpu_required",
+      "label": "GPU for assets",
       "status": "zero_gpu",
       "value": "no"
     },
     {
-      "claim_boundary": "Showcase regeneration reads committed evidence files only.",
-      "key": "showcase_data_required",
+      "claim_boundary": "Asset regeneration reads committed evidence files only.",
+      "key": "evidence_asset_data_required",
       "label": "Dataset hydration",
       "status": "zero_data_hydration",
       "value": "no"
     },
     {
-      "claim_boundary": "Inputs are listed and hashed in showcase_manifest.json.",
+      "claim_boundary": "Inputs are listed and hashed in asset_manifest.json.",
       "key": "evidence_input_count",
       "label": "Evidence inputs",
       "status": "tracked",
       "value": "7"
     },
     {
-      "claim_boundary": "Generated assets are listed and hashed in showcase_manifest.json; this count also includes the manifest.",
+      "claim_boundary": "Generated assets are listed and hashed in asset_manifest.json; this count also includes the manifest.",
       "key": "generated_output_count",
       "label": "Generated outputs",
       "status": "tracked",
@@ -664,14 +664,14 @@
       "claim_boundary": "Ignored local reports are not public evidence.",
       "key": "ignored_local_preview",
       "label": "Ignored local preview",
-      "next_step": "Do not use ignored reports as public showcase evidence.",
+      "next_step": "Do not use ignored reports as public evidence.",
       "status": "absent"
     },
     {
       "claim_boundary": "Contract defines future artifact shape; it is not a result.",
       "key": "preview_contract",
       "label": "Preview contract",
-      "next_step": "Use docs/showcase/rollout_preview_artifact_contract.md.",
+      "next_step": "Use the rollout preview artifact contract.",
       "status": "defined"
     }
   ],

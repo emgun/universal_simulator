@@ -38,7 +38,7 @@ claim.
 
 ## Metrics To Add Later
 
-These should become future showcase gates once the evaluator records them for
+These should become future evidence gates once the evaluator records them for
 UPS and comparable baselines:
 
 - conservation or invariant gaps for mass/energy-like quantities;
@@ -51,4 +51,4 @@ UPS and comparable baselines:
 
 Those future metrics should not be hand-entered into public figures. They
 should be emitted by the evaluator, recorded in claim evidence, and regenerated
-through `scripts/build_showcase_assets.py`.
+through `scripts/build_public_assets.py`.

@@ -5,16 +5,16 @@ import tarfile
 
 import numpy as np
 
-from scripts.build_showcase_assets import (
+from scripts.build_public_assets import (
     build_benchmark_readiness_rows,
     build_benchmark_rows,
     build_ecosystem_compatibility_rows,
     build_external_matrix_rows,
     build_horizon_rows,
     build_metric_suite_rows,
+    build_public_assets,
     build_reproducibility_card_rows,
     build_rollout_preview_status_rows,
-    build_showcase,
     build_task_rows,
     build_transfer_rows,
     build_transport_ablation_rows,
@@ -359,8 +359,10 @@ def test_build_reproducibility_card_rows_marks_missing_cost_as_not_recorded(tmp_
     )
     by_key = {row["key"]: row for row in rows}
 
-    assert by_key["showcase_check"]["value"] == "python scripts/build_showcase_assets.py --check"
-    assert by_key["showcase_gpu_required"]["value"] == "no"
+    assert (
+        by_key["evidence_asset_check"]["value"] == "python scripts/build_public_assets.py --check"
+    )
+    assert by_key["evidence_asset_gpu_required"]["value"] == "no"
     assert by_key["evidence_input_count"]["value"] == "1"
     assert by_key["generated_output_count"]["value"] == "4"
     assert by_key["benchmark_cost_status"]["status"] == "not_recorded"
@@ -483,7 +485,7 @@ def test_build_rollout_preview_status_rows_marks_valid_manifest_available(tmp_pa
     assert "validation-only fixture" in by_key["claim_linked_preview_artifact"]["claim_boundary"]
 
 
-def test_build_showcase_renders_rollout_preview_panel_when_manifest_exists(tmp_path):
+def test_build_public_assets_renders_rollout_preview_panel_when_manifest_exists(tmp_path):
     claim_evidence, external_mapping, durable_scorecard = _fixture_payloads()
     manifest_path, _ = _write_rollout_preview_fixture(tmp_path)
     claim_path = tmp_path / "claim.json"
@@ -526,7 +528,7 @@ def test_build_showcase_renders_rollout_preview_panel_when_manifest_exists(tmp_p
         encoding="utf-8",
     )
 
-    output_paths = build_showcase(
+    output_paths = build_public_assets(
         claim_evidence_path=claim_path,
         external_mapping_path=external_path,
         durable_scorecard_path=scorecard_path,
@@ -575,7 +577,7 @@ def test_build_rows_are_json_serializable():
 
 def test_sha256_file_is_stable_for_repeatability_manifest(tmp_path):
     path = tmp_path / "artifact.txt"
-    path.write_text("showcase\n", encoding="utf-8")
+    path.write_text("asset\n", encoding="utf-8")
 
     assert sha256_file(path) == sha256_file(path)
-    assert sha256_file(path) == "7ed52c567af52b74d1782bf769c055fa23e62037c62f758600ae41a9fc972d60"
+    assert sha256_file(path) == "38e2f84393baeb97ad9debdb0b096d4cceb12d9fc4204df0f351eb4fe919962f"
