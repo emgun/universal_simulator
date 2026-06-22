@@ -1,7 +1,7 @@
 # Metrics Beyond NRMSE
 
-Decoded rollout NRMSE remains the primary public claim metric because it is the
-metric shared by the current `light-v1` claim, matched persistence/Fourier
+Decoded rollout NRMSE remains the primary public metric because it is the metric
+shared by the current `light-v1` result, matched persistence/Fourier
 baselines, and measured third-party reruns.
 
 Secondary metrics are still important. They show what kind of improvement the
@@ -32,13 +32,13 @@ error win is visible under common loss scales. Step and horizon metrics show
 where in the rollout the improvement appears. Spectral energy error checks
 whether the prediction preserves the broad frequency-energy profile.
 
-That mix makes the claim harder to overstate: the current result is a bounded
+That mix makes the result harder to overstate: the current result is a bounded
 longer-horizon rollout improvement, not a blanket accuracy or physics-fidelity
-claim.
+statement.
 
 ## Metrics To Add Later
 
-These should become future evidence gates once the evaluator records them for
+These should become future result gates once the evaluator records them for
 UPS and comparable baselines:
 
 - conservation or invariant gaps for mass/energy-like quantities;
@@ -50,5 +50,5 @@ UPS and comparable baselines:
 - uncertainty calibration when models emit predictive uncertainty.
 
 Those future metrics should not be hand-entered into public figures. They
-should be emitted by the evaluator, recorded in claim evidence, and regenerated
+should be emitted by the evaluator, recorded in source records, and regenerated
 through `scripts/build_public_assets.py`.

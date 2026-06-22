@@ -168,20 +168,20 @@ def _fixture_payloads():
     return claim_evidence, external_mapping, durable_scorecard
 
 
-def test_build_benchmark_rows_labels_claim_comparability_and_external_results():
+def test_build_benchmark_rows_labels_protocol_comparability_and_external_results():
     claim_evidence, external_mapping, durable_scorecard = _fixture_payloads()
 
     rows = build_benchmark_rows(claim_evidence, external_mapping, durable_scorecard)
     by_label = {row["label"]: row for row in rows}
 
-    assert by_label["UPS primary claim"]["metric_value"] == 0.4
-    assert by_label["UPS primary claim"]["claim_comparable"] is True
+    assert by_label["UPS primary"]["metric_value"] == 0.4
+    assert by_label["UPS primary"]["protocol_comparable"] is True
     assert by_label["Persistence baseline"]["metric_value"] == 0.6
     assert by_label["Physical Fourier"]["metric_value"] == 0.55
     assert by_label["FNO"]["metric_value"] == 0.7
     assert by_label["FNO"]["source_refs"] == "pdebench_official_repo,neuraloperator_official_repo"
     assert by_label["FNO"]["published_numbers_directly_comparable"] is False
-    assert by_label["CT1 online context"]["claim_comparable"] is False
+    assert by_label["CT1 online context"]["protocol_comparable"] is False
     assert by_label["FNO"]["primary_improvement_fraction"] == (0.7 - 0.4) / 0.7
 
 
@@ -191,9 +191,9 @@ def test_build_task_rows_emits_one_row_per_task_for_available_metrics():
     rows = build_task_rows(claim_evidence, external_mapping, durable_scorecard)
     labels = {(row["label"], row["task"]): row["metric_value"] for row in rows}
 
-    assert labels[("UPS primary claim", "advection1d")] == 0.5
-    assert labels[("UPS primary claim", "burgers1d")] == 0.2
-    assert labels[("UPS primary claim", "darcy2d")] == 0.3
+    assert labels[("UPS primary", "advection1d")] == 0.5
+    assert labels[("UPS primary", "burgers1d")] == 0.2
+    assert labels[("UPS primary", "darcy2d")] == 0.3
     assert labels[("Persistence baseline", "advection1d")] == 0.8
     assert labels[("Physical Fourier", "advection1d")] == 0.7
     assert labels[("CT1 online context", "advection1d")] == 0.1
@@ -232,8 +232,8 @@ def test_build_metric_suite_rows_reads_primary_tar_metrics_and_compares_persiste
     assert by_metric["decoded_rollout_mae"]["persistence_value"] == 0.3
     assert by_metric["decoded_rollout_mse"]["relative_improvement_fraction"] == (0.36 - 0.16) / 0.36
     assert by_metric["decoded_h16_nrmse"]["relative_improvement_fraction"] == (0.56 - 0.08) / 0.56
-    assert by_metric["decoded_rollout_nrmse"]["claim_role"] == "primary"
-    assert by_metric["decoded_h16_nrmse"]["claim_role"] == "diagnostic"
+    assert by_metric["decoded_rollout_nrmse"]["metric_role"] == "primary"
+    assert by_metric["decoded_h16_nrmse"]["metric_role"] == "diagnostic"
 
 
 def test_build_horizon_rows_emits_primary_and_persistence_horizons(tmp_path):
@@ -249,8 +249,8 @@ def test_build_horizon_rows_emits_primary_and_persistence_horizons(tmp_path):
     rows = build_horizon_rows(claim_evidence, durable_scorecard, artifact_root=tmp_path)
     values = {(row["series"], row["horizon"]): row["metric_value"] for row in rows}
 
-    assert values[("UPS primary claim", "step1")] == 0.7
-    assert values[("UPS primary claim", "h16")] == 0.08
+    assert values[("UPS primary", "step1")] == 0.7
+    assert values[("UPS primary", "h16")] == 0.08
     assert values[("Persistence baseline", "h4")] == 0.55
     assert all(row["metric_name"].endswith("_nrmse") for row in rows)
 
@@ -283,7 +283,7 @@ def test_build_transport_ablation_rows_keeps_validation_variants_separate():
 
     assert by_variant["full_context_shift"]["label"] == "Full context shift"
     assert by_variant["full_context_shift"]["metric_value"] == 0.001
-    assert by_variant["weaker_context_shift"]["claim_boundary"] == "validation-only diagnostic"
+    assert by_variant["weaker_context_shift"]["scope_note"] == "validation-only diagnostic"
     assert by_variant["full_context_shift"]["held_out_test_used"] is False
 
 
@@ -309,7 +309,7 @@ def test_build_transfer_rows_marks_skipped_tasks_without_metric():
     by_task = {row["task"]: row for row in rows}
 
     assert by_task["advection1d"]["metric_value"] == 0.002
-    assert by_task["advection1d"]["claim_boundary"] == "train/validation transfer diagnostic"
+    assert by_task["advection1d"]["scope_note"] == "train/validation transfer diagnostic"
     assert by_task["darcy2d"]["metric_value"] is None
     assert by_task["darcy2d"]["status"] == "skipped"
 
@@ -321,13 +321,13 @@ def test_build_external_matrix_rows_keeps_future_surfaces_separate():
     by_surface = {row["surface"]: row for row in rows}
 
     assert by_surface["FNO"]["status"] == "measured"
-    assert by_surface["FNO"]["claim_boundary"] == "Matched light-v1 repo protocol"
+    assert by_surface["FNO"]["scope_note"] == "Matched light-v1 repo protocol"
     assert by_surface["Poseidon"]["status"] == "future_or_partial"
     assert "Validation-only transfer path" in by_surface["Poseidon"]["next_step"]
     assert by_surface["PhysicsNeMo"]["status"] == "smoke_ready"
     assert by_surface["PhysicsNeMo"]["source_refs"] == "physicsnemo_official_repo"
     assert (
-        by_surface["PhysicsNeMo"]["claim_boundary"]
+        by_surface["PhysicsNeMo"]["scope_note"]
         == "Compatibility smoke manifest only; no current UPS metric."
     )
 
@@ -348,7 +348,7 @@ def test_build_ecosystem_compatibility_rows_are_evidence_driven():
 
 def test_build_reproducibility_card_rows_marks_missing_cost_as_not_recorded(tmp_path):
     claim_evidence, _, durable_scorecard = _fixture_payloads()
-    source_path = tmp_path / "claim.json"
+    source_path = tmp_path / "result.json"
     source_path.write_text("{}", encoding="utf-8")
 
     rows = build_reproducibility_card_rows(
@@ -359,11 +359,9 @@ def test_build_reproducibility_card_rows_marks_missing_cost_as_not_recorded(tmp_
     )
     by_key = {row["key"]: row for row in rows}
 
-    assert (
-        by_key["evidence_asset_check"]["value"] == "python scripts/build_public_assets.py --check"
-    )
-    assert by_key["evidence_asset_gpu_required"]["value"] == "no"
-    assert by_key["evidence_input_count"]["value"] == "1"
+    assert by_key["asset_check"]["value"] == "python scripts/build_public_assets.py --check"
+    assert by_key["asset_gpu_required"]["value"] == "no"
+    assert by_key["input_record_count"]["value"] == "1"
     assert by_key["generated_output_count"]["value"] == "4"
     assert by_key["benchmark_cost_status"]["status"] == "not_recorded"
     assert by_key["primary_metric"]["value"] == "decoded_rollout_nrmse"
@@ -377,21 +375,21 @@ def test_build_benchmark_readiness_rows_splits_measured_protocols_and_ecosystem(
                 "status": "measured",
                 "metric_value": 0.7,
                 "next_step": "Keep in table.",
-                "claim_boundary": "Matched light-v1 repo protocol",
+                "scope_note": "Matched light-v1 repo protocol",
             },
             {
                 "surface": "PDEArena",
                 "status": "future_or_partial",
                 "metric_value": None,
                 "next_step": "Add adapter.",
-                "claim_boundary": "External protocol, not directly comparable to light-v1.",
+                "scope_note": "External protocol, not directly comparable to light-v1.",
             },
             {
                 "surface": "PhysicsNeMo",
                 "status": "validation",
                 "metric_value": 0.99,
                 "next_step": "Repeat in official runtime.",
-                "claim_boundary": "Validation surface; no held-out metric.",
+                "scope_note": "Validation surface; no held-out metric.",
             },
         ]
     )
@@ -408,9 +406,9 @@ def test_build_rollout_preview_status_rows_excludes_ignored_local_preview():
     rows = build_rollout_preview_status_rows(local_preview_exists=True)
     by_key = {row["key"]: row for row in rows}
 
-    assert by_key["claim_linked_preview_artifact"]["status"] == "missing"
+    assert by_key["linked_preview_artifact"]["status"] == "missing"
     assert by_key["ignored_local_preview"]["status"] == "excluded"
-    assert "not public evidence" in by_key["ignored_local_preview"]["claim_boundary"]
+    assert "not public results" in by_key["ignored_local_preview"]["scope_note"]
 
 
 def test_build_rollout_preview_status_rows_default_ignores_checkout_local_preview(
@@ -477,18 +475,17 @@ def test_build_rollout_preview_status_rows_marks_valid_manifest_available(tmp_pa
     )
     by_key = {row["key"]: row for row in rows}
 
-    assert by_key["claim_linked_preview_artifact"]["status"] == "available"
+    assert by_key["linked_preview_artifact"]["status"] == "available"
     assert (
-        str(artifact_path.relative_to(tmp_path))
-        in by_key["claim_linked_preview_artifact"]["next_step"]
+        str(artifact_path.relative_to(tmp_path)) in by_key["linked_preview_artifact"]["next_step"]
     )
-    assert "validation-only fixture" in by_key["claim_linked_preview_artifact"]["claim_boundary"]
+    assert "validation-only fixture" in by_key["linked_preview_artifact"]["scope_note"]
 
 
 def test_build_public_assets_renders_rollout_preview_panel_when_manifest_exists(tmp_path):
     claim_evidence, external_mapping, durable_scorecard = _fixture_payloads()
     manifest_path, _ = _write_rollout_preview_fixture(tmp_path)
-    claim_path = tmp_path / "claim.json"
+    claim_path = tmp_path / "result.json"
     external_path = tmp_path / "external.json"
     scorecard_path = tmp_path / "scorecard.json"
     transport_path = tmp_path / "transport.json"

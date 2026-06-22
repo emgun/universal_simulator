@@ -3,10 +3,10 @@
   "mapping_status": "external_reproduction_measured",
   "research_snapshot_date": "2026-05-29",
   "terminology": {
-    "claim_protocol": "The exact in-repo measurement contract for the current UPS claim: data root, task set, split, sample caps, rollout horizon, metric, promotion rule, command, ledger, and artifact bundle. A model can be fairly compared on this protocol only if it is trained and evaluated under the same contract.",
-    "scoped_claim_variant": "A held-out measurement that uses the same light-v1 data, split, task set, metric, and ledger discipline as the primary claim but intentionally changes part of the inference/evaluation contract. It may be reported as a separate scoped variant only when the changed contract, caveats, evidence, and artifact hash are explicit.",
-    "external_paper_reproduction": "A run of an outside paper or official implementation, or a faithful implementation with declared architecture and hyperparameters, measured on the claim protocol or on the paper's original protocol with differences explicitly mapped. Published paper table values alone are not a reproduction for this claim.",
-    "current_local_strong_baseline": "The committed physical Fourier baseline is a fair neural baseline on the light-v1 claim protocol. It is not an external-paper reproduction because it uses repo-local baseline code and a local light-v1 data/compute cap."
+    "claim_protocol": "The exact in-repo measurement contract for the current UPS result: data root, task set, split, sample caps, rollout horizon, metric, promotion rule, command, ledger, and artifact bundle. A model can be fairly compared on this protocol only if it is trained and evaluated under the same contract.",
+    "scoped_claim_variant": "A held-out measurement that uses the same light-v1 data, split, task set, metric, and ledger discipline as the primary result but intentionally changes part of the inference/evaluation contract. It may be reported as a separate scoped variant only when the changed contract, caveats, record, and artifact hash are explicit.",
+    "external_paper_reproduction": "A run of an outside paper or official implementation, or a faithful implementation with declared architecture and hyperparameters, measured on the light-v1 protocol or on the paper's original protocol with differences explicitly mapped. Published paper table values alone are not a reproduction for this result.",
+    "current_local_strong_baseline": "The committed physical Fourier baseline is a fair neural baseline on the light-v1 protocol. It is not an external-paper reproduction because it uses repo-local baseline code and a local light-v1 data/compute cap."
   },
   "claim_protocol": {
     "protocol_id": "light-v1-heldout-test-decoded-rollout",
@@ -50,7 +50,7 @@
       "not_autonomous_rollout_claim": true,
       "published_numbers_directly_comparable": false,
       "external_paper_reproduction": false,
-      "comparability_note": "CT1 uses the same light-v1 test split, task set, 16-step decoded rollout metric, and held-out ledger discipline as the CT8 primary claim, but it changes the online transport-context inference contract from CT8 shared transport/conservation roll-persistence correction to CT1 transport-only correction. Report it side by side with the primary claim, not as a replacement, autonomous rollout result, published-paper reproduction, or directly comparable published-table SOTA number."
+      "comparability_note": "CT1 uses the same light-v1 test split, task set, 16-step decoded rollout metric, and held-out ledger discipline as the CT8 primary result, but it changes the online transport-context inference contract from CT8 shared transport/conservation roll-persistence correction to CT1 transport-only correction. Report it side by side with the primary result, not as a replacement, autonomous rollout result, published-paper reproduction, or directly comparable published-table SOTA number."
     },
     {
       "variant_id": "light_v1_data_conditioned_context_phase",
@@ -66,7 +66,7 @@
       "not_autonomous_rollout_claim": true,
       "published_numbers_directly_comparable": false,
       "external_paper_reproduction": false,
-      "comparability_note": "The data-conditioned context-phase variant uses the same light-v1 test split, task set, 16-step decoded rollout metric, and held-out ledger discipline as the CT8 primary claim, but it changes the inference contract by fitting a train-only context_shift coefficient and using one observed context transition at evaluation time before roll-persistence from horizon 2. Report it side by side as the best scoped data-conditioned variant, not as a replacement for the frozen CT8 primary claim, an autonomous rollout result, an external-paper reproduction, or a directly comparable published-table SOTA number."
+      "comparability_note": "The data-conditioned context-phase variant uses the same light-v1 test split, task set, 16-step decoded rollout metric, and held-out ledger discipline as the CT8 primary result, but it changes the inference contract by fitting a train-only context_shift coefficient and using one observed context transition at evaluation time before roll-persistence from horizon 2. Report it side by side as the best scoped data-conditioned variant, not as a replacement for the frozen CT8 primary result, an autonomous rollout result, an external-paper reproduction, or a directly comparable published-table SOTA number."
     }
   ],
   "local_strong_baseline": {
@@ -81,7 +81,7 @@
     "artifact_sha256": "884b69334e0a34f0537ce009a0911199093820ede966c011232ed591c079e6a9",
     "is_fair_claim_protocol_baseline": true,
     "is_external_paper_reproduction": false,
-    "limitation": "This baseline is fair for the committed claim protocol but does not establish parity with published FNO, PDEBench, Poseidon, CNO, or other external-paper results."
+    "limitation": "This baseline is fair for the committed light-v1 protocol but does not establish parity with published FNO, PDEBench, Poseidon, CNO, or other external-paper results."
   },
   "external_sources": [
     {
@@ -181,7 +181,7 @@
       "url": "https://arxiv.org/abs/2601.01829",
       "year": 2026,
       "primary_source": true,
-      "relevance": "Future sim-to-real benchmark gate; not comparable to the current simulated light-v1 claim."
+      "relevance": "Future sim-to-real benchmark gate; not comparable to the current simulated light-v1 result."
     },
     {
       "source_id": "cno_arxiv",
@@ -190,7 +190,7 @@
       "url": "https://arxiv.org/abs/2302.01178",
       "year": 2023,
       "primary_source": true,
-      "relevance": "Defines CNO and the representative PDE benchmark context; published table values remain unmapped to the light-v1 claim protocol."
+      "relevance": "Defines CNO and the representative PDE benchmark context; published table values remain unmapped to the light-v1 protocol."
     },
     {
       "source_id": "cno_official_repo",
@@ -208,7 +208,7 @@
       "url": "https://github.com/pdearena/pdearena",
       "year": 2022,
       "primary_source": true,
-      "relevance": "Independent PDE surrogate learning benchmark suite and architecture zoo; useful as a future external protocol rather than a direct light-v1 claim comparison."
+      "relevance": "Independent PDE surrogate learning benchmark suite and architecture zoo; useful as a future external protocol rather than a direct light-v1 comparison."
     },
     {
       "source_id": "pdearena_docs",
@@ -266,7 +266,7 @@
         "metric_name": "decoded_rollout_nrmse",
         "lower_is_better": true,
         "published_numbers_directly_comparable": false,
-        "comparability_note": "Published PDEBench, FNO, or UNO table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. External baselines must be rerun on this protocol."
+        "comparability_note": "Published PDEBench, FNO, or UNO table values are not directly comparable to light-v1 because this setup uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. External baselines must be rerun on this protocol."
       },
       "reproduction_command_template": [
         "python",
@@ -348,7 +348,7 @@
         "uno_arxiv",
         "neuraloperator_official_repo"
       ],
-      "why_selected": "UNO is a distinct NeuralOperator architecture family available in the installed external NeuralOperator package, so it broadens the claim beyond FNO without introducing a new dependency or changing the frozen light-v1 protocol.",
+      "why_selected": "UNO is a distinct NeuralOperator architecture family available in the installed external NeuralOperator package, so it broadens the measured baseline set beyond FNO without introducing a new dependency or changing the frozen light-v1 protocol.",
       "protocol_mapping": {
         "data_root": "data/pdebench",
         "train_split": "train",
@@ -365,7 +365,7 @@
         "metric_name": "decoded_rollout_nrmse",
         "lower_is_better": true,
         "published_numbers_directly_comparable": false,
-        "comparability_note": "Published PDEBench or FNO table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. The FNO baseline must be rerun on this protocol."
+        "comparability_note": "Published PDEBench or FNO table values are not directly comparable to light-v1 because this setup uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. The FNO baseline must be rerun on this protocol."
       },
       "reproduction_command_template": [
         "python",
@@ -465,7 +465,7 @@
         "pdebench_official_repo",
         "pdebench_openreview"
       ],
-      "why_selected": "PDEBench lists U-Net as an official baseline family; this adapter uses the official PDEBench U-Net architecture from commit 4ff3e3a4aa1561721b5571fa3a048a0a463e0568 and reruns it under the frozen light-v1 claim protocol.",
+      "why_selected": "PDEBench lists U-Net as an official baseline family; this adapter uses the official PDEBench U-Net architecture from commit 4ff3e3a4aa1561721b5571fa3a048a0a463e0568 and reruns it under the frozen light-v1 protocol.",
       "protocol_mapping": {
         "data_root": "data/pdebench",
         "train_split": "train",
@@ -482,7 +482,7 @@
         "metric_name": "decoded_rollout_nrmse",
         "lower_is_better": true,
         "published_numbers_directly_comparable": false,
-        "comparability_note": "Published PDEBench U-Net table values or pretrained checkpoints are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. This measurement reruns the attributed PDEBench U-Net architecture on the claim protocol."
+        "comparability_note": "Published PDEBench U-Net table values or pretrained checkpoints are not directly comparable to light-v1 because this setup uses a capped multi-task shard, decoded rollout NRMSE, and a fixed held-out ledger. This measurement reruns the attributed PDEBench U-Net architecture on the light-v1 protocol."
       },
       "reproduction_command_template": [
         "python",
@@ -577,7 +577,7 @@
         "cno_official_repo",
         "cno_arxiv"
       ],
-      "why_selected": "CNO is a distinct official neural-operator family with a compact MIT-licensed simplified implementation. The current light-v1 tensors are height=1 grids, so the official CNO1d path can be adapted directly under the frozen claim protocol without changing the held-out-test contract.",
+      "why_selected": "CNO is a distinct official neural-operator family with a compact MIT-licensed simplified implementation. The current light-v1 tensors are height=1 grids, so the official CNO1d path can be adapted directly under the frozen protocol without changing the held-out-test contract.",
       "protocol_mapping": {
         "data_root": "data/pdebench",
         "train_split": "train",
@@ -594,7 +594,7 @@
         "metric_name": "decoded_rollout_nrmse",
         "lower_is_better": true,
         "published_numbers_directly_comparable": false,
-        "comparability_note": "Published CNO representative-PDE-benchmark table values are not directly comparable to light-v1 because this claim uses a capped multi-task shard, decoded rollout NRMSE, flattened height=1 grids, and a fixed held-out ledger. This measurement reruns the official simplified CNO1d architecture on the claim protocol."
+        "comparability_note": "Published CNO representative-PDE-benchmark table values are not directly comparable to light-v1 because this setup uses a capped multi-task shard, decoded rollout NRMSE, flattened height=1 grids, and a fixed held-out ledger. This measurement reruns the official simplified CNO1d architecture on the light-v1 protocol."
       },
       "reproduction_command_template": [
         "python",
@@ -698,7 +698,7 @@
         "poseidon_arxiv",
         "poseidon_official_repo"
       ],
-      "why_not_primary": "Poseidon is important for the north star, but using pretrained foundation weights changes the claim from fair light-v1 baseline comparison to transfer/foundation-model evaluation. The readiness contract, adapter manifest, validation-only ScOT checkpoint run, and scalar-layer finetune validation are now recorded. Scalar-only finetuning improved over zero-shot but stopped above the validation gate, so no held-out Poseidon transfer test is justified.",
+      "why_not_primary": "Poseidon is important for the north star, but using pretrained foundation weights changes the comparison from fair light-v1 baseline evaluation to transfer/foundation-model evaluation. The readiness contract, adapter manifest, validation-only ScOT checkpoint run, and scalar-layer finetune validation are now recorded. Scalar-only finetuning improved over zero-shot but stopped above the validation gate, so no held-out Poseidon transfer test is justified.",
       "readiness_contract": {
         "run_name": "foundation_transfer_readiness_light_v1",
         "measurement_type": "foundation_transfer_readiness_contract",
@@ -720,7 +720,7 @@
     },
     {
       "candidate_id": "pdeformer2_equation_graph_transfer",
-      "status": "promising_followup_not_claim_baseline_yet",
+      "status": "promising_followup_not_current_baseline",
       "model_family": "equation-graph PDE foundation model",
       "source_refs": [
         "pdeformer2_arxiv",
@@ -730,21 +730,21 @@
     },
     {
       "candidate_id": "cfo_continuous_time_operator",
-      "status": "research_signal_not_claim_baseline_yet",
+      "status": "research_signal_not_current_baseline",
       "model_family": "continuous-time flow-matched neural operator",
       "source_refs": [
         "cfo_arxiv"
       ],
-      "why_not_primary": "CFO directly attacks rollout stability, but it is a newer continuous-time training recipe rather than a drop-in PDEBench/FNO baseline for the existing claim protocol."
+      "why_not_primary": "CFO directly attacks rollout stability, but it is a newer continuous-time training recipe rather than a drop-in PDEBench/FNO baseline for the existing protocol."
     },
     {
       "candidate_id": "realpdebench_sim_to_real_gate",
-      "status": "future_benchmark_gate_not_current_claim",
+      "status": "future_benchmark_gate_not_current_result",
       "model_family": "real-world PDE benchmark",
       "source_refs": [
         "realpdebench_arxiv"
       ],
-      "why_not_primary": "RealPDEBench is a separate sim-to-real benchmark and should be used to prevent overbroad physics-foundation claims after the simulated PDEBench baseline path is settled."
+      "why_not_primary": "RealPDEBench is a separate sim-to-real benchmark and should be used to prevent overbroad physics-foundation wording after the simulated PDEBench baseline path is settled."
     }
   ],
   "ecosystem_compatibility": [
@@ -886,8 +886,8 @@
       "neuraloperator_official_repo"
     ],
     "required_next_step": "Scalar-only Poseidon ScOT finetuning has been measured on validation and did not clear the gate. Do not spend held-out Poseidon transfer test budget; next work should be controlled unfreeze/LoRA on train/validation only or UPS-side advection improvement.",
-    "claimable_after_completion": "UPS beats measured external FNO, UNO, PDEBench U-Net, and official simplified CNO1d reproductions on the same light-v1 claim protocol.",
-    "not_claimable_yet": "UPS beats published FNO/UNO/PDEBench/Poseidon/CNO paper numbers, because published protocols, pretrained checkpoints, square-grid CNO2d setups, measured foundation-transfer protocols, and table values remain unmapped to the light-v1 claim protocol."
+    "claimable_after_completion": "UPS beats measured external FNO, UNO, PDEBench U-Net, and official simplified CNO1d reproductions on the same light-v1 protocol.",
+    "not_claimable_yet": "UPS beats published FNO/UNO/PDEBench/Poseidon/CNO paper numbers, because published protocols, pretrained checkpoints, square-grid CNO2d setups, measured foundation-transfer protocols, and table values remain unmapped to the light-v1 protocol."
   },
   "reproduction_contract": {
     "allows_test_tuning": false,
@@ -934,7 +934,7 @@
       "poseidon_shape_adapter_required",
       "cno_fm_channel_adapter_required"
     ],
-    "next_validation_gate": "validation-only Poseidon ScOT adapter with pretrained checkpoint provenance, train/val-only dataset adapter manifest, decoded_rollout_nrmse on validation, and no held-out ledger write"
+    "next_validation_gate": "validation-only Poseidon ScOT adapter with pretrained checkpoint source, train/val-only dataset adapter manifest, decoded_rollout_nrmse on validation, and no held-out ledger write"
   },
   "foundation_transfer_adapter_gate": {
     "status": "validation_adapter_manifest_complete",
@@ -1068,6 +1068,6 @@
     "published_numbers_directly_comparable": false,
     "current_claim_status": "external_fno_uno_pdebench_unet_and_cno1d_reproductions_measured_on_light_v1",
     "external_claim_status": "external_reproduction_measured",
-    "reason": "The committed evidence proves the candidate beats a matched repo-local Fourier neural baseline, measured NeuralOperator FNO and UNO external reproductions, a measured PDEBench U-Net architecture reproduction, and a measured official simplified CNO1d reproduction on the light-v1 claim protocol. The foundation-transfer readiness contract, Poseidon adapter manifest, validation-only Poseidon-T ScOT run, and scalar-layer finetune validation are defined without held-out test use. The finetuned scalar adapter improves over zero-shot but remains above the validation stop threshold, so no held-out Poseidon transfer test is justified from this path. The claim still does not prove superiority over published FNO/UNO/PDEBench/CNO paper table values, pretrained PDEBench checkpoints, CNO2d square-grid settings, Poseidon, PDEformer, CFO, or RealPDEBench results."
+    "reason": "The committed records show the candidate beats a matched repo-local Fourier neural baseline, measured NeuralOperator FNO and UNO external reproductions, a measured PDEBench U-Net architecture reproduction, and a measured official simplified CNO1d reproduction on the light-v1 protocol. The foundation-transfer readiness contract, Poseidon adapter manifest, validation-only Poseidon-T ScOT run, and scalar-layer finetune validation are defined without held-out test use. The finetuned scalar adapter improves over zero-shot but remains above the validation stop threshold, so no held-out Poseidon transfer test is justified from this path. The current result still does not show superiority over published FNO/UNO/PDEBench/CNO paper table values, pretrained PDEBench checkpoints, CNO2d square-grid settings, Poseidon, PDEformer, CFO, or RealPDEBench results."
   }
 }

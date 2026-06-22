@@ -1,8 +1,8 @@
-label	metric_name	metric_family	claim_role	ups_value	persistence_value	relative_improvement_fraction	claim_boundary
-Rollout NRMSE	decoded_rollout_nrmse	aggregate error	primary	0.4165820594268877	0.5701633411507036	0.2693636553585822	Primary public claim metric
-Rollout MAE	decoded_rollout_mae	aggregate error	diagnostic	0.1788500798659494	0.3006536168356353	0.4051291258414325	Secondary diagnostic; not a standalone headline claim
-Rollout MSE	decoded_rollout_mse	aggregate error	diagnostic	0.1734293749217968	0.3248778630062198	0.4661705376999586	Secondary diagnostic; not a standalone headline claim
-Spectral energy error	decoded_rollout_spectral_energy_error	spectral shape	diagnostic	0.06721625502425291	0.06721624190029686	-1.95249774100419e-07	Secondary diagnostic; not a standalone headline claim
-Step-1 NRMSE	decoded_step1_nrmse	horizon profile	diagnostic	0.7176522026316365	0.7176522098041582	9.994425697720773e-09	Secondary diagnostic; not a standalone headline claim
-H4 NRMSE	decoded_h4_nrmse	horizon profile	diagnostic	0.5579563760666284	0.5579563803127553	7.610141302006171e-09	Secondary diagnostic; not a standalone headline claim
-H16 NRMSE	decoded_h16_nrmse	horizon profile	diagnostic	0.08770072386133382	0.5581596078582408	0.8428751872643431	Secondary diagnostic; not a standalone headline claim
+label	metric_name	metric_family	metric_role	ups_value	persistence_value	relative_improvement_fraction	scope_note
+Rollout NRMSE	decoded_rollout_nrmse	aggregate error	primary	0.4165820594268877	0.5701633411507036	0.2693636553585822	Primary held-out metric
+Rollout MAE	decoded_rollout_mae	aggregate error	diagnostic	0.1788500798659494	0.3006536168356353	0.4051291258414325	Secondary diagnostic metric
+Rollout MSE	decoded_rollout_mse	aggregate error	diagnostic	0.1734293749217968	0.3248778630062198	0.4661705376999586	Secondary diagnostic metric
+Spectral energy error	decoded_rollout_spectral_energy_error	spectral shape	diagnostic	0.06721625502425291	0.06721624190029686	-1.95249774100419e-07	Secondary diagnostic metric
+Step-1 NRMSE	decoded_step1_nrmse	horizon profile	diagnostic	0.7176522026316365	0.7176522098041582	9.994425697720773e-09	Secondary diagnostic metric
+H4 NRMSE	decoded_h4_nrmse	horizon profile	diagnostic	0.5579563760666284	0.5579563803127553	7.610141302006171e-09	Secondary diagnostic metric
+H16 NRMSE	decoded_h16_nrmse	horizon profile	diagnostic	0.08770072386133382	0.5581596078582408	0.8428751872643431	Secondary diagnostic metric

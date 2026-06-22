@@ -1,14 +1,14 @@
 # Artifact Policy
 
-UPS needs artifacts for auditability, but normal Git history should stay small
+UPS needs artifacts for reproducibility, but normal Git history should stay small
 and reviewable.
 
 ## Keep In Git
 
 - Source code, tests, configs, and small scripts.
 - Public documentation and runbooks.
-- Small machine-readable evidence files under `docs/claim_evidence/`.
-- Compact evidence bundles when they are required to make a claim auditable and
+- Small machine-readable result records under `docs/claim_evidence/`.
+- Compact result bundles when they are required to make a result reviewable and
   no external artifact handle exists.
 - Small research summaries under `docs/research/`.
 
@@ -24,11 +24,10 @@ and reviewable.
 
 Use GitHub Releases, W&B artifacts, B2/S3, or another explicit artifact store
 for large generated outputs. Record stable handles and hashes in the relevant
-evidence file.
+result record.
 
-## Existing Evidence Bundles
+## Existing Compact Bundles
 
 The committed bundles in `docs/claim_evidence/artifacts/` are treated as compact
-claim evidence. They should not become a general dumping ground for experiment
-outputs. New bundles need a clear evidence manifest, protocol, split, metric,
-and hash.
+result artifacts. They should not become a general dumping ground for experiment
+outputs. New bundles need a clear record, protocol, split, metric, and hash.

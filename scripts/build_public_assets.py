@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-"""Build public evidence tables and figures from committed UPS evidence."""
+"""Build public result tables and figures from committed UPS records."""
 
 import argparse
 import csv
@@ -40,43 +40,43 @@ METRIC_SUITE = (
         "label": "Rollout NRMSE",
         "metric_name": "decoded_rollout_nrmse",
         "metric_family": "aggregate error",
-        "claim_role": "primary",
+        "metric_role": "primary",
     },
     {
         "label": "Rollout MAE",
         "metric_name": "decoded_rollout_mae",
         "metric_family": "aggregate error",
-        "claim_role": "diagnostic",
+        "metric_role": "diagnostic",
     },
     {
         "label": "Rollout MSE",
         "metric_name": "decoded_rollout_mse",
         "metric_family": "aggregate error",
-        "claim_role": "diagnostic",
+        "metric_role": "diagnostic",
     },
     {
         "label": "Spectral energy error",
         "metric_name": "decoded_rollout_spectral_energy_error",
         "metric_family": "spectral shape",
-        "claim_role": "diagnostic",
+        "metric_role": "diagnostic",
     },
     {
         "label": "Step-1 NRMSE",
         "metric_name": "decoded_step1_nrmse",
         "metric_family": "horizon profile",
-        "claim_role": "diagnostic",
+        "metric_role": "diagnostic",
     },
     {
         "label": "H4 NRMSE",
         "metric_name": "decoded_h4_nrmse",
         "metric_family": "horizon profile",
-        "claim_role": "diagnostic",
+        "metric_role": "diagnostic",
     },
     {
         "label": "H16 NRMSE",
         "metric_name": "decoded_h16_nrmse",
         "metric_family": "horizon profile",
-        "claim_role": "diagnostic",
+        "metric_role": "diagnostic",
     },
 )
 
@@ -95,11 +95,11 @@ BENCHMARK_FIELDS = (
     "split",
     "primary_metric_value",
     "primary_improvement_fraction",
-    "claim_comparable",
+    "protocol_comparable",
     "published_numbers_directly_comparable",
     "artifact_sha256",
     "artifact_handle",
-    "evidence_json",
+    "record_json",
     "source_refs",
     "notes",
 )
@@ -111,7 +111,7 @@ TASK_FIELDS = (
     "task",
     "metric_name",
     "metric_value",
-    "claim_comparable",
+    "protocol_comparable",
 )
 
 EXTERNAL_FIELDS = (
@@ -122,9 +122,9 @@ EXTERNAL_FIELDS = (
     "source_refs",
     "metric_name",
     "metric_value",
-    "what_it_proves",
+    "what_it_shows",
     "next_step",
-    "claim_boundary",
+    "scope_note",
 )
 
 ECOSYSTEM_COMPATIBILITY_FIELDS = (
@@ -135,23 +135,23 @@ ECOSYSTEM_COMPATIBILITY_FIELDS = (
     "source_refs",
     "adapter_entrypoint",
     "validation_command",
-    "evidence_json",
+    "record_json",
     "metric_name",
     "metric_value",
     "test_metric_value",
     "next_step",
-    "claim_boundary",
+    "scope_note",
 )
 
 METRIC_SUITE_FIELDS = (
     "label",
     "metric_name",
     "metric_family",
-    "claim_role",
+    "metric_role",
     "ups_value",
     "persistence_value",
     "relative_improvement_fraction",
-    "claim_boundary",
+    "scope_note",
 )
 
 HORIZON_FIELDS = (
@@ -160,7 +160,7 @@ HORIZON_FIELDS = (
     "horizon_label",
     "metric_name",
     "metric_value",
-    "claim_boundary",
+    "scope_note",
 )
 
 TRANSPORT_ABLATION_FIELDS = (
@@ -173,7 +173,7 @@ TRANSPORT_ABLATION_FIELDS = (
     "candidate_shift_min",
     "candidate_shift_max",
     "held_out_test_used",
-    "claim_boundary",
+    "scope_note",
 )
 
 TRANSFER_FIELDS = (
@@ -184,7 +184,7 @@ TRANSFER_FIELDS = (
     "train_metric_value",
     "test_touched",
     "reason",
-    "claim_boundary",
+    "scope_note",
 )
 
 REPRODUCIBILITY_FIELDS = (
@@ -192,7 +192,7 @@ REPRODUCIBILITY_FIELDS = (
     "label",
     "value",
     "status",
-    "claim_boundary",
+    "scope_note",
 )
 
 BENCHMARK_READINESS_FIELDS = (
@@ -201,7 +201,7 @@ BENCHMARK_READINESS_FIELDS = (
     "readiness",
     "metric_value",
     "next_step",
-    "claim_boundary",
+    "scope_note",
 )
 
 ROLLOUT_PREVIEW_FIELDS = (
@@ -209,7 +209,7 @@ ROLLOUT_PREVIEW_FIELDS = (
     "label",
     "status",
     "next_step",
-    "claim_boundary",
+    "scope_note",
 )
 
 ROLLOUT_PREVIEW_SUMMARY_FIELDS = (
@@ -223,8 +223,8 @@ ROLLOUT_PREVIEW_SUMMARY_FIELDS = (
     "source_summary_json",
     "artifact_path",
     "artifact_sha256",
-    "access_boundary",
-    "claim_boundary",
+    "access_scope",
+    "scope_note",
 )
 
 
@@ -456,11 +456,11 @@ def _benchmark_row(
     metric_value: float | None,
     split: str,
     primary_metric_value: float,
-    claim_comparable: bool,
+    protocol_comparable: bool,
     published_numbers_directly_comparable: bool,
     artifact_sha256: str = "",
     artifact_handle: str = "",
-    evidence_json: str = "",
+    record_json: str = "",
     source_refs: Iterable[str] = (),
     notes: str = "",
     sort_key: tuple[int, str] = (99, ""),
@@ -476,11 +476,11 @@ def _benchmark_row(
         "primary_improvement_fraction": _primary_improvement_fraction(
             primary_metric_value, metric_value
         ),
-        "claim_comparable": claim_comparable,
+        "protocol_comparable": protocol_comparable,
         "published_numbers_directly_comparable": published_numbers_directly_comparable,
         "artifact_sha256": artifact_sha256,
         "artifact_handle": artifact_handle,
-        "evidence_json": evidence_json,
+        "record_json": record_json,
         "source_refs": ",".join(source_refs),
         "notes": notes,
         "_sort_key": sort_key,
@@ -507,7 +507,7 @@ def build_benchmark_rows(
                 metric_value=_as_float(persistence.get("metric:decoded_rollout_nrmse")),
                 split=str(persistence.get("split", "test") or "test"),
                 primary_metric_value=primary_value,
-                claim_comparable=True,
+                protocol_comparable=True,
                 published_numbers_directly_comparable=False,
                 notes="Non-learned held-out light-v1 reference.",
                 sort_key=(10, "persistence"),
@@ -525,11 +525,11 @@ def build_benchmark_rows(
                 metric_value=_as_float(strong_baseline.get("baseline_metric_value")),
                 split=str(strong_baseline.get("split", "test")),
                 primary_metric_value=primary_value,
-                claim_comparable=True,
+                protocol_comparable=True,
                 published_numbers_directly_comparable=False,
                 artifact_sha256=str(strong_baseline.get("baseline_artifact_sha256", "")),
                 artifact_handle=str(strong_baseline.get("baseline_artifact_handles", [""])[0]),
-                notes="Repo-native neural baseline measured under the same claim protocol.",
+                notes="Repo-native neural baseline measured under the same light-v1 protocol.",
                 sort_key=(20, "local"),
             )
         )
@@ -556,12 +556,12 @@ def build_benchmark_rows(
                     metric_value=_as_float(measurement.get("metric_value")),
                     split=str(measurement.get("split", "")),
                     primary_metric_value=primary_value,
-                    claim_comparable=True,
+                    protocol_comparable=True,
                     published_numbers_directly_comparable=bool(
                         measurement.get("published_numbers_directly_comparable", False)
                     ),
                     artifact_handle=str(measurement.get("artifact_handle", "")),
-                    evidence_json=str(measurement.get("evidence_json", "")),
+                    record_json=str(measurement.get("evidence_json", "")),
                     source_refs=candidate.get("source_refs", []),
                     notes="Third-party model measured under the repo light-v1 protocol.",
                     sort_key=(30, str(candidate.get("model_family", ""))),
@@ -574,7 +574,7 @@ def build_benchmark_rows(
         metrics = candidate.get("metrics", {})
         rows.append(
             _benchmark_row(
-                label="UPS primary claim",
+                label="UPS primary",
                 run_name=str(candidate.get("run_name", "")),
                 category="ups primary",
                 metric_name="decoded_rollout_nrmse",
@@ -585,10 +585,10 @@ def build_benchmark_rows(
                 ),
                 split=str(candidate.get("split", "test")),
                 primary_metric_value=primary_value,
-                claim_comparable=True,
+                protocol_comparable=True,
                 published_numbers_directly_comparable=False,
                 artifact_sha256=str(candidate.get("artifact_sha256", "")),
-                notes="Primary guarded held-out light-v1 UPS claim.",
+                notes="Primary held-out light-v1 UPS result.",
                 sort_key=(40, "ups-primary"),
             )
         )
@@ -605,7 +605,7 @@ def build_benchmark_rows(
                 metric_value=_as_float(variant.get("metric_value")),
                 split=str(variant.get("split", "test")),
                 primary_metric_value=primary_value,
-                claim_comparable=bool(
+                protocol_comparable=bool(
                     variant.get("same_exact_inference_contract_as_primary", False)
                 ),
                 published_numbers_directly_comparable=bool(
@@ -613,7 +613,7 @@ def build_benchmark_rows(
                 ),
                 artifact_sha256=str(variant.get("artifact_sha256", "")),
                 artifact_handle=str(variant.get("artifact_handles", [""])[0]),
-                evidence_json=str(variant.get("evidence_json", "")),
+                record_json=str(variant.get("evidence_json", "")),
                 notes=str(
                     variant.get(
                         "claim_contract_label",
@@ -636,7 +636,7 @@ def _row_task_metrics(
     run_name: str,
     category: str,
     metrics: Mapping[str, Any],
-    claim_comparable: bool,
+    protocol_comparable: bool,
     scorecard_style: bool = False,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -653,7 +653,7 @@ def _row_task_metrics(
                 "task": task,
                 "metric_name": metric_key,
                 "metric_value": value,
-                "claim_comparable": claim_comparable,
+                "protocol_comparable": protocol_comparable,
             }
         )
     return rows
@@ -675,7 +675,7 @@ def build_task_rows(
                 run_name=str(persistence.get("run_name", "")),
                 category="baseline",
                 metrics=persistence,
-                claim_comparable=True,
+                protocol_comparable=True,
                 scorecard_style=True,
             )
         )
@@ -690,7 +690,7 @@ def build_task_rows(
                     run_name=str(strong_baseline.get("baseline_run_name", "")),
                     category="local neural baseline",
                     metrics=metrics,
-                    claim_comparable=True,
+                    protocol_comparable=True,
                 )
             )
 
@@ -701,11 +701,11 @@ def build_task_rows(
         if isinstance(metrics, Mapping):
             rows.extend(
                 _row_task_metrics(
-                    label="UPS primary claim",
+                    label="UPS primary",
                     run_name=str(candidate.get("run_name", "")),
                     category="ups primary",
                     metrics=metrics,
-                    claim_comparable=True,
+                    protocol_comparable=True,
                 )
             )
 
@@ -720,7 +720,7 @@ def build_task_rows(
                     run_name=str(variant.get("run_name", "")),
                     category="ups scoped variant",
                     metrics=metrics,
-                    claim_comparable=False,
+                    protocol_comparable=False,
                 )
             )
 
@@ -746,7 +746,7 @@ def build_task_rows(
                     run_name=str(measurement.get("run_name", "")),
                     category="external matched baseline",
                     metrics=task_metrics,
-                    claim_comparable=measurement.get("claim_comparable") is True,
+                    protocol_comparable=measurement.get("claim_comparable") is True,
                 )
             )
 
@@ -757,7 +757,7 @@ def build_task_rows(
         "UNO": 3,
         "U-Net": 4,
         "CNO1d": 5,
-        "UPS primary claim": 6,
+        "UPS primary": 6,
     }
     rows.sort(key=lambda row: (order.get(str(row["label"]), 20), str(row["task"])))
     return rows
@@ -769,7 +769,7 @@ def build_metric_suite_rows(
     *,
     artifact_root: Path = Path("."),
 ) -> list[dict[str, Any]]:
-    """Build secondary metric rows for the primary UPS claim versus persistence."""
+    """Build secondary metric rows for the primary UPS result versus persistence."""
     ups_metrics = _primary_metrics(claim_evidence, artifact_root=artifact_root)
     persistence_metrics = _persistence_metrics(durable_scorecard)
     rows: list[dict[str, Any]] = []
@@ -787,14 +787,14 @@ def build_metric_suite_rows(
                 "label": str(definition["label"]),
                 "metric_name": metric_name,
                 "metric_family": str(definition["metric_family"]),
-                "claim_role": str(definition["claim_role"]),
+                "metric_role": str(definition["metric_role"]),
                 "ups_value": ups_value,
                 "persistence_value": persistence_value,
                 "relative_improvement_fraction": relative_improvement,
-                "claim_boundary": (
-                    "Primary public claim metric"
-                    if definition["claim_role"] == "primary"
-                    else "Secondary diagnostic; not a standalone headline claim"
+                "scope_note": (
+                    "Primary held-out metric"
+                    if definition["metric_role"] == "primary"
+                    else "Secondary diagnostic metric"
                 ),
             }
         )
@@ -812,7 +812,7 @@ def build_horizon_rows(
     persistence_metrics = _persistence_metrics(durable_scorecard)
     rows: list[dict[str, Any]] = []
     for series, metrics, boundary in (
-        ("UPS primary claim", ups_metrics, "Primary UPS artifact metrics"),
+        ("UPS primary", ups_metrics, "Primary UPS artifact metrics"),
         ("Persistence baseline", persistence_metrics, "Held-out light-v1 persistence scorecard"),
     ):
         for horizon, horizon_label, metric_name in HORIZON_METRICS:
@@ -826,7 +826,7 @@ def build_horizon_rows(
                     "horizon_label": horizon_label,
                     "metric_name": metric_name,
                     "metric_value": value,
-                    "claim_boundary": boundary,
+                    "scope_note": boundary,
                 }
             )
     return rows
@@ -867,7 +867,7 @@ def build_transport_ablation_rows(ablation_matrix: Mapping[str, Any]) -> list[di
                         "held_out_test_used", ablation_matrix.get("held_out_test_used", False)
                     )
                 ),
-                "claim_boundary": "validation-only diagnostic",
+                "scope_note": "validation-only diagnostic",
             }
         )
     order = {"full_context_shift": 0, "weaker_context_shift": 1, "no_data_conditioning": 2}
@@ -893,7 +893,7 @@ def build_transfer_rows(transfer_scorecard: Mapping[str, Any]) -> list[dict[str,
                 "train_metric_value": _as_float(task_payload.get("train_nrmse")),
                 "test_touched": bool(task_payload.get("test_touched", False)),
                 "reason": str(task_payload.get("reason", "")),
-                "claim_boundary": "train/validation transfer diagnostic",
+                "scope_note": "train/validation transfer diagnostic",
             }
         )
     task_order = {"advection1d": 0, "burgers1d": 1, "darcy2d": 2}
@@ -907,14 +907,14 @@ def _card_row(
     label: str,
     value: Any,
     status: str,
-    claim_boundary: str,
+    scope_note: str,
 ) -> dict[str, Any]:
     return {
         "key": key,
         "label": label,
         "value": _stringify(value),
         "status": status,
-        "claim_boundary": claim_boundary,
+        "scope_note": scope_note,
     }
 
 
@@ -925,7 +925,7 @@ def build_reproducibility_card_rows(
     source_paths: Sequence[Path],
     generated_output_count: int,
 ) -> list[dict[str, Any]]:
-    """Build a compact public reproducibility/cost card from committed evidence."""
+    """Build a compact public reproducibility/cost card from committed records."""
     docs = claim_evidence.get("claim_documentation", {})
     primary_metric = (
         str(docs.get("metric_name", "decoded_rollout_nrmse"))
@@ -951,39 +951,39 @@ def build_reproducibility_card_rows(
     duration_status = "recorded" if duration_values else "not_recorded"
     return [
         _card_row(
-            key="evidence_asset_check",
+            key="asset_check",
             label="Asset check",
             value="python scripts/build_public_assets.py --check",
             status="repeatable",
-            claim_boundary="Regenerates public assets from committed evidence.",
+            scope_note="Regenerates public assets from committed records.",
         ),
         _card_row(
-            key="evidence_asset_gpu_required",
+            key="asset_gpu_required",
             label="GPU for assets",
             value="no",
             status="zero_gpu",
-            claim_boundary="Asset regeneration does not rerun benchmarks.",
+            scope_note="Asset regeneration does not rerun benchmarks.",
         ),
         _card_row(
-            key="evidence_asset_data_required",
+            key="asset_data_required",
             label="Dataset hydration",
             value="no",
             status="zero_data_hydration",
-            claim_boundary="Asset regeneration reads committed evidence files only.",
+            scope_note="Asset regeneration reads committed records only.",
         ),
         _card_row(
-            key="evidence_input_count",
-            label="Evidence inputs",
+            key="input_record_count",
+            label="Input records",
             value=str(len(source_paths)),
             status="tracked",
-            claim_boundary="Inputs are listed and hashed in asset_manifest.json.",
+            scope_note="Inputs are listed and hashed in asset_manifest.json.",
         ),
         _card_row(
             key="generated_output_count",
             label="Generated outputs",
             value=str(generated_output_count),
             status="tracked",
-            claim_boundary=(
+            scope_note=(
                 "Generated assets are listed and hashed in asset_manifest.json; "
                 "this count also includes the manifest."
             ),
@@ -992,29 +992,29 @@ def build_reproducibility_card_rows(
             key="primary_metric",
             label="Primary metric",
             value=primary_metric,
-            status="claim_metric",
-            claim_boundary="Primary held-out claim metric; secondary metrics are diagnostic.",
+            status="primary_metric",
+            scope_note="Primary held-out metric; secondary metrics are diagnostic.",
         ),
         _card_row(
             key="primary_artifact_hash",
             label="Primary artifact hash",
             value=artifact_sha256[:12] if artifact_sha256 else "not recorded",
             status="recorded" if artifact_sha256 else "not_recorded",
-            claim_boundary="Full artifact hash remains in claim evidence.",
+            scope_note="Full artifact hash remains in the source record.",
         ),
         _card_row(
             key="benchmark_cost_status",
             label="Benchmark dollar cost",
             value=benchmark_cost_value,
             status=benchmark_cost_status,
-            claim_boundary="Dollar cost is shown only when recorded in committed scorecards.",
+            scope_note="Dollar cost is shown only when recorded in committed scorecards.",
         ),
         _card_row(
             key="recorded_eval_duration",
             label="Recorded eval duration",
             value=total_duration,
             status=duration_status,
-            claim_boundary="Duration comes from committed scorecard rows, not a fresh run.",
+            scope_note="Duration comes from committed scorecard rows, not a fresh run.",
         ),
     ]
 
@@ -1030,7 +1030,7 @@ def _readiness_lane(surface: str, status: str) -> str:
 
 
 def build_ecosystem_compatibility_rows(external_mapping: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Build official-protocol and ecosystem compatibility rows from evidence."""
+    """Build official-protocol and ecosystem compatibility rows from records."""
     rows: list[dict[str, Any]] = []
     for item in external_mapping.get("ecosystem_compatibility", []):
         if not isinstance(item, Mapping):
@@ -1050,12 +1050,12 @@ def build_ecosystem_compatibility_rows(external_mapping: Mapping[str, Any]) -> l
                 "source_refs": source_refs_text,
                 "adapter_entrypoint": str(item.get("adapter_entrypoint", "")),
                 "validation_command": str(item.get("validation_command", "")),
-                "evidence_json": str(item.get("evidence_json", "")),
+                "record_json": str(item.get("evidence_json", "")),
                 "metric_name": str(item.get("metric_name", "")),
                 "metric_value": _as_float(item.get("metric_value")),
                 "test_metric_value": _as_float(item.get("test_metric_value")),
                 "next_step": str(item.get("next_step", "")),
-                "claim_boundary": str(item.get("claim_boundary", "")),
+                "scope_note": str(item.get("claim_boundary", "")),
             }
         )
     lane_order = {
@@ -1097,7 +1097,7 @@ def build_benchmark_readiness_rows(
                 "readiness": readiness,
                 "metric_value": _as_float(row.get("metric_value")),
                 "next_step": str(row.get("next_step", "")),
-                "claim_boundary": str(row.get("claim_boundary", "")),
+                "scope_note": str(row.get("scope_note", "")),
             }
         )
     lane_order = {
@@ -1115,7 +1115,7 @@ def load_rollout_preview_manifest(
     *,
     artifact_root: Path = Path("."),
 ) -> dict[str, Any] | None:
-    """Load and validate an optional claim-linked rollout preview manifest."""
+    """Load and validate an optional linked rollout preview manifest."""
     if preview_manifest_path is None or not preview_manifest_path.exists():
         return None
     manifest = load_json(preview_manifest_path)
@@ -1197,10 +1197,8 @@ def build_rollout_preview_summary_rows(
             "source_summary_json": str(rollout_preview_manifest["source_summary_json"]),
             "artifact_path": str(rollout_preview_manifest["artifact_path"]),
             "artifact_sha256": str(rollout_preview_manifest["artifact_sha256"]),
-            "access_boundary": access_boundary,
-            "claim_boundary": (
-                f"{access_boundary}; qualitative preview only, numeric claims remain source-of-truth"
-            ),
+            "access_scope": access_boundary,
+            "scope_note": f"{access_boundary}; qualitative preview only.",
         }
     ]
 
@@ -1211,7 +1209,7 @@ def build_rollout_preview_status_rows(
     preview_manifest_path: Path | None = None,
     artifact_root: Path = Path("."),
 ) -> list[dict[str, Any]]:
-    """Build rollout-preview status rows without treating ignored reports as evidence."""
+    """Build rollout-preview status rows without treating ignored reports as public results."""
     if local_preview_exists is None:
         local_preview_exists = False
     ignored_status = "excluded" if local_preview_exists else "absent"
@@ -1225,37 +1223,35 @@ def build_rollout_preview_status_rows(
             "Add a compact prediction/target preview artifact with command, split, "
             "metric, and SHA-256 before rendering qualitative rollout panels."
         )
-        artifact_boundary = "No qualitative rollout panel is currently claim-linked."
+        artifact_scope = "No qualitative rollout panel is currently linked."
     else:
         artifact_status = "available"
         artifact_next_step = (
             f"Render generated/rollout_preview_panel.png from "
             f"{rollout_preview_manifest['artifact_path']}."
         )
-        artifact_boundary = (
-            f"{rollout_preview_manifest['access_boundary']}; qualitative preview only."
-        )
+        artifact_scope = f"{rollout_preview_manifest['access_boundary']}; qualitative preview only."
     return [
         {
-            "key": "claim_linked_preview_artifact",
-            "label": "Claim-linked preview artifact",
+            "key": "linked_preview_artifact",
+            "label": "Linked preview artifact",
             "status": artifact_status,
             "next_step": artifact_next_step,
-            "claim_boundary": artifact_boundary,
+            "scope_note": artifact_scope,
         },
         {
             "key": "ignored_local_preview",
             "label": "Ignored local preview",
             "status": ignored_status,
-            "next_step": "Do not use ignored reports as public evidence.",
-            "claim_boundary": "Ignored local reports are not public evidence.",
+            "next_step": "Do not use ignored reports as public results.",
+            "scope_note": "Ignored local reports are not public results.",
         },
         {
             "key": "preview_contract",
             "label": "Preview contract",
             "status": "defined",
             "next_step": "Use the rollout preview artifact contract.",
-            "claim_boundary": "Contract defines future artifact shape; it is not a result.",
+            "scope_note": "Contract defines future artifact shape; it is not a result.",
         },
     ]
 
@@ -1308,16 +1304,16 @@ def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict
                     measurements[0].get("metric_name", "decoded_rollout_nrmse") if measured else ""
                 ),
                 "metric_value": metric_value,
-                "what_it_proves": (
+                "what_it_shows": (
                     "Measured under the same light-v1 split, horizon, and metric."
                     if measured
                     else why
                 ),
                 "next_step": next_step,
-                "claim_boundary": (
+                "scope_note": (
                     "Matched light-v1 repo protocol"
                     if measured
-                    else "Not a current held-out claim-comparable benchmark"
+                    else "Not a current held-out comparable benchmark"
                 ),
             }
         )
@@ -1346,13 +1342,13 @@ def build_external_matrix_rows(external_mapping: Mapping[str, Any]) -> list[dict
                 "source_refs": str(item["source_refs"]),
                 "metric_name": str(item["metric_name"] if metric_value is not None else ""),
                 "metric_value": metric_value,
-                "what_it_proves": str(
-                    item.get("claim_boundary")
+                "what_it_shows": str(
+                    item.get("scope_note")
                     or item.get("next_step")
                     or "Tracked as an ecosystem compatibility surface."
                 ),
                 "next_step": str(item["next_step"]),
-                "claim_boundary": str(item["claim_boundary"]),
+                "scope_note": str(item["scope_note"]),
             }
         )
     rows.sort(key=lambda row: (row["status"] != "measured", row["surface"]))
@@ -1414,11 +1410,11 @@ def _save_figure(fig: Any, path: str | Path) -> None:
     fig.savefig(
         path,
         dpi=180,
-        metadata={"Software": "universal_simulator public evidence generator"},
+        metadata={"Software": "universal_simulator public results generator"},
     )
 
 
-def render_claim_scorecard(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
+def render_scorecard(rows: Sequence[Mapping[str, Any]], path: str | Path) -> None:
     visible = [
         row
         for row in rows
@@ -1529,7 +1525,7 @@ def render_horizon_profile(rows: Sequence[Mapping[str, Any]], path: str | Path) 
 
     horizons = [item[0] for item in HORIZON_METRICS]
     horizon_labels = {item[0]: item[1] for item in HORIZON_METRICS}
-    series_order = ["Persistence baseline", "UPS primary claim"]
+    series_order = ["Persistence baseline", "UPS primary"]
     values = {
         (str(row["series"]), str(row["horizon"])): _as_float(row["metric_value"]) for row in rows
     }
@@ -1537,8 +1533,8 @@ def render_horizon_profile(rows: Sequence[Mapping[str, Any]], path: str | Path) 
         return
     fig, ax = plt.subplots(figsize=(8.5, 5.0), constrained_layout=True)
     x = list(range(len(horizons)))
-    colors = {"Persistence baseline": "#6b7280", "UPS primary claim": "#15803d"}
-    offsets = {"Persistence baseline": -0.18, "UPS primary claim": 0.18}
+    colors = {"Persistence baseline": "#6b7280", "UPS primary": "#15803d"}
+    offsets = {"Persistence baseline": -0.18, "UPS primary": 0.18}
     bar_width = 0.34
     for series in series_order:
         y = [values.get((series, horizon), float("nan")) for horizon in horizons]
@@ -1558,7 +1554,7 @@ def render_horizon_profile(rows: Sequence[Mapping[str, Any]], path: str | Path) 
     ax.set_xticks(x)
     ax.set_xticklabels([horizon_labels[horizon] for horizon in horizons])
     ax.set_ylabel("decoded NRMSE (lower is better)")
-    ax.set_title("Primary claim horizon profile")
+    ax.set_title("UPS horizon profile")
     ax.grid(axis="y", alpha=0.25)
     ax.legend()
     _save_figure(fig, path)
@@ -1671,7 +1667,7 @@ def render_reproducibility_card(rows: Sequence[Mapping[str, Any]], path: str | P
             ("label", "Item", 22),
             ("value", "Value", 32),
             ("status", "Status", 18),
-            ("claim_boundary", "Boundary", 42),
+            ("scope_note", "Scope", 42),
         ),
     )
 
@@ -1685,7 +1681,7 @@ def render_benchmark_readiness(rows: Sequence[Mapping[str, Any]], path: str | Pa
             ("surface", "Surface", 18),
             ("readiness_lane", "Lane", 26),
             ("readiness", "Readiness", 14),
-            ("claim_boundary", "Boundary", 42),
+            ("scope_note", "Scope", 42),
         ),
     )
 
@@ -1695,19 +1691,19 @@ def render_ecosystem_compatibility(rows: Sequence[Mapping[str, Any]], path: str 
     for row in rows:
         status = str(row.get("status", ""))
         if status == "matched_protocol_measured":
-            boundary = "Matched light-v1 adapter; published tables unmapped."
+            scope_note = "Matched light-v1 adapter; published tables unmapped."
         elif status == "validation_stopped":
-            boundary = "Validation-only transfer; no held-out test."
+            scope_note = "Validation-only transfer; no held-out test."
         elif status == "compatibility_smoke_ready":
-            boundary = "Recipe smoke ready; no UPS metric yet."
+            scope_note = "Recipe smoke ready; no UPS metric yet."
         elif status == "validation_recipe_adapter_complete":
-            boundary = "Validation recipe metric; no held-out test."
+            scope_note = "Validation recipe metric; no held-out test."
         elif str(row.get("readiness_lane")) == "official external protocol":
-            boundary = "Planned external protocol; not light-v1 comparable."
+            scope_note = "Planned external protocol; not light-v1 comparable."
         elif str(row.get("readiness_lane")) == "ecosystem compatibility":
-            boundary = "Planned compatibility gate; no UPS metric yet."
+            scope_note = "Planned compatibility gate; no UPS metric yet."
         else:
-            boundary = str(row.get("claim_boundary", ""))
+            scope_note = str(row.get("scope_note", ""))
         metric_value = _as_float(row.get("metric_value"))
         display_rows.append(
             {
@@ -1715,7 +1711,7 @@ def render_ecosystem_compatibility(rows: Sequence[Mapping[str, Any]], path: str 
                 "status": status,
                 "readiness_lane": str(row.get("readiness_lane", "")),
                 "metric_value": "" if metric_value is None else f"{metric_value:.4f}",
-                "claim_boundary": boundary,
+                "scope_note": scope_note,
             }
         )
     _render_text_rows(
@@ -1727,7 +1723,7 @@ def render_ecosystem_compatibility(rows: Sequence[Mapping[str, Any]], path: str 
             ("status", "Status", 18),
             ("readiness_lane", "Lane", 24),
             ("metric_value", "Val metric", 12),
-            ("claim_boundary", "Boundary", 32),
+            ("scope_note", "Scope", 32),
         ),
     )
 
@@ -1741,7 +1737,7 @@ def render_rollout_preview_status(rows: Sequence[Mapping[str, Any]], path: str |
             ("label", "Item", 24),
             ("status", "Status", 16),
             ("next_step", "Next step", 42),
-            ("claim_boundary", "Boundary", 36),
+            ("scope_note", "Scope", 36),
         ),
     )
 
@@ -1905,7 +1901,7 @@ def build_public_assets(
         output_dir / "benchmark_readiness_summary.tsv",
         output_dir / "rollout_preview_status.tsv",
         output_dir / "external_benchmark_matrix.tsv",
-        output_dir / "claim_scorecard.png",
+        output_dir / "light_v1_scorecard.png",
         output_dir / "per_task_breakdown.png",
         output_dir / "primary_metric_suite.png",
         output_dir / "horizon_profile.png",
@@ -1952,7 +1948,7 @@ def build_public_assets(
     write_json(
         {
             "source_files": {
-                "claim_evidence": str(claim_evidence_path),
+                "result_record": str(claim_evidence_path),
                 "external_mapping": str(external_mapping_path),
                 "durable_scorecard": str(durable_scorecard_path),
                 "transport_ablation": str(transport_ablation_path),
@@ -1984,7 +1980,7 @@ def build_public_assets(
     write_tsv(rollout_preview_rows, paths[9], ROLLOUT_PREVIEW_FIELDS)
     write_tsv(external_rows, paths[10], EXTERNAL_FIELDS)
     write_tsv(ecosystem_compatibility_rows, paths[21], ECOSYSTEM_COMPATIBILITY_FIELDS)
-    render_claim_scorecard(benchmark_rows, paths[11])
+    render_scorecard(benchmark_rows, paths[11])
     render_task_breakdown(task_rows, paths[12])
     render_metric_suite(metric_suite_rows, paths[13])
     render_horizon_profile(horizon_rows, paths[14])
@@ -2054,7 +2050,19 @@ def check_public_assets(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--claim-evidence", type=Path, default=DEFAULT_CLAIM_EVIDENCE)
+    parser.add_argument(
+        "--result-record",
+        dest="claim_evidence",
+        type=Path,
+        default=DEFAULT_CLAIM_EVIDENCE,
+        help="Path to the main machine-readable result record.",
+    )
+    parser.add_argument(
+        "--claim-evidence",
+        dest="claim_evidence",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--external-mapping", type=Path, default=DEFAULT_EXTERNAL_MAPPING)
     parser.add_argument("--durable-scorecard", type=Path, default=DEFAULT_DURABLE_SCORECARD)
     parser.add_argument("--transport-ablation", type=Path, default=DEFAULT_TRANSPORT_ABLATION)
@@ -2064,7 +2072,7 @@ def main() -> None:
         type=Path,
         default=DEFAULT_ROLLOUT_PREVIEW_MANIFEST,
         help=(
-            "Optional manifest for a compact claim-linked rollout preview artifact. "
+            "Optional manifest for a compact linked rollout preview artifact. "
             "Missing default path leaves qualitative panels gated."
         ),
     )

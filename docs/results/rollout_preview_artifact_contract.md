@@ -1,8 +1,8 @@
 # Rollout Preview Artifact Contract
 
 Qualitative rollout panels should not be rendered from ignored local `reports/`
-files. They need a compact committed artifact tied to the same evidence rules as
-the numeric evidence figures.
+files. They need a compact committed artifact tied to the same record rules as
+the numeric result figures.
 
 ## Required Artifact
 
@@ -35,7 +35,7 @@ examples, not a hidden dataset.
 
 ## Required Manifest
 
-A JSON evidence manifest should live beside the numeric evidence:
+A JSON preview manifest should live beside the numeric records:
 
 ```text
 docs/claim_evidence/rollout_preview_manifest.json
@@ -67,7 +67,7 @@ status and no qualitative panel is rendered.
 
 ## Current Status
 
-`generated/rollout_preview_status.tsv` records that no claim-linked preview
+`generated/rollout_preview_status.tsv` records that no linked preview
 artifact exists yet. Local ignored files such as `reports/evaluation_preview.npz`
-must stay excluded from public evidence until they are promoted through
+must stay excluded from public results until they are promoted through
 this contract.
