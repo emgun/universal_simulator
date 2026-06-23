@@ -48,6 +48,14 @@ and drift on persistence-friendly tasks.
   `reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_val_light_v1_e30_lr1e2_roll4/summary.json`
   and B2 artifact
   `b2://pdebench/remote-runs/poseidon-channel-lift/poseidon_channel_lift_light-v1_20260623T015718Z.tar.gz`.
+- DPOT readiness runner scaffolding is implemented in
+  `scripts/run_external_dpot_finetune.py` with unit coverage in
+  `tests/unit/test_external_dpot_finetune.py`; targeted tests passed on
+  2026-06-23 with
+  `python -m pytest tests/unit/test_external_dpot_finetune.py -q`. The runner
+  blocks `split=test`, preserves validation-only claim boundaries, freezes the
+  DPOT backbone, and exposes the 13-parameter `channel_lift` adapter needed
+  for a later 2-sample CPU/import/checkpoint smoke.
 
 ## Roadmap Implication
 
@@ -117,6 +125,16 @@ Poseidon Option B/task modulation secondary and only under an advection-aware
 validation gate; do not reopen standalone transport sidecar or shift-estimator
 work. See
 `docs/research/2026-06-23-p2-post-heldout-branch-check.md`.
+
+The first DPOT implementation step is complete: `scripts/run_external_dpot_finetune.py`
+now supports the pinned Tiny DPOT source/checkpoint contract, deterministic
+repeat-current 10-frame history, scalar-to-four-channel lift/readout, frozen
+backbone parameter discipline, validation-only summary validation, and
+autoregressive rollout evaluation. The targeted local tests passed; no DPOT
+source clone, checkpoint download, GPU/provider run, held-out test, claim
+evidence update, or public language change was performed. The next useful
+step is a local 2-sample CPU smoke only after the official DPOT source and
+Tiny checkpoint are present and SHA-verified.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live

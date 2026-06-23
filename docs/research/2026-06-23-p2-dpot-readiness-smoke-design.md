@@ -2,9 +2,10 @@
 
 Date: 2026-06-23
 
-Status: readiness/design note. No DPOT source was cloned, no checkpoint was
-downloaded, no GPU/provider work ran, no held-out test was used, no claim
-evidence changed, and no public language changed.
+Status: readiness/design note with runner scaffolding implemented. No DPOT
+source was cloned, no checkpoint was downloaded, no GPU/provider work ran, no
+held-out test was used, no claim evidence changed, and no public language
+changed.
 
 ## Trigger
 
@@ -174,6 +175,19 @@ Add unit tests before running the real smoke:
 - Channel lift/readout initializes to replicate/mean.
 - Frozen-backbone assertion catches accidental DPOT parameter unfreezing.
 - History-window builder is deterministic and does not read future frames.
+
+Implementation status on 2026-06-23:
+
+- Runner: `scripts/run_external_dpot_finetune.py`
+- Tests: `tests/unit/test_external_dpot_finetune.py`
+- Verification:
+  `python -m pytest tests/unit/test_external_dpot_finetune.py -q`
+- Result: passed locally.
+
+The implementation stops at runner/test scaffolding. It does not restore or
+clone source, download checkpoints, run GPU/provider work, or touch held-out
+test. The next CPU smoke should run only after the official DPOT source and
+Tiny checkpoint are present and the checkpoint SHA256 matches the value above.
 
 ## Validation Gate For Any Later GPU Run
 
