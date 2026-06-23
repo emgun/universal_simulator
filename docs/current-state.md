@@ -68,6 +68,14 @@ and drift on persistence-friendly tasks.
   `history_steps = 10`, `history_init = repeat_current`, and 13 trainable
   adapter parameters. This is a mechanics smoke, not claim-comparable
   evidence.
+- DPOT Tiny `channel_lift` validation-only GPU run completed on 2026-06-23
+  and missed the gate: aggregate decoded rollout NRMSE
+  `0.7136888249949349` versus gate `<= 0.363424243629033`, advection
+  `0.8575561454613253` versus gate `<= 0.4866576789288726`, Burgers
+  `0.588255711789389`, Darcy `0.28923145953251056`, `held_out_test_used =
+  false`, 13 trainable parameters, source/checkpoint provenance matched. See
+  `docs/research/2026-06-23-p2-dpot-gpu-validation-result.md` and B2 artifact
+  `b2://pdebench/remote-runs/dpot-channel-lift/dpot_channel_lift_light-v1_20260623T221057Z.tar.gz`.
 
 ## Roadmap Implication
 
@@ -150,10 +158,12 @@ provider work is allowed. The gate must protect aggregate, advection, Darcy,
 and Burgers validation metrics; the CPU smoke suggests Darcy can be weak under
 this adapter even when advection does not immediately collapse.
 
-Remote execution support for that plan is prepared in
-`scripts/run_remote_dpot_channel_lift.sh` and
-`scripts/launch_remote_dpot_channel_lift_vast.sh`. The launcher is dry-run
-first and uses the same tracked-script Vast/B2 pattern as the Poseidon run.
+The DPOT Tiny validation-only GPU run is now negative. Do not rerun it, do not
+move it to held-out, and do not update claim evidence. The result supports a
+branch check before any more provider spend. That branch check is recorded at
+`docs/research/2026-06-23-p2-post-dpot-validation-branch-check.md`: primary
+next branch is Poseidon Option B/task modulation, validation-only; DPOT
+escalation is secondary; UPS-side transport/refiner work remains fallback.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
@@ -186,4 +196,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Execute or supervise the bounded DPOT validation-only GPU plan if provider work is allowed; otherwise keep planning/no-provider synthesis only |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare Poseidon Option B/task-modulation design and tests before any new provider spend |

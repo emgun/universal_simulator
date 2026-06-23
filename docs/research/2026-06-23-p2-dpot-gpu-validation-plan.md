@@ -2,8 +2,9 @@
 
 Date: 2026-06-23
 
-Status: prepared plan. No GPU/provider work ran, no held-out test was used, no
-claim evidence changed, and no public language changed.
+Status: executed on 2026-06-23. The validation-only GPU run missed the gate.
+No held-out test was used, no claim evidence changed, and no public language
+changed. See `docs/research/2026-06-23-p2-dpot-gpu-validation-result.md`.
 
 ## Purpose
 
