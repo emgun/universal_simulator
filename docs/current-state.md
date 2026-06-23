@@ -150,6 +150,11 @@ provider work is allowed. The gate must protect aggregate, advection, Darcy,
 and Burgers validation metrics; the CPU smoke suggests Darcy can be weak under
 this adapter even when advection does not immediately collapse.
 
+Remote execution support for that plan is prepared in
+`scripts/run_remote_dpot_channel_lift.sh` and
+`scripts/launch_remote_dpot_channel_lift_vast.sh`. The launcher is dry-run
+first and uses the same tracked-script Vast/B2 pattern as the Poseidon run.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main

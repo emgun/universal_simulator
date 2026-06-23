@@ -22,6 +22,8 @@ This plan is a validation-only gate, not a public claim path.
 - Checkpoint SHA256:
   `074c337f9b3a3c70253f8022ce6be7e7dfb809a91a7b00e46fbfedf9611d767f`
 - Runner: `scripts/run_external_dpot_finetune.py`
+- Remote wrapper: `scripts/run_remote_dpot_channel_lift.sh`
+- Vast launcher: `scripts/launch_remote_dpot_channel_lift_vast.sh`
 - Train split: `train`
 - Eval split: `val`
 - Tasks: `advection1d burgers1d darcy2d`
@@ -32,6 +34,13 @@ This plan is a validation-only gate, not a public claim path.
 Use one bounded Vast GPU instance only if provider work is allowed and the
 instance already has or can receive the pinned repo, local data, and Tiny
 checkpoint without secrets beyond existing project access.
+
+Dry-run first:
+
+```bash
+DRY_RUN=1 GIT_REF=codex/poseidon-channel-lift-vast \
+  bash scripts/launch_remote_dpot_channel_lift_vast.sh
+```
 
 ```bash
 python scripts/run_external_dpot_finetune.py \
