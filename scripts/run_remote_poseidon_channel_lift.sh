@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bounded P2.2 Poseidon ScOT channel-lift train/validation measurement.
+# Bounded P2.2 Poseidon ScOT channel-lift measurement.
 #
 # Contract:
-# - Hydrate light-v1 train/val shards only.
+# - Hydrate light-v1 train/eval shards.
 # - Restore official Poseidon source at a pinned commit on the remote host.
-# - Run Option A channel_lift validation only; never run held-out test here.
+# - Run Option A channel_lift validation by default.
+# - Run held-out only when ALLOW_HELD_OUT_TEST=1 and a pre-registered ledger is
+#   supplied.
 # - Validate and optionally publish the resulting summary/artifacts to B2.
 #
 # Safe default: DRY_RUN=1 prints commands without running provider/data work.
@@ -174,7 +176,11 @@ install_poseidon_runtime_deps() {
 
 validate_summary() {
   local summary_path="$1"; shift
-  python - "$summary_path" "$G2A_NRMSE" "$TASK_COLLAPSE_NRMSE" "$TASKS" <<'PY'
+  local expected_split="$1"; shift
+  local expected_held_out="$1"; shift
+  local expected_measurement_key="$1"; shift
+  local ledger_json="$1"; shift
+  python - "$summary_path" "$G2A_NRMSE" "$TASK_COLLAPSE_NRMSE" "$TASKS" "$expected_split" "$expected_held_out" "$expected_measurement_key" "$ledger_json" <<'PY'
 import json
 import math
 import sys
@@ -184,16 +190,22 @@ summary_path = Path(sys.argv[1])
 gate = float(sys.argv[2])
 collapse = float(sys.argv[3])
 expected_tasks = {part for part in sys.argv[4].replace(",", " ").split() if part}
+expected_split = sys.argv[5]
+expected_held_out = sys.argv[6] == "1"
+expected_measurement_key = sys.argv[7]
+ledger_json = Path(sys.argv[8]) if sys.argv[8] else None
 if not summary_path.exists():
     raise SystemExit(f"missing summary: {summary_path}")
 data = json.loads(summary_path.read_text())
 errors = []
 if data.get("status") != "validation_finetune_measurement_complete":
     errors.append(f"unexpected status: {data.get('status')!r}")
-if data.get("split") != "val":
+if data.get("split") != expected_split:
     errors.append(f"unexpected split: {data.get('split')!r}")
-if data.get("held_out_test_used") is not False:
-    errors.append("held_out_test_used must be false")
+if data.get("held_out_test_used") is not expected_held_out:
+    errors.append(f"held_out_test_used must be {expected_held_out}")
+if data.get("held_out_test_data_read") is not expected_held_out:
+    errors.append(f"held_out_test_data_read must be {expected_held_out}")
 details = data.get("details") or {}
 if details.get("adapter_mode") != "channel_lift":
     errors.append(f"unexpected adapter mode: {details.get('adapter_mode')!r}")
@@ -217,6 +229,24 @@ seen_tasks = {
 }
 if seen_tasks != expected_tasks:
     errors.append(f"evaluation tasks must be {sorted(expected_tasks)}, got {sorted(seen_tasks)}")
+policy = details.get("held_out_test_policy") or {}
+if expected_held_out:
+    if policy.get("measurement_key") != expected_measurement_key:
+        errors.append("held_out_test_policy.measurement_key must match contract")
+    if policy.get("recorded") is not True:
+        errors.append("held_out_test_policy.recorded must be true")
+    if not ledger_json or not ledger_json.exists():
+        errors.append(f"missing held-out ledger: {ledger_json}")
+    else:
+        ledger = json.loads(ledger_json.read_text())
+        matches = [
+            item
+            for item in ledger.get("measurements", [])
+            if isinstance(item, dict)
+            and item.get("measurement_key") == expected_measurement_key
+        ]
+        if len(matches) != 1:
+            errors.append("ledger must contain exactly one matching measurement")
 for key, value in sorted(metrics.items()):
     if key.startswith("task_") and key.endswith("_decoded_rollout_nrmse"):
         if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
@@ -227,8 +257,11 @@ if errors:
     for error in errors:
         print(f"SUMMARY_VALIDATION_ERROR: {error}", file=sys.stderr)
     raise SystemExit(1)
-decision = "cleared_g2a" if float(score) <= gate else "did_not_clear_g2a"
-print(f"SUMMARY_VALIDATION_OK decoded_rollout_nrmse={score} gate={gate} decision={decision}")
+if expected_held_out:
+    decision = "held_out_positive_transfer" if float(score) <= 0.4165820594268877 else "held_out_negative_or_mixed_transfer"
+else:
+    decision = "cleared_g2a" if float(score) <= gate else "did_not_clear_g2a"
+print(f"SUMMARY_VALIDATION_OK split={expected_split} decoded_rollout_nrmse={score} gate={gate} decision={decision}")
 PY
 }
 
@@ -265,6 +298,7 @@ TRAIN_CONFIG=${TRAIN_CONFIG:-configs/train_multitask_heterogeneous_light_best.ya
 TASKS=${TASKS:-advection1d,burgers1d,darcy2d}
 TRAIN_SPLIT=${TRAIN_SPLIT:-train}
 EVAL_SPLIT=${EVAL_SPLIT:-val}
+ALLOW_HELD_OUT_TEST=${ALLOW_HELD_OUT_TEST:-0}
 MAX_TRAIN_SAMPLES=${MAX_TRAIN_SAMPLES:-32}
 MAX_EVAL_SAMPLES=${MAX_EVAL_SAMPLES:-32}
 ROLLOUT_STEPS=${ROLLOUT_STEPS:-16}
@@ -275,6 +309,7 @@ LEARNING_RATE=${LEARNING_RATE:-0.01}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.0001}
 BATCH_SIZE=${BATCH_SIZE:-32}
 GRAD_CLIP_NORM=${GRAD_CLIP_NORM:-1.0}
+SEED=${SEED:-17}
 DEVICE=${DEVICE:-cuda}
 POSEIDON_MODEL_SIZE=${POSEIDON_MODEL_SIZE:-T}
 CHECKPOINT_FILE=${CHECKPOINT_FILE:-model.safetensors}
@@ -290,9 +325,19 @@ PUBLISH_ARTIFACTS=${PUBLISH_ARTIFACTS:-1}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/poseidon-channel-lift}
 G2A_NRMSE=${G2A_NRMSE:-0.363424243629033}
 TASK_COLLAPSE_NRMSE=${TASK_COLLAPSE_NRMSE:-0.95}
+HELD_OUT_LEDGER_JSON=${HELD_OUT_LEDGER_JSON:-$OUTPUT_ROOT/$RUN_NAME/test_ledger.json}
+HELD_OUT_MEASUREMENT_KEY=${HELD_OUT_MEASUREMENT_KEY:-}
 
-if [ "$TRAIN_SPLIT" = "test" ] || [ "$EVAL_SPLIT" = "test" ]; then
-  echo "Refusing test split: this remote script is validation-only by contract." >&2
+if [ "$TRAIN_SPLIT" = "test" ]; then
+  echo "Refusing test train split: Poseidon finetuning must train on train/val only." >&2
+  exit 1
+fi
+if [ "$EVAL_SPLIT" = "test" ] && [ "$ALLOW_HELD_OUT_TEST" -ne 1 ]; then
+  echo "Refusing test eval split without ALLOW_HELD_OUT_TEST=1." >&2
+  exit 1
+fi
+if [ "$EVAL_SPLIT" = "test" ] && [ -z "$HELD_OUT_MEASUREMENT_KEY" ]; then
+  echo "Refusing held-out eval without HELD_OUT_MEASUREMENT_KEY." >&2
   exit 1
 fi
 
@@ -304,7 +349,7 @@ for task in $(normalize_list "$TASKS"); do
 done
 
 if [ "$FETCH_DATA" -eq 1 ]; then
-  echo "Hydrating ${VERSION} ${TRAIN_SPLIT}/${EVAL_SPLIT} shards into ${DATA_ROOT} (test split intentionally not fetched)"
+  echo "Hydrating ${VERSION} ${TRAIN_SPLIT}/${EVAL_SPLIT} shards into ${DATA_ROOT}"
   # shellcheck disable=SC2086
   run_or_echo env \
     B2_ENV_FILE="$ENV_FILE" \
@@ -357,7 +402,12 @@ cmd=(
   --adapter-mode channel_lift
   --rollout-loss-steps "$ROLLOUT_LOSS_STEPS"
   --rollout-loss-weight "$ROLLOUT_LOSS_WEIGHT"
+  --seed "$SEED"
+  --held-out-ledger-json "$HELD_OUT_LEDGER_JSON"
 )
+if [ "$EVAL_SPLIT" = "test" ]; then
+  cmd+=(--allow-held-out-test-eval)
+fi
 cmd+=(--tasks)
 for task in $(normalize_list "$TASKS"); do
   cmd+=("$task")
@@ -378,7 +428,11 @@ fi
 validation_status=0
 if [ "$DRY_RUN" -eq 0 ] && [ -f "$summary_path" ]; then
   set +e
-  validate_summary "$summary_path"
+  expected_held_out=0
+  if [ "$EVAL_SPLIT" = "test" ]; then
+    expected_held_out=1
+  fi
+  validate_summary "$summary_path" "$EVAL_SPLIT" "$expected_held_out" "$HELD_OUT_MEASUREMENT_KEY" "$HELD_OUT_LEDGER_JSON"
   validation_status=$?
   set -e
 elif [ "$DRY_RUN" -eq 0 ]; then

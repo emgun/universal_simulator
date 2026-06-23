@@ -1,0 +1,35 @@
+{
+  "date": "2026-06-23",
+  "measurement_type": "p2_poseidon_channel_lift_heldout_evidence_manifest",
+  "status": "pending_heldout_run",
+  "contract_json": "docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-pretest-contract.json",
+  "expected_run_name": "poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4",
+  "expected_summary_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/summary.json",
+  "expected_ledger_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/test_ledger.json",
+  "expected_measurement_key": "b487e8841f7631554248fcaeedf9dd3a1fba1faa7f003f0e6304a2b96375516a",
+  "expected_b2_prefix": "b2://pdebench/remote-runs/poseidon-channel-lift/",
+  "required_fields_after_run": [
+    "summary_json",
+    "summary_sha256",
+    "ledger_json",
+    "ledger_sha256",
+    "b2_artifact",
+    "b2_artifact_sha256_or_etag",
+    "decoded_rollout_nrmse",
+    "task_advection1d_decoded_rollout_nrmse",
+    "task_burgers1d_decoded_rollout_nrmse",
+    "task_darcy2d_decoded_rollout_nrmse",
+    "held_out_test_used",
+    "poseidon_commit",
+    "checkpoint_sha256",
+    "measurement_key"
+  ],
+  "post_run_validation": [
+    "Validate the summary with scripts/run_external_poseidon_scot_finetune.py summary checks.",
+    "Confirm ledger contains exactly one measurement for b487e8841f7631554248fcaeedf9dd3a1fba1faa7f003f0e6304a2b96375516a.",
+    "Compare aggregate and task metrics against the interpretation rules in the contract.",
+    "Package result in a separate evidence note before changing claim evidence or public text."
+  ],
+  "claim_evidence_update_allowed": false,
+  "public_language_update_allowed": false
+}

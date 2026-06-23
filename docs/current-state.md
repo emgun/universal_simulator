@@ -55,9 +55,11 @@ Treat the current in-house core as below the minimum learned-operator bar until
 new evidence says otherwise. P2.2 now has a validation-positive challenger:
 Poseidon `channel_lift` Option A cleared G2a on aggregate validation while
 preserving the pretrained embedding/recovery path and using only 13 trainable
-adapter parameters. This authorizes drafting a held-out pre-test contract and
-evidence manifest; it does not authorize running held-out test or making
-broader public claims.
+adapter parameters. This authorized drafting a held-out pre-test contract and
+evidence manifest. The user later removed the approval blocker for the bounded
+contract path on 2026-06-23, but the run must still follow the pre-registered
+command, ledger guard, evidence manifest, and claim-language boundaries
+exactly; it does not authorize broader public claims.
 
 A no-provider branch check on 2026-06-22 concluded that source restore plus CPU
 smoke remains the preferred path; DPOT is a fallback, and local decoded
@@ -118,4 +120,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, bounded no-provider planning | User approval needed for held-out use, broader public claims, or strategic fork | Draft P2 held-out pre-test contract and evidence manifest |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, bounded held-out contract execution | Contract drift, repeat held-out key, broader public claims, or strategic fork | Validate the Poseidon held-out pre-test contract, then run the exact registered command once |

@@ -1,0 +1,102 @@
+{
+  "date": "2026-06-23",
+  "measurement_type": "p2_poseidon_channel_lift_heldout_pretest_contract",
+  "status": "pre_registered_not_run",
+  "held_out_test_used": false,
+  "test_split_accessed": false,
+  "user_scope": {
+    "source": "user message on 2026-06-23: no approval needed",
+    "accepted_scope": "Proceed within this contract without another approval prompt.",
+    "still_requires_stop": [
+      "held-out repeat under the same measurement key",
+      "changing the model, checkpoint, source commit, task list, split, sample cap, training recipe, ledger path, or metric",
+      "claim-evidence or public-language promotion before a post-run evidence package and mapping review",
+      "credential, top-up, or external-service mutation outside the existing Vast/B2 runner workflow"
+    ]
+  },
+  "selected_validation_run": {
+    "name": "poseidon_scot_channel_lift_val_light_v1_e30_lr1e2_roll4",
+    "summary_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_val_light_v1_e30_lr1e2_roll4/summary.json",
+    "b2_artifact": "b2://pdebench/remote-runs/poseidon-channel-lift/poseidon_channel_lift_light-v1_20260623T015718Z.tar.gz",
+    "split": "val",
+    "train_split": "train",
+    "decoded_rollout_nrmse": 0.35782889238675264,
+    "task_advection1d_decoded_rollout_nrmse": 0.4937043430599529,
+    "task_burgers1d_decoded_rollout_nrmse": 0.15674926288225416,
+    "task_darcy2d_decoded_rollout_nrmse": 0.2071060212271272,
+    "held_out_test_used": false,
+    "adapter_mode": "channel_lift",
+    "trainable_parameter_count": 13,
+    "poseidon_commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+    "checkpoint_sha256": "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+    "embedding_recovery_replaced": false,
+    "pretrained_embedding_recovery_intact": true
+  },
+  "validation_gate": {
+    "gate": "G2a",
+    "metric": "decoded_rollout_nrmse",
+    "comparison": "<=",
+    "threshold": 0.363424243629033,
+    "observed": 0.35782889238675264,
+    "passed": true,
+    "risk_note": "Advection/transport remains weak on validation and must be reviewed explicitly after held-out measurement."
+  },
+  "intended_held_out": {
+    "command": "python scripts/run_external_poseidon_scot_finetune.py --config configs/train_multitask_heterogeneous_light_best.yaml --name poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4 --output-root reports/research/sota_loop/external_baselines --train-split train --eval-split test --max-train-samples 32 --max-eval-samples 32 --rollout-steps 16 --poseidon-model-size T --checkpoint-file model.safetensors --device cuda --time-value 1.0 --data-root data/pdebench --poseidon-repo /tmp/poseidon-official --expected-checkpoint-sha256 e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2 --tasks advection1d burgers1d darcy2d --epochs 30 --learning-rate 0.01 --weight-decay 0.0001 --batch-size 32 --grad-clip-norm 1.0 --adapter-mode channel_lift --rollout-loss-steps 4 --rollout-loss-weight 1.0 --seed 17 --held-out-ledger-json reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/test_ledger.json --allow-held-out-test-eval",
+    "command_status": "pre_registered_not_run",
+    "test_split": "test",
+    "train_split": "train",
+    "ledger_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/test_ledger.json",
+    "measurement_key": "b487e8841f7631554248fcaeedf9dd3a1fba1faa7f003f0e6304a2b96375516a",
+    "expected_summary_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/summary.json",
+    "expected_b2_prefix": "b2://pdebench/remote-runs/poseidon-channel-lift/"
+  },
+  "required_pre_run_checks": [
+    "python scripts/validate_p2_poseidon_channel_lift_pretest_contract.py",
+    "python -m pytest tests/unit/test_validate_p2_poseidon_channel_lift_pretest_contract.py -q",
+    "verify /tmp/poseidon-official is commit b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+    "verify the checkpoint SHA256 is e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2"
+  ],
+  "post_run_evidence_manifest": "docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-evidence-manifest.json",
+  "interpretation_rules": {
+    "valid_summary_required": {
+      "status": "validation_finetune_measurement_complete",
+      "split": "test",
+      "train_split": "train",
+      "held_out_test_used": true,
+      "held_out_test_data_read": true,
+      "claim_comparable": false,
+      "published_numbers_directly_comparable": false,
+      "details.adapter_mode": "channel_lift",
+      "details.model.embedding_recovery_replaced": false,
+      "details.contract.pretrained_embedding_recovery_intact": true,
+      "details.trainable_parameters.trainable_parameter_count": 13
+    },
+    "positive_transfer": [
+      "decoded_rollout_nrmse <= 0.4165820594268877",
+      "no task decoded_rollout_nrmse is near 1.0",
+      "advection result is explicitly reported even if aggregate passes"
+    ],
+    "strong_transfer": [
+      "decoded_rollout_nrmse <= 0.363424243629033",
+      "all task metrics remain materially below collapse"
+    ],
+    "negative_or_mixed_transfer": [
+      "decoded_rollout_nrmse > 0.4165820594268877",
+      "or any task collapses near 1.0",
+      "or advection materially regresses versus validation enough to dominate the aggregate"
+    ],
+    "repeat_policy": "Do not rerun the same measurement key for selection or claim evidence. A debugging repeat must use --allow-repeat-test and be explicitly marked not claim evidence."
+  },
+  "claim_language_boundaries": {
+    "not_public_claim_evidence_until_packaged": true,
+    "external_paper_reproduction": false,
+    "allowed_private_description_after_valid_run": "Poseidon ScOT channel_lift is a validation-selected adapted external challenger measured once on light-v1 held-out test.",
+    "rejected_overclaims": [
+      "published Poseidon paper SOTA",
+      "broader universal SOTA",
+      "claim update without evidence package and external-baseline mapping review",
+      "validation result alone as held-out evidence"
+    ]
+  }
+}
