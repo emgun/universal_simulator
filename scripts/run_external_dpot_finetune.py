@@ -78,6 +78,13 @@ def _field_step_count(fields: torch.Tensor) -> int:
     return 1
 
 
+def _sample_limit(value: int | None) -> int | None:
+    if value is None:
+        return None
+    value = int(value)
+    return None if value <= 0 else value
+
+
 def _insert_dpot_path(dpot_repo: Path | None) -> str:
     if dpot_repo is None:
         raise MissingDPOTDependencyError("Pass --dpot-repo pointing at the official DPOT checkout")
@@ -160,6 +167,15 @@ def _checkpoint_state_dict(payload: Any) -> Mapping[str, torch.Tensor]:
     raise TypeError("DPOT checkpoint payload must be a state dict or mapping containing one")
 
 
+def _load_trusted_dpot_checkpoint(path: str | Path) -> Any:
+    """Load SHA-verified DPOT checkpoints under PyTorch 2.6 safe defaults."""
+
+    from torch.serialization import safe_globals
+
+    with safe_globals([argparse.Namespace]):
+        return torch.load(path, map_location="cpu")
+
+
 def load_dpot_model(
     *,
     dpot_repo: Path | None,
@@ -199,7 +215,7 @@ def load_dpot_model(
             out_layer_dim=32,
             n_cls=12,
         )
-        payload = torch.load(checkpoint["path"], map_location="cpu")
+        payload = _load_trusted_dpot_checkpoint(checkpoint["path"])
         model.load_state_dict(_checkpoint_state_dict(payload), strict=True)
     except Exception as exc:
         raise MissingDPOTDependencyError(
@@ -353,7 +369,7 @@ def collect_dpot_training_pairs(
     tasks: Sequence[str],
     split: str,
     data_root: str | None,
-    max_train_samples: int,
+    max_train_samples: int | None,
     rollout_steps: int,
     image_size: int,
     history_steps: int,
@@ -430,7 +446,7 @@ def train_dpot_adapter(
     tasks: Sequence[str],
     split: str,
     data_root: str | None,
-    max_train_samples: int,
+    max_train_samples: int | None,
     rollout_steps: int,
     image_size: int,
     history_steps: int,
@@ -552,7 +568,7 @@ def evaluate_dpot_validation(
     tasks: Sequence[str],
     split: str,
     data_root: str | None,
-    max_eval_samples: int,
+    max_eval_samples: int | None,
     rollout_steps: int,
     image_size: int,
     history_steps: int,
@@ -810,7 +826,7 @@ def run_dpot_finetune(args: argparse.Namespace) -> Path:
         tasks=tasks,
         split=args.train_split,
         data_root=args.data_root,
-        max_train_samples=args.max_train_samples,
+        max_train_samples=_sample_limit(args.max_train_samples),
         rollout_steps=args.rollout_steps,
         image_size=args.image_size,
         history_steps=args.history_steps,
@@ -829,7 +845,7 @@ def run_dpot_finetune(args: argparse.Namespace) -> Path:
         tasks=tasks,
         split=args.eval_split,
         data_root=args.data_root,
-        max_eval_samples=args.max_eval_samples,
+        max_eval_samples=_sample_limit(args.max_eval_samples),
         rollout_steps=args.rollout_steps,
         image_size=args.image_size,
         history_steps=args.history_steps,

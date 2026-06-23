@@ -56,6 +56,18 @@ and drift on persistence-friendly tasks.
   blocks `split=test`, preserves validation-only claim boundaries, freezes the
   DPOT backbone, and exposes the 13-parameter `channel_lift` adapter needed
   for a later 2-sample CPU/import/checkpoint smoke.
+- DPOT Tiny `channel_lift` CPU/import/checkpoint smoke passed on 2026-06-23:
+  summary
+  `reports/research/sota_loop/external_baselines/dpot_tiny_channel_lift_smoke_val_light_v1/summary.json`
+  has aggregate decoded rollout NRMSE `0.4056234877403711`, advection
+  `0.46377715332535735`, Burgers `0.31818835051545247`, Darcy
+  `0.5280264566767598`, `held_out_test_used = false`, SHA-verified Tiny
+  checkpoint
+  `074c337f9b3a3c70253f8022ce6be7e7dfb809a91a7b00e46fbfedf9611d767f`,
+  pinned DPOT source commit `dcd2f9a9359765e19ad63e2f3f879a2a8ce1aa17`,
+  `history_steps = 10`, `history_init = repeat_current`, and 13 trainable
+  adapter parameters. This is a mechanics smoke, not claim-comparable
+  evidence.
 
 ## Roadmap Implication
 
@@ -127,14 +139,16 @@ work. See
 `docs/research/2026-06-23-p2-post-heldout-branch-check.md`.
 
 The first DPOT implementation step is complete: `scripts/run_external_dpot_finetune.py`
-now supports the pinned Tiny DPOT source/checkpoint contract, deterministic
+supports the pinned Tiny DPOT source/checkpoint contract, deterministic
 repeat-current 10-frame history, scalar-to-four-channel lift/readout, frozen
 backbone parameter discipline, validation-only summary validation, and
-autoregressive rollout evaluation. The targeted local tests passed; no DPOT
-source clone, checkpoint download, GPU/provider run, held-out test, claim
-evidence update, or public language change was performed. The next useful
-step is a local 2-sample CPU smoke only after the official DPOT source and
-Tiny checkpoint are present and SHA-verified.
+autoregressive rollout evaluation. The local CPU smoke has now passed; no
+GPU/provider run, held-out test, claim evidence update, or public language
+change was performed. The next useful step is the bounded validation-only DPOT
+GPU plan in `docs/research/2026-06-23-p2-dpot-gpu-validation-plan.md` if
+provider work is allowed. The gate must protect aggregate, advection, Darcy,
+and Burgers validation metrics; the CPU smoke suggests Darcy can be weak under
+this adapter even when advection does not immediately collapse.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
@@ -167,4 +181,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Implement DPOT runner scaffolding and unit tests up to the 2-sample CPU/import smoke |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Execute or supervise the bounded DPOT validation-only GPU plan if provider work is allowed; otherwise keep planning/no-provider synthesis only |

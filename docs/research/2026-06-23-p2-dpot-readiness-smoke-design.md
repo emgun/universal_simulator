@@ -2,10 +2,9 @@
 
 Date: 2026-06-23
 
-Status: readiness/design note with runner scaffolding implemented. No DPOT
-source was cloned, no checkpoint was downloaded, no GPU/provider work ran, no
-held-out test was used, no claim evidence changed, and no public language
-changed.
+Status: readiness/design note with runner scaffolding implemented and CPU
+smoke passed. No GPU/provider work ran, no held-out test was used, no claim
+evidence changed, and no public language changed.
 
 ## Trigger
 
@@ -184,10 +183,25 @@ Implementation status on 2026-06-23:
   `python -m pytest tests/unit/test_external_dpot_finetune.py -q`
 - Result: passed locally.
 
-The implementation stops at runner/test scaffolding. It does not restore or
-clone source, download checkpoints, run GPU/provider work, or touch held-out
-test. The next CPU smoke should run only after the official DPOT source and
-Tiny checkpoint are present and the checkpoint SHA256 matches the value above.
+The initial implementation stopped at runner/test scaffolding. A later
+validation-only local CPU smoke restored the official source to
+`/tmp/dpot-official`, downloaded only `model_Ti.pth`, verified the checkpoint
+SHA256 above, and completed the 2-sample train/validation smoke. See
+`docs/research/2026-06-23-p2-dpot-cpu-smoke-result.md`.
+
+CPU smoke result:
+
+- Aggregate decoded rollout NRMSE: `0.4056234877403711`
+- Advection decoded rollout NRMSE: `0.46377715332535735`
+- Burgers decoded rollout NRMSE: `0.31818835051545247`
+- Darcy decoded rollout NRMSE: `0.5280264566767598`
+- Held-out test used: `false`
+- Trainable parameters: `13`
+
+This result proves mechanics and schema only. It does not support claim
+evidence or public language changes. The next step is the bounded
+validation-only GPU plan at
+`docs/research/2026-06-23-p2-dpot-gpu-validation-plan.md`.
 
 ## Validation Gate For Any Later GPU Run
 

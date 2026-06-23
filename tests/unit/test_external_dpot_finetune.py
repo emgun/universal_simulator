@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,8 @@ from scripts.run_external_dpot_finetune import (
     append_prediction_to_history,
     build_repeat_current_history,
     configure_trainable_dpot_parameters,
+    _load_trusted_dpot_checkpoint,
+    _sample_limit,
     train_dpot_adapter,
     validate_dpot_finetune_summary,
 )
@@ -114,6 +117,12 @@ def test_repeat_current_history_is_deterministic():
         assert torch.equal(history[:, step], pixels)
 
 
+def test_sample_limit_zero_means_full_split_for_dpot_runner():
+    assert _sample_limit(0) is None
+    assert _sample_limit(-1) is None
+    assert _sample_limit(2) == 2
+
+
 def test_append_prediction_to_history_shifts_and_appends():
     history = torch.arange(1 * 4 * 1 * 2 * 2, dtype=torch.float32).reshape(1, 4, 1, 2, 2)
     prediction = torch.full((1, 1, 2, 2), 99.0)
@@ -182,6 +191,23 @@ def test_train_dpot_adapter_rejects_nonfinite_training_loss(tmp_path):
             seed=7,
             device="cpu",
         )
+
+
+def test_load_trusted_dpot_checkpoint_allows_namespace_metadata(tmp_path):
+    checkpoint = tmp_path / "model_Ti.pth"
+    torch.save(
+        {
+            "args": argparse.Namespace(model="tiny"),
+            "model": {"weight": torch.ones(1)},
+            "optimizer": {"state": {}, "param_groups": []},
+        },
+        checkpoint,
+    )
+
+    payload = _load_trusted_dpot_checkpoint(checkpoint)
+
+    assert isinstance(payload["args"], argparse.Namespace)
+    assert torch.equal(payload["model"]["weight"], torch.ones(1))
 
 
 def test_dpot_finetune_summary_requires_checkpoint_hash():
