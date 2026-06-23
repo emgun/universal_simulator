@@ -99,6 +99,17 @@ It passed the external-baseline validator with:
 trainable parameters. Advection/transport remains the weakest task family and
 should be reviewed explicitly in the pre-test contract.
 
+The held-out pre-test contract was then executed once under measurement key
+`b487e8841f7631554248fcaeedf9dd3a1fba1faa7f003f0e6304a2b96375516a`.
+It produced negative/mixed transfer: held-out aggregate decoded rollout NRMSE
+`0.5551415687535287`, with advection `0.7840223655431167`, Burgers
+`0.18316455707528173`, and Darcy `0.21459086990463278`. The run used held-out
+test, recorded the ledger once, preserved `channel_lift`, 13 trainable
+parameters, the pinned Poseidon source commit, and the checkpoint SHA256. See
+`docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-result.md` and
+`docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-evidence-manifest.json`.
+Do not promote Poseidon `channel_lift` Option A or rerun this held-out key.
+
 ## Steward Starting Points
 
 Start each steward tick from these files, then verify live git state:
@@ -120,4 +131,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, bounded held-out contract execution | Contract drift, repeat held-out key, broader public claims, or strategic fork | Validate the Poseidon held-out pre-test contract, then run the exact registered command once |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Branch-check DPOT vs transport-aware Poseidon adapter/backbone vs local transport-sidecar lessons under validation-only gates |

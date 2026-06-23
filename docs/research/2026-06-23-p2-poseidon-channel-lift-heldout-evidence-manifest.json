@@ -1,13 +1,43 @@
 {
   "date": "2026-06-23",
   "measurement_type": "p2_poseidon_channel_lift_heldout_evidence_manifest",
-  "status": "pending_heldout_run",
+  "status": "completed_negative_or_mixed_transfer",
   "contract_json": "docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-pretest-contract.json",
   "expected_run_name": "poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4",
   "expected_summary_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/summary.json",
   "expected_ledger_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/test_ledger.json",
   "expected_measurement_key": "b487e8841f7631554248fcaeedf9dd3a1fba1faa7f003f0e6304a2b96375516a",
   "expected_b2_prefix": "b2://pdebench/remote-runs/poseidon-channel-lift/",
+  "actual_summary_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/summary.json",
+  "actual_summary_sha256": "9aeb5cf9d5923ca5fb75c6d1b6b725213566df5c74b5e4a8b36889d5dbc8d895",
+  "actual_ledger_json": "reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_test_light_v1_e30_lr1e2_roll4/test_ledger.json",
+  "actual_ledger_sha256": "4a4385201387d9a07fbe8d4ea9e654ba584401b7a2ae03dd2144afe8f7450d65",
+  "actual_b2_artifact": "b2://pdebench/remote-runs/poseidon-channel-lift/poseidon_channel_lift_light-v1_20260623T191655Z.tar.gz",
+  "actual_metrics": {
+    "decoded_rollout_nrmse": 0.5551415687535287,
+    "task_advection1d_decoded_rollout_nrmse": 0.7840223655431167,
+    "task_burgers1d_decoded_rollout_nrmse": 0.18316455707528173,
+    "task_darcy2d_decoded_rollout_nrmse": 0.21459086990463278
+  },
+  "actual_integrity": {
+    "held_out_test_used": true,
+    "held_out_test_data_read": true,
+    "measurement_key": "b487e8841f7631554248fcaeedf9dd3a1fba1faa7f003f0e6304a2b96375516a",
+    "ledger_recorded": true,
+    "adapter_mode": "channel_lift",
+    "trainable_parameter_count": 13,
+    "poseidon_commit": "b8fa28f59bd7f7673323f28d11a12c6f3a215c61",
+    "checkpoint_sha256": "e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2",
+    "embedding_recovery_replaced": false,
+    "pretrained_embedding_recovery_intact": true
+  },
+  "decision": {
+    "classification": "negative_or_mixed_transfer",
+    "reason": "Aggregate held-out decoded rollout NRMSE 0.5551415687535287 is worse than the positive-transfer threshold 0.4165820594268877, dominated by held-out advection at 0.7840223655431167.",
+    "do_not_rerun_measurement_key": true,
+    "do_not_promote_poseidon_channel_lift": true,
+    "next_path": "Analyze validation-to-held-out transport/advection gap, then branch-check DPOT or a transport-aware backbone/adapter under validation-only gates before any future held-out pretest."
+  },
   "required_fields_after_run": [
     "summary_json",
     "summary_sha256",
