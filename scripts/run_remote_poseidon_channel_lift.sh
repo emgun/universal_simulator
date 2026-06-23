@@ -7,6 +7,7 @@ set -euo pipefail
 # - Hydrate light-v1 train/eval shards.
 # - Restore official Poseidon source at a pinned commit on the remote host.
 # - Run Option A channel_lift validation by default.
+# - Allow explicit Option B task-modulated channel_lift validation by override.
 # - Run held-out only when ALLOW_HELD_OUT_TEST=1 and a pre-registered ledger is
 #   supplied.
 # - Validate and optionally publish the resulting summary/artifacts to B2.
@@ -180,7 +181,9 @@ validate_summary() {
   local expected_held_out="$1"; shift
   local expected_measurement_key="$1"; shift
   local ledger_json="$1"; shift
-  python - "$summary_path" "$G2A_NRMSE" "$TASK_COLLAPSE_NRMSE" "$TASKS" "$expected_split" "$expected_held_out" "$expected_measurement_key" "$ledger_json" <<'PY'
+  local expected_adapter_mode="$1"; shift
+  local expected_trainable_parameters="$1"; shift
+  python - "$summary_path" "$G2A_NRMSE" "$TASK_COLLAPSE_NRMSE" "$TASKS" "$expected_split" "$expected_held_out" "$expected_measurement_key" "$ledger_json" "$expected_adapter_mode" "$expected_trainable_parameters" "$ADVECTION_NRMSE_GATE" "$BURGERS_NRMSE_GATE" "$DARCY_NRMSE_GATE" <<'PY'
 import json
 import math
 import sys
@@ -194,6 +197,13 @@ expected_split = sys.argv[5]
 expected_held_out = sys.argv[6] == "1"
 expected_measurement_key = sys.argv[7]
 ledger_json = Path(sys.argv[8]) if sys.argv[8] else None
+expected_adapter_mode = sys.argv[9]
+expected_trainable_parameters = int(sys.argv[10])
+task_gates = {
+    "advection1d": float(sys.argv[11]) if sys.argv[11] else None,
+    "burgers1d": float(sys.argv[12]) if sys.argv[12] else None,
+    "darcy2d": float(sys.argv[13]) if sys.argv[13] else None,
+}
 if not summary_path.exists():
     raise SystemExit(f"missing summary: {summary_path}")
 data = json.loads(summary_path.read_text())
@@ -207,7 +217,7 @@ if data.get("held_out_test_used") is not expected_held_out:
 if data.get("held_out_test_data_read") is not expected_held_out:
     errors.append(f"held_out_test_data_read must be {expected_held_out}")
 details = data.get("details") or {}
-if details.get("adapter_mode") != "channel_lift":
+if details.get("adapter_mode") != expected_adapter_mode:
     errors.append(f"unexpected adapter mode: {details.get('adapter_mode')!r}")
 model = details.get("model") or {}
 if model.get("embedding_recovery_replaced") is not False:
@@ -216,8 +226,19 @@ contract = details.get("contract") or {}
 if contract.get("pretrained_embedding_recovery_intact") is not True:
     errors.append("pretrained_embedding_recovery_intact must be true")
 trainable = details.get("trainable_parameters") or {}
-if int(trainable.get("trainable_parameter_count", -1)) != 13:
-    errors.append(f"trainable_parameter_count must be 13, got {trainable.get('trainable_parameter_count')!r}")
+if int(trainable.get("trainable_parameter_count", -1)) != expected_trainable_parameters:
+    errors.append(
+        f"trainable_parameter_count must be {expected_trainable_parameters}, "
+        f"got {trainable.get('trainable_parameter_count')!r}"
+    )
+if expected_adapter_mode == "channel_lift_task_modulated":
+    task_modulation = details.get("task_modulation") or {}
+    if task_modulation.get("enabled") is not True:
+        errors.append("task_modulation.enabled must be true for task-modulated adapter")
+    if not task_modulation.get("task_to_index"):
+        errors.append("task_modulation.task_to_index must be recorded")
+    if contract.get("task_modulated_channel_lift") is not True:
+        errors.append("contract.task_modulated_channel_lift must be true")
 metrics = data.get("metrics") or {}
 score = metrics.get("decoded_rollout_nrmse")
 if not isinstance(score, (int, float)) or not math.isfinite(float(score)):
@@ -261,7 +282,19 @@ if expected_held_out:
     decision = "held_out_positive_transfer" if float(score) <= 0.4165820594268877 else "held_out_negative_or_mixed_transfer"
 else:
     decision = "cleared_g2a" if float(score) <= gate else "did_not_clear_g2a"
-print(f"SUMMARY_VALIDATION_OK split={expected_split} decoded_rollout_nrmse={score} gate={gate} decision={decision}")
+task_gate_parts = []
+for task, task_gate in task_gates.items():
+    metric_key = f"task_{task}_decoded_rollout_nrmse"
+    value = metrics.get(metric_key)
+    if task_gate is None or not isinstance(value, (int, float)):
+        continue
+    status = "pass" if float(value) <= task_gate else "miss"
+    task_gate_parts.append(f"{task}={value} gate={task_gate} {status}")
+print(
+    f"SUMMARY_VALIDATION_OK split={expected_split} adapter={expected_adapter_mode} "
+    f"decoded_rollout_nrmse={score} gate={gate} decision={decision} "
+    + " ".join(task_gate_parts)
+)
 PY
 }
 
@@ -309,6 +342,8 @@ LEARNING_RATE=${LEARNING_RATE:-0.01}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.0001}
 BATCH_SIZE=${BATCH_SIZE:-32}
 GRAD_CLIP_NORM=${GRAD_CLIP_NORM:-1.0}
+ADAPTER_MODE=${ADAPTER_MODE:-channel_lift}
+EXPECTED_TRAINABLE_PARAMETERS=${EXPECTED_TRAINABLE_PARAMETERS:-13}
 SEED=${SEED:-17}
 DEVICE=${DEVICE:-cuda}
 POSEIDON_MODEL_SIZE=${POSEIDON_MODEL_SIZE:-T}
@@ -324,6 +359,9 @@ DRY_RUN=${DRY_RUN:-1}
 PUBLISH_ARTIFACTS=${PUBLISH_ARTIFACTS:-1}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/poseidon-channel-lift}
 G2A_NRMSE=${G2A_NRMSE:-0.363424243629033}
+ADVECTION_NRMSE_GATE=${ADVECTION_NRMSE_GATE:-}
+BURGERS_NRMSE_GATE=${BURGERS_NRMSE_GATE:-}
+DARCY_NRMSE_GATE=${DARCY_NRMSE_GATE:-}
 TASK_COLLAPSE_NRMSE=${TASK_COLLAPSE_NRMSE:-0.95}
 HELD_OUT_LEDGER_JSON=${HELD_OUT_LEDGER_JSON:-$OUTPUT_ROOT/$RUN_NAME/test_ledger.json}
 HELD_OUT_MEASUREMENT_KEY=${HELD_OUT_MEASUREMENT_KEY:-}
@@ -399,7 +437,7 @@ cmd=(
   --weight-decay "$WEIGHT_DECAY"
   --batch-size "$BATCH_SIZE"
   --grad-clip-norm "$GRAD_CLIP_NORM"
-  --adapter-mode channel_lift
+  --adapter-mode "$ADAPTER_MODE"
   --rollout-loss-steps "$ROLLOUT_LOSS_STEPS"
   --rollout-loss-weight "$ROLLOUT_LOSS_WEIGHT"
   --seed "$SEED"
@@ -432,7 +470,7 @@ if [ "$DRY_RUN" -eq 0 ] && [ -f "$summary_path" ]; then
   if [ "$EVAL_SPLIT" = "test" ]; then
     expected_held_out=1
   fi
-  validate_summary "$summary_path" "$EVAL_SPLIT" "$expected_held_out" "$HELD_OUT_MEASUREMENT_KEY" "$HELD_OUT_LEDGER_JSON"
+  validate_summary "$summary_path" "$EVAL_SPLIT" "$expected_held_out" "$HELD_OUT_MEASUREMENT_KEY" "$HELD_OUT_LEDGER_JSON" "$ADAPTER_MODE" "$EXPECTED_TRAINABLE_PARAMETERS"
   validation_status=$?
   set -e
 elif [ "$DRY_RUN" -eq 0 ]; then
