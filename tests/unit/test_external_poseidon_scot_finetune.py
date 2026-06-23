@@ -13,7 +13,9 @@ from torch import nn
 from scripts.run_external_poseidon_scot_finetune import (
     CHANNEL_LIFT_ADAPTER_MODE,
     SCALAR_ADAPTER_MODE,
+    TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE,
     ChannelLiftScOT,
+    TaskModulatedChannelLiftScOT,
     collect_poseidon_training_sequences,
     configure_trainable_poseidon_parameters,
     train_poseidon_scot_adapter,
@@ -271,6 +273,107 @@ def test_channel_lift_backward_leaves_backbone_without_grads():
             assert parameter.grad is None, name
 
 
+def test_task_modulated_channel_lift_identity_init_matches_channel_lift():
+    backbone = TinyMultiChannelPoseidon()
+    wrapper = TaskModulatedChannelLiftScOT(
+        backbone,
+        backbone_channels=4,
+        task_names=["advection1d", "burgers1d", "darcy2d"],
+    )
+    pixels = torch.randn(3, 1, 8, 8)
+    time = torch.ones(3)
+    task_ids = torch.tensor([0, 1, 2])
+
+    wrapped = wrapper(pixel_values=pixels, time=time, task_ids=task_ids)
+    direct = backbone(pixel_values=pixels.expand(-1, 4, -1, -1), time=time).output.mean(
+        dim=1,
+        keepdim=True,
+    )
+
+    assert torch.allclose(wrapped, direct, atol=1e-6)
+
+
+def test_task_modulated_channel_lift_requires_task_ids():
+    wrapper = TaskModulatedChannelLiftScOT(
+        TinyMultiChannelPoseidon(),
+        backbone_channels=4,
+        task_names=["advection1d"],
+    )
+
+    with pytest.raises(ValueError, match="requires task_ids"):
+        wrapper(pixel_values=torch.randn(1, 1, 8, 8), time=torch.ones(1))
+
+
+def test_task_modulated_channel_lift_trains_only_adapter_and_task_parameters():
+    wrapper = TaskModulatedChannelLiftScOT(
+        TinyMultiChannelPoseidon(),
+        backbone_channels=4,
+        task_names=["advection1d", "burgers1d", "darcy2d"],
+    )
+
+    info = configure_trainable_poseidon_parameters(
+        wrapper,
+        adapter_mode=TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE,
+    )
+
+    trainable_names = {
+        name for name, parameter in wrapper.named_parameters() if parameter.requires_grad
+    }
+    assert trainable_names == {
+        "lift.weight",
+        "lift.bias",
+        "readout.weight",
+        "readout.bias",
+        "task_lift_gain.weight",
+        "task_lift_bias.weight",
+        "task_readout_gain.weight",
+        "task_readout_bias.weight",
+    }
+    # Base channel-lift 13 params + 3 tasks * (4 lift gains + 4 lift biases
+    # + 1 readout gain + 1 readout bias).
+    assert info["trainable_parameter_count"] == 43
+    assert "backbone.encoder.weight" in info["frozen_parameter_names_sample"]
+
+
+def test_train_task_modulated_adapter_uses_task_conditioned_batches(tmp_path):
+    data_root = tmp_path / "data"
+    _write_h5(data_root / "advection1d_train.h5", (1, 4, 16, 1))
+    _write_h5(data_root / "burgers1d_train.h5", (1, 4, 16, 1))
+    tasks = ["advection1d", "burgers1d"]
+    wrapper = TaskModulatedChannelLiftScOT(
+        TinyMultiChannelPoseidon(),
+        backbone_channels=4,
+        task_names=tasks,
+    )
+    configure_trainable_poseidon_parameters(
+        wrapper,
+        adapter_mode=TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE,
+    )
+
+    info = train_poseidon_scot_adapter(
+        {"data": {"root": str(data_root)}},
+        wrapper,
+        tasks=tasks,
+        split="train",
+        data_root=str(data_root),
+        max_train_samples=1,
+        rollout_steps=2,
+        image_size=8,
+        time_value=1.0,
+        epochs=1,
+        learning_rate=0.01,
+        weight_decay=0.0,
+        batch_size=2,
+        seed=7,
+        device="cpu",
+        task_to_index={"advection1d": 0, "burgers1d": 1},
+    )
+
+    assert info["task_conditioned_batches"] is True
+    assert info["train_pairs"] == 4
+    assert [record["pairs_collected"] for record in info["training_records"]] == [2, 2]
+
+
 def test_collect_poseidon_training_sequences_windows(tmp_path):
     data_root = tmp_path / "data"
     _write_h5(data_root / "advection1d_train.h5", (2, 5, 16, 1))
@@ -356,4 +459,31 @@ def test_channel_lift_summary_requires_intact_embedding_recovery():
     assert any("embedding_recovery_replaced" in error for error in errors)
 
     summary["details"]["model"]["embedding_recovery_replaced"] = False
+    assert validate_poseidon_finetune_summary(summary) == []
+
+
+def test_task_modulated_summary_requires_task_mapping():
+    summary = {
+        "schema_version": 1,
+        "status": "validation_finetune_measurement_complete",
+        "measurement_type": "poseidon_scot_finetune_validation_measurement",
+        "train_split": "train",
+        "split": "val",
+        "held_out_test_used": False,
+        "claim_comparable": False,
+        "published_numbers_directly_comparable": False,
+        "metrics": {"decoded_rollout_nrmse": 1.0},
+        "details": {
+            "pretrained_checkpoint": {"sha256": "abc"},
+            "adapter_mode": TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE,
+            "trainable_parameters": {"trainable_parameter_count": 43},
+            "model": {"embedding_recovery_replaced": False},
+            "task_modulation": {"enabled": True, "task_to_index": {}},
+        },
+    }
+
+    errors = validate_poseidon_finetune_summary(summary)
+
+    assert "task-modulated summaries must record details.task_modulation.task_to_index" in errors
+    summary["details"]["task_modulation"]["task_to_index"] = {"advection1d": 0}
     assert validate_poseidon_finetune_summary(summary) == []

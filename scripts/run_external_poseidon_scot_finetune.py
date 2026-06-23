@@ -31,22 +31,36 @@ from scripts.run_external_poseidon_transfer_adapter import (
     POSEIDON_SOURCE_URL,
     light_step_to_poseidon_pixels,
     poseidon_checkpoint_handle,
+    poseidon_pixels_to_repo_flat,
     poseidon_source_snapshot,
 )
+from scripts.run_physical_conv_baseline import _add_rollout_metrics
 from ups.data.latent_pairs import infer_channel_count, infer_grid_shape
 from ups.data.pdebench import get_pdebench_spec
+from ups.eval.pdebench_runner import _aggregate_chunk_metrics, _flatten_field_step
 
 MEASUREMENT_TYPE = "poseidon_scot_finetune_validation_measurement"
 ALLOWED_STATUSES = {"validation_finetune_measurement_complete", "invalid"}
 SCALAR_ADAPTER_MODE = "scalar_layers"
 CHANNEL_LIFT_ADAPTER_MODE = "channel_lift"
-ALLOWED_ADAPTER_MODES = (SCALAR_ADAPTER_MODE, CHANNEL_LIFT_ADAPTER_MODE)
+TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE = "channel_lift_task_modulated"
+ALLOWED_ADAPTER_MODES = (
+    SCALAR_ADAPTER_MODE,
+    CHANNEL_LIFT_ADAPTER_MODE,
+    TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE,
+)
 SCALAR_LAYER_PARAMETER_MARKERS = (
     "embeddings.patch_embeddings.projection",
     "patch_recovery.projection",
     "patch_recovery.mixup",
 )
 CHANNEL_LIFT_PARAMETER_PREFIXES = ("lift.", "readout.")
+TASK_MODULATION_PARAMETER_PREFIXES = (
+    "task_lift_gain.",
+    "task_lift_bias.",
+    "task_readout_gain.",
+    "task_readout_bias.",
+)
 
 
 class ChannelLiftScOT(nn.Module):
@@ -80,6 +94,80 @@ class ChannelLiftScOT(nn.Module):
         return self.readout(_extract_model_output(output))
 
 
+class TaskModulatedChannelLiftScOT(nn.Module):
+    """Task-conditioned Option B adapter over the frozen native-channel ScOT.
+
+    The pretrained backbone interface remains intact. The base scalar lift and
+    readout are initialized exactly like ``ChannelLiftScOT``. Per-task affine
+    gains/biases are initialized to identity, so Option B starts equivalent to
+    Option A and only learns small task-specific calibration around the frozen
+    pretrained operator.
+    """
+
+    def __init__(
+        self,
+        backbone: nn.Module,
+        *,
+        backbone_channels: int,
+        task_names: Sequence[str],
+    ) -> None:
+        super().__init__()
+        if int(backbone_channels) < 1:
+            raise ValueError("backbone_channels must be positive")
+        if not task_names:
+            raise ValueError("task_names must not be empty")
+        self.backbone = backbone
+        self.backbone_channels = int(backbone_channels)
+        self.task_names = tuple(str(task) for task in task_names)
+        self.task_to_index = {task: idx for idx, task in enumerate(self.task_names)}
+        if len(self.task_to_index) != len(self.task_names):
+            raise ValueError(f"task_names must be unique, got {self.task_names}")
+        task_count = len(self.task_names)
+        self.lift = nn.Conv2d(1, self.backbone_channels, kernel_size=1, bias=True)
+        self.readout = nn.Conv2d(self.backbone_channels, 1, kernel_size=1, bias=True)
+        self.task_lift_gain = nn.Embedding(task_count, self.backbone_channels)
+        self.task_lift_bias = nn.Embedding(task_count, self.backbone_channels)
+        self.task_readout_gain = nn.Embedding(task_count, 1)
+        self.task_readout_bias = nn.Embedding(task_count, 1)
+        with torch.no_grad():
+            self.lift.weight.fill_(1.0)
+            self.lift.bias.zero_()
+            self.readout.weight.fill_(1.0 / float(self.backbone_channels))
+            self.readout.bias.zero_()
+            self.task_lift_gain.weight.fill_(1.0)
+            self.task_lift_bias.weight.zero_()
+            self.task_readout_gain.weight.fill_(1.0)
+            self.task_readout_bias.weight.zero_()
+
+    @staticmethod
+    def _affine_view(values: torch.Tensor) -> torch.Tensor:
+        return values.unsqueeze(-1).unsqueeze(-1)
+
+    def forward(
+        self,
+        *,
+        pixel_values: torch.Tensor,
+        time: torch.Tensor,
+        task_ids: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if task_ids is None:
+            raise ValueError("TaskModulatedChannelLiftScOT requires task_ids")
+        task_ids = task_ids.to(device=pixel_values.device, dtype=torch.long)
+        if task_ids.shape != (int(pixel_values.shape[0]),):
+            raise ValueError(
+                f"task_ids must have shape ({int(pixel_values.shape[0])},), "
+                f"got {tuple(task_ids.shape)}"
+            )
+        lifted = self.lift(pixel_values)
+        lifted = lifted * self._affine_view(self.task_lift_gain(task_ids))
+        lifted = lifted + self._affine_view(self.task_lift_bias(task_ids))
+        output = self.backbone(pixel_values=lifted, time=time)
+        scalar = self.readout(_extract_model_output(output))
+        scalar = scalar * self._affine_view(self.task_readout_gain(task_ids))
+        scalar = scalar + self._affine_view(self.task_readout_bias(task_ids))
+        return scalar
+
+
 def _field_step_count(fields: torch.Tensor) -> int:
     if fields.dim() >= 3 and fields.shape[0] > 1:
         return int(fields.shape[0])
@@ -100,6 +188,7 @@ def _forward_poseidon_pixels(
     *,
     time_value: float,
     device: torch.device,
+    task_ids: torch.Tensor | None = None,
 ) -> torch.Tensor:
     pixels = pixels.to(device)
     time_tensor = torch.full(
@@ -108,6 +197,11 @@ def _forward_poseidon_pixels(
         dtype=pixels.dtype,
         device=device,
     )
+    if task_ids is not None:
+        task_ids = task_ids.to(device=device, dtype=torch.long)
+        return _extract_model_output(
+            model(pixel_values=pixels, time=time_tensor, task_ids=task_ids)
+        )
     return _extract_model_output(model(pixel_values=pixels, time=time_tensor))
 
 
@@ -124,6 +218,10 @@ def configure_trainable_poseidon_parameters(
     def _is_trainable(name: str) -> bool:
         if adapter_mode == CHANNEL_LIFT_ADAPTER_MODE:
             return name.startswith(CHANNEL_LIFT_PARAMETER_PREFIXES)
+        if adapter_mode == TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE:
+            return name.startswith(
+                CHANNEL_LIFT_PARAMETER_PREFIXES + TASK_MODULATION_PARAMETER_PREFIXES
+            )
         return any(marker in name for marker in SCALAR_LAYER_PARAMETER_MARKERS)
 
     trainable_names: list[str] = []
@@ -143,7 +241,8 @@ def configure_trainable_poseidon_parameters(
     if not trainable_names:
         expected = (
             list(CHANNEL_LIFT_PARAMETER_PREFIXES)
-            if adapter_mode == CHANNEL_LIFT_ADAPTER_MODE
+            if adapter_mode
+            in (CHANNEL_LIFT_ADAPTER_MODE, TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE)
             else list(SCALAR_LAYER_PARAMETER_MARKERS)
         )
         raise ValueError(
@@ -170,9 +269,11 @@ def collect_poseidon_training_pairs(
     max_train_samples: int,
     rollout_steps: int,
     image_size: int,
-) -> tuple[torch.Tensor, torch.Tensor, list[dict[str, Any]]]:
+    task_to_index: Mapping[str, int] | None = None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, list[dict[str, Any]]]:
     current_pixels: list[torch.Tensor] = []
     target_pixels: list[torch.Tensor] = []
+    task_ids: list[torch.Tensor] = []
     records: list[dict[str, Any]] = []
 
     for task in tasks:
@@ -214,6 +315,8 @@ def collect_poseidon_training_pairs(
                         image_size=image_size,
                     )
                 )
+                if task_to_index is not None:
+                    task_ids.append(torch.tensor([int(task_to_index[task])], dtype=torch.long))
                 task_pairs += 1
         records.append(
             {
@@ -231,7 +334,12 @@ def collect_poseidon_training_pairs(
 
     if not current_pixels:
         raise RuntimeError("Poseidon finetuning received no train pairs")
-    return torch.cat(current_pixels, dim=0), torch.cat(target_pixels, dim=0), records
+    return (
+        torch.cat(current_pixels, dim=0),
+        torch.cat(target_pixels, dim=0),
+        torch.cat(task_ids, dim=0) if task_ids else None,
+        records,
+    )
 
 
 def collect_poseidon_training_sequences(
@@ -277,6 +385,52 @@ def collect_poseidon_training_sequences(
     return torch.stack(sequences, dim=0)
 
 
+def collect_poseidon_training_sequences_with_task_ids(
+    cfg: Mapping[str, Any],
+    *,
+    tasks: Sequence[str],
+    split: str,
+    data_root: str | None,
+    max_train_samples: int,
+    sequence_steps: int,
+    image_size: int,
+    task_to_index: Mapping[str, int],
+) -> tuple[torch.Tensor, torch.Tensor] | None:
+    """Collect pixel rollout windows plus one task id per window."""
+
+    if int(sequence_steps) < 2:
+        return None
+    window = int(sequence_steps) + 1
+    sequences: list[torch.Tensor] = []
+    task_ids: list[torch.Tensor] = []
+    for task in tasks:
+        dataset = fno_runner._dataset(
+            cfg,
+            task=task,
+            split=split,
+            data_root=data_root,
+            max_samples=max_train_samples,
+        )
+        for sample_idx in range(len(dataset)):
+            fields = dataset[sample_idx]["fields"].float()
+            grid_shape = infer_grid_shape(fields)
+            steps = _field_step_count(fields)
+            for start in range(0, steps - window + 1, int(sequence_steps)):
+                frames = [
+                    light_step_to_poseidon_pixels(
+                        fields[start + offset],
+                        grid_shape,
+                        image_size=image_size,
+                    )
+                    for offset in range(window)
+                ]
+                sequences.append(torch.cat(frames, dim=0))
+                task_ids.append(torch.tensor(int(task_to_index[task]), dtype=torch.long))
+    if not sequences:
+        return None
+    return torch.stack(sequences, dim=0), torch.stack(task_ids, dim=0)
+
+
 def train_poseidon_scot_adapter(
     cfg: Mapping[str, Any],
     model: nn.Module,
@@ -297,8 +451,9 @@ def train_poseidon_scot_adapter(
     rollout_loss_weight: float = 1.0,
     seed: int,
     device: str | torch.device,
+    task_to_index: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
-    currents, targets, records = collect_poseidon_training_pairs(
+    currents, targets, pair_task_ids, records = collect_poseidon_training_pairs(
         cfg,
         tasks=tasks,
         split=split,
@@ -306,18 +461,34 @@ def train_poseidon_scot_adapter(
         max_train_samples=max_train_samples,
         rollout_steps=rollout_steps,
         image_size=image_size,
+        task_to_index=task_to_index,
     )
     sequences = None
+    sequence_task_ids = None
     if int(rollout_loss_steps) >= 2 and float(rollout_loss_weight) > 0.0:
-        sequences = collect_poseidon_training_sequences(
-            cfg,
-            tasks=tasks,
-            split=split,
-            data_root=data_root,
-            max_train_samples=max_train_samples,
-            sequence_steps=rollout_loss_steps,
-            image_size=image_size,
-        )
+        if task_to_index is None:
+            sequences = collect_poseidon_training_sequences(
+                cfg,
+                tasks=tasks,
+                split=split,
+                data_root=data_root,
+                max_train_samples=max_train_samples,
+                sequence_steps=rollout_loss_steps,
+                image_size=image_size,
+            )
+        else:
+            sequence_payload = collect_poseidon_training_sequences_with_task_ids(
+                cfg,
+                tasks=tasks,
+                split=split,
+                data_root=data_root,
+                max_train_samples=max_train_samples,
+                sequence_steps=rollout_loss_steps,
+                image_size=image_size,
+                task_to_index=task_to_index,
+            )
+            if sequence_payload is not None:
+                sequences, sequence_task_ids = sequence_payload
     trainable_parameters = [
         parameter for parameter in model.parameters() if parameter.requires_grad
     ]
@@ -345,11 +516,13 @@ def train_poseidon_scot_adapter(
             index = order[start : start + max(int(batch_size), 1)]
             current = currents.index_select(0, index)
             target = targets.index_select(0, index).to(device)
+            task_batch = pair_task_ids.index_select(0, index) if pair_task_ids is not None else None
             pred = _forward_poseidon_pixels(
                 model,
                 current,
                 time_value=time_value,
                 device=device,
+                task_ids=task_batch,
             )
             if not torch.isfinite(pred).all():
                 raise RuntimeError(
@@ -387,6 +560,11 @@ def train_poseidon_scot_adapter(
             for start in range(0, int(sequences.shape[0]), max(int(batch_size), 1)):
                 index = sequence_order[start : start + max(int(batch_size), 1)]
                 window = sequences.index_select(0, index).to(device)
+                task_batch = (
+                    sequence_task_ids.index_select(0, index)
+                    if sequence_task_ids is not None
+                    else None
+                )
                 state = window[:, 0]
                 rollout_loss = torch.zeros((), device=device)
                 for offset in range(1, int(window.shape[1])):
@@ -395,6 +573,7 @@ def train_poseidon_scot_adapter(
                         state,
                         time_value=time_value,
                         device=device,
+                        task_ids=task_batch,
                     )
                     rollout_loss = rollout_loss + torch.mean((state - window[:, offset]) ** 2)
                 rollout_loss = (
@@ -426,6 +605,7 @@ def train_poseidon_scot_adapter(
     return {
         "train_split": split,
         "train_pairs": int(currents.shape[0]),
+        "task_conditioned_batches": pair_task_ids is not None,
         "rollout_loss_steps": int(rollout_loss_steps),
         "rollout_loss_weight": float(rollout_loss_weight),
         "rollout_sequences": int(sequences.shape[0]) if sequences is not None else 0,
@@ -439,6 +619,135 @@ def train_poseidon_scot_adapter(
         "epoch_train_mse": epoch_losses,
         "training_records": records,
     }
+
+
+def evaluate_poseidon_task_modulated_validation(
+    cfg: Mapping[str, Any],
+    model: nn.Module,
+    *,
+    tasks: Sequence[str],
+    split: str,
+    data_root: str | None,
+    max_eval_samples: int,
+    rollout_steps: int,
+    image_size: int,
+    time_value: float,
+    task_to_index: Mapping[str, int],
+    device: str | torch.device,
+) -> tuple[dict[str, float], list[dict[str, Any]]]:
+    device = torch.device(device)
+    total_pred: list[torch.Tensor] = []
+    total_target: list[torch.Tensor] = []
+    per_task_pred: dict[str, list[torch.Tensor]] = {}
+    per_task_target: dict[str, list[torch.Tensor]] = {}
+    per_family_pred: dict[str, list[torch.Tensor]] = {}
+    per_family_target: dict[str, list[torch.Tensor]] = {}
+    records: list[dict[str, Any]] = []
+
+    for task in tasks:
+        dataset = fno_runner._dataset(
+            cfg,
+            task=task,
+            split=split,
+            data_root=data_root,
+            max_samples=max_eval_samples,
+        )
+        family = get_pdebench_spec(task).family
+        task_pairs = 0
+        task_channels: int | None = None
+        task_grid_shape: tuple[int, int] | None = None
+        task_index = int(task_to_index[task])
+        for sample_idx in range(len(dataset)):
+            fields = dataset[sample_idx]["fields"].float()
+            grid_shape = infer_grid_shape(fields)
+            channels = infer_channel_count(fields, grid_shape)
+            if channels != 1:
+                raise ValueError(
+                    f"Poseidon task-modulated validation currently expects one channel; "
+                    f"task={task} has {channels}"
+                )
+            task_channels = channels
+            task_grid_shape = grid_shape
+            max_steps = min(_field_step_count(fields) - 1, int(rollout_steps))
+            for step in range(max_steps):
+                pixels = light_step_to_poseidon_pixels(
+                    fields[step],
+                    grid_shape,
+                    image_size=image_size,
+                )
+                task_ids = torch.full(
+                    (int(pixels.shape[0]),),
+                    task_index,
+                    dtype=torch.long,
+                )
+                with torch.no_grad():
+                    pred_pixels = _forward_poseidon_pixels(
+                        model,
+                        pixels,
+                        time_value=time_value,
+                        device=device,
+                        task_ids=task_ids,
+                    ).detach().cpu()
+                pred = poseidon_pixels_to_repo_flat(pred_pixels, grid_shape)
+                target = _flatten_field_step(fields[step + 1].float(), grid_shape).cpu()
+                if not torch.isfinite(pred).all():
+                    raise RuntimeError(f"Non-finite Poseidon task-modulated prediction for {task}")
+                total_pred.append(pred)
+                total_target.append(target)
+                per_task_pred.setdefault(task, []).append(pred)
+                per_task_target.setdefault(task, []).append(target)
+                per_family_pred.setdefault(family, []).append(pred)
+                per_family_target.setdefault(family, []).append(target)
+                task_pairs += 1
+        records.append(
+            {
+                "task": task,
+                "task_index": task_index,
+                "split": split,
+                "family": family,
+                "sample_count": len(dataset),
+                "pairs_evaluated": task_pairs,
+                "repo_inferred_grid_shape": list(task_grid_shape or (0, 0)),
+                "repo_inferred_channels": task_channels,
+                "poseidon_image_size": int(image_size),
+                "time_value": float(time_value),
+                "teacher_forced_steps": True,
+            }
+        )
+
+    if not total_pred:
+        raise RuntimeError("Poseidon task-modulated validation received no eval pairs")
+    stats = _aggregate_chunk_metrics(total_pred, total_target)
+    metrics = {
+        "decoded_mse": stats["mse"],
+        "decoded_mae": stats["mae"],
+        "decoded_nrmse": stats["nrmse"],
+        "decoded_rrmse": stats["rrmse"],
+        "decoded_spectral_energy_error": stats["spectral_energy_error"],
+        "decoded_rollout_mse": stats["mse"],
+        "decoded_rollout_mae": stats["mae"],
+        "decoded_rollout_nrmse": stats["nrmse"],
+        "decoded_rollout_rrmse": stats["rrmse"],
+        "decoded_rollout_spectral_energy_error": stats["spectral_energy_error"],
+        "mse": stats["mse"],
+        "mae": stats["mae"],
+        "rmse": stats["mse"] ** 0.5,
+    }
+    for task, pred_chunks in per_task_pred.items():
+        _add_rollout_metrics(
+            metrics,
+            prefix=f"task_{task}_",
+            pred_chunks=pred_chunks,
+            target_chunks=per_task_target[task],
+        )
+    for family, pred_chunks in per_family_pred.items():
+        _add_rollout_metrics(
+            metrics,
+            prefix=f"family_{family}_",
+            pred_chunks=pred_chunks,
+            target_chunks=per_family_target[family],
+        )
+    return metrics, records
 
 
 def _command_record(args: argparse.Namespace) -> list[str]:
@@ -629,7 +938,7 @@ def validate_poseidon_finetune_summary(summary: Mapping[str, Any]) -> list[str]:
     adapter_mode = summary.get("details", {}).get("adapter_mode")
     if adapter_mode not in ALLOWED_ADAPTER_MODES:
         errors.append(f"details.adapter_mode must be one of {list(ALLOWED_ADAPTER_MODES)}")
-    if adapter_mode == CHANNEL_LIFT_ADAPTER_MODE:
+    if adapter_mode in (CHANNEL_LIFT_ADAPTER_MODE, TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE):
         model_details = summary.get("details", {}).get("model", {})
         if (
             isinstance(model_details, Mapping)
@@ -639,6 +948,10 @@ def validate_poseidon_finetune_summary(summary: Mapping[str, Any]) -> list[str]:
                 "channel_lift summaries must keep the pretrained embedding/recovery "
                 "(details.model.embedding_recovery_replaced must be false)"
             )
+    if adapter_mode == TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE:
+        task_modulation = summary.get("details", {}).get("task_modulation")
+        if not isinstance(task_modulation, Mapping) or not task_modulation.get("task_to_index"):
+            errors.append("task-modulated summaries must record details.task_modulation.task_to_index")
     return errors
 
 
@@ -663,7 +976,10 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
         filename=args.checkpoint_file,
         expected_sha256=args.expected_checkpoint_sha256,
     )
-    channel_lift = args.adapter_mode == CHANNEL_LIFT_ADAPTER_MODE
+    channel_lift = args.adapter_mode in (
+        CHANNEL_LIFT_ADAPTER_MODE,
+        TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE,
+    )
     model, model_info = load_poseidon_scot_model(
         poseidon_repo=Path(args.poseidon_repo) if args.poseidon_repo else None,
         checkpoint_handle=checkpoint_handle,
@@ -672,13 +988,26 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
         device=args.device,
     )
     image_size = int(model_info["effective_config"]["image_size"])
-    if channel_lift:
+    task_to_index: dict[str, int] | None = None
+    if args.adapter_mode == CHANNEL_LIFT_ADAPTER_MODE:
         backbone_channels = int(model_info["effective_config"]["num_channels"])
         model = ChannelLiftScOT(model, backbone_channels=backbone_channels).to(
             torch.device(args.device)
         )
         model_info = dict(model_info)
         model_info["channel_lift_backbone_channels"] = backbone_channels
+    elif args.adapter_mode == TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE:
+        backbone_channels = int(model_info["effective_config"]["num_channels"])
+        model = TaskModulatedChannelLiftScOT(
+            model,
+            backbone_channels=backbone_channels,
+            task_names=tasks,
+        ).to(torch.device(args.device))
+        task_to_index = dict(model.task_to_index)
+        model_info = dict(model_info)
+        model_info["channel_lift_backbone_channels"] = backbone_channels
+        model_info["task_modulated_channel_lift"] = True
+        model_info["task_modulation_task_names"] = list(tasks)
     trainable_info = configure_trainable_poseidon_parameters(
         model,
         adapter_mode=args.adapter_mode,
@@ -704,20 +1033,36 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
         rollout_loss_weight=args.rollout_loss_weight,
         seed=args.seed,
         device=args.device,
+        task_to_index=task_to_index,
     )
     model.to(torch.device(args.device)).eval()
-    metrics, eval_records = evaluate_poseidon_scot_validation(
-        cfg,
-        model,
-        tasks=tasks,
-        split=args.eval_split,
-        data_root=args.data_root,
-        max_eval_samples=args.max_eval_samples,
-        rollout_steps=args.rollout_steps,
-        image_size=image_size,
-        time_value=args.time_value,
-        device=args.device,
-    )
+    if task_to_index is None:
+        metrics, eval_records = evaluate_poseidon_scot_validation(
+            cfg,
+            model,
+            tasks=tasks,
+            split=args.eval_split,
+            data_root=args.data_root,
+            max_eval_samples=args.max_eval_samples,
+            rollout_steps=args.rollout_steps,
+            image_size=image_size,
+            time_value=args.time_value,
+            device=args.device,
+        )
+    else:
+        metrics, eval_records = evaluate_poseidon_task_modulated_validation(
+            cfg,
+            model,
+            tasks=tasks,
+            split=args.eval_split,
+            data_root=args.data_root,
+            max_eval_samples=args.max_eval_samples,
+            rollout_steps=args.rollout_steps,
+            image_size=image_size,
+            time_value=args.time_value,
+            task_to_index=task_to_index,
+            device=args.device,
+        )
     finished = time.time()
 
     output_root = Path(args.output_root)
@@ -765,6 +1110,16 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
             "model": model_info,
             "adapter_mode": args.adapter_mode,
             "trainable_parameters": trainable_info,
+            "task_modulation": {
+                "enabled": task_to_index is not None,
+                "task_to_index": task_to_index or {},
+                "parameterization": (
+                    "per-task affine gain/bias before frozen native-channel backbone "
+                    "and after scalar readout"
+                    if task_to_index is not None
+                    else ""
+                ),
+            },
             "training": train_info,
             "evaluation_records": eval_records,
             "contract": {
@@ -773,7 +1128,8 @@ def run_poseidon_scot_finetune(args: argparse.Namespace) -> Path:
                 "teacher_forced_light_v1_steps": True,
                 "frozen_backbone_scalar_adapter_finetune": True,
                 "pretrained_embedding_recovery_intact": args.adapter_mode
-                == CHANNEL_LIFT_ADAPTER_MODE,
+                in (CHANNEL_LIFT_ADAPTER_MODE, TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE),
+                "task_modulated_channel_lift": task_to_index is not None,
                 "rollout_loss_steps": int(args.rollout_loss_steps),
                 "published_numbers_directly_comparable": False,
             },

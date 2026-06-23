@@ -76,6 +76,21 @@ and drift on persistence-friendly tasks.
   false`, 13 trainable parameters, source/checkpoint provenance matched. See
   `docs/research/2026-06-23-p2-dpot-gpu-validation-result.md` and B2 artifact
   `b2://pdebench/remote-runs/dpot-channel-lift/dpot_channel_lift_light-v1_20260623T221057Z.tar.gz`.
+- Poseidon Option B task modulation is implemented in
+  `scripts/run_external_poseidon_scot_finetune.py` with coverage in
+  `tests/unit/test_external_poseidon_scot_finetune.py`. The adapter mode
+  `channel_lift_task_modulated` keeps the frozen ScOT backbone and pretrained
+  embedding/recovery intact, initializes task conditioning to identity, and
+  trains 43 parameters: the 13-parameter base `channel_lift` plus per-task
+  affine gain/bias before the backbone and after scalar readout. The 2-sample
+  validation-only CPU smoke passed on 2026-06-23 with summary
+  `reports/research/sota_loop/external_baselines/poseidon_scot_task_modulated_channel_lift_smoke_val_light_v1/summary.json`,
+  aggregate decoded rollout NRMSE `0.3422384139670503`, advection
+  `0.3623806561813393`, Burgers `0.22147624438612523`, Darcy
+  `0.7516511659226303`, `held_out_test_used = false`, source commit
+  `b8fa28f59bd7f7673323f28d11a12c6f3a215c61`, and checkpoint SHA256
+  `e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2`.
+  This is a mechanics smoke, not a gate or claim-comparable result.
 
 ## Roadmap Implication
 
@@ -165,6 +180,15 @@ branch check before any more provider spend. That branch check is recorded at
 next branch is Poseidon Option B/task modulation, validation-only; DPOT
 escalation is secondary; UPS-side transport/refiner work remains fallback.
 
+Poseidon Option B task modulation now has runner scaffolding, focused unit
+coverage, and a successful 2-sample validation-only CPU smoke. The full
+validation-only GPU plan is recorded at
+`docs/research/2026-06-23-p2-poseidon-option-b-task-modulation-design.md`.
+The gate must protect aggregate validation NRMSE plus advection, Burgers, and
+Darcy. The CPU smoke's Darcy value is weak, so a future GPU run should not be
+accepted on aggregate/advection alone. No held-out test, public claim, or
+claim-evidence update is authorized by this implementation step.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -196,4 +220,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare Poseidon Option B/task-modulation design and tests before any new provider spend |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Execute or supervise the bounded Poseidon Option B validation-only GPU run only if provider work remains allowed and no top-up/credential/held-out access is needed |
