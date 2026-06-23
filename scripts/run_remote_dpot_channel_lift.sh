@@ -271,9 +271,13 @@ publish_artifacts() {
     echo "DRY_RUN=1: would publish artifacts to b2://${B2_BUCKET:-<bucket>}/${remote_key}"
     return 0
   fi
-  tar -czf "$artifact_path" "$OUTPUT_ROOT/$RUN_NAME"
+  if [ ! -d "$OUTPUT_ROOT/$RUN_NAME" ]; then
+    echo "Refusing to publish missing artifact directory: $OUTPUT_ROOT/$RUN_NAME" >&2
+    return 1
+  fi
+  tar -czf "$artifact_path" "$OUTPUT_ROOT/$RUN_NAME" || return 1
   configure_b2_rclone "publish DPOT channel-lift artifacts"
-  rclone copyto "$artifact_path" "UPSB2:${B2_BUCKET}/${remote_key}"
+  rclone copyto "$artifact_path" "UPSB2:${B2_BUCKET}/${remote_key}" || return 1
   echo "Published DPOT channel-lift artifacts: b2://${B2_BUCKET}/${remote_key}"
 }
 

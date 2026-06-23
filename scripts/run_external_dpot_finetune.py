@@ -168,10 +168,15 @@ def _checkpoint_state_dict(payload: Any) -> Mapping[str, torch.Tensor]:
 
 
 def _load_trusted_dpot_checkpoint(path: str | Path) -> Any:
-    """Load SHA-verified DPOT checkpoints under PyTorch 2.6 safe defaults."""
+    """Load SHA-verified DPOT checkpoints across PyTorch serialization defaults."""
 
-    from torch.serialization import safe_globals
-
+    try:
+        from torch.serialization import safe_globals
+    except ImportError:
+        # Older PyTorch releases predate weights_only=True and safe_globals.
+        # This loader is called only after source/checkpoint provenance and
+        # SHA256 have been verified by resolve_dpot_checkpoint_file.
+        return torch.load(path, map_location="cpu")
     with safe_globals([argparse.Namespace]):
         return torch.load(path, map_location="cpu")
 

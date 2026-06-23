@@ -42,6 +42,10 @@ DRY_RUN=1 GIT_REF=codex/poseidon-channel-lift-vast \
   bash scripts/launch_remote_dpot_channel_lift_vast.sh
 ```
 
+The launcher default image is `pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime`,
+matching the repo's declared Torch floor more closely than the generic Vast
+helper default.
+
 ```bash
 python scripts/run_external_dpot_finetune.py \
   --config configs/train_multitask_heterogeneous_light_best.yaml \

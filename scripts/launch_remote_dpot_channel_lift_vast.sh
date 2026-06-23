@@ -12,6 +12,7 @@ DRY_RUN=${DRY_RUN:-1}
 GIT_REF=${GIT_REF:-$(git rev-parse --abbrev-ref HEAD)}
 DISK_GB=${DISK_GB:-96}
 GPU=${GPU:-RTX_4090}
+IMAGE=${IMAGE:-pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime}
 NUM_GPUS=${NUM_GPUS:-1}
 ORDER=${ORDER:-dph_total}
 LIMIT=${LIMIT:-10}
@@ -96,6 +97,7 @@ args=(
   python scripts/vast_launch.py launch
   --gpu "$GPU"
   --num-gpus "$NUM_GPUS"
+  --image "$IMAGE"
   --disk "$DISK_GB"
   --git-ref "$GIT_REF"
   --workdir "$WORKDIR"
