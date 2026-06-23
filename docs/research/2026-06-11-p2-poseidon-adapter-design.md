@@ -67,8 +67,24 @@ DPOT checkpoints (Hugging Face) are autoregressive-denoising pretrained across P
 
 ## Execution checklist (P2.2 next)
 
-- [ ] Extend `scripts/run_external_poseidon_scot_finetune.py` with `--adapter-mode channel_lift` implementing Option A (keep `scalar_layers` for comparison; default to the new mode), including correct per-step lead-time conditioning and the 4-step rollout loss term.
-- [ ] Unit tests: replicate-init exactness (lift+readout at init == channel-mean of pretrained 4-channel output), parameter-count assertions, frozen-backbone assertion (no grads outside adapter names).
-- [ ] One CPU smoke run at 2 samples to validate the path before GPU spend.
-- [ ] GPU run on light-v1 train/val (Gate 1 measurement), evidence JSON + validator per the external-baseline schema.
-- Estimated GPU cost: < 1 hour for Option A (13-37 params), ~1-2 hours including Option B. Requires a Vast balance top-up (balance $0 as of 2026-06-11).
+- [x] Extend `scripts/run_external_poseidon_scot_finetune.py` with `--adapter-mode channel_lift` implementing Option A (keep `scalar_layers` for comparison; default to the new mode), including correct per-step lead-time conditioning and the 4-step rollout loss term.
+- [x] Unit tests: replicate-init exactness (lift+readout at init == channel-mean of pretrained 4-channel output), parameter-count assertions, frozen-backbone assertion (no grads outside adapter names). Verified 2026-06-22 with `python -m pytest tests/unit/test_external_poseidon_scot_finetune.py -q`.
+- [x] One CPU smoke run at 2 samples to validate the path before GPU spend.
+  Verified 2026-06-22 with
+  `reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_smoke_val_light_v1/summary.json`:
+  validation-only `decoded_rollout_nrmse = 0.31116372295004086`,
+  `adapter_mode = channel_lift`, `held_out_test_used = false`,
+  `embedding_recovery_replaced = false`, and 13 trainable parameters.
+- [x] GPU run on light-v1 train/val (Gate 1 measurement), evidence JSON + validator per the external-baseline schema.
+  Verified 2026-06-23 with
+  `reports/research/sota_loop/external_baselines/poseidon_scot_channel_lift_val_light_v1_e30_lr1e2_roll4/summary.json`:
+  validation-only aggregate `decoded_rollout_nrmse = 0.35782889238675264`
+  clears G2a `<= 0.363424243629033`, `held_out_test_used = false`,
+  `adapter_mode = channel_lift`, `embedding_recovery_replaced = false`, source
+  commit `b8fa28f59bd7f7673323f28d11a12c6f3a215c61`, checkpoint SHA256
+  `e97428c93a16cbb52a41bc4794eb71be3aed436fb9cc547d9eeebb20f3940fb2`, and 13
+  trainable parameters. Per-task validation NRMSE:
+  advection1d `0.4937043430599529`, burgers1d `0.15674926288225416`, darcy2d
+  `0.2071060212271272`.
+- Next: draft held-out pre-test contract and evidence manifest. Do not run
+  held-out test until that contract is explicit.
