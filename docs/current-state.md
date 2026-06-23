@@ -118,6 +118,16 @@ validation gate; do not reopen standalone transport sidecar or shift-estimator
 work. See
 `docs/research/2026-06-23-p2-post-heldout-branch-check.md`.
 
+The DPOT readiness note is now recorded at
+`docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
+source candidate to `HaoZhongkai/DPOT` main
+`dcd2f9a9359765e19ad63e2f3f879a2a8ce1aa17`, the Tiny checkpoint to
+`hzk17/DPOT` repo SHA `2adec1cf9a55942f1456aa7463cd7ade908398d0` /
+`model_Ti.pth` SHA256
+`074c337f9b3a3c70253f8022ce6be7e7dfb809a91a7b00e46fbfedf9611d767f`, and a
+no-held-out 2-sample CPU/import smoke target. No DPOT source clone,
+checkpoint download, GPU work, or held-out test has been run.
+
 ## Steward Starting Points
 
 Start each steward tick from these files, then verify live git state:
@@ -139,4 +149,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare DPOT adapter/readiness note and 2-sample validation smoke design |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Implement DPOT runner scaffolding and unit tests up to the 2-sample CPU/import smoke |
