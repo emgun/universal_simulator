@@ -110,6 +110,14 @@ parameters, the pinned Poseidon source commit, and the checkpoint SHA256. See
 `docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-evidence-manifest.json`.
 Do not promote Poseidon `channel_lift` Option A or rerun this held-out key.
 
+A post-held-out branch check on 2026-06-23 compared DPOT, transport-aware
+Poseidon follow-ups, and local transport-sidecar lessons. Decision: make DPOT
+readiness and a 2-sample validation smoke design the primary next branch; keep
+Poseidon Option B/task modulation secondary and only under an advection-aware
+validation gate; do not reopen standalone transport sidecar or shift-estimator
+work. See
+`docs/research/2026-06-23-p2-post-heldout-branch-check.md`.
+
 ## Steward Starting Points
 
 Start each steward tick from these files, then verify live git state:
@@ -131,4 +139,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Branch-check DPOT vs transport-aware Poseidon adapter/backbone vs local transport-sidecar lessons under validation-only gates |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare DPOT adapter/readiness note and 2-sample validation smoke design |
