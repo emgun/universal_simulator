@@ -47,6 +47,10 @@ STAGE_FUNCTIONS = {
 }
 
 DEFAULT_OPERATOR_CHECKPOINTS = ("operator_joint.pt", "operator_decoded.pt", "operator.pt")
+MODEL_SIDE_TRANSPORT_HEAD_EXTRA_KEYS = (
+    "model_side_transport_head",
+    "model_side_transport_head_metrics",
+)
 
 
 def _operator_checkpoint_names_for_stages(stages: Sequence[str]) -> tuple[str, ...]:
@@ -480,6 +484,9 @@ def _evaluate_once(
             report.extra = {}
         if decoded_report.extra:
             report.extra.update({f"decoded_{k}": v for k, v in decoded_report.extra.items()})
+            for key in MODEL_SIDE_TRANSPORT_HEAD_EXTRA_KEYS:
+                if key in decoded_report.extra:
+                    report.extra[key] = decoded_report.extra[key]
 
     if transfer_tasks:
         transfer_cfg = _clone_eval_cfg(cfg, tasks=transfer_tasks, split=transfer_split)

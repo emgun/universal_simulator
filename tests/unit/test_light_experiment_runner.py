@@ -9,6 +9,7 @@ import h5py
 
 from scripts import run_light_experiment as runner_script
 from scripts import train as train_script
+from scripts.validate_model_side_transport_head_summary import validate_summary
 from ups.eval.reports import MetricReport
 
 
@@ -192,6 +193,74 @@ def test_run_light_experiment_can_reuse_checkpoints_for_eval_only(tmp_path, monk
     assert summary["checkpoint_source"].endswith("trained_operator")
     assert (run_dir / "checkpoints" / "operator.pt").exists()
     assert "metrics" in summary
+
+
+def test_run_light_experiment_preserves_model_side_transport_head_summary_extra(
+    tmp_path, monkeypatch
+):
+    checkpoint_dir = tmp_path / "checkpoints"
+    checkpoint_dir.mkdir()
+    for name in ("operator.pt", "encoder.pt", "decoder.pt"):
+        (checkpoint_dir / name).write_text(name, encoding="utf-8")
+
+    def fake_load_state_dict_compat(_model, _path, *, prefix_to_strip=""):
+        return None
+
+    def fake_evaluate_latent_operator(_cfg, _operator, **_kwargs):
+        return MetricReport(metrics={"mse": 0.0}, extra={}), {"latent": True}
+
+    def fake_evaluate_decoded_operator(_cfg, _encoder, _operator, _decoder, **_kwargs):
+        return MetricReport(
+            metrics={
+                "decoded_rollout_nrmse": 0.11,
+                "task_advection1d_decoded_rollout_nrmse": 0.001,
+                "task_advection1d_decoded_h16_nrmse": 0.001,
+                "task_burgers1d_decoded_rollout_nrmse": 0.14,
+                "task_darcy2d_decoded_rollout_nrmse": 0.18,
+            },
+            extra={
+                "model_side_transport_head": {
+                    "enabled": True,
+                    "tasks": ["advection1d"],
+                    "required_params": ["beta"],
+                    "mode": "periodic_roll",
+                    "apply_at": "decoded_rollout",
+                },
+                "model_side_transport_head_metrics": {
+                    "applied_count": 4,
+                    "skipped_count": 0,
+                    "beta_missing_count": 0,
+                },
+            },
+        )
+
+    monkeypatch.setattr(runner_script.evaluate_script, "make_operator", lambda _cfg: object())
+    monkeypatch.setattr(runner_script.evaluate_script, "make_encoder", lambda _cfg: object())
+    monkeypatch.setattr(runner_script.evaluate_script, "make_decoder", lambda _cfg: object())
+    monkeypatch.setattr(
+        runner_script.evaluate_script, "_load_state_dict_compat", fake_load_state_dict_compat
+    )
+    monkeypatch.setattr(runner_script, "evaluate_latent_operator", fake_evaluate_latent_operator)
+    monkeypatch.setattr(runner_script, "evaluate_decoded_operator", fake_evaluate_decoded_operator)
+
+    summary = runner_script._evaluate_once(
+        {"data": {"split": "val", "task": ["advection1d", "burgers1d", "darcy2d"]}},
+        checkpoint_dir=checkpoint_dir,
+        operator_checkpoint_names=("operator.pt",),
+        decoded=True,
+        device="cpu",
+        decoded_rollout_steps=16,
+        transfer_tasks=(),
+        transfer_split=None,
+        cli_promotion_rules=(),
+    )
+
+    extra = summary["extra"]
+    assert extra["model_side_transport_head"]["enabled"] is True
+    assert extra["model_side_transport_head_metrics"]["beta_missing_count"] == 0
+    assert extra["decoded_model_side_transport_head"]["enabled"] is True
+    assert extra["decoded_model_side_transport_head_metrics"]["applied_count"] == 4
+    assert validate_summary(summary) == []
 
 
 def test_run_light_experiment_evaluates_checkpoint_from_last_operator_stage(tmp_path, monkeypatch):

@@ -330,8 +330,23 @@ the required model-side summary validator because
 `extra.model_side_transport_head_metrics` were missing. No B2 result artifact
 was published, no held-out data was used, and contract `42412831` was
 destroyed. This is a schema/integration failure, not accepted validation
-evidence. The next safe move is no-provider summary propagation repair and
-focused validator tests before any further Vast relaunch.
+evidence.
+
+The no-provider summary propagation repair is implemented locally in
+`scripts/run_light_experiment.py`: decoded extras still keep the existing
+`decoded_*` names, and the validator-owned
+`model_side_transport_head` / `model_side_transport_head_metrics` keys are now
+also preserved at top-level `summary.extra`. Regression coverage in
+`tests/unit/test_light_experiment_runner.py` exercises the same `_evaluate_once`
+surface used by the remote wrapper and calls
+`scripts/validate_model_side_transport_head_summary.py` against the returned
+summary. Focused verification passed with
+`python -m pytest tests/unit/test_light_experiment_runner.py tests/unit/test_validate_model_side_transport_head_summary.py -q`,
+`python -m black --check scripts/run_light_experiment.py tests/unit/test_light_experiment_runner.py`,
+`python -m ruff check scripts/run_light_experiment.py tests/unit/test_light_experiment_runner.py`,
+`python -m py_compile scripts/run_light_experiment.py tests/unit/test_light_experiment_runner.py scripts/validate_model_side_transport_head_summary.py`,
+and `git diff --check`. The next safe move is a bounded relaunch of the same
+no-held-out Vast route from a clean pushed ref after this repair is committed.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live

@@ -179,14 +179,21 @@ Final outcome:
 
 ## Next Step
 
-Do not relaunch this remote route until the no-provider summary plumbing is
-fixed and tested. The next useful work package is to reproduce the missing
-`MetricReport.extra` fields locally with the existing synthetic smoke or a tiny
-CPU runner, patch the model-side transport-head summary propagation so
-`extra.model_side_transport_head` and
-`extra.model_side_transport_head_metrics` are present in
-`scripts/run_light_experiment.py` summaries, run focused validator/unit tests,
-then update this launch plan before any further Vast spend.
+The no-provider summary plumbing blocker is repaired locally:
+`scripts/run_light_experiment.py` now keeps the existing decoded-prefixed extras
+and also preserves `extra.model_side_transport_head` and
+`extra.model_side_transport_head_metrics` at top-level summary scope for the
+model-side validator. Regression coverage in
+`tests/unit/test_light_experiment_runner.py` exercises the `_evaluate_once`
+summary surface used by the remote wrapper and calls
+`scripts/validate_model_side_transport_head_summary.py` on the returned summary.
+Focused verification passed with pytest, Black, Ruff, py_compile, and
+`git diff --check`.
+
+Next safe step: after the repair is committed and pushed, relaunch the same
+bounded no-held-out remote route from the repaired git ref, monitor sanitized
+Vast status, fetch only the small B2 result artifact if published, and validate
+the summary before treating any metric as evidence.
 
 Do not run held-out tests, update claim evidence, or change public language from
 this launch alone.

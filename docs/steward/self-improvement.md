@@ -57,3 +57,7 @@ not claim evidence.
   summaries carry `extra.model_side_transport_head` and
   `extra.model_side_transport_head_metrics` through the same path that the
   remote wrapper uses.
+- When decoded evaluation emits validator-owned metadata, do not only preserve it
+  behind a generic `decoded_*` prefix. Keep backward-compatible prefixed keys,
+  but also surface the validator contract keys at top-level `summary.extra` and
+  test the exact summary writer path.
