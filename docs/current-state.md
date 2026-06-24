@@ -254,6 +254,22 @@ This is mechanics evidence only, not a validation result. The next safe move is
 a no-provider synthetic or tiny real-shard smoke plan that proves the summary
 schema end to end before any provider/GPU run.
 
+The no-provider end-to-end synthetic smoke/schema exercise for the model-side
+beta transport head is implemented in
+`scripts/run_model_side_transport_head_smoke.py` with test coverage in
+`tests/unit/test_run_model_side_transport_head_smoke.py`. It wrote the local
+ignored summary
+`reports/research/sota_loop/model_side_transport_head_smoke_val_light_v1/summary.json`
+and `scripts/validate_model_side_transport_head_summary.py` returned
+`passed = true` with no errors. Synthetic smoke metrics were aggregate `0.0`,
+advection rollout `0.0`, advection h16 `0.0`, Burgers `0.0`, Darcy `0.0`,
+mean model-side shift `1.0`, 16 applied shifts, zero skipped shifts, zero
+missing-beta count, and held-out flags false. This proves summary/validator
+plumbing only; it is not validation evidence. The next safe move is a
+no-provider real-shard validation plan for the model-side beta transport head,
+with no GPU/provider run until that plan names data root, command, artifact
+schema, gates, and stop conditions.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -285,4 +301,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, or strategic fork | Prepare or run a no-provider model-side beta transport-head smoke that exercises the summary/validator schema end to end |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, or strategic fork | Prepare a no-provider real-shard validation plan for the model-side beta transport head |

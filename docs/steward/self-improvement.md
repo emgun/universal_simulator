@@ -31,3 +31,6 @@ not claim evidence.
 - Treat a new evaluator hook plus validator stub as mechanics evidence, not as
   validation evidence. Future ticks should require an end-to-end summary/schema
   smoke before drafting any provider plan for the model-side transport head.
+- A synthetic smoke that clears all gates with trivial data proves only schema
+  wiring. Future ticks should not treat it as model progress; the next decision
+  needs a real-shard validation plan before any provider launch.
