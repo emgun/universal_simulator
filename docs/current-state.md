@@ -199,6 +199,21 @@ Do not move Option B to held-out or claim evidence. The next useful step is a
 no-provider branch check focused on transport mechanism, not another aggregate
 validation run.
 
+The post-Option-B transport branch check is recorded at
+`docs/research/2026-06-23-p2-post-option-b-transport-branch-check.md`.
+Decision: primary next branch is UPS-side transport mechanism design/probe,
+validation-only and no-provider. Poseidon remains secondary only if the next
+design names a concrete phase/displacement/temporal mechanism. DPOT escalation
+is blocked until a no-provider temporal-interface hypothesis exists. No held-out
+pretest or claim-evidence update is authorized.
+
+Project-specific steward lessons are tracked in
+`docs/steward/self-improvement.md`. Current lessons: future provider plans
+must include explicit transport/advection gates, adapter-capacity escalation
+must name the transport mechanism it is expected to fix, and Vast teardown must
+be verified manually because auto-shutdown can fail after successful wrapper
+exit.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -230,4 +245,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Run a no-provider branch check focused on transport/advection mechanism after mixed Poseidon Option B validation |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare a no-provider UPS-side transport mechanism design/probe with advection h16 and per-task gates |
