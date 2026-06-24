@@ -28,3 +28,6 @@ not claim evidence.
   before implementation. For this repo, decoder-side first is lower risk than
   latent-operator displacement because the validated signal is already decoded
   phase/displacement.
+- Treat a new evaluator hook plus validator stub as mechanics evidence, not as
+  validation evidence. Future ticks should require an end-to-end summary/schema
+  smoke before drafting any provider plan for the model-side transport head.

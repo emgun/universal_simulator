@@ -237,6 +237,23 @@ It does not authorize provider work, held-out access, claim-evidence updates, or
 public-language changes. The next safe move is a CPU-only implementation slice
 with synthetic tests and summary/validator plumbing.
 
+The first CPU-only model-side beta transport-head scaffold is implemented in
+`src/ups/models/transport_head.py` and wired into decoded evaluation in
+`src/ups/eval/pdebench_runner.py`, with tests in
+`tests/unit/test_model_side_transport_head.py`,
+`tests/unit/test_pdebench_runner_eval.py`, and
+`tests/unit/test_validate_model_side_transport_head_summary.py`. The scaffold is
+default-off, scoped to `advection1d`, predicts a linear
+`param:beta`/`horizon_norm`/`bias` periodic displacement, skips when required
+beta metadata is absent, and emits resolved config plus shift counts in
+`MetricReport.extra`. The validator stub at
+`scripts/validate_model_side_transport_head_summary.py` rejects held-out use,
+missing resolved config, broad task scope, missing beta, incompatible roll-shift
+estimators, and failed aggregate/advection/advection-h16/Burgers/Darcy gates.
+This is mechanics evidence only, not a validation result. The next safe move is
+a no-provider synthetic or tiny real-shard smoke plan that proves the summary
+schema end to end before any provider/GPU run.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -268,4 +285,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, or strategic fork | Implement a CPU-only default-off model-side beta transport-head scaffold with synthetic tests and summary/validator plumbing |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, or strategic fork | Prepare or run a no-provider model-side beta transport-head smoke that exercises the summary/validator schema end to end |
