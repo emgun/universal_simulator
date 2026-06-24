@@ -302,17 +302,27 @@ claim-evidence updates, public-language changes, and evaluator roll-shift
 sidecars.
 
 The remote no-local-storage route was launched on Vast after local dry-runs and
-focused tests passed. The first launch, contract `42401525` from offer
-`38186209`, created a contract but stayed in `loading` / `stopped` with no
-usable uptime, so it was destroyed. The active relaunch is contract `42401821`
-from explicit offer `41528131`, RTX 4090, `48 GB` disk, observed at about
-`$0.37555555555555553/hr`, on git ref `codex/poseidon-channel-lift-vast`.
-Launch note:
+focused tests passed, but the first route did not reach model validation. The
+first contract, `42401525` from offer `38186209`, created a contract but stayed
+in `loading` / `stopped` with no usable uptime, so it was destroyed. The second
+contract, `42401821` from explicit offer `41528131`, RTX 4090, `48 GB` disk,
+observed at about `$0.37555555555555553/hr`, failed before official Advection
+hydration because the remote checkout lacked the ignored local file
+`reports/research/sota_loop/official_advection_hydration_plan.json`.
+Sanitized logs showed `FileNotFoundError` for that path; no B2 result artifact
+was published and no held-out data was used. Contract `42401821` was destroyed
+and no active Vast instance remains for this route. Launch/failure note:
 `docs/research/2026-06-24-p2-model-side-transport-head-remote-launch.md`.
-Initial sanitized status was `running` / `loading` with status message
-`Download complete`. The next steward tick should monitor this contract,
-retrieve and validate the small B2 artifact if it completes, and destroy the
-instance if it stalls, fails, or does not auto-shutdown.
+
+The wrapper now regenerates a missing hydration plan from tracked sources before
+the sequential hydrator reads it. Code/test fix:
+`scripts/run_remote_model_side_transport_head_real_shard.sh` and
+`tests/unit/test_run_remote_model_side_transport_head_real_shard.py`. Focused
+verification passed with `7 passed`, shell syntax checks, and `git diff
+--check`. The next valid action is a bounded relaunch of the same
+validation-only remote route after the fix is committed and pushed; monitor
+sanitized status and the small B2 artifact prefix, and destroy the instance if
+it stalls or fails.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
@@ -345,4 +355,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Vast contract `42401821`, B2 artifact prefix `remote-runs/model-side-transport-head/`, repo docs | Held-out repeat request, broader public claims, unknown billing/top-up, stalled run, failed run, or teardown failure | Monitor contract `42401821`; fetch/validate result artifact if complete, or destroy and record failure if stalled/failed |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Patched remote wrapper, B2 artifact prefix `remote-runs/model-side-transport-head/`, repo docs | Held-out repeat request, broader public claims, unknown billing/top-up, failed relaunch, stalled run, or teardown failure | After commit/push, relaunch the bounded no-held-out remote route once; fetch/validate result artifact if complete, or destroy and record failure if stalled/failed |

@@ -186,6 +186,16 @@ publish_artifacts() {
   echo "Published model-side transport-head artifacts: b2://${B2_BUCKET}/${remote_key}"
 }
 
+ensure_hydration_plan() {
+  if [ -f "$HYDRATION_PLAN_JSON" ]; then
+    return 0
+  fi
+
+  echo "Hydration plan missing; generating ${HYDRATION_PLAN_JSON}"
+  python scripts/plan_transport_official_hydration.py \
+    --output-json "$HYDRATION_PLAN_JSON"
+}
+
 apply_cli_assignments "$@"
 
 ENV_FILE=${ENV_FILE:-.env}
@@ -226,6 +236,8 @@ run_or_echo env \
   bash scripts/fetch_datasets_b2.sh $(normalize_list "$STANDARD_DATA_KEYS")
 
 hydrate_checkpoint_source
+
+ensure_hydration_plan
 
 echo "Sequentially hydrating official Advection train files for beta-provenance validation shards"
 sequential_args=(

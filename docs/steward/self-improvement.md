@@ -46,3 +46,8 @@ not claim evidence.
   instance never reaches usable uptime. Future launch ticks must poll sanitized
   instance status immediately, destroy stuck contracts, and relaunch with an
   explicit alternate offer rather than waiting indefinitely.
+- Remote wrappers must not depend on ignored local report JSONs unless they
+  explicitly hydrate or regenerate them on the instance. For this repo,
+  `official_advection_hydration_plan.json` is an ignored planning artifact, so
+  remote model-side transport-head runs must generate it from tracked manifest
+  sources before sequential hydration.

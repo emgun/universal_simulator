@@ -2,8 +2,8 @@
 
 Date: 2026-06-24
 
-Status: remote validation route launched; result pending. No held-out test has
-been requested or authorized by this launch note.
+Status: first remote validation launch failed before model validation; instance
+destroyed. No held-out test was requested or authorized by this launch note.
 
 ## Scope
 
@@ -72,6 +72,20 @@ Second attempt:
   `scripts/run_remote_model_side_transport_head_real_shard.sh`.
 - Initial status: `running` / `loading`, status message `Download complete`.
 
+Final outcome:
+
+- Sanitized monitor status showed contract `42401821` still running after about
+  `183.88` minutes with no files published under
+  `b2://pdebench/remote-runs/model-side-transport-head/`.
+- A redacted container-log check found the remote wrapper failed before
+  official Advection hydration:
+  `FileNotFoundError: reports/research/sota_loop/official_advection_hydration_plan.json`.
+- The failure was a packaging/dependency bug, not a validation result. The
+  hydration plan existed only as an ignored local artifact, so the remote git
+  checkout could not read it.
+- Contract `42401821` was destroyed after the failure was confirmed; sanitized
+  follow-up status returned `not_found_active_instances`.
+
 ## Expected Artifact
 
 If successful, the remote wrapper should publish a small artifact under:
@@ -88,12 +102,41 @@ and include:
 
 Do not publish hydrated raw data.
 
-## Next Monitoring Step
+## Wrapper Fix
 
-Poll contract `42401821`. If it completes, fetch/inspect the B2 artifact and
-validate the summary locally if the artifact is small enough. If it stalls,
-fails, or auto-shutdown does not tear it down, destroy the instance and record
-the failure before relaunching.
+The remote wrapper now regenerates a missing hydration plan from tracked repo
+sources before the sequential hydrator reads it:
+
+```bash
+python scripts/plan_transport_official_hydration.py \
+  --output-json reports/research/sota_loop/official_advection_hydration_plan.json
+```
+
+Code/test coverage:
+
+- `scripts/run_remote_model_side_transport_head_real_shard.sh`
+- `tests/unit/test_run_remote_model_side_transport_head_real_shard.py`
+
+Verification after the fix:
+
+```bash
+bash -n scripts/run_remote_model_side_transport_head_real_shard.sh \
+  scripts/launch_remote_model_side_transport_head_vast.sh
+python -m pytest tests/unit/test_run_remote_model_side_transport_head_real_shard.py \
+  tests/unit/test_build_p2_parameter_full_task_root.py \
+  tests/unit/test_validate_model_side_transport_head_summary.py -q
+git diff --check
+```
+
+Result: `7 passed`; shell syntax and diff whitespace checks passed.
+
+## Next Step
+
+After the wrapper fix is committed and pushed, the next valid action is one
+bounded relaunch of the same no-held-out remote route. Monitor sanitized
+instance status and the small B2 artifact prefix. If the run fails again,
+destroy the instance and record the new stop condition before any strategic
+reroute.
 
 Do not run held-out tests, update claim evidence, or change public language from
 this launch alone.
