@@ -2,8 +2,9 @@
 
 Date: 2026-06-24
 
-Status: first remote validation launch failed before model validation; instance
-destroyed. No held-out test was requested or authorized by this launch note.
+Status: first remote validation launch failed before model validation; fixed
+wrapper relaunch is active. No held-out test was requested or authorized by
+this launch note.
 
 ## Scope
 
@@ -132,9 +133,31 @@ Result: `7 passed`; shell syntax and diff whitespace checks passed.
 
 ## Next Step
 
-After the wrapper fix is committed and pushed, the next valid action is one
-bounded relaunch of the same no-held-out remote route. Monitor sanitized
-instance status and the small B2 artifact prefix. If the run fails again,
+## Fixed Relaunch
+
+The wrapper fix was committed and pushed as `fdae16c` on
+`codex/poseidon-channel-lift-vast`. A single bounded relaunch of the same
+no-held-out remote route was started from that ref:
+
+- Offer: `41528131`, RTX 4090.
+- Contract: `42412831`.
+- Observed rate from sanitized instance status: about
+  `$0.37555555555555553/hr`.
+- Disk: `48 GB`.
+- Git ref: `codex/poseidon-channel-lift-vast`.
+- Remote script:
+  `scripts/run_remote_model_side_transport_head_real_shard.sh`.
+- Latest sanitized status before this note update: `actual_status = running`,
+  `cur_state = running`, `intended_status = running`, status message
+  `success, running pytorch/pytorch_2.2.0-cuda12.1-cudnn8-runtime/ssh`.
+- B2 result prefix check immediately after launch found no files yet under
+  `b2://pdebench/remote-runs/model-side-transport-head/`.
+
+## Next Monitoring Step
+
+Monitor contract `42412831` with sanitized output only. If it completes, fetch
+and inspect the small B2 artifact, validate the summary locally, and record the
+metrics/result. If it fails, stalls, or auto-shutdown does not tear it down,
 destroy the instance and record the new stop condition before any strategic
 reroute.
 
