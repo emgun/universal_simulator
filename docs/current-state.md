@@ -226,6 +226,17 @@ it requires beta provenance for advection; it does not authorize claim-language
 changes or held-out access. The next useful step is a no-provider model-side
 parameter-conditioned transport-head design.
 
+The model-side parameter-conditioned transport-head design is recorded at
+`docs/research/2026-06-24-p2-model-side-transport-head-design.md`. It selects a
+default-off decoder-side linear beta/horizon/bias periodic-displacement head as
+the smallest useful model-side bridge from the validated beta sidecar. The
+design requires beta provenance for non-smoke advection candidates, skips the
+head when beta is absent, emits resolved config plus shift statistics, and gates
+aggregate, advection rollout, advection h16, Burgers, Darcy, and held-out flags.
+It does not authorize provider work, held-out access, claim-evidence updates, or
+public-language changes. The next safe move is a CPU-only implementation slice
+with synthetic tests and summary/validator plumbing.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -257,4 +268,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare a no-provider model-side parameter-conditioned transport-head design |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, or strategic fork | Implement a CPU-only default-off model-side beta transport-head scaffold with synthetic tests and summary/validator plumbing |

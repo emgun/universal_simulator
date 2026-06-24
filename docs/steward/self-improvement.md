@@ -20,3 +20,11 @@ not claim evidence.
   claim-promotable if it depends on a different data/provenance contract. Future
   ticks should separate "mechanism is validated" from "public protocol can
   promote it" before suggesting held-out or claim-evidence work.
+
+## 2026-06-24
+
+- When a sidecar mechanism is strong but scoped, the next productive design
+  should name the exact model-side insertion point and default-off contract
+  before implementation. For this repo, decoder-side first is lower risk than
+  latent-operator displacement because the validated signal is already decoded
+  phase/displacement.
