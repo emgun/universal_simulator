@@ -214,6 +214,18 @@ must name the transport mechanism it is expected to fix, and Vast teardown must
 be verified manually because auto-shutdown can fail after successful wrapper
 exit.
 
+The first no-provider transport mechanism design/probe is recorded at
+`docs/research/2026-06-24-p2-transport-mechanism-design-probe.md`. It selects
+parameter-conditioned causal transport shift/displacement as the primary next
+mechanism because existing canonical-root validation evidence already clears
+the active phase gate by a wide margin: aggregate `0.11122069865007121`,
+advection rollout `0.0017868130908052495`, advection h16
+`0.0017842800879688658`, Burgers `0.14738121412908425`, and Darcy
+`0.188979512124482`, with no held-out test. The result remains scoped because
+it requires beta provenance for advection; it does not authorize claim-language
+changes or held-out access. The next useful step is a no-provider model-side
+parameter-conditioned transport-head design.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -245,4 +257,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare a no-provider UPS-side transport mechanism design/probe with advection h16 and per-task gates |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, or strategic fork | Prepare a no-provider model-side parameter-conditioned transport-head design |

@@ -16,3 +16,7 @@ not claim evidence.
 - Vast containers used by this project may fail auto-shutdown even after the
   remote wrapper exits successfully. Any future Vast run should explicitly
   verify instance teardown and destroy the instance manually if needed.
+- Strong transport-sidecar validation can still be scoped rather than
+  claim-promotable if it depends on a different data/provenance contract. Future
+  ticks should separate "mechanism is validated" from "public protocol can
+  promote it" before suggesting held-out or claim-evidence work.
