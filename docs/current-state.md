@@ -301,6 +301,19 @@ and the model-side summary validator. This route still forbids held-out data,
 claim-evidence updates, public-language changes, and evaluator roll-shift
 sidecars.
 
+The remote no-local-storage route was launched on Vast after local dry-runs and
+focused tests passed. The first launch, contract `42401525` from offer
+`38186209`, created a contract but stayed in `loading` / `stopped` with no
+usable uptime, so it was destroyed. The active relaunch is contract `42401821`
+from explicit offer `41528131`, RTX 4090, `48 GB` disk, observed at about
+`$0.37555555555555553/hr`, on git ref `codex/poseidon-channel-lift-vast`.
+Launch note:
+`docs/research/2026-06-24-p2-model-side-transport-head-remote-launch.md`.
+Initial sanitized status was `running` / `loading` with status message
+`Download complete`. The next steward tick should monitor this contract,
+retrieve and validate the small B2 artifact if it completes, and destroy the
+instance if it stalls, fails, or does not auto-shutdown.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -332,4 +345,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, unknown billing/top-up, teardown failure, or strategic fork | Dry-run and then execute the remote no-local-storage model-side real-shard validation route if Vast/B2 readiness passes |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Vast contract `42401821`, B2 artifact prefix `remote-runs/model-side-transport-head/`, repo docs | Held-out repeat request, broader public claims, unknown billing/top-up, stalled run, failed run, or teardown failure | Monitor contract `42401821`; fetch/validate result artifact if complete, or destroy and record failure if stalled/failed |

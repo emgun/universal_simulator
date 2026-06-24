@@ -42,3 +42,7 @@ not claim evidence.
   work to remote scratch rather than weakening the beta-provenance requirement.
   The remote route must keep held-out stages disabled and publish only small
   evidence artifacts, not hydrated data.
+- Vast may return a contract even when the response reports failure or the
+  instance never reaches usable uptime. Future launch ticks must poll sanitized
+  instance status immediately, destroy stuck contracts, and relaunch with an
+  explicit alternate offer rather than waiting indefinitely.
