@@ -319,13 +319,19 @@ the sequential hydrator reads it. Code/test fix:
 `scripts/run_remote_model_side_transport_head_real_shard.sh` and
 `tests/unit/test_run_remote_model_side_transport_head_real_shard.py`. Focused
 verification passed with `7 passed`, shell syntax checks, and `git diff
---check`. The fix was pushed as `fdae16c`, and a bounded relaunch is now active
-as Vast contract `42412831` from offer `41528131`, RTX 4090, `48 GB` disk,
-about `$0.37555555555555553/hr`, on git ref
-`codex/poseidon-channel-lift-vast`. Latest sanitized status before this update
-was `actual_status = running`, `cur_state = running`, and no B2 result artifact
-had been published yet. Monitor sanitized status and the small B2 artifact
-prefix, and destroy the instance if it stalls or fails.
+--check`. The fix was pushed as `fdae16c`, and the bounded relaunch ran as Vast
+contract `42412831` from offer `41528131`, RTX 4090, `48 GB` disk, about
+`$0.37555555555555553/hr`, on git ref
+`codex/poseidon-channel-lift-vast`. That run passed the previous hydration
+blocker, built the beta-provenance full-task validation root, and wrote a
+summary with aggregate decoded rollout NRMSE `0.11122069865446772`, but failed
+the required model-side summary validator because
+`extra.model_side_transport_head` and
+`extra.model_side_transport_head_metrics` were missing. No B2 result artifact
+was published, no held-out data was used, and contract `42412831` was
+destroyed. This is a schema/integration failure, not accepted validation
+evidence. The next safe move is no-provider summary propagation repair and
+focused validator tests before any further Vast relaunch.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
@@ -358,4 +364,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Vast contract `42412831`, B2 artifact prefix `remote-runs/model-side-transport-head/`, repo docs | Held-out repeat request, broader public claims, unknown billing/top-up, failed relaunch, stalled run, or teardown failure | Monitor contract `42412831`; fetch/validate result artifact if complete, or destroy and record failure if stalled/failed |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side summary propagation repair, repo docs | Held-out repeat request, broader public claims, unknown billing/top-up, or request to relaunch before validator repair | Reproduce/fix missing `extra.model_side_transport_head` and `extra.model_side_transport_head_metrics` locally; run focused validator tests before any further Vast relaunch |

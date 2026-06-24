@@ -2,9 +2,9 @@
 
 Date: 2026-06-24
 
-Status: first remote validation launch failed before model validation; fixed
-wrapper relaunch is active. No held-out test was requested or authorized by
-this launch note.
+Status: remote validation reached summary generation but failed the model-side
+summary schema gate; instance destroyed. No held-out test was requested or
+authorized by this launch note.
 
 ## Scope
 
@@ -155,11 +155,38 @@ no-held-out remote route was started from that ref:
 
 ## Next Monitoring Step
 
-Monitor contract `42412831` with sanitized output only. If it completes, fetch
-and inspect the small B2 artifact, validate the summary locally, and record the
-metrics/result. If it fails, stalls, or auto-shutdown does not tear it down,
-destroy the instance and record the new stop condition before any strategic
-reroute.
+Final outcome:
+
+- Sanitized monitor status showed contract `42412831` running after about
+  `239.31` minutes with no files published under
+  `b2://pdebench/remote-runs/model-side-transport-head/`.
+- A redacted log tail showed the fixed wrapper passed the previous hydration
+  blocker: official Advection sequential hydration completed, the
+  beta-provenance full-task validation root was built, and
+  `scripts/run_light_experiment.py` wrote
+  `reports/research/sota_loop/model_side_transport_head_real_shard/ups_light_p2_model_side_beta_transport_head_val/summary.json`
+  with aggregate decoded rollout NRMSE `0.11122069865446772`.
+- The run then failed the required summary validator:
+  `scripts/validate_model_side_transport_head_summary.py` reported missing
+  `extra.model_side_transport_head` and
+  `extra.model_side_transport_head_metrics`, plus the dependent task/mode/apply
+  checks. Because the validator failed, this is not accepted validation
+  evidence and no public/claim surface should change from it.
+- No B2 result artifact was published before failure, and no held-out data was
+  used.
+- Contract `42412831` was destroyed after the schema failure was confirmed;
+  sanitized follow-up status returned `not_found_active_instances`.
+
+## Next Step
+
+Do not relaunch this remote route until the no-provider summary plumbing is
+fixed and tested. The next useful work package is to reproduce the missing
+`MetricReport.extra` fields locally with the existing synthetic smoke or a tiny
+CPU runner, patch the model-side transport-head summary propagation so
+`extra.model_side_transport_head` and
+`extra.model_side_transport_head_metrics` are present in
+`scripts/run_light_experiment.py` summaries, run focused validator/unit tests,
+then update this launch plan before any further Vast spend.
 
 Do not run held-out tests, update claim evidence, or change public language from
 this launch alone.

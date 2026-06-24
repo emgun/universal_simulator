@@ -51,3 +51,9 @@ not claim evidence.
   `official_advection_hydration_plan.json` is an ignored planning artifact, so
   remote model-side transport-head runs must generate it from tracked manifest
   sources before sequential hydration.
+- A model-side run that produces a strong-looking aggregate metric is still not
+  accepted evidence if the required summary schema is missing. Future remote
+  launches for this branch must prove locally that `scripts/run_light_experiment.py`
+  summaries carry `extra.model_side_transport_head` and
+  `extra.model_side_transport_head_metrics` through the same path that the
+  remote wrapper uses.
