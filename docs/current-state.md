@@ -270,6 +270,22 @@ no-provider real-shard validation plan for the model-side beta transport head,
 with no GPU/provider run until that plan names data root, command, artifact
 schema, gates, and stop conditions.
 
+The no-provider real-shard validation plan is recorded at
+`docs/research/2026-06-24-p2-model-side-transport-head-real-shard-validation-plan.md`.
+It found that the current checkout has standard `data/pdebench` train/val
+shards, but the standard advection shards lack `source_file_index` and
+`source_paths`, so `params.beta` cannot be derived and the model-side head would
+skip advection. The prior beta-provenance root
+`data/pdebench_official_advection_light`, generated canonical validation root,
+and decoded checkpoint source
+`reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val`
+are not present locally. The plan defines the full-task root build, CPU
+validation command, summary validator call, gates, and stop conditions, but does
+not authorize hydration/download, provider work, held-out access, claim-evidence
+updates, or public-language changes. The next safe move is to restore or hydrate
+the missing beta root/checkpoint under a bounded no-held-out plan, then run the
+CPU validation command.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -301,4 +317,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, or strategic fork | Prepare a no-provider real-shard validation plan for the model-side beta transport head |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, external hydration/download, or strategic fork | Restore or hydrate missing beta root/checkpoint under a bounded no-held-out plan, then run the CPU real-shard validation command |

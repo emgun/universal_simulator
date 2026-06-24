@@ -34,3 +34,7 @@ not claim evidence.
 - A synthetic smoke that clears all gates with trivial data proves only schema
   wiring. Future ticks should not treat it as model progress; the next decision
   needs a real-shard validation plan before any provider launch.
+- For beta-conditioned transport-head work, standard `data/pdebench` advection
+  shards are not enough. Future ticks must preflight `source_file_index`,
+  `source_paths`, and checkpoint availability before proposing or running
+  validation.
