@@ -286,6 +286,21 @@ updates, or public-language changes. The next safe move is to restore or hydrate
 the missing beta root/checkpoint under a bounded no-held-out plan, then run the
 CPU validation command.
 
+User approval for the bounded hydration/restoration action is now present, but
+local disk is insufficient. The live preflight found only about `5.7 GiB` free,
+while even sequential official Advection hydration needs about `9.47 GiB` for
+one raw train file plus safety margin; full selected official train-file
+hydration is about `61.34 GiB`. The no-local-storage remote route is recorded at
+`docs/research/2026-06-24-p2-model-side-transport-head-remote-no-local-storage-plan.md`
+with wrappers `scripts/run_remote_model_side_transport_head_real_shard.sh` and
+`scripts/launch_remote_model_side_transport_head_vast.sh`. It uses remote
+scratch, sequential official Advection hydrate-convert-delete, standard
+`light-v1` validation shards from B2 for Burgers/Darcy, the small checkpoint
+archive `remote-runs/checkpoints/ups_light_task_signature_trained_residual_20260526T1928Z.tar.gz`,
+and the model-side summary validator. This route still forbids held-out data,
+claim-evidence updates, public-language changes, and evaluator roll-shift
+sidecars.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -317,4 +332,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, provider work, external hydration/download, or strategic fork | Restore or hydrate missing beta root/checkpoint under a bounded no-held-out plan, then run the CPU real-shard validation command |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Repo docs, safe local analysis, validation-only challenger design | Held-out repeat request, broader public claims, unknown billing/top-up, teardown failure, or strategic fork | Dry-run and then execute the remote no-local-storage model-side real-shard validation route if Vast/B2 readiness passes |

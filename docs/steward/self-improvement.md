@@ -38,3 +38,7 @@ not claim evidence.
   shards are not enough. Future ticks must preflight `source_file_index`,
   `source_paths`, and checkpoint availability before proposing or running
   validation.
+- If local disk cannot fit even sequential official-data hydration, route the
+  work to remote scratch rather than weakening the beta-provenance requirement.
+  The remote route must keep held-out stages disabled and publish only small
+  evidence artifacts, not hydrated data.
