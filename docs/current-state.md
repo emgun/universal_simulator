@@ -345,8 +345,19 @@ summary. Focused verification passed with
 `python -m black --check scripts/run_light_experiment.py tests/unit/test_light_experiment_runner.py`,
 `python -m ruff check scripts/run_light_experiment.py tests/unit/test_light_experiment_runner.py`,
 `python -m py_compile scripts/run_light_experiment.py tests/unit/test_light_experiment_runner.py scripts/validate_model_side_transport_head_summary.py`,
-and `git diff --check`. The next safe move is a bounded relaunch of the same
-no-held-out Vast route from a clean pushed ref after this repair is committed.
+and `git diff --check`.
+
+A schema-repaired relaunch was attempted from commit `41356df` using explicit
+offer `41528131` and the same no-held-out remote route. Vast returned a new
+contract, `42442415`, but with `success: false`; sanitized status showed
+`actual_status = loading`, `cur_state = stopped`, `intended_status = stopped`,
+RTX 4090, `48 GB` disk, about `$0.37555555555555553/hr`, and no status message.
+After a short recheck, the contract still had no usable running state and was
+destroyed. No remote wrapper ran, no B2 artifact was published, no held-out data
+was used, and no metric was produced. The next safe move is to avoid blindly
+reusing offer `41528131`: search/select an alternate bounded Vast offer or
+choose a non-provider reroute, then relaunch only under the same no-held-out
+artifact/validator contract.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
@@ -379,4 +390,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side summary propagation repair, repo docs | Held-out repeat request, broader public claims, unknown billing/top-up, or request to relaunch before validator repair | Reproduce/fix missing `extra.model_side_transport_head` and `extra.model_side_transport_head_metrics` locally; run focused validator tests before any further Vast relaunch |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side transport-head remote validation route | Held-out repeat request, broader public claims, unknown billing/top-up, or request to bypass schema/validator gates | Schema propagation is fixed; the repaired relaunch contract `42442415` stopped immediately and was destroyed. Next check should select an alternate bounded Vast offer or a non-provider reroute before another no-held-out relaunch. |

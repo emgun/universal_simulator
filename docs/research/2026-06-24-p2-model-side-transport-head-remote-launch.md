@@ -197,3 +197,33 @@ the summary before treating any metric as evidence.
 
 Do not run held-out tests, update claim evidence, or change public language from
 this launch alone.
+
+## Schema-Repaired Relaunch Attempt
+
+The summary propagation repair was committed and pushed as `41356df` on
+`codex/poseidon-channel-lift-vast`. A bounded relaunch of the same no-held-out
+remote route was attempted from that ref:
+
+- Offer: `41528131`, RTX 4090.
+- Contract: `42442415`.
+- Observed rate from sanitized instance status: about
+  `$0.37555555555555553/hr`.
+- Disk: `48 GB`.
+- Git ref: `codex/poseidon-channel-lift-vast`.
+- Remote script:
+  `scripts/run_remote_model_side_transport_head_real_shard.sh`.
+- Launcher dry-run first confirmed the intended route: repaired branch,
+  remote scratch, B2 hydration, no held-out stage, and no local hydration.
+- Launch response returned a new contract but reported `success: false`.
+- Sanitized status showed `actual_status = loading`, `cur_state = stopped`,
+  `intended_status = stopped`, and no status message. A short recheck did not
+  find a usable running state.
+- Contract `42442415` was destroyed.
+
+Outcome: no remote wrapper ran, no official hydration occurred, no B2 result
+artifact was published, no held-out data was used, and no metric was produced.
+This is an offer/instance launch failure, not validation evidence.
+
+Next safe step: do not blindly reuse explicit offer `41528131`. Search/select an
+alternate bounded Vast offer or choose a non-provider reroute, then relaunch
+only under the same no-held-out artifact and summary-validator contract.

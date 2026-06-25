@@ -61,3 +61,7 @@ not claim evidence.
   behind a generic `decoded_*` prefix. Keep backward-compatible prefixed keys,
   but also surface the validator contract keys at top-level `summary.extra` and
   test the exact summary writer path.
+- If a repaired Vast relaunch immediately returns a stopped contract on an
+  explicit offer, destroy it and avoid reusing that same offer without a fresh
+  offer search. Treat this as an instance/offer failure, not as experiment
+  evidence.
