@@ -425,6 +425,23 @@ records `held_out_test_data_materialized = true`,
 `held_out_test_used = false`, and leaves `test_ledger_writes = []`. This is a
 guarded scaffold only; no real test data was hydrated or read in this tick.
 
+The no-provider remote pretest wrapper scaffold is now implemented and
+recorded at
+`docs/research/2026-06-25-p2-model-side-beta-head-remote-pretest-wrapper.md`.
+Code:
+`scripts/run_remote_model_side_beta_head_pretest.sh` and
+`scripts/launch_remote_model_side_beta_head_pretest_vast.sh`; tests:
+`tests/unit/test_run_remote_model_side_beta_head_pretest.py`. The wrapper is
+dry-run-first and refuses held-out execution unless both `DRY_RUN=0` and
+`ALLOW_HELDOUT_PRETEST=1` are set. It validates the scoped pretest contract,
+hydrates/fetches only the scoped prerequisites, builds the guarded val/test
+beta-provenance root with the pre-registered measurement key, extracts the
+exact held-out command from the contract, validates the validation summary, and
+publishes only small artifacts. Local verification passed with focused pytest,
+shell syntax checks, Black, Ruff, py_compile, and `git diff --check`. No Vast
+launch, remote hydration, held-out execution, claim-evidence update, or public
+language change occurred.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -456,4 +473,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head remote pretest wrapper review | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract, validator, and pretest-root builder scaffold are drafted. Next check should prepare or review the remote wrapper that uses this builder inside the pre-registered workflow, but must not launch provider work or execute held-out without explicit user direction. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head held-out execution gate | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract, guarded root builder, and dry-run-first remote wrapper/launcher are scaffolded. Next check should stay quiet unless the user explicitly directs one bounded held-out/provider launch for the scoped variant. |

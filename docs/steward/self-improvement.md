@@ -80,3 +80,7 @@ not claim evidence.
   test-root materialization, and held-out metric execution. The root builder may
   materialize test data inside the registered workflow, but it must not write
   the held-out ledger or run the metric command.
+- Remote held-out wrappers should be separate from validation wrappers unless a
+  guarded mode is obviously safer. For this beta-head branch, a dedicated
+  dry-run-first wrapper keeps `split=test`, ledger writes, beta provenance, and
+  artifact publication visible and fail-closed.
