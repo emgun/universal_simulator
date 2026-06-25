@@ -359,7 +359,7 @@ reusing offer `41528131`: search/select an alternate bounded Vast offer or
 choose a non-provider reroute, then relaunch only under the same no-held-out
 artifact/validator contract.
 
-An alternate-offer relaunch is now active. A sanitized offer search found
+An alternate-offer relaunch ran after a sanitized offer search found
 verified RTX 4090 offers under the `$0.45/hr` stop threshold, and offer
 `41175200` was selected because it was below the recent price baseline and had
 strong reported network/disk throughput. A dry-run confirmed the same repaired
@@ -368,11 +368,25 @@ returned contract `42450012` with `success: true`; sanitized status showed
 `actual_status = running`, `cur_state = running`, `intended_status = running`,
 RTX 4090, `48 GB` disk, observed `dph_total = 0.37555555555555553`, and status
 message `success, running pytorch/pytorch_2.2.0-cuda12.1-cudnn8-runtime/ssh`.
-Expected result prefix remains
-`b2://pdebench/remote-runs/model-side-transport-head/`.
-No result artifact has been accepted yet; the next tick should monitor contract
-`42450012`, validate any published summary before treating metrics as evidence,
-and destroy the instance if it fails, stalls, or does not tear down.
+The run completed and is recorded at
+`docs/research/2026-06-25-p2-model-side-transport-head-remote-result.md`.
+Artifact
+`b2://pdebench/remote-runs/model-side-transport-head/model_side_transport_head_real_shard_20260625T022059Z.tar.gz`
+was downloaded locally under
+`reports/research/sota_loop/model_side_transport_head_real_shard_remote_artifacts/`
+with SHA256
+`9778317b2942728e0d5e9bd503baadbecd66ee08ef44968e9ed60eb2dff9e905`.
+`scripts/validate_model_side_transport_head_summary.py` passed with no errors.
+Metrics: aggregate decoded rollout NRMSE `0.11122069837659315`, advection
+rollout `0.0017868115829009724`, advection h16 `0.001784282965734058`, Burgers
+`0.14738121133726986`, and Darcy `0.18897951477635447`. The model-side head
+applied `512` shifts with zero skipped samples and zero beta-missing samples.
+The artifact manifest records `held_out_test_data_read = false` and
+`test_ledger_writes = []`; the hydration plan records test split not downloaded
+or sharded. Contract `42450012` was destroyed after completion, and no active
+route instance remains. This is accepted validation evidence for the scoped
+model-side beta transport-head branch, but not public claim evidence by itself
+because beta provenance is still not a universal public inference contract.
 
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
@@ -405,4 +419,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side transport-head remote validation route | Held-out repeat request, broader public claims, unknown billing/top-up, or request to bypass schema/validator gates | Alternate-offer Vast contract `42450012` is active for the repaired no-held-out route. Monitor sanitized status, fetch/validate only the small B2 result artifact if published, and destroy on failure/stall/no teardown. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side transport-head protocol/evidence mapping | Held-out repeat request, broader public claims, unknown billing/top-up, or request to bypass schema/validator gates | Remote validation passed for the scoped beta head and contract `42450012` was destroyed. Next check should run a no-provider protocol/evidence mapping review before any held-out pretest, claim-evidence update, or public-language change. |

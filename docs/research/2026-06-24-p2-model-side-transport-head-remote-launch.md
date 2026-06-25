@@ -267,3 +267,51 @@ publishes the expected small B2 artifact, fetch only that artifact and validate
 the summary with `scripts/validate_model_side_transport_head_summary.py` before
 accepting any metric. If the instance fails, stalls, or does not tear down,
 destroy it and record the failure.
+
+## Alternate-Offer Final Outcome
+
+Contract `42450012` completed and reached `actual_status = exited`,
+`cur_state = stopped`, `intended_status = stopped`. A redacted log tail showed:
+
+- official Advection sequential hydration completed;
+- the beta-provenance full-task validation root was built;
+- `scripts/run_light_experiment.py` wrote
+  `reports/research/sota_loop/model_side_transport_head_real_shard/ups_light_p2_model_side_beta_transport_head_val/summary.json`;
+- `scripts/validate_model_side_transport_head_summary.py` returned
+  `errors = []`, `passed = true`;
+- the artifact was published to
+  `b2://pdebench/remote-runs/model-side-transport-head/model_side_transport_head_real_shard_20260625T022059Z.tar.gz`.
+
+The artifact was downloaded locally to
+`reports/research/sota_loop/model_side_transport_head_real_shard_remote_artifacts/model_side_transport_head_real_shard_20260625T022059Z.tar.gz`.
+Its SHA256 is
+`9778317b2942728e0d5e9bd503baadbecd66ee08ef44968e9ed60eb2dff9e905`.
+
+Validated metrics:
+
+- aggregate decoded rollout NRMSE: `0.11122069837659315`
+- advection rollout NRMSE: `0.0017868115829009724`
+- advection h16 NRMSE: `0.001784282965734058`
+- Burgers rollout NRMSE: `0.14738121133726986`
+- Darcy rollout NRMSE: `0.18897951477635447`
+- model-side shift mean: `3.5019181072711945`
+- applied samples: `512`
+- skipped samples: `0`
+- beta-missing samples: `0`
+
+Boundary checks:
+
+- `full_task_beta_val_root_manifest.json` records
+  `held_out_test_data_read = false` and `test_ledger_writes = []`.
+- `official_advection_hydration_plan_run.json` records test split not
+  downloaded or sharded.
+- No claim-evidence or public-language artifact was updated.
+- Contract `42450012` was destroyed after completion; no active route instance
+  remains.
+
+Decision: this is accepted validation evidence for the scoped model-side beta
+transport-head branch. It is not public claim evidence by itself because beta
+provenance remains outside the universal public inference contract.
+
+Next safe step: run a no-provider protocol/evidence mapping review before any
+held-out pretest contract, claim-evidence update, or public-language change.
