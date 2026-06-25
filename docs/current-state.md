@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-06-23
+Updated: 2026-06-25
 
 ## Project
 
@@ -388,6 +388,19 @@ route instance remains. This is accepted validation evidence for the scoped
 model-side beta transport-head branch, but not public claim evidence by itself
 because beta provenance is still not a universal public inference contract.
 
+The follow-up protocol/evidence mapping is recorded at
+`docs/research/2026-06-25-p2-model-side-beta-head-protocol-mapping.md`.
+Decision: the model-side beta transport head is not the same inference contract
+as the current public `light-v1` CT8/shared-context primary claim, and it is not
+the same contract as CT1 online transport-context. It should be treated as a
+scoped `light-v1 model-side beta-parameter transport-head UPS variant`. The
+validation evidence is strong enough to draft a pre-registered held-out pretest
+contract for that scoped variant, but not enough to execute held-out, update
+claim evidence, or change public language without a separate explicit
+direction. If the goal is same-contract CT8 replacement, the branch must either
+remove the beta-provenance dependency or define beta provenance as a public
+protocol input first.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -419,4 +432,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side transport-head protocol/evidence mapping | Held-out repeat request, broader public claims, unknown billing/top-up, or request to bypass schema/validator gates | Remote validation passed for the scoped beta head and contract `42450012` was destroyed. Next check should run a no-provider protocol/evidence mapping review before any held-out pretest, claim-evidence update, or public-language change. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head pretest contract drafting | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Protocol mapping is complete. Next check should draft the scoped `light-v1 model-side beta-parameter transport-head UPS variant` held-out pretest contract and validator/audit wiring, but must not execute held-out or update public/claim evidence without explicit user direction. |

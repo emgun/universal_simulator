@@ -65,3 +65,10 @@ not claim evidence.
   explicit offer, destroy it and avoid reusing that same offer without a fresh
   offer search. Treat this as an instance/offer failure, not as experiment
   evidence.
+
+## 2026-06-25
+
+- A model-side mechanism can still change the public inference contract if it
+  requires PDE metadata not present in the frozen public protocol. Before
+  drafting held-out or claim-evidence work, map whether the candidate is a
+  primary-contract replacement or a scoped variant with separate language.
