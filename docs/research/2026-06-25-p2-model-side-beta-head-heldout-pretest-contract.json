@@ -122,6 +122,7 @@
   "required_pre_run_checks": [
     "python scripts/validate_p2_model_side_beta_head_pretest_contract.py",
     "python -m pytest tests/unit/test_validate_p2_model_side_beta_head_pretest_contract.py -q",
+    "python -m pytest tests/unit/test_build_p2_model_side_beta_head_pretest_root.py -q",
     "verify the scoped pretest root builder/wrapper creates val and test splits only inside the pre-registered workflow",
     "verify beta provenance exists for every held-out advection sample before run_light_experiment starts",
     "verify the held-out ledger does not already contain measurement key 9c028afbfb85328fd21fc7de4cffb277fbde274aa042ad63e6499abc562addc3"

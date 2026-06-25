@@ -414,6 +414,17 @@ root tooling refuses `split=test`, so the next safe move is a no-provider
 pretest-root builder/wrapper review or implementation that creates the required
 val/test beta-provenance root only inside the pre-registered held-out workflow.
 
+The no-provider pretest-root builder scaffold is now implemented in
+`scripts/build_p2_model_side_beta_head_pretest_root.py`, with synthetic HDF5
+coverage in `tests/unit/test_build_p2_model_side_beta_head_pretest_root.py`.
+The builder refuses to materialize a held-out pretest root unless
+`--allow-heldout-pretest-root` is passed, the scoped pretest contract validates,
+and the measurement key matches the contract. It builds only `val` and `test`
+files for the scoped root, requires Advection beta provenance on both splits,
+records `held_out_test_data_materialized = true`,
+`held_out_test_used = false`, and leaves `test_ledger_writes = []`. This is a
+guarded scaffold only; no real test data was hydrated or read in this tick.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -445,4 +456,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head pretest-root builder/wrapper | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract and validator are drafted. Next check should prepare or review the no-provider pretest-root builder/wrapper that can create val/test beta-provenance shards only inside the pre-registered held-out workflow; do not execute held-out or update public/claim evidence without explicit user direction. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head remote pretest wrapper review | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract, validator, and pretest-root builder scaffold are drafted. Next check should prepare or review the remote wrapper that uses this builder inside the pre-registered workflow, but must not launch provider work or execute held-out without explicit user direction. |

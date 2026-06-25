@@ -76,3 +76,7 @@ not claim evidence.
   For beta-provenance work, the validation root builder correctly refuses
   `split=test`; a held-out path needs an explicit guarded pretest-root wrapper
   before any irreversible test command.
+- For scoped held-out preparation, separate three gates: contract validation,
+  test-root materialization, and held-out metric execution. The root builder may
+  materialize test data inside the registered workflow, but it must not write
+  the held-out ledger or run the metric command.
