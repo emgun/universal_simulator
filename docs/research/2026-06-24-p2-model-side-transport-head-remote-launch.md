@@ -227,3 +227,43 @@ This is an offer/instance launch failure, not validation evidence.
 Next safe step: do not blindly reuse explicit offer `41528131`. Search/select an
 alternate bounded Vast offer or choose a non-provider reroute, then relaunch
 only under the same no-held-out artifact and summary-validator contract.
+
+## Alternate-Offer Relaunch
+
+A fresh sanitized offer search was run after contract `42442415` stopped
+immediately. Offer `41528131` was excluded. The search found multiple verified
+RTX 4090 offers under the `$0.45/hr` stop threshold; offer `41175200` was chosen
+because it was below the recent price baseline and had strong reported network
+and disk throughput.
+
+Launcher dry-run:
+
+- Git ref: `codex/poseidon-channel-lift-vast`.
+- Offer: `41175200`, RTX 4090.
+- Disk: `48 GB`.
+- Route: `scripts/run_remote_model_side_transport_head_real_shard.sh`.
+- Scope confirmed: repaired branch, remote scratch, B2 hydration, no held-out
+  stage, no local hydration.
+
+Launch:
+
+- Contract: `42450012`.
+- Launch response: `success: true`.
+- Latest sanitized status before this note update: `actual_status = running`,
+  `cur_state = running`, `intended_status = running`, RTX 4090, `48 GB` disk,
+  observed `dph_total = 0.37555555555555553`, status message
+  `success, running pytorch/pytorch_2.2.0-cuda12.1-cudnn8-runtime/ssh`.
+- Expected result prefix:
+  `b2://pdebench/remote-runs/model-side-transport-head/`.
+
+Local B2 prefix inspection was not available through `rclone` on this machine
+because no local `b2` rclone config is present; this does not affect the remote
+wrapper's explicit B2 environment. A later tick should use the project-configured
+B2 path/tooling to inspect any small published result artifact.
+
+Next monitoring step: poll sanitized status for contract `42450012`. If it is
+still running or plausibly loading, stay quiet and continue monitoring. If it
+publishes the expected small B2 artifact, fetch only that artifact and validate
+the summary with `scripts/validate_model_side_transport_head_summary.py` before
+accepting any metric. If the instance fails, stalls, or does not tear down,
+destroy it and record the failure.

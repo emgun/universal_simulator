@@ -359,6 +359,21 @@ reusing offer `41528131`: search/select an alternate bounded Vast offer or
 choose a non-provider reroute, then relaunch only under the same no-held-out
 artifact/validator contract.
 
+An alternate-offer relaunch is now active. A sanitized offer search found
+verified RTX 4090 offers under the `$0.45/hr` stop threshold, and offer
+`41175200` was selected because it was below the recent price baseline and had
+strong reported network/disk throughput. A dry-run confirmed the same repaired
+git ref, no-held-out route, remote scratch, and B2-only hydration. The launch
+returned contract `42450012` with `success: true`; sanitized status showed
+`actual_status = running`, `cur_state = running`, `intended_status = running`,
+RTX 4090, `48 GB` disk, observed `dph_total = 0.37555555555555553`, and status
+message `success, running pytorch/pytorch_2.2.0-cuda12.1-cudnn8-runtime/ssh`.
+Expected result prefix remains
+`b2://pdebench/remote-runs/model-side-transport-head/`.
+No result artifact has been accepted yet; the next tick should monitor contract
+`42450012`, validate any published summary before treating metrics as evidence,
+and destroy the instance if it fails, stalls, or does not tear down.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -390,4 +405,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side transport-head remote validation route | Held-out repeat request, broader public claims, unknown billing/top-up, or request to bypass schema/validator gates | Schema propagation is fixed; the repaired relaunch contract `42442415` stopped immediately and was destroyed. Next check should select an alternate bounded Vast offer or a non-provider reroute before another no-held-out relaunch. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Model-side transport-head remote validation route | Held-out repeat request, broader public claims, unknown billing/top-up, or request to bypass schema/validator gates | Alternate-offer Vast contract `42450012` is active for the repaired no-held-out route. Monitor sanitized status, fetch/validate only the small B2 result artifact if published, and destroy on failure/stall/no teardown. |
