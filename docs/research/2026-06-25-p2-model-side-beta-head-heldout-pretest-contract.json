@@ -1,0 +1,157 @@
+{
+  "date": "2026-06-25",
+  "measurement_type": "p2_model_side_beta_transport_head_heldout_pretest_contract",
+  "status": "pre_registered_not_run",
+  "held_out_test_used": false,
+  "test_split_accessed": false,
+  "protocol_mapping": "docs/research/2026-06-25-p2-model-side-beta-head-protocol-mapping.md",
+  "selected_validation_run": {
+    "name": "ups_light_p2_model_side_beta_transport_head_val",
+    "summary_json_inside_artifact": "reports/research/sota_loop/model_side_transport_head_real_shard/ups_light_p2_model_side_beta_transport_head_val/summary.json",
+    "b2_artifact": "b2://pdebench/remote-runs/model-side-transport-head/model_side_transport_head_real_shard_20260625T022059Z.tar.gz",
+    "local_artifact": "reports/research/sota_loop/model_side_transport_head_real_shard_remote_artifacts/model_side_transport_head_real_shard_20260625T022059Z.tar.gz",
+    "artifact_sha256": "9778317b2942728e0d5e9bd503baadbecd66ee08ef44968e9ed60eb2dff9e905",
+    "split": "val",
+    "decoded_rollout_nrmse": 0.11122069837659315,
+    "task_advection1d_decoded_rollout_nrmse": 0.0017868115829009724,
+    "task_advection1d_decoded_h16_nrmse": 0.001784282965734058,
+    "task_burgers1d_decoded_rollout_nrmse": 0.14738121133726986,
+    "task_darcy2d_decoded_rollout_nrmse": 0.18897951477635447,
+    "held_out_test_used": false,
+    "held_out_test_data_read": false,
+    "model_side_transport_head": {
+      "enabled": true,
+      "tasks": [
+        "advection1d"
+      ],
+      "required_params": [
+        "beta"
+      ],
+      "features": [
+        "param:beta",
+        "bias"
+      ],
+      "init": {
+        "param:beta": 10.236877359639507,
+        "bias": -0.08098891730605368
+      },
+      "mode": "periodic_roll",
+      "apply_at": "decoded_rollout",
+      "missing_param_policy": "skip"
+    },
+    "model_side_transport_head_metrics": {
+      "applied_count": 512,
+      "skipped_count": 0,
+      "beta_missing_count": 0,
+      "mean_shift": 3.5019181072711945,
+      "trainable_parameter_count": 2
+    }
+  },
+  "validation_gate": {
+    "gate": "p2_model_side_beta_transport_head_scoped_validation_gate",
+    "passed": true,
+    "thresholds": {
+      "decoded_rollout_nrmse": 0.35078329353213156,
+      "task_advection1d_decoded_rollout_nrmse": 0.4866576789288726,
+      "task_advection1d_decoded_h16_nrmse": 0.44444171136384397,
+      "task_burgers1d_decoded_rollout_nrmse": 0.15674926288225416,
+      "task_darcy2d_decoded_rollout_nrmse": 0.2071060212271272
+    },
+    "required_telemetry": {
+      "model_side_transport_head_metrics.applied_count_min": 1,
+      "model_side_transport_head_metrics.skipped_count": 0,
+      "model_side_transport_head_metrics.beta_missing_count": 0
+    }
+  },
+  "protocol_decision": {
+    "status": "accepted_for_one_scoped_held_out_contract_draft",
+    "claim_contract_label": "light-v1 model-side beta-parameter transport-head UPS variant",
+    "same_exact_inference_contract_as_ct8_primary": false,
+    "same_exact_inference_contract_as_ct1_online_transport_context": false,
+    "external_paper_reproduction": false,
+    "public_claim_evidence_before_heldout_and_mapping": false,
+    "requires_beta_provenance_at_inference": true,
+    "requires_scoped_claim_language_review_after_success": true,
+    "accepted_scope": "May draft one ledger-protected held-out pretest contract for this scoped variant. This contract does not authorize executing the held-out command.",
+    "rejected_overclaims": [
+      "same exact inference contract as CT8/shared-context primary",
+      "same exact inference contract as CT1 online transport-context",
+      "public claim evidence from validation alone",
+      "published-paper SOTA",
+      "broader universal SOTA",
+      "held-out execution without a separate user direction"
+    ]
+  },
+  "pretest_root_requirements": {
+    "requires_remote_scratch": true,
+    "local_hydration_forbidden_while_disk_below_sequential_requirement": true,
+    "requires_new_or_updated_pretest_root_builder": true,
+    "validation_only_full_task_root_builder_must_not_be_reused_for_test": true,
+    "reason": "scripts/build_p2_parameter_full_task_root.py intentionally refuses split=test for validation-only workflows. A held-out pretest must build a separate scoped pretest root inside the pre-registered test workflow.",
+    "root": "reports/research/sota_loop/model_side_transport_head_heldout_pretest/full_task_beta_pretest_root",
+    "required_splits_before_run_light_experiment": [
+      "val",
+      "test"
+    ],
+    "required_standard_test_shards": [
+      "burgers1d/burgers1d_test.h5",
+      "darcy2d/darcy2d_test.h5"
+    ],
+    "required_advection_beta_provenance": [
+      "source_file_index",
+      "source_paths",
+      "params.beta"
+    ],
+    "forbidden_before_pretest_begins": [
+      "test split download outside the pre-registered pretest workflow",
+      "test split sharding outside the pre-registered pretest workflow",
+      "test ledger write before the guarded held-out command",
+      "local hydration on the current low-disk workspace"
+    ]
+  },
+  "intended_held_out": {
+    "command_status": "pre_registered_not_run",
+    "validation_split": "val",
+    "test_split": "test",
+    "ledger_json": "reports/research/sota_loop/model_side_transport_head_heldout_pretest/test_ledger.json",
+    "measurement_key": "9c028afbfb85328fd21fc7de4cffb277fbde274aa042ad63e6499abc562addc3",
+    "expected_validation_summary_json": "reports/research/sota_loop/model_side_transport_head_heldout_pretest/ups_light_p2_model_side_beta_transport_head_scoped_pretest/summary.json",
+    "expected_test_summary_json": "reports/research/sota_loop/model_side_transport_head_heldout_pretest/ups_light_p2_model_side_beta_transport_head_scoped_pretest/summary_test.json",
+    "command": "python scripts/run_light_experiment.py --config configs/train_multitask_heterogeneous_light_best.yaml --name ups_light_p2_model_side_beta_transport_head_scoped_pretest --output-root reports/research/sota_loop/model_side_transport_head_heldout_pretest --stage operator_decoded --skip-training --checkpoint-source reports/research/sota_loop/learned_capacity_gate/ups_light_local_joint_rollout4_residual_ft_val --decoded --decoded-rollout-steps 16 --device cpu --override data.root=reports/research/sota_loop/model_side_transport_head_heldout_pretest/full_task_beta_pretest_root --override data.split=val --override data.max_samples=32 --override data.param_keys=[beta] --override 'operator.conditioning.sources={task_id: 3, equation_signature: 15}' --eval-override evaluation.skip_missing_tasks=false --eval-override evaluation.decoded_persistence_residual_alpha=0.0 --eval-override evaluation.report_all_horizon_metrics=true --eval-override 'model_side_transport_head={enabled: true, tasks: [advection1d], required_params: [beta], features: [\"param:beta\", bias], init: {\"param:beta\": 10.236877359639507, bias: -0.08098891730605368}, mode: periodic_roll, apply_at: decoded_rollout, missing_param_policy: skip}' --promotion-rule decoded_rollout_nrmse<=0.35078329353213156 --promotion-rule task_advection1d_decoded_rollout_nrmse<=0.4866576789288726 --promotion-rule task_advection1d_decoded_h16_nrmse<=0.44444171136384397 --promotion-rule task_burgers1d_decoded_rollout_nrmse<=0.15674926288225416 --promotion-rule task_darcy2d_decoded_rollout_nrmse<=0.2071060212271272 --extra-eval-split test --held-out-test-ledger-json reports/research/sota_loop/model_side_transport_head_heldout_pretest/test_ledger.json"
+  },
+  "required_pre_run_checks": [
+    "python scripts/validate_p2_model_side_beta_head_pretest_contract.py",
+    "python -m pytest tests/unit/test_validate_p2_model_side_beta_head_pretest_contract.py -q",
+    "verify the scoped pretest root builder/wrapper creates val and test splits only inside the pre-registered workflow",
+    "verify beta provenance exists for every held-out advection sample before run_light_experiment starts",
+    "verify the held-out ledger does not already contain measurement key 9c028afbfb85328fd21fc7de4cffb277fbde274aa042ad63e6499abc562addc3"
+  ],
+  "interpretation_rules": {
+    "valid_summary_required": {
+      "summary_validator": "scripts/validate_model_side_transport_head_summary.py must pass on the validation summary before test execution is allowed",
+      "held_out_test_used": true,
+      "held_out_test_data_read": true,
+      "claim_contract_label": "light-v1 model-side beta-parameter transport-head UPS variant",
+      "extra.model_side_transport_head.enabled": true,
+      "extra.model_side_transport_head.required_params_contains": "beta",
+      "extra.model_side_transport_head.mode": "periodic_roll",
+      "extra.model_side_transport_head.apply_at": "decoded_rollout",
+      "extra.model_side_transport_head_metrics.beta_missing_count": 0,
+      "extra.model_side_transport_head_metrics.skipped_count": 0
+    },
+    "positive_transfer": [
+      "decoded_rollout_nrmse <= 0.4165820594268877",
+      "task_advection1d_decoded_rollout_nrmse is explicitly reported",
+      "task_advection1d_decoded_h16_nrmse is explicitly reported",
+      "Burgers and Darcy do not materially regress versus CT8/shared-context primary held-out behavior"
+    ],
+    "negative_or_mixed_transfer": [
+      "decoded_rollout_nrmse > 0.4165820594268877",
+      "or beta provenance is missing for any held-out advection sample",
+      "or any task collapses near 1.0",
+      "or the artifact/ledger/schema validator fails"
+    ],
+    "repeat_policy": "Do not rerun the same measurement key for selection or claim evidence. A debugging repeat must use an explicit repeat flag and be marked not claim evidence."
+  },
+  "next_action": "Implement or dry-run review the scoped pretest-root builder/wrapper next. Do not execute the intended held-out command until the user explicitly directs the irreversible held-out measurement."
+}

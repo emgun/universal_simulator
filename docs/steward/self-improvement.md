@@ -72,3 +72,7 @@ not claim evidence.
   requires PDE metadata not present in the frozen public protocol. Before
   drafting held-out or claim-evidence work, map whether the candidate is a
   primary-contract replacement or a scoped variant with separate language.
+- Do not let a pretest contract quietly reuse validation-only data tooling.
+  For beta-provenance work, the validation root builder correctly refuses
+  `split=test`; a held-out path needs an explicit guarded pretest-root wrapper
+  before any irreversible test command.

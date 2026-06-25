@@ -401,6 +401,19 @@ direction. If the goal is same-contract CT8 replacement, the branch must either
 remove the beta-provenance dependency or define beta provenance as a public
 protocol input first.
 
+The scoped held-out pretest contract draft is recorded at
+`docs/research/2026-06-25-p2-model-side-beta-head-heldout-pretest-contract.json`,
+with validator
+`scripts/validate_p2_model_side_beta_head_pretest_contract.py` and unit tests in
+`tests/unit/test_validate_p2_model_side_beta_head_pretest_contract.py`. It
+pre-registers intended measurement key
+`9c028afbfb85328fd21fc7de4cffb277fbde274aa042ad63e6499abc562addc3` and the
+scoped label `light-v1 model-side beta-parameter transport-head UPS variant`.
+The contract deliberately does not authorize execution: current validation-only
+root tooling refuses `split=test`, so the next safe move is a no-provider
+pretest-root builder/wrapper review or implementation that creates the required
+val/test beta-provenance root only inside the pre-registered held-out workflow.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -432,4 +445,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head pretest contract drafting | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Protocol mapping is complete. Next check should draft the scoped `light-v1 model-side beta-parameter transport-head UPS variant` held-out pretest contract and validator/audit wiring, but must not execute held-out or update public/claim evidence without explicit user direction. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head pretest-root builder/wrapper | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract and validator are drafted. Next check should prepare or review the no-provider pretest-root builder/wrapper that can create val/test beta-provenance shards only inside the pre-registered held-out workflow; do not execute held-out or update public/claim evidence without explicit user direction. |
