@@ -442,6 +442,21 @@ shell syntax checks, Black, Ruff, py_compile, and `git diff --check`. No Vast
 launch, remote hydration, held-out execution, claim-evidence update, or public
 language change occurred.
 
+The first bounded held-out/provider launch attempt for the scoped beta-head
+variant is blocked before instance creation because Vast reported insufficient
+account credit. See
+`docs/research/2026-06-25-p2-model-side-beta-head-heldout-launch-credit-blocker.md`.
+Preflight verified a clean repo at `6310ca3`, a valid scoped contract, and no
+active scoped pretest route instance. A sanitized offer search found verified
+RTX 4090 offer `35374367` at `$0.34805555555555556/hr`; the launcher dry-run
+confirmed `scripts/run_remote_model_side_beta_head_pretest.sh` with
+`ALLOW_HELDOUT_PRETEST=1`. The real launch command returned
+`failed with error 400: Your account lacks credit; see the billing page.`
+No contract id was returned, no new Vast instance was created, no remote
+hydration or held-out execution occurred, and no B2 result artifact was
+published. Next action requires user-side Vast credit/top-up confirmation or a
+new bounded provider route.
+
 The DPOT readiness note is now recorded at
 `docs/research/2026-06-23-p2-dpot-readiness-smoke-design.md`. It pins the live
 source candidate to `HaoZhongkai/DPOT` main
@@ -473,4 +488,4 @@ project knowledge, active work, canonical paths, or stop conditions change.
 
 | Owner | Objective | Scope | Stop condition | Next check |
 | --- | --- | --- | --- | --- |
-| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head held-out execution gate | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract, guarded root builder, and dry-run-first remote wrapper/launcher are scaffolded. Next check should stay quiet unless the user explicitly directs one bounded held-out/provider launch for the scoped variant. |
+| `universal-simulator-roadmap-steward` | Keep the roadmap moving toward the north star | Scoped beta-head held-out execution gate | Held-out repeat request, broader public claims, unknown billing/top-up, missing beta provenance, or request to bypass schema/validator gates | Scoped pretest contract, guarded root builder, and dry-run-first remote wrapper/launcher are scaffolded, but the first bounded launch attempt stopped before instance creation because Vast reported insufficient account credit. Next check should stay quiet until the user confirms Vast credit/top-up or provides a new bounded provider route. |

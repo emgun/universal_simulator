@@ -84,3 +84,6 @@ not claim evidence.
   guarded mode is obviously safer. For this beta-head branch, a dedicated
   dry-run-first wrapper keeps `split=test`, ledger writes, beta provenance, and
   artifact publication visible and fail-closed.
+- Treat a provider credit failure as a hard stop before retrying, even when the
+  offer and wrapper preflight are clean. Record the selected offer and dry-run
+  evidence, then wait for explicit top-up or reroute confirmation.
