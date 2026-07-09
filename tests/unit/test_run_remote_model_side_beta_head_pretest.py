@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -60,7 +61,27 @@ def test_pretest_remote_wrapper_dry_run_preview_uses_temp_outputs(tmp_path):
     env["DRY_RUN"] = "1"
     env["PUBLISH_ARTIFACTS"] = "0"
     env["DATA_ROOT"] = str(tmp_path / "data")
-    env["HYDRATION_PLAN_JSON"] = "reports/research/sota_loop/official_advection_hydration_plan.json"
+    plan_path = tmp_path / "hydration_plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "samples_per_file": 48,
+                "train_count": 256,
+                "val_count": 64,
+                "reserved_test_count": 64,
+                "stratified_split_policy": {
+                    "val_block_offset": 32,
+                    "test_block_offset": 40,
+                },
+                "held_out_test_policy": {
+                    "test_split_downloaded": False,
+                    "test_split_sharded": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    env["HYDRATION_PLAN_JSON"] = str(plan_path)
     env["SEQUENTIAL_HYDRATION_JSON"] = str(tmp_path / "sequential.json")
     env["HYDRATION_VALIDATION_JSON"] = str(tmp_path / "validation.json")
     env["OFFICIAL_SOURCE_ROOT"] = str(tmp_path / "official_source")
