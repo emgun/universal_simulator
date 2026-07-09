@@ -299,8 +299,7 @@ class ChannelLiftDPOT(nn.Module):
     def forward(self, history_pixels: torch.Tensor) -> torch.Tensor:
         if history_pixels.dim() != 5:
             raise ValueError(
-                "history_pixels must have shape (B,T,1,H,W); "
-                f"got {tuple(history_pixels.shape)}"
+                "history_pixels must have shape (B,T,1,H,W); " f"got {tuple(history_pixels.shape)}"
             )
         batch, steps, channels, height, width = history_pixels.shape
         if int(steps) != self.history_steps:
@@ -418,9 +417,7 @@ def collect_dpot_training_pairs(
                     grid_shape,
                     image_size=image_size,
                 )
-                histories.append(
-                    build_repeat_current_history(current, history_steps=history_steps)
-                )
+                histories.append(build_repeat_current_history(current, history_steps=history_steps))
                 targets.append(target)
                 task_pairs += 1
         records.append(

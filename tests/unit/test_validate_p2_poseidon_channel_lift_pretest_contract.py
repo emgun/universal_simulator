@@ -11,8 +11,7 @@ from scripts.validate_p2_poseidon_channel_lift_pretest_contract import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = (
-    ROOT
-    / "docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-pretest-contract.json"
+    ROOT / "docs/research/2026-06-23-p2-poseidon-channel-lift-heldout-pretest-contract.json"
 )
 
 
@@ -70,9 +69,7 @@ def test_contract_rejects_existing_ledger_measurement(tmp_path):
 
 def test_contract_requires_test_split_and_claim_boundary(tmp_path):
     contract = copy.deepcopy(_load_current_contract())
-    contract["intended_held_out"]["command"] = contract["intended_held_out"][
-        "command"
-    ].replace(
+    contract["intended_held_out"]["command"] = contract["intended_held_out"]["command"].replace(
         "--eval-split test",
         "--eval-split val",
     )
