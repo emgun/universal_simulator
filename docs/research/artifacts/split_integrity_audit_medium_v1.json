@@ -1,0 +1,51 @@
+{
+  "candidate_scored": false,
+  "held_out_test_data_read": true,
+  "measurement_type": "split_integrity_overlap_audit",
+  "purpose": "protocol_distribution_diagnostic",
+  "root": "/tmp/medium_diag",
+  "root_digest": "517cf2a803b4",
+  "tasks": {
+    "advection1d": {
+      "key": "initial_condition_frame",
+      "missing_splits": [],
+      "overlaps": {
+        "train<->test": 128,
+        "train<->val": 128,
+        "val<->test": 128
+      },
+      "split_sizes": {
+        "test": 128,
+        "train": 512,
+        "val": 128
+      },
+      "task": "advection1d",
+      "unique_keys_per_split": {
+        "test": 128,
+        "train": 512,
+        "val": 128
+      }
+    },
+    "burgers1d": {
+      "key": "initial_condition_frame",
+      "missing_splits": [],
+      "overlaps": {
+        "train<->test": 128,
+        "train<->val": 128,
+        "val<->test": 128
+      },
+      "split_sizes": {
+        "test": 128,
+        "train": 512,
+        "val": 128
+      },
+      "task": "burgers1d",
+      "unique_keys_per_split": {
+        "test": 128,
+        "train": 512,
+        "val": 128
+      }
+    }
+  },
+  "test_ledger_writes": []
+}
