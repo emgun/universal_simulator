@@ -14,11 +14,11 @@ from torch import nn
 from scripts.run_external_dpot_finetune import (
     CHANNEL_LIFT_ADAPTER_MODE,
     ChannelLiftDPOT,
+    _load_trusted_dpot_checkpoint,
+    _sample_limit,
     append_prediction_to_history,
     build_repeat_current_history,
     configure_trainable_dpot_parameters,
-    _load_trusted_dpot_checkpoint,
-    _sample_limit,
     train_dpot_adapter,
     validate_dpot_finetune_summary,
 )
@@ -65,9 +65,13 @@ def test_channel_lift_dpot_replicate_init_matches_backbone_channel_mean():
 
     wrapped = wrapper(history)
     dpot_input = history.expand(-1, -1, 4, -1, -1).permute(0, 3, 4, 1, 2).contiguous()
-    direct = backbone(dpot_input)[0][:, :, :, -1, :].permute(0, 3, 1, 2).mean(
-        dim=1,
-        keepdim=True,
+    direct = (
+        backbone(dpot_input)[0][:, :, :, -1, :]
+        .permute(0, 3, 1, 2)
+        .mean(
+            dim=1,
+            keepdim=True,
+        )
     )
 
     assert torch.allclose(wrapped, direct, atol=1e-6)

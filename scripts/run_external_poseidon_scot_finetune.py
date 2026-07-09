@@ -241,8 +241,7 @@ def configure_trainable_poseidon_parameters(
     if not trainable_names:
         expected = (
             list(CHANNEL_LIFT_PARAMETER_PREFIXES)
-            if adapter_mode
-            in (CHANNEL_LIFT_ADAPTER_MODE, TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE)
+            if adapter_mode in (CHANNEL_LIFT_ADAPTER_MODE, TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE)
             else list(SCALAR_LAYER_PARAMETER_MARKERS)
         )
         raise ValueError(
@@ -681,13 +680,17 @@ def evaluate_poseidon_task_modulated_validation(
                     dtype=torch.long,
                 )
                 with torch.no_grad():
-                    pred_pixels = _forward_poseidon_pixels(
-                        model,
-                        pixels,
-                        time_value=time_value,
-                        device=device,
-                        task_ids=task_ids,
-                    ).detach().cpu()
+                    pred_pixels = (
+                        _forward_poseidon_pixels(
+                            model,
+                            pixels,
+                            time_value=time_value,
+                            device=device,
+                            task_ids=task_ids,
+                        )
+                        .detach()
+                        .cpu()
+                    )
                 pred = poseidon_pixels_to_repo_flat(pred_pixels, grid_shape)
                 target = _flatten_field_step(fields[step + 1].float(), grid_shape).cpu()
                 if not torch.isfinite(pred).all():
@@ -951,7 +954,9 @@ def validate_poseidon_finetune_summary(summary: Mapping[str, Any]) -> list[str]:
     if adapter_mode == TASK_MODULATED_CHANNEL_LIFT_ADAPTER_MODE:
         task_modulation = summary.get("details", {}).get("task_modulation")
         if not isinstance(task_modulation, Mapping) or not task_modulation.get("task_to_index"):
-            errors.append("task-modulated summaries must record details.task_modulation.task_to_index")
+            errors.append(
+                "task-modulated summaries must record details.task_modulation.task_to_index"
+            )
     return errors
 
 
