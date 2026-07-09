@@ -25,6 +25,7 @@ from ups.eval.reward_models import RewardModel
 from ups.inference.rollout_ttc import TTCConfig, ttc_rollout
 from ups.models.diffusion_residual import DiffusionResidual
 from ups.models.latent_operator import LatentOperator
+from ups.models.transport_head import ModelSideTransportHead, model_side_transport_head_config
 
 
 @dataclass
@@ -1009,6 +1010,14 @@ def evaluate_decoded_operator(
     data_conditioned_roll_shift_cfg = _data_conditioned_roll_shift_estimator_config(
         eval_cfg.get("decoded_data_conditioned_roll_shift_estimator")
     )
+    model_side_transport_head_cfg = model_side_transport_head_config(
+        cfg.get("model_side_transport_head", eval_cfg.get("model_side_transport_head"))
+    )
+    model_side_transport_head = (
+        ModelSideTransportHead(model_side_transport_head_cfg)
+        if model_side_transport_head_cfg.enabled
+        else None
+    )
     report_all_horizon_metrics = bool(eval_cfg.get("report_all_horizon_metrics", False))
     skip_missing_tasks = bool(
         eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
@@ -1021,6 +1030,11 @@ def evaluate_decoded_operator(
     preview_records: list[dict[str, Any]] = []
     alpha_stats: dict[str, list[float]] = {}
     shift_stats: dict[str, list[float]] = {}
+    transport_head_counts = {
+        "applied_sample_count": 0,
+        "skipped_sample_count": 0,
+        "beta_missing_count": 0,
+    }
     horizon_pred: dict[int, list[torch.Tensor]] = {
         horizon: [] for horizon in _DEFAULT_DECODED_HORIZONS
     }
@@ -1262,6 +1276,44 @@ def evaluate_decoded_operator(
                             == "roll_persistence"
                         ):
                             pred_field = persistence_field
+                    if roll_shift == 0 and model_side_transport_head is not None:
+                        if model_side_transport_head.applies(
+                            task_name=task_name, task_family=task_family
+                        ):
+                            shift_value, shift_info = model_side_transport_head.predict_shift(
+                                params=params,
+                                horizon=horizon,
+                                rollout_steps=steps,
+                                device=pred_field.device,
+                                dtype=pred_field.dtype,
+                            )
+                            if shift_value is None:
+                                transport_head_counts["skipped_sample_count"] += 1
+                                if "beta" in set(shift_info.get("missing_params", ())):
+                                    transport_head_counts["beta_missing_count"] += 1
+                            else:
+                                roll_shift = float(shift_value.detach().cpu().item())
+                                transport_head_counts["applied_sample_count"] += 1
+                                _append_stat(
+                                    shift_stats,
+                                    "model_side_transport_head_shift",
+                                    float(roll_shift),
+                                )
+                                _append_stat(
+                                    shift_stats,
+                                    f"task_{task_name}_model_side_transport_head_shift",
+                                    float(roll_shift),
+                                )
+                                _append_stat(
+                                    shift_stats,
+                                    f"family_{task_family}_model_side_transport_head_shift",
+                                    float(roll_shift),
+                                )
+                                _append_stat(
+                                    shift_stats,
+                                    f"model_side_transport_head_shift_h{horizon}",
+                                    float(roll_shift),
+                                )
                     if roll_shift == 0 and _roll_shift_estimator_applies(
                         cfg=observed_roll_shift_cfg,
                         task_name=task_name,
@@ -1497,6 +1549,12 @@ def evaluate_decoded_operator(
         "decoded_prediction_roll_shift_estimator": prediction_roll_shift_cfg,
         "decoded_context_roll_shift_estimator": context_roll_shift_cfg,
         "decoded_data_conditioned_roll_shift_estimator": data_conditioned_roll_shift_cfg,
+        "model_side_transport_head": (
+            model_side_transport_head.resolved_config()
+            if model_side_transport_head is not None
+            else {}
+        ),
+        "model_side_transport_head_metrics": transport_head_counts,
         "report_all_horizon_metrics": report_all_horizon_metrics,
         "skip_missing_tasks": skip_missing_tasks,
         "skipped_missing_tasks": skipped_missing_tasks,

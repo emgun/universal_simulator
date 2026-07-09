@@ -9,10 +9,22 @@ set -euo pipefail
 : "${UPS_AUTO_SHUTDOWN:=0}"
 : "${UPS_INSTALL_MODE:=experiment}"
 : "${UPS_SCRIPT_ARGS_B64:=}"
+: "${UPS_EXIT_SENTINEL:=$UPS_WORKDIR/.ups_remote_bootstrap_exit_status}"
+
+if [ "$UPS_AUTO_SHUTDOWN" = "1" ] && [ -f "$UPS_EXIT_SENTINEL" ]; then
+  previous_status="$(cat "$UPS_EXIT_SENTINEL" 2>/dev/null || echo unknown)"
+  echo "REMOTE_BOOTSTRAP_ALREADY_RAN previous_status=${previous_status}"
+  if command -v poweroff >/dev/null 2>&1; then
+    poweroff || true
+  fi
+  exit 0
+fi
 
 shutdown_on_exit() {
   local status=$?
   echo "REMOTE_BOOTSTRAP_EXIT_STATUS=${status}"
+  mkdir -p "$(dirname "$UPS_EXIT_SENTINEL")"
+  echo "$status" > "$UPS_EXIT_SENTINEL" || true
   sync || true
   if command -v poweroff >/dev/null 2>&1; then
     poweroff || true
@@ -102,6 +114,12 @@ fi
 
 cd universal_simulator
 if command -v git >/dev/null 2>&1; then
+  if [ ! -d .git ]; then
+    cd ..
+    rm -rf universal_simulator
+    git clone "$UPS_REPO_URL" universal_simulator
+    cd universal_simulator
+  fi
   git fetch --all --prune
   git checkout "$UPS_GIT_REF" || git checkout -b "$UPS_GIT_REF" "origin/$UPS_GIT_REF"
   git pull --ff-only || git pull

@@ -758,6 +758,98 @@ def test_evaluate_decoded_operator_data_conditioned_roll_shift_is_default_off(tm
 
     assert "decoded_data_conditioned_roll_shift_mean" not in report.metrics
     assert report.extra["decoded_data_conditioned_roll_shift_estimator"] == {}
+    assert report.extra["model_side_transport_head"] == {}
+
+
+def test_evaluate_decoded_operator_can_apply_model_side_beta_transport_head(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+        handle.create_dataset("source_file_index", data=torch.tensor([0]).numpy())
+        handle.attrs["source_paths"] = ["1D/Advection/Train/1D_Advection_Sols_beta0.1.hdf5"]
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "model_side_transport_head": {
+            "enabled": True,
+            "tasks": ["advection1d"],
+            "required_params": ["beta"],
+            "features": ["param:beta", "bias"],
+            "init": {"param:beta": 10.0, "bias": 0.0},
+            "mode": "periodic_roll",
+            "apply_at": "decoded_rollout",
+            "missing_param_policy": "skip",
+        },
+        "evaluation": {"decoded_persistence_residual_alpha": 0.0},
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+            "param_keys": ["beta"],
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] < 1e-6
+    assert abs(report.metrics["model_side_transport_head_shift_mean"] - 1.0) < 1e-6
+    assert report.extra["model_side_transport_head"]["enabled"] is True
+    assert report.extra["model_side_transport_head"]["trainable_parameter_count"] == 2
+    assert report.extra["model_side_transport_head_metrics"] == {
+        "applied_sample_count": 1,
+        "skipped_sample_count": 0,
+        "beta_missing_count": 0,
+    }
+
+
+def test_evaluate_decoded_operator_model_side_transport_head_skips_missing_beta(tmp_path):
+    data = torch.tensor([[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]], dtype=torch.float32)
+    file_path = tmp_path / "advection1d_train.h5"
+    with h5py.File(file_path, "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "model_side_transport_head": {
+            "enabled": True,
+            "tasks": ["advection1d"],
+            "required_params": ["beta"],
+            "features": ["param:beta"],
+            "init": {"param:beta": 10.0},
+            "missing_param_policy": "skip",
+        },
+        "evaluation": {"decoded_persistence_residual_alpha": 0.0},
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "patch_size": 1,
+            "field_name": "u",
+        },
+    }
+
+    report = evaluate_decoded_operator(
+        cfg,
+        _DummyEncoder(),
+        _IdentityOperator(),
+        _DummyDecoder(),
+    )
+
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] > 0.0
+    assert "model_side_transport_head_shift_mean" not in report.metrics
+    assert report.extra["model_side_transport_head_metrics"] == {
+        "applied_sample_count": 0,
+        "skipped_sample_count": 1,
+        "beta_missing_count": 1,
+    }
 
 
 def test_evaluate_decoded_operator_data_conditioned_roll_shift_can_use_context_feature(
