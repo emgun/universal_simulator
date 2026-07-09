@@ -1,0 +1,71 @@
+{
+  "candidate_scored": false,
+  "held_out_test_data_read": true,
+  "measurement_type": "split_integrity_overlap_audit",
+  "purpose": "protocol_distribution_diagnostic",
+  "root": "/Users/emerygunselman/.codex/worktrees/0ae8/universal_simulator/data/pdebench",
+  "root_digest": "e51efe3a8099",
+  "tasks": {
+    "advection1d": {
+      "key": "initial_condition_frame",
+      "missing_splits": [],
+      "overlaps": {
+        "train<->test": 32,
+        "train<->val": 32,
+        "val<->test": 32
+      },
+      "split_sizes": {
+        "test": 32,
+        "train": 128,
+        "val": 32
+      },
+      "task": "advection1d",
+      "unique_keys_per_split": {
+        "test": 32,
+        "train": 128,
+        "val": 32
+      }
+    },
+    "burgers1d": {
+      "key": "initial_condition_frame",
+      "missing_splits": [],
+      "overlaps": {
+        "train<->test": 32,
+        "train<->val": 32,
+        "val<->test": 32
+      },
+      "split_sizes": {
+        "test": 32,
+        "train": 128,
+        "val": 32
+      },
+      "task": "burgers1d",
+      "unique_keys_per_split": {
+        "test": 32,
+        "train": 128,
+        "val": 32
+      }
+    },
+    "darcy2d": {
+      "key": "full_field",
+      "missing_splits": [],
+      "overlaps": {
+        "train<->test": 0,
+        "train<->val": 0,
+        "val<->test": 0
+      },
+      "split_sizes": {
+        "test": 32,
+        "train": 128,
+        "val": 32
+      },
+      "task": "darcy2d",
+      "unique_keys_per_split": {
+        "test": 32,
+        "train": 128,
+        "val": 32
+      }
+    }
+  },
+  "test_ledger_writes": []
+}
