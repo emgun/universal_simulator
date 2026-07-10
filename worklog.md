@@ -2774,3 +2774,6 @@ strat-v1 advection root built and gate-verified (2026-07-09):
 - Applied the stratified block policy to the official beta-provenance root via `scripts/make_light_hdf5_shards.py`, producing `b2://pdebench/strat-v1/advection1d/` (256/64/64) with both roadmap build gates passing: zero cross-split overlap and exactly 32/8/8 samples per beta per split by provenance. Hashes and audit artifacts committed under `docs/research/artifacts/strat_v1_advection_*`; note at `docs/research/2026-07-09-strat-v1-advection-root.md`.
 - Remaining A2: Burgers needs official multi-nu hydration (critical path; no honest Burgers split exists in any current tier), Darcy full-tier provenance inspection is in flight, medium tier needs larger per-beta hydration.
 - The scoped beta-head held-out pretest launched successfully after credit landed (instance 44359961, contract blockers empty); result pending.
+
+Full-tier Darcy duplication found (2026-07-09):
+- The full-tier `b2://pdebench/full/darcy2d/darcy2d_train.h5` (40,000 samples) is one 10,000-sample source repeated exactly four times (exact array equality at 10k offsets); no provenance attributes. Recorded in the strat-v1 advection note; all full-tier shards now require a dedup/provenance audit before use.
