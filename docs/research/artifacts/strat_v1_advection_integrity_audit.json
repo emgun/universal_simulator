@@ -1,0 +1,31 @@
+{
+  "candidate_scored": false,
+  "held_out_test_data_read": true,
+  "measurement_type": "split_integrity_overlap_audit",
+  "purpose": "protocol_distribution_diagnostic",
+  "root": "/tmp/strat_v1_light",
+  "root_digest": "c411d53d1441",
+  "tasks": {
+    "advection1d": {
+      "key": "initial_condition_frame",
+      "missing_splits": [],
+      "overlaps": {
+        "train<->test": 0,
+        "train<->val": 0,
+        "val<->test": 0
+      },
+      "split_sizes": {
+        "test": 64,
+        "train": 256,
+        "val": 64
+      },
+      "task": "advection1d",
+      "unique_keys_per_split": {
+        "test": 8,
+        "train": 32,
+        "val": 8
+      }
+    }
+  },
+  "test_ledger_writes": []
+}
