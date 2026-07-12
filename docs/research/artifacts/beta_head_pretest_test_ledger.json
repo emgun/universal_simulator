@@ -1,0 +1,14 @@
+{
+  "measurements": [
+    {
+      "measurement_key": "9c028afbfb85328fd21fc7de4cffb277fbde274aa042ad63e6499abc562addc3",
+      "run_name": "ups_light_p2_model_side_beta_transport_head_scoped_pretest",
+      "summary_json": "reports/research/sota_loop/model_side_transport_head_heldout_pretest/ups_light_p2_model_side_beta_transport_head_scoped_pretest/summary_test.json",
+      "test_metric_name": "decoded_rollout_nrmse",
+      "test_metric_value": 0.12976493407013082,
+      "test_split": "test",
+      "validation_metric_name": "decoded_rollout_nrmse",
+      "validation_metric_value": 0.11122069865007121
+    }
+  ]
+}

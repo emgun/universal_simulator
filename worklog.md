@@ -2777,3 +2777,8 @@ strat-v1 advection root built and gate-verified (2026-07-09):
 
 Full-tier Darcy duplication found (2026-07-09):
 - The full-tier `b2://pdebench/full/darcy2d/darcy2d_train.h5` (40,000 samples) is one 10,000-sample source repeated exactly four times (exact array equality at 10k offsets); no provenance attributes. Recorded in the strat-v1 advection note; all full-tier shards now require a dedup/provenance audit before use.
+
+Beta transport head held-out pretest executed (2026-07-11):
+- Ran the pre-registered scoped held-out measurement (key `9c028afb...`) locally on CPU after both remote GPU attempts died to credit exhaustion during official-source re-hydration; all required data existed locally and the contract command is `--device cpu`. One ledger entry written; artifact published to `b2://pdebench/remote-runs/model-side-beta-head-pretest/model_side_beta_head_pretest_20260711T074154Z.tar.gz`.
+- Result: held-out overall `0.12976493407013082` (advection `0.0011108774108008665`, Burgers `0.17446879896821743`, Darcy `0.20909553062258152`) vs validation `0.11122069865007121` - the first tight val->test transfer in project history and the strongest scoped held-out number recorded (vs CT1 `0.2018`, data-conditioned `0.1808`), with no online context dependency. All pre-registered promotion gates passed. Scoped variant only; canonical-root caveat applies. Note: `docs/research/2026-07-11-beta-head-heldout-result.md`.
+- Fixed a latent wrapper defect that had blocked every execution path: `bash -lc` treated the bare `metric<=value` promotion-rule tokens in the contract command as input redirection; the wrapper now quotes them at runtime without touching the contract text or measurement key.
