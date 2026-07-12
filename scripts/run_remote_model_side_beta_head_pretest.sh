@@ -374,6 +374,11 @@ root_args=(
 run_or_echo "${root_args[@]}"
 
 heldout_cmd="$(heldout_command_from_contract)"
+# Quote promotion-rule expressions for shell execution: the pre-registered
+# command string contains bare `metric<=value` tokens whose `<` bash would
+# otherwise treat as input redirection. This changes only runtime quoting,
+# not the contract text the measurement key is derived from.
+heldout_cmd="$(printf '%s' "$heldout_cmd" | sed -E "s/--promotion-rule ([A-Za-z0-9_]+<=[0-9.eE+-]+)/--promotion-rule '\\1'/g")"
 echo "Running pre-registered scoped held-out command from ${CONTRACT_JSON}"
 run_shell_or_echo "$heldout_cmd"
 
