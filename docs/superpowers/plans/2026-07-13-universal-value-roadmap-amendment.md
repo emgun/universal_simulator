@@ -123,6 +123,14 @@ unconditioned-interface negative, not generic FNO/UNO recipe inadequacy. A
 matched Darcy FNO `U` coefficient-only versus `K` beta-conditioned ablation is
 pre-registered before Poseidon or `tier_b` spend.
 
+**Conditioning mechanism confirmed, specialist unresolved 2026-07-14.** D1
+improved Darcy validation NRMSE `0.876806 -> 0.189475`; shuffled beta worsened
+it to `1.358415`, establishing real parameter use. The conditioned arm remains
+ineligible because corrected spread is `2.170477 > 1.5` and the curve did not
+plateau by epoch 24. Parameter value/presence is now a universal interface
+requirement. The next specialist must target beta-100 error concentration and
+support resumable plateau evidence; held-out access remains closed.
+
 1. Pre-register a validation-only recipe-adequacy ladder for FNO and UNO.
 2. Use the smallest checkpoints that can establish a learning plateau under a
    fixed budget. Do not optimize U-Net or CNO unless later evidence makes one
@@ -201,7 +209,7 @@ principal breadth claim is the k-shot adaptation curve, not a task-count total.
    selected no specialist.
 3. ~~Diagnose Darcy beta-blind identifiability and pre-register one matched
    coefficient-only versus beta-conditioned FNO ablation.~~ Completed
-   2026-07-14; bounded validation execution is next.
+   2026-07-14; D1 confirmed conditioning but did not pass spread/plateau gates.
 4. Add one lock-bound shared candidate configuration whose conditioning
    sources explicitly include parameter values and presence masks.
 5. Add dedicated validation plans for `tier_b` and Poseidon A/B; do not reuse

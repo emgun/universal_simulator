@@ -139,9 +139,7 @@ def test_builds_validation_only_self_hashed_beta_blind_oracle(tmp_path):
         ({"nonfinite_target": True}, "solution targets.*finite"),
     ],
 )
-def test_fails_closed_on_invalid_group_coverage_inputs_or_values(
-    tmp_path, fixture_kwargs, message
-):
+def test_fails_closed_on_invalid_group_coverage_inputs_or_values(tmp_path, fixture_kwargs, message):
     with pytest.raises(ValueError, match=message):
         _build(_fixture(tmp_path, **fixture_kwargs))
 
@@ -150,11 +148,14 @@ def test_fails_closed_on_invalid_group_coverage_inputs_or_values(
 def test_requires_exact_caller_pinned_lock_selection_and_validation_sha(tmp_path, identity):
     fixture = list(_fixture(tmp_path))
     fixture[{"lock": 2, "selection": 3, "validation": 4}[identity]] = "f" * 64
-    with pytest.raises(ValueError, match={
-        "lock": "training lock SHA",
-        "selection": "training lock selection",
-        "validation": "locked validation object SHA",
-    }[identity]):
+    with pytest.raises(
+        ValueError,
+        match={
+            "lock": "training lock SHA",
+            "selection": "training lock selection",
+            "validation": "locked validation object SHA",
+        }[identity],
+    ):
         _build(tuple(fixture))
 
 

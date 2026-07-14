@@ -68,20 +68,29 @@ def _fixture(tmp_path: Path, *, shuffled: float = 0.8) -> tuple[Path, Path, Path
         for epoch, value in zip([3, 6, 12, 24], values, strict=True):
             checkpoint = tmp_path / f"{arm}-{epoch}.pt"
             checkpoint.write_bytes(f"{arm}-{epoch}".encode())
-            checkpoints[str(epoch)] = {"path": str(checkpoint), "sha256": _sha(checkpoint), "epoch": epoch}
-            history.append({
+            checkpoints[str(epoch)] = {
+                "path": str(checkpoint),
+                "sha256": _sha(checkpoint),
                 "epoch": epoch,
-                "primary_value": value,
-                "maximum_corrected_spread_ratio": 1.2 if arm == "K" else 1.9,
-                "per_beta": [
-                    {"beta": beta, "global_scale_nrmse": value, "spread_ratio_to_primary": 1.0}
-                    for beta in (0.01, 0.1, 1.0, 10.0, 100.0)
-                ],
-            })
+            }
+            history.append(
+                {
+                    "epoch": epoch,
+                    "primary_value": value,
+                    "maximum_corrected_spread_ratio": 1.2 if arm == "K" else 1.9,
+                    "per_beta": [
+                        {"beta": beta, "global_scale_nrmse": value, "spread_ratio_to_primary": 1.0}
+                        for beta in (0.01, 0.1, 1.0, 10.0, 100.0)
+                    ],
+                }
+            )
         winner = min(history, key=lambda row: (row["primary_value"], row["epoch"]))
         arms[arm] = {
             "validation_history": history,
-            "selection": {"selected_epoch": winner["epoch"], "selected_value": winner["primary_value"]},
+            "selection": {
+                "selected_epoch": winner["epoch"],
+                "selected_value": winner["primary_value"],
+            },
             "checkpoints": {"rungs": checkpoints, "selected": checkpoints[str(winner["epoch"])]},
             "compute": {
                 "duration_sec": 1.0,
@@ -102,10 +111,17 @@ def _fixture(tmp_path: Path, *, shuffled: float = 0.8) -> tuple[Path, Path, Path
             "lock_sha256": "c" * 64,
             "darcy_objects": {key: {"sha256": value} for key, value in object_hashes.items()},
         },
-        "matched_design": {"arms": ["U", "K"], "seed": 17, "rungs": [3, 6, 12, 24], "same_data_order_updates": True},
+        "matched_design": {
+            "arms": ["U", "K"],
+            "seed": 17,
+            "rungs": [3, 6, 12, 24],
+            "same_data_order_updates": True,
+        },
         "arms": arms,
         "diagnostics": {
-            "counterfactual_beta_sensitivity": {"K": {"relative_prediction_rms_from_first_beta": 0.1}},
+            "counterfactual_beta_sensitivity": {
+                "K": {"relative_prediction_rms_from_first_beta": 0.1}
+            },
             "deterministic_shuffled_beta": {"primary_value": shuffled},
         },
     }
@@ -117,17 +133,27 @@ def _fixture(tmp_path: Path, *, shuffled: float = 0.8) -> tuple[Path, Path, Path
 
 def test_materializer_accepts_complete_causal_evidence(monkeypatch, tmp_path):
     plan, summary, output = _fixture(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["materialize", "--plan", str(plan), "--summary", str(summary), "--output", str(output)])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["materialize", "--plan", str(plan), "--summary", str(summary), "--output", str(output)],
+    )
     materialize.main()
     result = json.loads(output.read_text())
     assert result["all_gates_passed"] is True
     assert result["effect"]["conditioned_primary_relative_improvement"] > 0.1
-    assert result["artifact_sha256"] == canonical_sha256({k: v for k, v in result.items() if k != "artifact_sha256"})
+    assert result["artifact_sha256"] == canonical_sha256(
+        {k: v for k, v in result.items() if k != "artifact_sha256"}
+    )
 
 
 def test_materializer_records_failed_shuffled_beta_gate(monkeypatch, tmp_path):
     plan, summary, output = _fixture(tmp_path, shuffled=0.61)
-    monkeypatch.setattr(sys, "argv", ["materialize", "--plan", str(plan), "--summary", str(summary), "--output", str(output)])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["materialize", "--plan", str(plan), "--summary", str(summary), "--output", str(output)],
+    )
     materialize.main()
     result = json.loads(output.read_text())
     assert result["gate_checks"]["shuffled_beta_degradation"] is False
@@ -139,4 +165,7 @@ def test_remote_wrapper_has_no_measurement_or_test_surface():
     assert "measurement.lock" not in wrapper
     assert "_test.h5" not in wrapper
     assert "--test" not in wrapper
-    assert "--auto-shutdown" in (REPO_ROOT / "scripts/launch_darcy_fno_conditioning_ablation_vast.sh").read_text()
+    assert (
+        "--auto-shutdown"
+        in (REPO_ROOT / "scripts/launch_darcy_fno_conditioning_ablation_vast.sh").read_text()
+    )

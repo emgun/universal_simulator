@@ -110,9 +110,7 @@ def _validate_lock(
     ):
         raise PermissionError("training lock exposes a test object or path")
     records = [
-        item
-        for item in lock.objects
-        if item.role == "valid" and item.object_id == "darcy2d-valid"
+        item for item in lock.objects if item.role == "valid" and item.object_id == "darcy2d-valid"
     ]
     if len(records) != 1:
         raise ValueError("training lock must contain exactly one darcy2d-valid object")
@@ -218,9 +216,7 @@ def build_diagnostic(
     target_mean_sq = float(np.square(target_cube).mean(dtype=np.float64))
     if not math.isfinite(target_mean_sq) or target_mean_sq < 0:
         raise ValueError("target scale is not finite")
-    pooled_nrmse = _global_scale_nrmse(
-        prediction_cube - target_cube, target_mean_sq, eps=eps
-    )
+    pooled_nrmse = _global_scale_nrmse(prediction_cube - target_cube, target_mean_sq, eps=eps)
 
     regimes = []
     for index, beta in enumerate(EXPECTED_BETAS):

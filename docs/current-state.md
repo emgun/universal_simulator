@@ -161,7 +161,17 @@ at all five betas. Even the minimum-MSE beta-blind oracle has NRMSE `0.869025`
 and maximum corrected spread `1.990764`, which closely matches the learned R0
 failure. R0 is therefore an unconditioned-interface negative, not evidence that
 FNO/UNO are generically inadequate. A matched validation-only coefficient-only
-versus beta-conditioned Darcy FNO ablation is now pre-registered.
+versus beta-conditioned Darcy FNO ablation has now completed.
+
+That D1 ablation confirms the mechanism but does not pass the specialist gate.
+Explicit beta conditioning improves Darcy validation NRMSE from `0.876806` to
+`0.189475` (`78.39%`). Shuffled beta degrades the conditioned result to
+`1.358415`, and counterfactual beta strongly changes its predictions, so the
+gain represents real parameter use. However, maximum corrected spread is still
+`2.170477` because beta `100` dominates absolute error, and the conditioned
+curve is still improving at epoch 24. Treat parameter value/presence as a
+universal interface requirement, but do not promote this checkpoint or access
+held-out data.
 
 The complete 15.3 MiB run bundle is immutable at B2 SHA-256
 `bc917695cdec16a517995036576933628a8d9a3136ad2f1fb1bffaaa2e5b78b7`.
@@ -206,11 +216,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 ## Active Work and Next Move
 
-1. Execute the pre-registered Darcy FNO U/K conditioning ablation and require
-   both predictive gains and causal beta-use diagnostics; do not run held-out.
-2. If the mechanism passes, make parameter value/presence universal in the
-   specialist and shared candidate contracts before Poseidon or `tier_b` spend.
-3. Then measure shared-versus-single-task interference, low-data transfer, regime
+1. Make parameter value/presence universal in specialist and shared candidate
+   contracts; the Darcy D1 causal beta-use mechanism is confirmed.
+2. Pre-register a regime-balanced, plateau-capable conditioned Darcy specialist
+   with resumable optimizer checkpoints; target beta-100 error concentration.
+3. Only after that gate, repair Poseidon and `tier_b` conditioning/evaluation
+   contracts and measure shared-versus-single-task interference, low-data transfer, regime
    handling, and consolidation economics. Select exactly one specialist and
    one shared candidate before drafting any held-out sequence.
 

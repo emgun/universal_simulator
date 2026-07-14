@@ -2,7 +2,7 @@
 
 Date: 2026-07-14
 
-Status: D0 complete; D1 pre-registered and validation-only
+Status: D0 complete; D1 completed validation-only
 
 ## Decision
 
@@ -81,3 +81,14 @@ hashes, D0 artifact, runner bytes, command, gates, and zero-heldout policy.
   NRMSE improves.
 
 No D1 outcome authorizes held-out access or public claim promotion.
+
+## D1 disposition
+
+D1 confirmed causal beta use: validation NRMSE improved by `78.39%`, and
+shuffled beta worsened the conditioned result by `616.94%`. It did not pass the
+full gate because corrected spread remained `2.170477` and the conditioned
+curve had not plateaued at epoch 24. See
+`docs/research/2026-07-14-strat-v1-1-darcy-conditioning-result.md`. The saved
+rung checkpoints contain model weights but not optimizer state, so an exact
+continuous resume is unavailable; future plateau plans must correct that
+before execution.

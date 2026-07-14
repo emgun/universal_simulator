@@ -292,9 +292,7 @@ def evaluate_arm(
         "primary_metric": PRIMARY_METRIC,
         "primary_value": primary,
         "per_beta": regimes,
-        "maximum_corrected_spread_ratio": max(
-            item["spread_ratio_to_primary"] for item in regimes
-        ),
+        "maximum_corrected_spread_ratio": max(item["spread_ratio_to_primary"] for item in regimes),
         "predictions": predictions,
     }
 
@@ -321,8 +319,14 @@ def beta_diagnostics(
     permutation = deterministic_beta_permutation(len(beta))
     shuffled_beta = beta.index_select(0, permutation)
     shuffled = evaluate_arm(
-        selected_models["K"], coefficients, targets, beta,
-        arm="K", normalizer=normalizer, device=device, conditioning_beta=shuffled_beta,
+        selected_models["K"],
+        coefficients,
+        targets,
+        beta,
+        arm="K",
+        normalizer=normalizer,
+        device=device,
+        conditioning_beta=shuffled_beta,
     )
     regimes = torch.tensor(sorted(set(float(item) for item in beta.tolist())))
     sensitivity: dict[str, Any] = {}
@@ -383,9 +387,7 @@ def _checkpoint(
 
 
 def git_commit() -> str:
-    value = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
-    ).strip()
+    value = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
     if len(value) != 40:
         raise RuntimeError("could not resolve an exact git commit")
     return value
@@ -401,12 +403,8 @@ def run(args: argparse.Namespace, *, fno_cls: type[nn.Module] | None = None) -> 
         expected_lock_sha256=FROZEN_STRAT_V1_TRAINING_LOCK_SHA256,
     )
     darcy_runtime = runtime.tasks[TASK]
-    train_dataset = PDEBenchDataset(
-        runtime.dataset_config(TASK, "train", condition_on_regime=True)
-    )
-    valid_dataset = PDEBenchDataset(
-        runtime.dataset_config(TASK, "val", condition_on_regime=True)
-    )
+    train_dataset = PDEBenchDataset(runtime.dataset_config(TASK, "train", condition_on_regime=True))
+    valid_dataset = PDEBenchDataset(runtime.dataset_config(TASK, "val", condition_on_regime=True))
     train_coefficients, train_targets, train_beta = _collect(train_dataset)
     valid_coefficients, valid_targets, valid_beta = _collect(valid_dataset)
     normalizer = BetaNormalizer.fit(train_beta)
@@ -437,15 +435,23 @@ def run(args: argparse.Namespace, *, fno_cls: type[nn.Module] | None = None) -> 
         checkpoints = {}
         for epoch in RUNG_EPOCHS:
             evaluation = evaluate_arm(
-                rung_models[epoch], valid_coefficients, valid_targets, valid_beta,
-                arm=arm, normalizer=normalizer, device=args.device,
+                rung_models[epoch],
+                valid_coefficients,
+                valid_targets,
+                valid_beta,
+                arm=arm,
+                normalizer=normalizer,
+                device=args.device,
             )
             predictions = evaluation.pop("predictions")
             del predictions
             history.append({"epoch": epoch, **evaluation})
             checkpoints[str(epoch)] = _checkpoint(
                 output_dir / f"arm_{arm}_epoch_{epoch}.pt",
-                rung_models[epoch], arm=arm, epoch=epoch, fit=fit,
+                rung_models[epoch],
+                arm=arm,
+                epoch=epoch,
+                fit=fit,
             )
         selected = min(history, key=lambda item: (item["primary_value"], item["epoch"]))
         selected_epoch = int(selected["epoch"])
@@ -466,15 +472,14 @@ def run(args: argparse.Namespace, *, fno_cls: type[nn.Module] | None = None) -> 
             compute.update(
                 {
                     "cuda_device_name": torch.cuda.get_device_name(resolved_device),
-                    "peak_cuda_memory_bytes": int(
-                        torch.cuda.max_memory_allocated(resolved_device)
-                    ),
+                    "peak_cuda_memory_bytes": int(torch.cuda.max_memory_allocated(resolved_device)),
                 }
             )
         arm_results[arm] = {
             "conditioning": (
-                "coefficient_only" if arm == "U" else
-                "coefficient_plus_normalized_log10_beta_constant_plus_presence"
+                "coefficient_only"
+                if arm == "U"
+                else "coefficient_plus_normalized_log10_beta_constant_plus_presence"
             ),
             "fit": fit,
             "validation_history": history,

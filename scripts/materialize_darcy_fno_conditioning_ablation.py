@@ -65,8 +65,7 @@ def main() -> None:
         raise ValueError("runner bytes changed after pre-registration")
     materializer_binding = plan["bindings"]["materializer"]
     if (
-        materializer_binding["path"]
-        != "scripts/materialize_darcy_fno_conditioning_ablation.py"
+        materializer_binding["path"] != "scripts/materialize_darcy_fno_conditioning_ablation.py"
         or file_sha256(Path(__file__)) != materializer_binding["file_sha256"]
     ):
         raise ValueError("materializer bytes changed after pre-registration")
@@ -78,7 +77,13 @@ def main() -> None:
         ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
     ).strip()
     ancestor = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", source_binding["implementation_commit"], current_commit],
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            source_binding["implementation_commit"],
+            current_commit,
+        ],
         cwd=REPO_ROOT,
         check=False,
     )
@@ -87,7 +92,9 @@ def main() -> None:
 
     summary = json.loads(args.summary.read_text(encoding="utf-8"))
     summary_sha = summary.get("artifact_sha256")
-    if summary_sha != canonical_sha256({k: v for k, v in summary.items() if k != "artifact_sha256"}):
+    if summary_sha != canonical_sha256(
+        {k: v for k, v in summary.items() if k != "artifact_sha256"}
+    ):
         raise ValueError("summary self hash is invalid")
     if (
         summary.get("status") != "complete_validation_only"
@@ -128,7 +135,10 @@ def main() -> None:
     for arm in design["arms"]:
         evidence = summary.get("arms", {}).get(arm, {})
         history = evidence.get("validation_history")
-        if not isinstance(history, list) or [row.get("epoch") for row in history] != design["epoch_rungs"]:
+        if (
+            not isinstance(history, list)
+            or [row.get("epoch") for row in history] != design["epoch_rungs"]
+        ):
             raise ValueError(f"arm {arm} has incomplete rung evidence")
         for row in history:
             finite(row.get("primary_value"), f"arm {arm} primary")
@@ -157,11 +167,22 @@ def main() -> None:
             if not path.is_file() or file_sha256(path) != record.get("sha256"):
                 raise ValueError(f"arm {arm} checkpoint hash mismatch")
         compute = evidence.get("compute", {})
-        for key in ("total_parameter_count", "trainable_parameter_count", "optimizer_steps", "examples_seen"):
-            if isinstance(compute.get(key), bool) or not isinstance(compute.get(key), int) or compute[key] <= 0:
+        for key in (
+            "total_parameter_count",
+            "trainable_parameter_count",
+            "optimizer_steps",
+            "examples_seen",
+        ):
+            if (
+                isinstance(compute.get(key), bool)
+                or not isinstance(compute.get(key), int)
+                or compute[key] <= 0
+            ):
                 raise ValueError(f"arm {arm} compute.{key} is invalid")
         finite(compute.get("duration_sec"), f"arm {arm} duration")
-        plateau_rows[arm] = plateau_epoch(history, plan["gates"]["plateau"]["best_so_far_relative_improvement_threshold"])
+        plateau_rows[arm] = plateau_epoch(
+            history, plan["gates"]["plateau"]["best_so_far_relative_improvement_threshold"]
+        )
         arm_rows[arm] = {
             "selected_epoch": winner["epoch"],
             "primary_value": winner["primary_value"],
@@ -173,19 +194,32 @@ def main() -> None:
     u = finite(arm_rows["U"]["primary_value"], "U primary")
     k = finite(arm_rows["K"]["primary_value"], "K primary")
     improvement = (u - k) / u
-    shuffled = finite(summary["diagnostics"]["deterministic_shuffled_beta"]["primary_value"], "shuffled primary")
+    shuffled = finite(
+        summary["diagnostics"]["deterministic_shuffled_beta"]["primary_value"], "shuffled primary"
+    )
     shuffle_degradation = (shuffled - k) / k
     sensitivity = finite(
-        summary["diagnostics"]["counterfactual_beta_sensitivity"]["K"]["relative_prediction_rms_from_first_beta"],
+        summary["diagnostics"]["counterfactual_beta_sensitivity"]["K"][
+            "relative_prediction_rms_from_first_beta"
+        ],
         "conditioned sensitivity",
     )
     gates = plan["gates"]
     checks = {
-        "conditioned_primary_improvement": improvement >= gates["conditioned_primary_relative_improvement_minimum"],
-        "conditioned_regime_spread": finite(arm_rows["K"]["maximum_corrected_spread_ratio"], "K spread") <= gates["conditioned_max_corrected_regime_spread_maximum"],
-        "conditioned_beta_sensitivity": sensitivity > gates["conditioned_counterfactual_relative_prediction_rms_minimum_exclusive"],
-        "shuffled_beta_degradation": shuffle_degradation >= gates["shuffled_beta_primary_relative_degradation_minimum"],
-        "plateau_by_cap": all(value is not None and value <= gates["plateau"]["must_occur_by_epoch"] for value in plateau_rows.values()),
+        "conditioned_primary_improvement": improvement
+        >= gates["conditioned_primary_relative_improvement_minimum"],
+        "conditioned_regime_spread": finite(
+            arm_rows["K"]["maximum_corrected_spread_ratio"], "K spread"
+        )
+        <= gates["conditioned_max_corrected_regime_spread_maximum"],
+        "conditioned_beta_sensitivity": sensitivity
+        > gates["conditioned_counterfactual_relative_prediction_rms_minimum_exclusive"],
+        "shuffled_beta_degradation": shuffle_degradation
+        >= gates["shuffled_beta_primary_relative_degradation_minimum"],
+        "plateau_by_cap": all(
+            value is not None and value <= gates["plateau"]["must_occur_by_epoch"]
+            for value in plateau_rows.values()
+        ),
     }
     payload = {
         "schema_version": 1,
@@ -193,7 +227,11 @@ def main() -> None:
         "status": "complete_validation_only",
         "heldout_reads": 0,
         "plan_sha256": plan_sha,
-        "source_summary": {"path": str(args.summary), "file_sha256": file_sha256(args.summary), "artifact_sha256": summary_sha},
+        "source_summary": {
+            "path": str(args.summary),
+            "file_sha256": file_sha256(args.summary),
+            "artifact_sha256": summary_sha,
+        },
         "arms": arm_rows,
         "effect": {
             "conditioned_primary_relative_improvement": improvement,
@@ -203,14 +241,26 @@ def main() -> None:
         },
         "gate_checks": checks,
         "all_gates_passed": all(checks.values()),
-        "interpretation": "conditioning_mechanism_validated" if all(checks.values()) else "conditioning_mechanism_not_yet_validated",
+        "interpretation": (
+            "conditioning_mechanism_validated"
+            if all(checks.values())
+            else "conditioning_mechanism_not_yet_validated"
+        ),
     }
     payload["artifact_sha256"] = canonical_sha256(payload)
     if args.output.exists():
         raise FileExistsError(f"refusing to overwrite result: {args.output}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    print(json.dumps({"output": str(args.output), "artifact_sha256": payload["artifact_sha256"], "all_gates_passed": payload["all_gates_passed"]}))
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "artifact_sha256": payload["artifact_sha256"],
+                "all_gates_passed": payload["all_gates_passed"],
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

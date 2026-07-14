@@ -41,12 +41,8 @@ def test_conditioning_arms_preserve_coefficient_and_add_train_normalized_channel
     coefficients, _, beta = _synthetic()
     normalizer = ablation.BetaNormalizer.fit(beta)
 
-    unconditioned = ablation.conditioned_inputs(
-        coefficients, beta, arm="U", normalizer=normalizer
-    )
-    conditioned = ablation.conditioned_inputs(
-        coefficients, beta, arm="K", normalizer=normalizer
-    )
+    unconditioned = ablation.conditioned_inputs(coefficients, beta, arm="U", normalizer=normalizer)
+    conditioned = ablation.conditioned_inputs(coefficients, beta, arm="K", normalizer=normalizer)
 
     assert unconditioned.data_ptr() == coefficients.data_ptr()
     assert conditioned.shape == (5, 3, 4, 4)
@@ -128,9 +124,7 @@ def test_train_arm_uses_one_continuous_fixed_budget_trajectory_for_each_arm():
 def test_evaluation_reports_primary_raw_and_corrected_metrics_per_beta():
     coefficients, targets, beta = _synthetic()
     normalizer = ablation.BetaNormalizer.fit(beta)
-    model = TinyFNO(
-        n_modes=(2, 2), in_channels=1, out_channels=1, hidden_channels=2, n_layers=1
-    )
+    model = TinyFNO(n_modes=(2, 2), in_channels=1, out_channels=1, hidden_channels=2, n_layers=1)
     with torch.no_grad():
         model.net.weight.fill_(0.5)
         model.net.bias.zero_()
@@ -190,11 +184,7 @@ def test_counterfactual_and_shuffled_beta_diagnostics_are_deterministic():
     )
 
     assert first == second
-    assert (
-        first["counterfactual_beta_sensitivity"]["U"]
-        ["prediction_rms_from_first_beta"]
-        == 0.0
-    )
+    assert first["counterfactual_beta_sensitivity"]["U"]["prediction_rms_from_first_beta"] == 0.0
     assert len(first["deterministic_shuffled_beta"]["permutation_sha256"]) == 64
     assert len(first["deterministic_shuffled_beta"]["per_beta_true_regime"]) == 5
 
