@@ -11,11 +11,11 @@
         "scripts/launch_darcy_fno_affine_head_ablation_vast.sh": "a8c76c2f6f0a589e2403a6b3698b83500bf00c8b206eeb8638767a563fd8d770",
         "scripts/materialize_darcy_fno_affine_head_ablation.py": "b620bf997eb037cc04c30443bfcb2c99e03046a57aa786989d3e714f60dc9427",
         "scripts/plan_darcy_fno_affine_head_ablation.py": "aa743ba3d461c8ef6374a2eb550c36f127ba31bca5d7896c17341fa279f8b61a",
-        "scripts/run_darcy_fno_affine_head_ablation.py": "a53c79b991bd86f06cf9d53e56ea5e12d913465fffb29c062968bff325775423",
+        "scripts/run_darcy_fno_affine_head_ablation.py": "63405ab4658934046bea64596922fc8163222ac8056ef991a2400b4684f129ff",
         "scripts/run_darcy_fno_conditioning_ablation.py": "55d2c637211ae520c388bc6cafb1a4acd9b0123dec45fa1dbdc2c39e89d3c358",
         "scripts/run_external_neuraloperator_fno_baseline.py": "c8a903722a6369f09410eaea4afb3d2e5082fd3f5ea32efb322e2b5dbc27816d",
         "scripts/run_remote_darcy_fno_affine_head_ablation.sh": "e9f8b8dfd9a3e3f37d2e07ea980edffc2e95faf4186a18610ac4fa1717fca86f",
-        "scripts/vast_launch.py": "08597067c72ab1193a9d70d2d715c85979c5da46029ffb8af17e98cfd0ada4e9",
+        "scripts/vast_launch.py": "f4230b7eaa4a1ecf3af259ed20b04a8269845acc2a6b02055b4e75db4fffef64",
         "scripts/vast_remote_bootstrap.sh": "2ed36b713ff5de1aac7b07dd241e639c8e19b5a78095d598f4f6559cee9d8ad3",
         "scripts/vast_watchdog.py": "80e37c557fd50b3e432a09edd73711c75c5cc95263a5c7db41db124035910a77",
         "src/ups/__init__.py": "714a735509791245a69d91aa2873e566c4f9ef9753c9664991427300dd8c0d40",
@@ -83,7 +83,7 @@
         "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
         "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
       },
-      "implementation_commit": "cba6d694539b94761ce6b2ed3afb4c842bf986dd"
+      "implementation_commit": "1f089887f1b913a58e115a6f81ea1b96eaf5e005"
     },
     "training_lock": {
       "darcy_objects": {
@@ -165,7 +165,7 @@
   "measurement_lock_access": "forbidden",
   "mode": "validation_only",
   "plan_id": "strat-v1-darcy-fno-affine-head-ablation-d2",
-  "plan_sha256": "0c539c959af4bc793fd57f521e8830652935323c1997b049dab489d6212e555b",
+  "plan_sha256": "082801aed74e98cf4c5726222c12a231001d64ba7d64257044e9f93315f526f8",
   "question": "Does a beta-affine output basis remove the remaining beta=100 Darcy error concentration?",
   "schema_version": 2
 }
