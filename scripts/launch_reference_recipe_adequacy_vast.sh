@@ -94,15 +94,21 @@ if [ "$DRY_RUN" -eq 0 ]; then
     echo "Refusing paid launch: vastai CLI is unavailable for cost preflight." >&2
     exit 2
   fi
-  if [ -n "$OFFER_ID" ]; then
-    offer_query="id=${OFFER_ID} gpu_name=${GPU} num_gpus=${NUM_GPUS} rentable=true verified=true disk_space>=${DISK_GB}"
-  else
-    offer_query="gpu_name=${GPU} num_gpus=${NUM_GPUS} rentable=true verified=true disk_space>=${DISK_GB} dph_total<=${MAX_DPH}"
+  requested_offer_id=$OFFER_ID
+  offer_query="gpu_name=${GPU} num_gpus=${NUM_GPUS} rentable=true verified=true disk_space>=${DISK_GB} dph_total<=${MAX_DPH}"
+  search_limit=$LIMIT
+  if [ -n "$requested_offer_id" ]; then
+    # Vast's offer query language does not reliably filter by offer ID. Fetch
+    # a wider bounded set and select the requested ID from the returned rows.
+    search_limit=200
   fi
-  offers_json=$(vastai search offers "$offer_query" -o dph_total --limit "$LIMIT" --raw)
+  offers_json=$(vastai search offers "$offer_query" -o dph_total --limit "$search_limit" --raw)
   resolved=$("${PYTHON:-python}" -c '
 import json, sys
 offers=json.load(sys.stdin)
+requested=sys.argv[2]
+if requested:
+    offers=[offer for offer in offers if str(offer.get("id") or offer.get("ask_contract_id")) == requested]
 if not isinstance(offers, list) or not offers:
     raise SystemExit("no offer satisfies the bounded paid-launch preflight")
 offer=offers[0]
@@ -114,7 +120,7 @@ offer_id=offer.get("id") or offer.get("ask_contract_id")
 if offer_id is None:
     raise SystemExit("bounded offer lacks an id")
 print(f"{offer_id} {price}")
-' "$MAX_DPH" <<<"$offers_json") || {
+' "$MAX_DPH" "$requested_offer_id" <<<"$offers_json") || {
     echo "Refusing paid launch: Vast offer did not pass the hourly-cost cap." >&2
     exit 2
   }

@@ -105,6 +105,9 @@ def test_vast_launcher_preview_is_single_gpu_bounded_and_auto_shutdown(tmp_path)
     launcher_source = LAUNCHER.read_text(encoding="utf-8")
     assert "MAX_DPH=${MAX_DPH:-0.45}" in launcher_source
     assert "dph_total<=${MAX_DPH}" in launcher_source
+    assert "requested_offer_id=$OFFER_ID" in launcher_source
+    assert "search_limit=200" in launcher_source
+    assert 'str(offer.get("id") or offer.get("ask_contract_id")) == requested' in launcher_source
     assert 'git cat-file -e "${remote_commit}:${REMOTE_SCRIPT}"' in launcher_source
 
 
