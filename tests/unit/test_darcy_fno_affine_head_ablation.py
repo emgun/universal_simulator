@@ -361,8 +361,15 @@ def test_evaluation_and_diagnostics_use_bounded_batches_and_release_models_to_cp
         batch_size=2,
     )
 
-    assert torch.equal(reference["predictions"], bounded["predictions"])
-    assert reference["primary_value"] == bounded["primary_value"]
+    # Batch partitioning can change the final floating-point bits of otherwise
+    # equivalent CPU kernels, so assert numerical rather than bitwise identity.
+    torch.testing.assert_close(
+        reference["predictions"],
+        bounded["predictions"],
+        rtol=1e-6,
+        atol=1e-6,
+    )
+    assert reference["primary_value"] == pytest.approx(bounded["primary_value"], rel=1e-6, abs=1e-7)
     assert bounded["predictions"].shape == targets.shape
     assert BatchGuardFNO.maximum_batch_seen == 2
     assert diagnostics["counterfactual_beta_sensitivity"]
