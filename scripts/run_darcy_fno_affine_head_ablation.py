@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import subprocess
 import sys
 import time
@@ -596,10 +597,24 @@ def _runtime_evidence(device: str | torch.device, dependency: Mapping[str, Any])
         "torch_cuda": torch.version.cuda,
         "cudnn": torch.backends.cudnn.version(),
         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
     }
     if resolved.type == "cuda" and torch.cuda.is_available():
         evidence["cuda_device_name"] = torch.cuda.get_device_name(resolved)
     return evidence
+
+
+def configure_deterministic_runtime() -> None:
+    """Configure strict Torch/CUDA determinism before any CUDA context exists."""
+
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+    torch.manual_seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(SEED)
+    torch.use_deterministic_algorithms(True)
+    if hasattr(torch.backends, "cudnn"):
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
 
 
 def _exact_darcy_objects(runtime: Any) -> dict[str, Any]:
@@ -629,13 +644,7 @@ def run(args: argparse.Namespace, *, fno_cls: type[nn.Module] | None = None) -> 
     if resume and (output_dir / "summary.json").exists():
         raise FileExistsError("refusing to resume a completed output directory")
     plan_fingerprint = _resolve_plan_fingerprint(args)
-    torch.manual_seed(SEED)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(SEED)
-    torch.use_deterministic_algorithms(True)
-    if hasattr(torch.backends, "cudnn"):
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
+    configure_deterministic_runtime()
     runtime = load_strat_v1_baseline_runtime(
         args.training_lock,
         args.data_root,

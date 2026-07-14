@@ -106,7 +106,7 @@ def start_managed_watchdog(
     instance_id: int,
     args: argparse.Namespace,
     offer_id: str,
-) -> Path:
+) -> tuple[Path, subprocess.Popen[bytes]]:
     if args.max_runtime_minutes is None or args.max_runtime_minutes <= 0:
         raise ValueError("--managed requires a positive --max-runtime-minutes")
     now = time.time()
@@ -141,12 +141,14 @@ def start_managed_watchdog(
             stdin=subprocess.DEVNULL,
             stdout=log,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            # Keep cleanup in the launcher's foreground process chain. Some
+            # agent/CI runtimes reap detached children even after setsid.
+            start_new_session=False,
         )
     payload = json.loads(receipt.read_text())
     payload.update({"watchdog_pid": process.pid, "watchdog_log": str(log_path)})
     _atomic_json(receipt, payload)
-    return receipt
+    return receipt, process
 
 
 def _is_transient_vast_cli_failure(stdout: str, stderr: str) -> bool:
@@ -623,7 +625,9 @@ def cmd_launch(args: argparse.Namespace) -> None:
     result = run_capture(cmd, retries=args.launch_retries, retry_backoff=args.launch_retry_backoff)
     try:
         instance_id = parse_instance_id(f"{result.stdout}\n{result.stderr}")
-        receipt = start_managed_watchdog(instance_id=instance_id, args=args, offer_id=cmd[3])
+        receipt, watchdog = start_managed_watchdog(
+            instance_id=instance_id, args=args, offer_id=cmd[3]
+        )
     except Exception as exc:
         try:
             instance_id = parse_instance_id(f"{result.stdout}\n{result.stderr}")
@@ -636,7 +640,11 @@ def cmd_launch(args: argparse.Namespace) -> None:
         except ValueError:
             pass
         raise SystemExit(f"Managed launch setup failed; destroy requested: {exc}") from exc
-    print(f"Managed Vast receipt: {receipt}")
+    print(f"Managed Vast receipt: {receipt}", flush=True)
+    if watchdog.wait() != 0:
+        raise SystemExit(
+            f"Managed Vast watchdog failed after launch; inspect receipt and log: {receipt}"
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -710,7 +718,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument(
         "--managed",
         action="store_true",
-        help="Start a detached local watchdog that always destroys the paid instance",
+        help="Run a foreground local watchdog that reconciles paid-instance destruction",
     )
     p_launch.add_argument(
         "--max-runtime-minutes",

@@ -411,10 +411,10 @@ def test_start_managed_watchdog_writes_secret_free_receipt_and_detaches(tmp_path
 
     def fake_popen(command, **kwargs):
         popen_calls.append((command, kwargs))
-        return SimpleNamespace(pid=321)
+        return SimpleNamespace(pid=321, wait=lambda: 0)
 
     monkeypatch.setattr(vast_launch.subprocess, "Popen", fake_popen)
-    path = vast_launch.start_managed_watchdog(
+    path, process = vast_launch.start_managed_watchdog(
         instance_id=77,
         offer_id="88",
         args=Namespace(
@@ -431,7 +431,8 @@ def test_start_managed_watchdog_writes_secret_free_receipt_and_detaches(tmp_path
     assert "must-not-appear" not in receipt_text
     assert '"instance_id": 77' in receipt_text
     assert '"watchdog_pid": 321' in receipt_text
-    assert popen_calls[0][1]["start_new_session"] is True
+    assert process.wait() == 0
+    assert popen_calls[0][1]["start_new_session"] is False
     assert popen_calls[0][1]["stdin"] is subprocess.DEVNULL
 
 
@@ -460,3 +461,38 @@ def test_managed_launch_rejects_non_idempotent_create_retries(monkeypatch):
     else:
         raise AssertionError("expected managed launch retry validation to abort")
     assert calls == []
+
+
+def test_managed_launch_waits_for_foreground_watchdog(monkeypatch, tmp_path):
+    vast_launch = load_vast_launch_module()
+    waits = []
+    monkeypatch.setattr(vast_launch, "git_remote_url", lambda: "https://example.invalid/repo.git")
+    monkeypatch.setattr(vast_launch, "preflight_vast_dns", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        vast_launch,
+        "run_capture",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, "{'success': True, 'new_contract': 77}", ""
+        ),
+    )
+    monkeypatch.setattr(
+        vast_launch,
+        "start_managed_watchdog",
+        lambda **_kwargs: (
+            tmp_path / "receipt.json",
+            SimpleNamespace(wait=lambda: waits.append(True) or 0),
+        ),
+    )
+    args = vast_launch.build_parser().parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--managed",
+            "--max-runtime-minutes",
+            "10",
+            "--auto-shutdown",
+        ]
+    )
+    args.func(args)
+    assert waits == [True]

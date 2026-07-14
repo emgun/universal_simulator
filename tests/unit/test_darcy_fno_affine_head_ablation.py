@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from argparse import Namespace
 
 import pytest
@@ -8,6 +9,13 @@ from torch import nn
 
 from scripts import run_darcy_fno_affine_head_ablation as ablation
 from scripts import run_darcy_fno_conditioning_ablation as d1
+
+
+def test_deterministic_runtime_sets_cublas_workspace_before_cuda(monkeypatch):
+    monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG", raising=False)
+    ablation.configure_deterministic_runtime()
+    assert os.environ["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
+    assert torch.are_deterministic_algorithms_enabled()
 
 
 class TinyFNO(nn.Module):
