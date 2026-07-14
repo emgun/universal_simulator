@@ -8,11 +8,11 @@ records.
 
 ## Results At A Glance
 
-Matched `light-v1` held-out decoded rollout NRMSE, lower is better:
+Legacy matched-`light-v1` decoded rollout NRMSE, lower is better:
 
 | Row | NRMSE | Scope |
 | --- | ---: | --- |
-| UPS primary | `0.4166` | Primary held-out UPS result |
+| UPS primary | `0.4166` | Legacy matched-protocol UPS result |
 | Persistence baseline | `0.5702` | Non-learned reference |
 | Fourier baseline | `0.5637` | Repo-native neural baseline |
 | NeuralOperator UNO | `0.5561` | Third-party model rerun under `light-v1` |
@@ -20,15 +20,26 @@ Matched `light-v1` held-out decoded rollout NRMSE, lower is better:
 | PDEBench U-Net | `0.6096` | Official PDEBench architecture adapter |
 | NeuralOperator FNO | `0.6392` | Canonical FNO family under `light-v1` |
 
+These rows are matched comparisons under one frozen, mixed protocol, not broad
+held-out-generalization claims. A split-integrity audit found that Burgers test
+trajectories occur in training, Advection reuses initial conditions across
+splits while extrapolating transport speed, and Darcy is trajectory-disjoint.
+The comparison remains useful because every row used the same protocol; new
+generalization claims wait for the disjoint, regime-stratified `strat-v1`
+protocol. New construction cannot use the `light-v1` or `medium-v1` labels;
+those namespaces and their artifacts are frozen as historical evidence.
+
 The generated figures and tables live in `docs/results/`. The source records
 under `docs/claim_evidence/` capture protocol, split, metric, command, artifact
-hashes, and baseline context.
+hashes, and baseline context. See the
+[`light-v1`/`medium-v1` split-integrity audit](docs/research/2026-07-09-split-integrity-audit.md)
+for task-level interpretation.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  data["PDEBench-style data<br/>src/ups/data"] --> enc["Grid, mesh, particle encoders<br/>src/ups/io"]
+  data["Locked PDEBench + The Well trajectories<br/>src/ups/data"] --> enc["Grid, mesh, particle encoders<br/>src/ups/io"]
   enc --> core["Latent state and conditioning<br/>src/ups/core"]
   core --> models["Latent operators, residuals, guards<br/>src/ups/models"]
   models --> dec["Any-point decoding<br/>src/ups/io"]
@@ -75,7 +86,7 @@ files; do not commit them.
 - `src/ups/io`: grid, mesh, particle, and any-point encode/decode paths.
 - `src/ups/models`: latent operators, residual/corrector modules, physics guards, and factor-graph pieces.
 - `src/ups/training`: losses, loops, optimizers, curricula, and distributed helpers.
-- `src/ups/data`: schemas, datasets, transforms, collate logic, and PDEBench helpers.
+- `src/ups/data`: immutable manifests/locks, verified staging, lazy PDEBench and The Well adapters, transforms, and collate logic.
 - `src/ups/inference`: rollout, data assimilation, and control utilities.
 - `src/ups/eval`: metrics, calibration, gates, and reports.
 - `configs/`: training and evaluation configs.
@@ -106,9 +117,13 @@ bundles for reproducibility, not a general artifact store.
 - License: Apache-2.0.
 - Python: 3.10+.
 - Package status: research alpha.
-- CI: GitHub Actions runs lint and unit tests on Python 3.10.
+- CI: GitHub Actions runs lint, YAML integrity checks, unit and integration
+  tests, and deterministic public-asset verification on Python 3.10.
 
-Current technical north star: improve decoded physical-space rollout quality
-across task families while preserving validation/test separation and artifact
-traceability. The most important measured blocker is long-horizon transport and
-advection phase tracking.
+Current technical north star: determine whether one shared simulator can
+approach credible specialist accuracy while improving transfer, data
+efficiency, or operational consolidation on trajectory-disjoint,
+regime-stratified data. The immediate gates are a versioned regime-metric
+erratum, claim-grade validation recipe adequacy, and shared-candidate value
+testing. Held-out measurement follows selection; it is not the next baseline
+step.

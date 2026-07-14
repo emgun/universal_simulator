@@ -292,7 +292,7 @@ def test_evaluate_decoded_operator_can_apply_task_specific_residual_alpha(tmp_pa
         report.metrics["task_burgers1d_decoded_rollout_nrmse"]
         > report.metrics["task_advection1d_decoded_rollout_nrmse"]
     )
-    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] > 0.0
+    assert report.metrics["task_advection1d_decoded_rollout_nrmse"] == 0.0
     assert report.extra["decoded_persistence_residual_alpha_by_task"] == {"advection1d": 1.0}
 
 
@@ -996,14 +996,16 @@ def test_evaluate_decoded_operator_reports_multitask_metrics(tmp_path):
 def test_evaluate_decoded_operator_reports_heterogeneous_multitask_metrics(tmp_path):
     burgers = torch.ones(1, 3, 4, dtype=torch.float32)
     advection = torch.ones(1, 3, 4, dtype=torch.float32)
-    darcy = torch.ones(1, 3, 1, 4, 4, dtype=torch.float32)
+    darcy_coefficient = torch.ones(1, 1, 4, 4, 1, dtype=torch.float32)
+    darcy_solution = torch.ones(1, 1, 4, 4, 1, dtype=torch.float32)
 
     with h5py.File(tmp_path / "burgers1d_train.h5", "w") as handle:
         handle.create_dataset("data", data=burgers.numpy())
     with h5py.File(tmp_path / "advection1d_train.h5", "w") as handle:
         handle.create_dataset("data", data=advection.numpy())
     with h5py.File(tmp_path / "darcy2d_train.h5", "w") as handle:
-        handle.create_dataset("data", data=darcy.numpy())
+        handle.create_dataset("data", data=darcy_coefficient.numpy())
+        handle.create_dataset("targets", data=darcy_solution.numpy())
 
     cfg = {
         "training": {"batch_size": 1, "dt": 0.1, "auto_conditioning": True},

@@ -1,0 +1,30 @@
+schema_version: 1
+protocol_id: pdebench-strat-v1
+dataset_id: pdebench
+source_revision: sha256:0c471f9e01912b9a88b8c2f8d8f4eceabe1e952d864275ef6eebcd61571fbfbc
+adapter: pdebench_hdf5
+adapter_revision: 1.0.0
+split_authority: constructed_trajectory_disjoint_parameter_stratified
+splits:
+  train:
+  - darcy2d-train
+  valid:
+  - darcy2d-valid
+  test:
+  - darcy2d-test
+identity_fields:
+- source_file_id
+- source_sample_index
+selection:
+  algorithm: sha256-protocol-seed-provenance-v1
+  seed: 0
+  protocol: strat-v1
+normalization:
+  fit_role: train
+  method: zscore
+test_access: measurement_contract_required
+coverage_dimensions:
+- task
+- physical_parameter_regime
+metadata:
+  construction_manifest_sha256: 0c471f9e01912b9a88b8c2f8d8f4eceabe1e952d864275ef6eebcd61571fbfbc

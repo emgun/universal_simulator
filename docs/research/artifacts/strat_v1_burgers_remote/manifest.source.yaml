@@ -1,0 +1,53 @@
+schema_version: 1
+dataset_id: pdebench
+provider: UPS protocol-gated derivative of PDEBench
+revision: sha256:f0a291f5a24ef37116c3d7922ae93e97f30b07f049498e3583aadceec62e8f93
+native_format: HDF5
+license: CC BY 4.0
+citation: PDEBench, NeurIPS Datasets and Benchmarks 2022
+objects:
+- object_id: burgers1d-train
+  path: burgers1d_train.h5
+  size_bytes: 136466087
+  checksums:
+    sha256: de2556ab5bd1635a1d6e0681b1662a53cebe815163068d33b76f727f457a1697
+  uris:
+  - file:///workspace/strat-v1/burgers1d/burgers1d_train.h5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    task: burgers1d
+    sample_count: 288
+    selected_identity_sha256: 882042fffa2fb364679b204e86d04e2506e29044ec41aa1747d2de8c8f013131
+- object_id: burgers1d-valid
+  path: burgers1d_val.h5
+  size_bytes: 32289060
+  checksums:
+    sha256: cdebe1d6cca8be00e8d75c1ae8999c04acff5c0d61d4cf2cfa7cbe2984140280
+  uris:
+  - file:///workspace/strat-v1/burgers1d/burgers1d_val.h5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    task: burgers1d
+    sample_count: 72
+    selected_identity_sha256: 86ab033909876cf5e543f6f6cba1675bf152bc2367c6a26f7390c9b0cfe36be1
+- object_id: burgers1d-test
+  path: burgers1d_test.h5
+  size_bytes: 26148529
+  checksums:
+    sha256: 2ae9435f10c5450a03fcfdfba34a512a2dd8a602f2fd30c3675610f743b716cd
+  uris:
+  - file:///workspace/strat-v1/burgers1d/burgers1d_test.h5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    task: burgers1d
+    sample_count: 72
+    selected_identity_sha256: e4030a250be1b334dae296e1f30d1971b0f010d3a9a353e1471a4815acbaa945
+metadata:
+  construction_manifest_sha256: f0a291f5a24ef37116c3d7922ae93e97f30b07f049498e3583aadceec62e8f93
+  construction_protocol: strat-v1

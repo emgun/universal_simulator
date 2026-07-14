@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: the beta-head held-out result is recorded and must not be rerun." >&2
+exit 2
+
 # Dry-run-first remote wrapper for the scoped model-side beta-head held-out
 # pretest. Defaults preview commands only. Actual execution requires both
 # DRY_RUN=0 and ALLOW_HELDOUT_PRETEST=1.

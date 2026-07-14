@@ -1,0 +1,588 @@
+version: strat-v1
+source_root: data/pdebench_advection_canonical
+out_root: data/pdebench_advection_strat_v1_universal
+remote_prefix: strat-v1
+tasks:
+- advection1d
+splits:
+  train:
+    samples: 256
+    preferred_source_split: train
+  val:
+    samples: 64
+    preferred_source_split: train
+  test:
+    samples: 64
+    preferred_source_split: train
+protocol_mode: strat-v1
+selection:
+  algorithm: sha256-protocol-seed-provenance-v1
+  seed: 0
+  protocol: strat-v1
+protocol_gates:
+  advection1d: &id001
+    status: passed
+    field_kind: temporal
+    time_axis: 1
+    provenance_datasets:
+    - source_file_index
+    - source_sample_index
+    regime_dataset: beta
+    within_split_provenance_unique:
+      train: true
+      val: true
+      test: true
+    within_split_field_regime_pairs_unique:
+      train: true
+      val: true
+      test: true
+    unique_field_regime_pairs:
+      train: 256
+      val: 64
+      test: 64
+    unique_field_groups:
+      train: 32
+      val: 8
+      test: 8
+    regime_counts:
+      train:
+        '0.1': 32
+        '0.2': 32
+        '0.4': 32
+        '0.7': 32
+        '1.0': 32
+        '2.0': 32
+        '4.0': 32
+        '7.0': 32
+      val:
+        '0.1': 8
+        '0.2': 8
+        '0.4': 8
+        '0.7': 8
+        '1.0': 8
+        '2.0': 8
+        '4.0': 8
+        '7.0': 8
+      test:
+        '0.1': 8
+        '0.2': 8
+        '0.4': 8
+        '0.7': 8
+        '1.0': 8
+        '2.0': 8
+        '4.0': 8
+        '7.0': 8
+    identical_regime_coverage: true
+    balanced_regime_coverage: true
+    cross_split_overlap:
+      train:val:
+        provenance_overlap: 0
+        field_overlap: 0
+      train:test:
+        provenance_overlap: 0
+        field_overlap: 0
+      val:test:
+        provenance_overlap: 0
+        field_overlap: 0
+records:
+- task: advection1d
+  split: train
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: false
+  source_paths:
+  - data/pdebench_advection_canonical/advection1d_train.h5
+  selected_source_indices:
+  - 23
+  - 17
+  - 16
+  - 15
+  - 258
+  - 6
+  - 7
+  - 0
+  - 326
+  - 263
+  - 21
+  - 31
+  - 25
+  - 262
+  - 11
+  - 327
+  - 3
+  - 13
+  - 9
+  - 20
+  - 26
+  - 256
+  - 27
+  - 2
+  - 22
+  - 5
+  - 19
+  - 4
+  - 10
+  - 325
+  - 260
+  - 257
+  - 55
+  - 49
+  - 48
+  - 47
+  - 266
+  - 38
+  - 39
+  - 32
+  - 334
+  - 271
+  - 53
+  - 63
+  - 57
+  - 270
+  - 43
+  - 335
+  - 35
+  - 45
+  - 41
+  - 52
+  - 58
+  - 264
+  - 59
+  - 34
+  - 54
+  - 37
+  - 51
+  - 36
+  - 42
+  - 333
+  - 268
+  - 265
+  - 87
+  - 81
+  - 80
+  - 79
+  - 274
+  - 70
+  - 71
+  - 64
+  - 342
+  - 279
+  - 85
+  - 95
+  - 89
+  - 278
+  - 75
+  - 343
+  - 67
+  - 77
+  - 73
+  - 84
+  - 90
+  - 272
+  - 91
+  - 66
+  - 86
+  - 69
+  - 83
+  - 68
+  - 74
+  - 341
+  - 276
+  - 273
+  - 119
+  - 113
+  - 112
+  - 111
+  - 282
+  - 102
+  - 103
+  - 96
+  - 350
+  - 287
+  - 117
+  - 127
+  - 121
+  - 286
+  - 107
+  - 351
+  - 99
+  - 109
+  - 105
+  - 116
+  - 122
+  - 280
+  - 123
+  - 98
+  - 118
+  - 101
+  - 115
+  - 100
+  - 106
+  - 349
+  - 284
+  - 281
+  - 151
+  - 145
+  - 144
+  - 143
+  - 290
+  - 134
+  - 135
+  - 128
+  - 358
+  - 295
+  - 149
+  - 159
+  - 153
+  - 294
+  - 139
+  - 359
+  - 131
+  - 141
+  - 137
+  - 148
+  - 154
+  - 288
+  - 155
+  - 130
+  - 150
+  - 133
+  - 147
+  - 132
+  - 138
+  - 357
+  - 292
+  - 289
+  - 183
+  - 177
+  - 176
+  - 175
+  - 298
+  - 166
+  - 167
+  - 160
+  - 366
+  - 303
+  - 181
+  - 191
+  - 185
+  - 302
+  - 171
+  - 367
+  - 163
+  - 173
+  - 169
+  - 180
+  - 186
+  - 296
+  - 187
+  - 162
+  - 182
+  - 165
+  - 179
+  - 164
+  - 170
+  - 365
+  - 300
+  - 297
+  - 215
+  - 209
+  - 208
+  - 207
+  - 306
+  - 198
+  - 199
+  - 192
+  - 374
+  - 311
+  - 213
+  - 223
+  - 217
+  - 310
+  - 203
+  - 375
+  - 195
+  - 205
+  - 201
+  - 212
+  - 218
+  - 304
+  - 219
+  - 194
+  - 214
+  - 197
+  - 211
+  - 196
+  - 202
+  - 373
+  - 308
+  - 305
+  - 247
+  - 241
+  - 240
+  - 239
+  - 314
+  - 230
+  - 231
+  - 224
+  - 382
+  - 319
+  - 245
+  - 255
+  - 249
+  - 318
+  - 235
+  - 383
+  - 227
+  - 237
+  - 233
+  - 244
+  - 250
+  - 312
+  - 251
+  - 226
+  - 246
+  - 229
+  - 243
+  - 228
+  - 234
+  - 381
+  - 316
+  - 313
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 8a105dc5aa0ab94344579529d9b8385800b91272467a80cdccb964b1e6e8c0be
+  sample_count: 256
+  output_path: data/pdebench_advection_strat_v1_universal/advection1d_train.h5
+  remote_key: strat-v1/immutable/sha256/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d/advection1d_train.h5
+  bytes: 191457334
+  sha256: aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d
+  datasets:
+    beta:
+      shape:
+      - 256
+      dtype: float64
+    data:
+      shape:
+      - 256
+      - 201
+      - 1024
+      - 1
+      dtype: float32
+    source_file_index:
+      shape:
+      - 256
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 256
+      dtype: int64
+  protocol_gate: *id001
+- task: advection1d
+  split: val
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: true
+  source_paths:
+  - data/pdebench_advection_canonical/advection1d_train.h5
+  selected_source_indices:
+  - 18
+  - 320
+  - 30
+  - 29
+  - 322
+  - 8
+  - 259
+  - 14
+  - 50
+  - 328
+  - 62
+  - 61
+  - 330
+  - 40
+  - 267
+  - 46
+  - 82
+  - 336
+  - 94
+  - 93
+  - 338
+  - 72
+  - 275
+  - 78
+  - 114
+  - 344
+  - 126
+  - 125
+  - 346
+  - 104
+  - 283
+  - 110
+  - 146
+  - 352
+  - 158
+  - 157
+  - 354
+  - 136
+  - 291
+  - 142
+  - 178
+  - 360
+  - 190
+  - 189
+  - 362
+  - 168
+  - 299
+  - 174
+  - 210
+  - 368
+  - 222
+  - 221
+  - 370
+  - 200
+  - 307
+  - 206
+  - 242
+  - 376
+  - 254
+  - 253
+  - 378
+  - 232
+  - 315
+  - 238
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 80d3dc9f442fa8206c0ef052dda12969ff0587b70ca2c006743298dcf9b755e9
+  sample_count: 64
+  output_path: data/pdebench_advection_strat_v1_universal/advection1d_val.h5
+  remote_key: strat-v1/immutable/sha256/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726/advection1d_val.h5
+  bytes: 47288356
+  sha256: 0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726
+  datasets:
+    beta:
+      shape:
+      - 64
+      dtype: float64
+    data:
+      shape:
+      - 64
+      - 201
+      - 1024
+      - 1
+      dtype: float32
+    source_file_index:
+      shape:
+      - 64
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 64
+      dtype: int64
+  protocol_gate: *id001
+- task: advection1d
+  split: test
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: true
+  source_paths:
+  - data/pdebench_advection_canonical/advection1d_train.h5
+  selected_source_indices:
+  - 321
+  - 1
+  - 28
+  - 324
+  - 261
+  - 24
+  - 323
+  - 12
+  - 329
+  - 33
+  - 60
+  - 332
+  - 269
+  - 56
+  - 331
+  - 44
+  - 337
+  - 65
+  - 92
+  - 340
+  - 277
+  - 88
+  - 339
+  - 76
+  - 345
+  - 97
+  - 124
+  - 348
+  - 285
+  - 120
+  - 347
+  - 108
+  - 353
+  - 129
+  - 156
+  - 356
+  - 293
+  - 152
+  - 355
+  - 140
+  - 361
+  - 161
+  - 188
+  - 364
+  - 301
+  - 184
+  - 363
+  - 172
+  - 369
+  - 193
+  - 220
+  - 372
+  - 309
+  - 216
+  - 371
+  - 204
+  - 377
+  - 225
+  - 252
+  - 380
+  - 317
+  - 248
+  - 379
+  - 236
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 9750ce2c659940ad7af167588d0c8d8c1f0f68133980fe28fe143f86a6dc848e
+  sample_count: 64
+  output_path: data/pdebench_advection_strat_v1_universal/advection1d_test.h5
+  remote_key: strat-v1/immutable/sha256/17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a/advection1d_test.h5
+  bytes: 47140053
+  sha256: 17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a
+  datasets:
+    beta:
+      shape:
+      - 64
+      dtype: float64
+    data:
+      shape:
+      - 64
+      - 201
+      - 1024
+      - 1
+      dtype: float32
+    source_file_index:
+      shape:
+      - 64
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 64
+      dtype: int64
+  protocol_gate: *id001

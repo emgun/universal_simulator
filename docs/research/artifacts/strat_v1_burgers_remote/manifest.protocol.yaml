@@ -1,0 +1,30 @@
+schema_version: 1
+protocol_id: pdebench-strat-v1
+dataset_id: pdebench
+source_revision: sha256:f0a291f5a24ef37116c3d7922ae93e97f30b07f049498e3583aadceec62e8f93
+adapter: pdebench_hdf5
+adapter_revision: 1.0.0
+split_authority: constructed_trajectory_disjoint_parameter_stratified
+splits:
+  train:
+  - burgers1d-train
+  valid:
+  - burgers1d-valid
+  test:
+  - burgers1d-test
+identity_fields:
+- source_file_id
+- source_sample_index
+selection:
+  algorithm: sha256-protocol-seed-provenance-v1
+  seed: 0
+  protocol: strat-v1
+normalization:
+  fit_role: train
+  method: zscore
+test_access: measurement_contract_required
+coverage_dimensions:
+- task
+- physical_parameter_regime
+metadata:
+  construction_manifest_sha256: f0a291f5a24ef37116c3d7922ae93e97f30b07f049498e3583aadceec62e8f93

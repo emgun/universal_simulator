@@ -1,0 +1,53 @@
+schema_version: 1
+dataset_id: pdebench
+provider: UPS protocol-gated derivative of PDEBench
+revision: sha256:531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8
+native_format: HDF5
+license: CC BY 4.0
+citation: PDEBench, NeurIPS Datasets and Benchmarks 2022
+objects:
+- object_id: advection1d-train
+  path: advection1d_train.h5
+  size_bytes: 191457334
+  checksums:
+    sha256: aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d/advection1d_train.h5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    task: advection1d
+    sample_count: 256
+    selected_identity_sha256: 8a105dc5aa0ab94344579529d9b8385800b91272467a80cdccb964b1e6e8c0be
+- object_id: advection1d-valid
+  path: advection1d_val.h5
+  size_bytes: 47288356
+  checksums:
+    sha256: 0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726/advection1d_val.h5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    task: advection1d
+    sample_count: 64
+    selected_identity_sha256: 80d3dc9f442fa8206c0ef052dda12969ff0587b70ca2c006743298dcf9b755e9
+- object_id: advection1d-test
+  path: advection1d_test.h5
+  size_bytes: 47140053
+  checksums:
+    sha256: 17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a/advection1d_test.h5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    task: advection1d
+    sample_count: 64
+    selected_identity_sha256: 9750ce2c659940ad7af167588d0c8d8c1f0f68133980fe28fe143f86a6dc848e
+metadata:
+  construction_manifest_sha256: 531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8
+  construction_protocol: strat-v1

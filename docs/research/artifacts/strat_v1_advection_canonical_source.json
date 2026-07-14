@@ -1,0 +1,9 @@
+{
+  "output_bytes": 286957857,
+  "output_path": "data/pdebench_advection_canonical/advection1d_train.h5",
+  "output_sha256": "03dc863cd90ae3e7cb01f01d125fd85feb540b7a8348a8d8301fe2da6b5a758b",
+  "remote_key": "strat-v1/immutable/sha256/03dc863cd90ae3e7cb01f01d125fd85feb540b7a8348a8d8301fe2da6b5a758b/advection1d_train.h5",
+  "status": "complete",
+  "task": "advection1d",
+  "uri": "b2://pdebench/strat-v1/immutable/sha256/03dc863cd90ae3e7cb01f01d125fd85feb540b7a8348a8d8301fe2da6b5a758b/advection1d_train.h5"
+}

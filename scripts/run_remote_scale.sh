@@ -6,14 +6,15 @@ set -eo pipefail
 # Example:
 #   WANDB_PROJECT=universal-simulator \
 #   WANDB_ENTITY=myteam \
-#   WANDB_DATASETS="burgers1d_subset_v1" \
+#   DATA_LOCK=/path/to/training.data.lock.json \
 #   WANDB_API_KEY=... \
 #   bash scripts/run_remote_scale.sh
 
 # Optional environment configuration (defaults when missing)
 WANDB_PROJECT="${WANDB_PROJECT:-}"
 WANDB_ENTITY="${WANDB_ENTITY:-}"
-WANDB_DATASETS="${WANDB_DATASETS:-}"
+DATA_LOCK="${DATA_LOCK:-}"
+DATA_CACHE="${DATA_CACHE:-$PWD/data/cache}"
 
 # Enable W&B online mode only if we have a project and login key
 if [ -n "${WANDB_API_KEY:-}" ]; then
@@ -32,7 +33,7 @@ TRAIN_EXTRA_ARGS=${TRAIN_EXTRA_ARGS:-}
 EVAL_CONFIG=${EVAL_CONFIG:-configs/eval_pdebench_scale_ttc.yaml}
 EVAL_TEST_CONFIG=${EVAL_TEST_CONFIG:-configs/eval_pdebench_scale_test_ttc.yaml}
 FIX_LIBCUDA=${FIX_LIBCUDA:-1}
-RESET_CACHE=${RESET_CACHE:-1}
+RESET_CACHE=${RESET_CACHE:-0}
 LATENT_CACHE_DIR=${LATENT_CACHE_DIR:-data/latent_cache}
 
 WORKDIR=${WORKDIR:-$PWD}
@@ -52,18 +53,21 @@ if [ "$AVAIL_GB" -lt "$REQUIRED_GB" ]; then
   exit 1
 fi
 
-# Hydration: if WANDB_DATASETS set, hydrate; otherwise skip and rely on existing files under DATA_ROOT
-if [ -n "$WANDB_DATASETS" ]; then
-  IFS=', ' read -r -a DATASET_ARRAY <<< "$WANDB_DATASETS"
-  # Prefer Backblaze B2 streaming if credentials are present; otherwise fall back to W&B artifacts
-  if [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_BUCKET:-}" ]; then
-    echo "Using Backblaze B2 for dataset hydration via rclone streaming…"
-    CLEAN_OLD_SPLITS=1 scripts/fetch_datasets_b2.sh "${DATASET_ARRAY[@]}"
-  else
-    PYTHONPATH=src python scripts/fetch_datasets.py "${DATASET_ARRAY[@]}" --root "$DATA_ROOT" --cache "$WORKDIR/artifacts/cache" --project "${WANDB_PROJECT}" ${WANDB_ENTITY:+--entity "$WANDB_ENTITY"}
-  fi
+# Training consumes only bytes named by an immutable lock. A prestaged bypass is
+# explicit because it forfeits automatic byte verification and provenance.
+if [ -n "$DATA_LOCK" ]; then
+  echo "Planning and staging locked training data…"
+  PYTHONPATH=src python -m ups.data.cli plan \
+    --lock "$DATA_LOCK" --cache "$DATA_CACHE" --reserve-bytes "$((REQUIRED_GB * 1024 * 1024 * 1024))"
+  PYTHONPATH=src python -m ups.data.cli stage \
+    --lock "$DATA_LOCK" --cache "$DATA_CACHE" --run-dir "$DATA_ROOT" \
+    --report "$WORKDIR/reports/data_stage_training.json"
+  PYTHONPATH=src python -m ups.data.cli verify --lock "$DATA_LOCK" --cache "$DATA_CACHE"
+elif [ "${UPS_ALLOW_PRESTAGED_DATA:-0}" -ne 1 ]; then
+  echo "Error: DATA_LOCK is required (or set UPS_ALLOW_PRESTAGED_DATA=1 for an explicit local-only bypass)." >&2
+  exit 1
 else
-  echo "Skipping dataset hydration (WANDB_DATASETS unset); expecting datasets under $DATA_ROOT"
+  echo "Using explicitly allowed prestaged data under $DATA_ROOT"
 fi
 
 export PDEBENCH_ROOT="$DATA_ROOT"
@@ -91,11 +95,11 @@ fi
 # Skip training if EVAL_ONLY=1
 if [ "${EVAL_ONLY:-0}" -eq 0 ]; then
   if [ "${PRECOMPUTE_LATENT:-1}" -eq 1 ]; then
-    echo "Precomputing latent caches (train/val/test)…"
+    echo "Precomputing latent caches (train/val only)…"
     PYTHONPATH=src python scripts/precompute_latent_cache.py \
       --config "${TRAIN_CONFIG}" \
       --tasks burgers1d \
-      --splits train val test \
+      --splits train val \
       --root "${PDEBENCH_ROOT:-$DATA_ROOT}" \
       --cache-dir "${LATENT_CACHE_DIR}" \
       --device cuda \
@@ -155,12 +159,19 @@ DIFF_CKPT=checkpoints/scale/diffusion_residual_ema.pt
 echo "Evaluating with config: $EVAL_CONFIG"
 PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval --print-json
 
-echo "Evaluating (test split) with config: $EVAL_TEST_CONFIG"
-PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_TEST_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval_test --print-json
+if [ "${RUN_TEST_MEASUREMENT:-0}" -eq 1 ]; then
+  : "${MEASUREMENT_DATA_LOCK:?RUN_TEST_MEASUREMENT=1 requires MEASUREMENT_DATA_LOCK}"
+  echo "Staging separately authorized measurement bytes…"
+  PYTHONPATH=src python -m ups.data.cli stage \
+    --lock "$MEASUREMENT_DATA_LOCK" --cache "$DATA_CACHE" --run-dir "$DATA_ROOT" \
+    --report "$WORKDIR/reports/data_stage_measurement.json"
+  DATA_LOCK="$MEASUREMENT_DATA_LOCK" PYTHONPATH=src python scripts/evaluate.py --config "$EVAL_TEST_CONFIG" --operator "$OP_CKPT" --diffusion "$DIFF_CKPT" --output-prefix reports/pdebench_scale_eval_test --print-json
+else
+  echo "Skipping test measurement; set RUN_TEST_MEASUREMENT=1 with a measurement lock to authorize it."
+fi
 
 # Optional cleanup to reclaim space
-if [ "${CLEANUP_AFTER_RUN:-1}" -eq 1 ]; then
-  echo "Cleaning up dataset cache and temporary artifacts..."
-  rm -rf "$WORKDIR/artifacts/cache" || true
-  find "$DATA_ROOT" -maxdepth 1 -type f -name "*.tmp" -delete || true
+if [ "${CLEANUP_AFTER_RUN:-0}" -eq 1 ] && [ -n "$DATA_LOCK" ]; then
+  echo "Reporting unpinned cache objects (dry run)…"
+  PYTHONPATH=src python -m ups.data.cli evict --cache "$DATA_CACHE" --lock "$DATA_LOCK"
 fi

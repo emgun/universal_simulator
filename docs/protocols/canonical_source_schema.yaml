@@ -1,0 +1,29 @@
+schema_version: 1
+tasks:
+  burgers1d:
+    status: frozen
+    dataset_key: tensor
+    expected_sample_shape: [201, 1024]
+    input_raw_layout: time_x
+    canonical_layout: time_x_channel
+    semantic_role: time_dependent_solution_trajectory
+    field_kind: temporal
+    parameter_name: nu
+    note: >-
+      Frozen from checksum-verified DaRUS file 268190: tensor is uncompressed
+      float32 [10000,201,1024]. x-coordinate is monotonic [1024]. The file's
+      monotonic t-coordinate has length 202 while tensor has 201 stored states;
+      preserve tensor states without inventing an unverified coordinate offset.
+  darcy2d:
+    status: frozen
+    input_dataset_key: nu
+    target_dataset_key: tensor
+    expected_input_sample_shape: [128, 128]
+    expected_target_sample_shape: [1, 128, 128]
+    input_raw_layout: xy
+    target_raw_layout: channel_xy
+    canonical_layout: state_xy_channel
+    semantic_role: steady_elliptic_coefficient_to_solution_operator
+    field_kind: steady
+    parameter_name: beta
+    note: Official nu is the binary coefficient field and tensor is the continuous solution. Preserve this as one coefficient-to-solution mapping; never interpret it as temporal dynamics.

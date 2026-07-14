@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-"""Create an executable plan for hydrating official Advection data for the literal transport gate."""
+"""Archived planner retained to interpret the completed legacy transport workflow."""
+
+ARCHIVED_LEGACY_WORKFLOW = True
 
 import argparse
 import json
@@ -168,6 +170,9 @@ def create_plan(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
+    raise SystemExit(
+        "Archived legacy workflow: use the universal strat-v1 builder and current roadmap"
+    )
     parser = argparse.ArgumentParser(
         description="Plan official Advection hydration for the literal transport objective"
     )

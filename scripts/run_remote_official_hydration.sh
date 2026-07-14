@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: use canonical provenance hydration plus the universal builder." >&2
+exit 2
+
 # Remote official Advection hydration entrypoint.
 #
 # This wrapper matches the Vast launcher contract, which invokes remote scripts

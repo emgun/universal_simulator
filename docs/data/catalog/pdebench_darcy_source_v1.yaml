@@ -1,0 +1,80 @@
+schema_version: 1
+dataset_id: pdebench-darcy2d-source
+provider: DaRUS, University of Stuttgart
+revision: darus:doi:10.18419/darus-2986@8.0
+native_format: PDEBench Darcy HDF5
+license: CC BY 4.0
+citation: PDEBench, NeurIPS Datasets and Benchmarks 2022
+objects:
+  - object_id: darus-datafile-133217
+    path: 2D/DarcyFlow/2D_DarcyFlow_beta0.01_Train.hdf5
+    size_bytes: 1310724760
+    checksums:
+      md5: d05c287d4c0b7d3178b0097084238251
+    uris:
+      - https://darus.uni-stuttgart.de/api/access/datafile/133217?format=original
+    declared_roles: [train]
+    media_type: application/x-hdf5
+    metadata:
+      darus_file_id: 133217
+      beta: 0.01
+      upstream_split: Train
+  - object_id: darus-datafile-133218
+    path: 2D/DarcyFlow/2D_DarcyFlow_beta0.1_Train.hdf5
+    size_bytes: 1310724488
+    checksums:
+      md5: 294f9a03a4aa16b0e386469ca8b471be
+    uris:
+      - https://darus.uni-stuttgart.de/api/access/datafile/133218?format=original
+    declared_roles: [train]
+    media_type: application/x-hdf5
+    metadata:
+      darus_file_id: 133218
+      beta: 0.1
+      upstream_split: Train
+  - object_id: darus-datafile-133219
+    path: 2D/DarcyFlow/2D_DarcyFlow_beta1.0_Train.hdf5
+    size_bytes: 1310724488
+    checksums:
+      md5: 81694ed31306ff2e5f6b76349b0b4389
+    uris:
+      - https://darus.uni-stuttgart.de/api/access/datafile/133219?format=original
+    declared_roles: [train]
+    media_type: application/x-hdf5
+    metadata:
+      darus_file_id: 133219
+      beta: 1.0
+      upstream_split: Train
+  - object_id: darus-datafile-133220
+    path: 2D/DarcyFlow/2D_DarcyFlow_beta10.0_Train.hdf5
+    size_bytes: 1310724488
+    checksums:
+      md5: a7f23cf8011fc211b180828af39b7d1a
+    uris:
+      - https://darus.uni-stuttgart.de/api/access/datafile/133220?format=original
+    declared_roles: [train]
+    media_type: application/x-hdf5
+    metadata:
+      darus_file_id: 133220
+      beta: 10.0
+      upstream_split: Train
+  - object_id: darus-datafile-133221
+    path: 2D/DarcyFlow/2D_DarcyFlow_beta100.0_Train.hdf5
+    size_bytes: 1310724760
+    checksums:
+      md5: 7c09f3b1bb097737d3fd52ffb0c6f1c8
+    uris:
+      - https://darus.uni-stuttgart.de/api/access/datafile/133221?format=original
+    declared_roles: [train]
+    media_type: application/x-hdf5
+    metadata:
+      darus_file_id: 133221
+      beta: 100.0
+      upstream_split: Train
+metadata:
+  scope: exact five-object upstream source for Darcy strat-v1 construction
+  authority: DaRUS DOI release 8.0 and checked-in PDEBench file inventory
+  darus_dataset_version: 8.0
+  darus_dataset_version_id: 4465
+  schema_contract: ../../protocols/canonical_source_schema.yaml
+  not_a_benchmark_split: true

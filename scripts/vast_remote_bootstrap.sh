@@ -150,7 +150,7 @@ if [ -f scripts/load_env.sh ] && [ -f .env ]; then
   bash scripts/load_env.sh || true
 fi
 
-if [ "$UPS_SKIP_PREFETCH" != "1" ] && [ -n "${WANDB_DATASETS:-}" ]; then
+if [ "$UPS_SKIP_PREFETCH" != "1" ] && [ -n "${DATA_LOCK:-}" ]; then
   bash scripts/fetch_datasets_b2.sh
 fi
 

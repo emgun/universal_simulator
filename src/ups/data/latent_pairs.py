@@ -480,7 +480,12 @@ class LatentPair:
 
 
 class GridLatentPairDataset(Dataset):
-    """Wrap a PDEBench dataset and emit latent (t, t+1) token pairs."""
+    """Encode either temporal transitions or one steady operator mapping.
+
+    Time-dependent tasks emit every ``t -> t+1`` pair. Steady elliptic tasks
+    emit exactly one coefficient-field ``input -> solution`` pair; the two
+    states are not assigned synthetic times.
+    """
 
     def __init__(
         self,
@@ -532,10 +537,14 @@ class GridLatentPairDataset(Dataset):
                 except (RuntimeError, EOFError):  # corrupted file
                     cache_path.unlink(missing_ok=True)
                 else:
-                    latent_seq = data["latent"].float()
-                    params_cpu = data.get("params")
-                    bc_cpu = data.get("bc")
-                    cache_hit = True
+                    cached_mapping_kind = data.get("mapping_kind", "trajectory")
+                    if cached_mapping_kind != self.base.spec.mapping_kind:
+                        cache_path.unlink(missing_ok=True)
+                    else:
+                        latent_seq = data["latent"].float()
+                        params_cpu = data.get("params")
+                        bc_cpu = data.get("bc")
+                        cache_hit = True
 
         if latent_seq is None:
             sample = self.base[idx]
@@ -560,6 +569,22 @@ class GridLatentPairDataset(Dataset):
                 bc=bc_device,
                 field_name=self.field_name,
             )
+            if self.base.spec.mapping_kind == "steady_operator":
+                targets = sample["targets"].float().to(self.device, non_blocking=True)
+                target_latent = _fields_to_latent_batch(
+                    self.encoder,
+                    targets,
+                    self.coords,
+                    self.grid_shape,
+                    params=params_device,
+                    bc=bc_device,
+                    field_name=self.field_name,
+                )
+                if latent_seq.shape[0] != 1 or target_latent.shape[0] != 1:
+                    raise ValueError(
+                        "Steady operator samples must contain one input state and one target state"
+                    )
+                latent_seq = torch.cat([latent_seq, target_latent], dim=0)
             if self.cache_dir and not cache_hit:
                 to_store = (
                     latent_seq.to(self.cache_dtype) if self.cache_dtype is not None else latent_seq
@@ -570,14 +595,15 @@ class GridLatentPairDataset(Dataset):
                     "latent": to_store.cpu(),
                     "params": params_cpu,
                     "bc": bc_cpu,
+                    "mapping_kind": self.base.spec.mapping_kind,
                 }
                 buffer = io.BytesIO()
                 torch.save(payload, buffer)
                 tmp_path.write_bytes(buffer.getvalue())
                 tmp_path.replace(cache_path)
 
-        # Optionally downsample the time dimension to accelerate epochs
-        if self.time_stride > 1:
+        # Only trajectories have a time dimension that may be downsampled.
+        if self.time_stride > 1 and self.base.spec.mapping_kind == "trajectory":
             latent_seq = latent_seq[:: self.time_stride]
 
         if latent_seq.shape[0] < 2:
@@ -783,13 +809,19 @@ def _build_pdebench_dataset(
             task=data_cfg["task"],
             split=data_cfg.get("split", "train"),
             root=data_cfg.get("root"),
+            normalize=bool(data_cfg.get("normalize", False)),
+            normalization_path=data_cfg.get("normalization_path"),
+            target_normalization_path=data_cfg.get("target_normalization_path"),
+            data_lock_path=data_cfg.get("data_lock_path"),
+            data_lock_sha256=data_cfg.get("data_lock_sha256"),
+            selection_sha256=data_cfg.get("selection_sha256"),
             param_keys=tuple(data_cfg.get("param_keys", ())),
             bc_keys=tuple(data_cfg.get("bc_keys", ())),
             max_samples=data_cfg.get("max_samples"),
         ),
     )
 
-    sample_fields = dataset.fields[0]
+    sample_fields = dataset[0]["fields"]
     grid_shape = infer_grid_shape(sample_fields)
     channels = infer_channel_count(sample_fields, grid_shape)
     field_name = data_cfg.get("field_name", "u")

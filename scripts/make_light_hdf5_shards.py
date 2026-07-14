@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-"""Build small PDEBench-style HDF5 train/val/test shards from larger local HDF5 files."""
+"""Build universally gated PDEBench-style train/validation/test shards."""
 
 import argparse
 import hashlib
+import json
+import urllib.parse
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -13,20 +15,21 @@ import h5py
 import numpy as np
 import yaml
 
+LEGACY_VERSION_LABELS = {"smoke-v1", "light-v1", "medium-v1"}
+LEGACY_REMOTE_PREFIXES = {"smoke-v1", "light-v1", "medium-v1"}
+SELECTION_ALGORITHM = "sha256-protocol-seed-provenance-v1"
+
+try:
+    from scripts.protocol_split_gates import evaluate_protocol_splits
+except ModuleNotFoundError:  # Direct execution adds scripts/, not the repository root, to sys.path.
+    from protocol_split_gates import evaluate_protocol_splits
+
 
 def _source_paths(root: Path, task: str, split: str) -> list[Path]:
     exact = root / f"{task}_{split}.h5"
     if exact.exists():
         return [exact]
     return sorted(root.glob(f"{task}_{split}_*.h5"))
-
-
-def _resolve_source_split(root: Path, task: str, preferred_split: str, fallback_split: str) -> str:
-    if _source_paths(root, task, preferred_split):
-        return preferred_split
-    if preferred_split != fallback_split and _source_paths(root, task, fallback_split):
-        return fallback_split
-    raise FileNotFoundError(root / f"{task}_{preferred_split}.h5")
 
 
 def _dataset_keys(handle: h5py.File, sample_count: int) -> list[str]:
@@ -45,48 +48,6 @@ def _validate_source_complete(path: Path, handle: h5py.File) -> None:
             f"{path} is marked sequential_hydration_complete=False; "
             "refusing to build light shards from partial official hydration"
         )
-
-
-def _read_window(paths: Iterable[Path], start: int, count: int) -> dict[str, np.ndarray]:
-    remaining = int(count)
-    offset = int(start)
-    chunks: dict[str, list[np.ndarray]] = {}
-    attrs: dict[str, dict[str, object]] = {}
-    file_attrs: dict[str, object] | None = None
-
-    for path in paths:
-        if remaining <= 0:
-            break
-        with h5py.File(path, "r") as handle:
-            _validate_source_complete(path, handle)
-            if file_attrs is None:
-                file_attrs = dict(handle.attrs.items())
-            if "data" not in handle:
-                raise KeyError(f"{path} does not contain a 'data' dataset")
-            total = int(handle["data"].shape[0])
-            if offset >= total:
-                offset -= total
-                continue
-            take = min(remaining, total - offset)
-            keys = _dataset_keys(handle, total)
-            for key in keys:
-                dataset = handle[key]
-                chunks.setdefault(key, []).append(dataset[offset : offset + take])
-                attrs.setdefault(key, dict(dataset.attrs.items()))
-            remaining -= take
-            offset = 0
-
-    if remaining > 0:
-        raise ValueError(
-            f"Requested {count} samples from offset {start}, but source files ran short by {remaining}"
-        )
-
-    merged = {key: np.concatenate(values, axis=0) for key, values in chunks.items()}
-    for key, values in attrs.items():
-        merged[f"__attrs__:{key}"] = values  # type: ignore[assignment]
-    if file_attrs is not None:
-        merged["__file_attrs__"] = file_attrs  # type: ignore[assignment]
-    return merged
 
 
 def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.ndarray]:
@@ -146,40 +107,23 @@ def _read_indices(paths: Iterable[Path], indices: list[int]) -> dict[str, np.nda
     return merged
 
 
-def _source_sample_count(paths: Iterable[Path]) -> int:
-    total = 0
+def _read_aligned_dataset(paths: Iterable[Path], key: str) -> np.ndarray:
+    chunks: list[np.ndarray] = []
     for path in paths:
         with h5py.File(path, "r") as handle:
             _validate_source_complete(path, handle)
             if "data" not in handle:
                 raise KeyError(f"{path} does not contain a 'data' dataset")
-            total += int(handle["data"].shape[0])
-    return total
-
-
-def _stratified_indices(*, block_size: int, block_count: int, offset: int, count: int) -> list[int]:
-    if block_size <= 0:
-        raise ValueError("Stratified block size must be positive")
-    if offset < 0 or offset >= block_size:
-        raise ValueError(f"Stratified offset {offset} must be in [0, {block_size})")
-    if count <= 0:
-        return []
-    if block_count <= 0:
-        raise ValueError("Stratified block count must be positive")
-    per_block, remainder = divmod(count, block_count)
-    if remainder:
-        # This helper is intentionally strict because the official Advection path
-        # uses equal per-beta blocks; partial final blocks would silently skew beta mix.
-        raise ValueError(f"Stratified count {count} is not divisible by block count {block_count}")
-    if per_block <= 0 or offset + per_block > block_size:
-        raise ValueError(
-            f"Cannot take {count} rows with offset {offset} from block size {block_size}"
-        )
-    return [
-        block_start + row
-        for block_start in range(0, block_count * block_size, block_size)
-        for row in range(offset, offset + per_block)
-    ]
+            count = int(handle["data"].shape[0])
+            if key not in handle or not isinstance(handle[key], h5py.Dataset):
+                raise ValueError(f"{path} is missing required dataset: {key}")
+            dataset = handle[key]
+            if not dataset.shape or int(dataset.shape[0]) != count:
+                raise ValueError(f"{path} dataset {key} is not aligned to {count} samples")
+            chunks.append(np.asarray(dataset))
+    if not chunks:
+        raise ValueError(f"No source data available for required dataset: {key}")
+    return np.concatenate(chunks, axis=0)
 
 
 def _write_h5(path: Path, arrays: dict[str, np.ndarray], *, overwrite: bool) -> None:
@@ -211,6 +155,48 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _identity_value(value: object) -> object:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, bytes):
+        return {"bytes_hex": value.hex()}
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    raise ValueError(f"Unsupported provenance identity value: {value!r}")
+
+
+def _identity_json(values: tuple[object, ...]) -> str:
+    return json.dumps(
+        [_identity_value(value) for value in values],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+
+
+def _selection_rank(*, protocol_id: str, seed: int, identity_json: str) -> str:
+    payload = json.dumps(
+        {
+            "algorithm": SELECTION_ALGORITHM,
+            "identity": json.loads(identity_json),
+            "protocol_id": protocol_id,
+            "seed": seed,
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _identity_digest(identity_jsons: list[str]) -> str:
+    digest = hashlib.sha256()
+    for identity_json in identity_jsons:
+        encoded = identity_json.encode("utf-8")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
+
+
 def _h5_summary(path: Path) -> dict[str, Any]:
     datasets: dict[str, Any] = {}
     sample_count = 0
@@ -232,35 +218,7 @@ def _h5_summary(path: Path) -> dict[str, Any]:
     }
 
 
-def _parse_split_sources(values: list[str] | None) -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    for item in values or []:
-        if "=" not in item:
-            raise ValueError(f"Invalid --split-source '{item}'. Expected SPLIT=SOURCE_SPLIT")
-        split, source = item.split("=", 1)
-        split = split.strip()
-        source = source.strip()
-        if not split or not source:
-            raise ValueError(f"Invalid --split-source '{item}'. Expected SPLIT=SOURCE_SPLIT")
-        mapping[split] = source
-    return mapping
-
-
-def _parse_split_ints(values: list[str] | None, *, setting: str) -> dict[str, int]:
-    mapping: dict[str, int] = {}
-    for item in values or []:
-        if "=" not in item:
-            raise ValueError(f"Invalid {setting} '{item}'. Expected SPLIT=INTEGER")
-        split, raw_value = item.split("=", 1)
-        split = split.strip()
-        raw_value = raw_value.strip()
-        if not split or not raw_value:
-            raise ValueError(f"Invalid {setting} '{item}'. Expected SPLIT=INTEGER")
-        mapping[split] = int(raw_value)
-    return mapping
-
-
-def build_task_shard_records(
+def build_stratified_task_shard_records(
     *,
     root: Path,
     out_root: Path,
@@ -269,126 +227,254 @@ def build_task_shard_records(
     train_count: int,
     val_count: int,
     test_count: int,
-    start_index: int,
     overwrite: bool,
-    split_sources: dict[str, str] | None = None,
-    split_start_indices: dict[str, int] | None = None,
-    split_block_size: int | None = None,
-    split_block_offsets: dict[str, int] | None = None,
-    fallback_source_split: str = "train",
+    provenance_datasets: list[str],
+    regime_dataset: str,
+    field_kind: str,
+    time_axis: int | None,
     remote_prefix: str | None = None,
+    content_addressed_remote: bool = False,
+    selection_seed: int = 0,
+    selection_protocol: str = "strat-v1",
 ) -> list[dict[str, Any]]:
-    split_sources = dict(split_sources or {})
-    split_start_indices = dict(split_start_indices or {})
-    split_block_offsets = dict(split_block_offsets or {})
-    records: list[dict[str, Any]] = []
-    offsets: dict[str, int] = {}
+    """Build the only supported protocol: deterministic, balanced, and disjoint."""
+    counts = {"train": train_count, "val": val_count, "test": test_count}
+    if any(count <= 0 for count in counts.values()):
+        raise ValueError("The universal protocol requires positive train, val, and test counts")
+    paths = _source_paths(root, task, source_split)
+    if not paths:
+        raise FileNotFoundError(root / f"{task}_{source_split}.h5")
+    regime_values = _read_aligned_dataset(paths, regime_dataset)
+    if regime_values.ndim != 1:
+        raise ValueError(f"{task} identity dataset {regime_dataset} must be one-dimensional")
+    provenance_values: dict[str, np.ndarray] = {}
+    for key in provenance_datasets:
+        values = _read_aligned_dataset(paths, key)
+        if values.ndim != 1:
+            raise ValueError(f"{task} identity dataset {key} must be one-dimensional")
+        provenance_values[key] = values
 
-    for split, count in (("train", train_count), ("val", val_count), ("test", test_count)):
-        if count <= 0:
-            continue
-        preferred_source = split_sources.get(split, split if split != "train" else source_split)
-        resolved_source = _resolve_source_split(root, task, preferred_source, fallback_source_split)
-        paths = _source_paths(root, task, resolved_source)
-        if not paths:
-            raise FileNotFoundError(root / f"{task}_{resolved_source}.h5")
-
-        stratified_offset = split_block_offsets.get(split)
-        cursor = split_start_indices.get(split)
-        selected_indices: list[int] | None = None
-        if stratified_offset is not None:
-            if split_block_size is None:
-                raise ValueError(f"--split-block-offset for {split} requires --split-block-size")
-            total_rows = _source_sample_count(paths)
-            block_count, remainder = divmod(total_rows, split_block_size)
-            if remainder:
-                raise ValueError(
-                    f"Source rows {total_rows} are not divisible by stratified block size {split_block_size}"
-                )
-            selected_indices = _stratified_indices(
-                block_size=split_block_size,
-                block_count=block_count,
-                offset=stratified_offset,
-                count=count,
+    regimes: dict[object, list[int]] = {}
+    for index, raw_value in enumerate(regime_values):
+        value = raw_value.item() if isinstance(raw_value, np.generic) else raw_value
+        if isinstance(value, (float, complex)) and not np.isfinite(value):
+            raise ValueError(f"{task} regime dataset contains a non-finite value at row {index}")
+        regimes.setdefault(value, []).append(index)
+    if not regimes:
+        raise ValueError(f"{task} source has no regimes")
+    regime_count = len(regimes)
+    per_split: dict[str, int] = {}
+    for split, count in counts.items():
+        per_regime, remainder = divmod(count, regime_count)
+        if remainder or per_regime <= 0:
+            raise ValueError(
+                f"{task} {split} count {count} must be a positive multiple of "
+                f"the {regime_count} regimes"
             )
-            arrays = _read_indices(paths, selected_indices)
-            cursor = stratified_offset
-        else:
-            if cursor is None:
-                cursor = offsets.setdefault(resolved_source, int(start_index))
-            arrays = _read_window(paths, cursor, count)
-        out_path = out_root / f"{task}_{split}.h5"
-        _write_h5(out_path, arrays, overwrite=overwrite)
-        summary = _h5_summary(out_path)
-        remote_key = (
-            f"{remote_prefix.rstrip('/')}/{task}/{out_path.name}" if remote_prefix else None
+        per_split[split] = per_regime
+    needed_per_regime = sum(per_split.values())
+    for regime, indices in regimes.items():
+        if len(indices) < needed_per_regime:
+            raise ValueError(
+                f"{task} regime {regime!r} has {len(indices)} rows; "
+                f"{needed_per_regime} are required"
+            )
+
+    identity_jsons = {
+        index: _identity_json(tuple(provenance_values[key][index] for key in provenance_datasets))
+        for index in range(len(regime_values))
+    }
+    if len(set(identity_jsons.values())) != len(identity_jsons):
+        raise ValueError(f"{task} source contains provenance overlap in composite identities")
+    # The terminal provenance component is the trajectory/sample identity shared by
+    # parameter-regime files. Ranking by it keeps matched initial conditions in the
+    # same split, while the full composite identity remains the uniqueness contract.
+    ranking_identity_jsons = {
+        index: _identity_json((provenance_values[provenance_datasets[-1]][index],))
+        for index in range(len(regime_values))
+    }
+
+    selected: dict[str, list[int]] = {split: [] for split in counts}
+    for regime in sorted(regimes, key=lambda value: _identity_json((value,))):
+        indices = sorted(
+            regimes[regime],
+            key=lambda index: (
+                _selection_rank(
+                    protocol_id=selection_protocol,
+                    seed=selection_seed,
+                    identity_json=ranking_identity_jsons[index],
+                ),
+                identity_jsons[index],
+            ),
         )
+        cursor = 0
+        for split in counts:
+            take = per_split[split]
+            selected[split].extend(indices[cursor : cursor + take])
+            cursor += take
+    selected_arrays = {split: _read_indices(paths, indices) for split, indices in selected.items()}
+    selection_digests = {
+        split: _identity_digest([identity_jsons[index] for index in indices])
+        for split, indices in selected.items()
+    }
+    for split, arrays in selected_arrays.items():
+        file_attrs = dict(arrays.get("__file_attrs__", {}))
+        file_attrs.update(
+            {
+                "selection_algorithm": SELECTION_ALGORITHM,
+                "selection_seed": selection_seed,
+                "selection_protocol": selection_protocol,
+                "selection_ranking_provenance_dataset": provenance_datasets[-1],
+                "selected_identity_sha256": selection_digests[split],
+            }
+        )
+        arrays["__file_attrs__"] = file_attrs  # type: ignore[assignment]
+    gate = evaluate_protocol_splits(
+        selected_arrays,
+        provenance_datasets=provenance_datasets,
+        regime_dataset=regime_dataset,
+        field_kind=field_kind,
+        time_axis=time_axis,
+    )
+
+    records: list[dict[str, Any]] = []
+    output_paths = {split: out_root / f"{task}_{split}.h5" for split in counts}
+    if not overwrite:
+        existing = [str(path) for path in output_paths.values() if path.exists()]
+        if existing:
+            raise FileExistsError(
+                f"Protocol output already exists; pass --overwrite to replace it: {', '.join(existing)}"
+            )
+    for split in counts:
+        out_path = output_paths[split]
+        _write_h5(out_path, selected_arrays[split], overwrite=overwrite)
+        summary = _h5_summary(out_path)
         records.append(
             {
                 "task": task,
                 "split": split,
-                "source_split": resolved_source,
-                "preferred_source_split": preferred_source,
-                "derived_from_source_split": resolved_source != split,
+                "source_split": source_split,
+                "preferred_source_split": source_split,
+                "derived_from_source_split": split != source_split,
                 "source_paths": [str(path) for path in paths],
-                "start_index": cursor,
-                "stratified_block_size": (
-                    split_block_size if stratified_offset is not None else None
-                ),
-                "stratified_block_offset": stratified_offset,
-                "stratified_indices": selected_indices,
+                "selected_source_indices": selected[split],
+                "selection_algorithm": SELECTION_ALGORITHM,
+                "selection_seed": selection_seed,
+                "selection_protocol": selection_protocol,
+                "selection_ranking_provenance_dataset": provenance_datasets[-1],
+                "selected_identity_sha256": selection_digests[split],
                 "sample_count": summary["sample_count"],
                 "output_path": str(out_path),
-                "remote_key": remote_key,
+                "remote_key": (
+                    (
+                        f"{remote_prefix.rstrip('/')}/immutable/sha256/"
+                        f"{summary['sha256']}/{out_path.name}"
+                    )
+                    if remote_prefix and content_addressed_remote
+                    else (
+                        f"{remote_prefix.rstrip('/')}/{task}/{out_path.name}"
+                        if remote_prefix
+                        else None
+                    )
+                ),
                 "bytes": summary["bytes"],
                 "sha256": summary["sha256"],
                 "datasets": summary["datasets"],
+                "protocol_gate": gate,
             }
         )
-        if split not in split_start_indices and stratified_offset is None:
-            offsets[resolved_source] = cursor + count
     return records
 
 
-def build_task_shards(
+def _write_control_manifests(
     *,
-    root: Path,
-    out_root: Path,
-    task: str,
-    source_split: str,
-    train_count: int,
-    val_count: int,
-    test_count: int,
-    start_index: int,
-    overwrite: bool,
-    split_sources: dict[str, str] | None = None,
-    split_start_indices: dict[str, int] | None = None,
-    split_block_size: int | None = None,
-    split_block_offsets: dict[str, int] | None = None,
-    fallback_source_split: str = "train",
-) -> list[Path]:
-    records = build_task_shard_records(
-        root=root,
-        out_root=out_root,
-        task=task,
-        source_split=source_split,
-        train_count=train_count,
-        val_count=val_count,
-        test_count=test_count,
-        start_index=start_index,
-        overwrite=overwrite,
-        split_sources=split_sources,
-        split_start_indices=split_start_indices,
-        split_block_size=split_block_size,
-        split_block_offsets=split_block_offsets,
-        fallback_source_split=fallback_source_split,
-    )
-    return [Path(str(record["output_path"])) for record in records]
+    construction_manifest: dict[str, Any],
+    records: list[dict[str, Any]],
+    provenance_datasets: list[str],
+    source_path: Path,
+    protocol_path: Path,
+    mirror_uri_prefix: str | None,
+    content_addressed_mirror: bool,
+) -> None:
+    """Bridge gated shard construction into the immutable runtime control plane."""
+
+    construction_digest = hashlib.sha256(
+        json.dumps(construction_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    revision = f"sha256:{construction_digest}"
+    objects = []
+    splits: dict[str, list[str]] = {"train": [], "valid": [], "test": []}
+    for record in records:
+        split = "valid" if record["split"] == "val" else str(record["split"])
+        output = Path(str(record["output_path"])).resolve()
+        object_id = f"{record['task']}-{split}"
+        uris = [output.as_uri()]
+        if mirror_uri_prefix:
+            if content_addressed_mirror:
+                mirror_suffix = f"immutable/sha256/{record['sha256']}/{output.name}"
+            else:
+                mirror_suffix = f"{record['task']}/{output.name}"
+            uris.insert(
+                0,
+                f"{mirror_uri_prefix.rstrip('/')}/{mirror_suffix}",
+            )
+        objects.append(
+            {
+                "object_id": object_id,
+                "path": output.name,
+                "size_bytes": int(record["bytes"]),
+                "checksums": {"sha256": str(record["sha256"])},
+                "uris": uris,
+                "declared_roles": [split],
+                "media_type": "application/x-hdf5",
+                "metadata": {
+                    "task": record["task"],
+                    "sample_count": record["sample_count"],
+                    "selected_identity_sha256": record["selected_identity_sha256"],
+                },
+            }
+        )
+        splits[split].append(object_id)
+
+    source = {
+        "schema_version": 1,
+        "dataset_id": "pdebench",
+        "provider": "UPS protocol-gated derivative of PDEBench",
+        "revision": revision,
+        "native_format": "HDF5",
+        "license": "CC BY 4.0",
+        "citation": "PDEBench, NeurIPS Datasets and Benchmarks 2022",
+        "objects": objects,
+        "metadata": {
+            "construction_manifest_sha256": construction_digest,
+            "construction_protocol": construction_manifest["version"],
+        },
+    }
+    protocol = {
+        "schema_version": 1,
+        "protocol_id": f"pdebench-{construction_manifest['version']}",
+        "dataset_id": "pdebench",
+        "source_revision": revision,
+        "adapter": "pdebench_hdf5",
+        "adapter_revision": "1.0.0",
+        "split_authority": "constructed_trajectory_disjoint_parameter_stratified",
+        "splits": {role: sorted(ids) for role, ids in splits.items()},
+        "identity_fields": provenance_datasets,
+        "selection": construction_manifest["selection"],
+        "normalization": {"fit_role": "train", "method": "zscore"},
+        "test_access": "measurement_contract_required",
+        "coverage_dimensions": ["task", "physical_parameter_regime"],
+        "metadata": {"construction_manifest_sha256": construction_digest},
+    }
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    protocol_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(yaml.safe_dump(source, sort_keys=False), encoding="utf-8")
+    protocol_path.write_text(yaml.safe_dump(protocol, sort_keys=False), encoding="utf-8")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Create small HDF5 train/val/test shards for cheap UPS experiments"
+        description="Build protocol-gated, provenance-disjoint HDF5 train/val/test shards"
     )
     parser.add_argument(
         "--root",
@@ -396,7 +482,7 @@ def main() -> None:
         help="Directory containing source <task>_<split>.h5 files",
     )
     parser.add_argument(
-        "--out-root", default="data/pdebench_light", help="Directory to write small shards"
+        "--out-root", default="data/pdebench_strat_v1", help="Directory to write gated shards"
     )
     parser.add_argument(
         "--tasks", nargs="+", required=True, help="Task names, e.g. burgers1d advection1d darcy2d"
@@ -404,55 +490,91 @@ def main() -> None:
     parser.add_argument(
         "--source-split", default="train", help="Source split to slice, default train"
     )
-    parser.add_argument(
-        "--split-source",
-        action="append",
-        default=[],
-        help="Optional split source mapping like val=train. Defaults to native split when present.",
-    )
-    parser.add_argument(
-        "--split-start-index",
-        action="append",
-        default=[],
-        help="Optional split-specific start index like train=1024. Overrides --start-index for that split.",
-    )
-    parser.add_argument(
-        "--split-block-size",
-        type=int,
-        help="Optional ordered-source block size for stratified split slicing.",
-    )
-    parser.add_argument(
-        "--split-block-offset",
-        action="append",
-        default=[],
-        help="Optional stratified split offset like val=32. Requires --split-block-size.",
-    )
-    parser.add_argument(
-        "--fallback-source-split",
-        default="train",
-        help="Fallback source split when native split is missing",
-    )
     parser.add_argument("--train-count", type=int, default=16)
     parser.add_argument("--val-count", type=int, default=8)
     parser.add_argument("--test-count", type=int, default=8)
-    parser.add_argument("--start-index", type=int, default=0)
-    parser.add_argument("--manifest", help="Optional YAML manifest path to write")
-    parser.add_argument("--version", default="light-local", help="Manifest/data version label")
+    parser.add_argument("--manifest", required=True, help="YAML manifest path for gate evidence")
+    parser.add_argument("--source-manifest", help="Output runtime source manifest")
+    parser.add_argument("--protocol-manifest", help="Output runtime protocol manifest")
+    parser.add_argument(
+        "--mirror-uri-prefix",
+        help="Optional exact HTTP(S) or b2:// mirror prefix for portable runtime locks",
+    )
+    parser.add_argument(
+        "--content-addressed-mirror",
+        action="store_true",
+        help=(
+            "Address mirror objects as immutable/sha256/<digest>/<logical-filename>; "
+            "requires --mirror-uri-prefix"
+        ),
+    )
+    parser.add_argument("--version", default="strat-v1", help="Manifest/data version label")
+    parser.add_argument(
+        "--selection-seed",
+        type=int,
+        default=0,
+        help="Seed included in stable provenance-identity ranking",
+    )
     parser.add_argument(
         "--remote-prefix", help="Optional remote key prefix to record for each output"
+    )
+    parser.add_argument(
+        "--provenance-dataset",
+        action="append",
+        required=True,
+        help="Sample-aligned provenance identity dataset; repeat for composite identities",
+    )
+    parser.add_argument(
+        "--regime-dataset",
+        required=True,
+        help="Sample-aligned regime dataset",
+    )
+    parser.add_argument(
+        "--field-kind",
+        choices=("temporal", "steady"),
+        required=True,
+        help="Field semantics used by overlap checks",
+    )
+    parser.add_argument(
+        "--time-axis",
+        type=int,
+        help="Temporal axis in the source HDF5 data dataset; axis 0 is samples",
     )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
+    if args.version in LEGACY_VERSION_LABELS:
+        raise ValueError(
+            f"Version label {args.version!r} is reserved for immutable legacy artifacts; "
+            "use a strat-v1 label for new construction"
+        )
+    if args.remote_prefix in LEGACY_REMOTE_PREFIXES:
+        raise ValueError(
+            f"Remote prefix {args.remote_prefix!r} is reserved for immutable legacy artifacts"
+        )
+    if args.content_addressed_mirror and not args.mirror_uri_prefix:
+        raise ValueError("--content-addressed-mirror requires --mirror-uri-prefix")
+    effective_remote_prefix = args.remote_prefix
+    if args.content_addressed_mirror:
+        mirror = urllib.parse.urlparse(args.mirror_uri_prefix)
+        if mirror.scheme == "b2":
+            mirror_key_prefix = mirror.path.strip("/")
+            if not mirror_key_prefix:
+                raise ValueError("content-addressed b2 mirror requires a key prefix")
+            if effective_remote_prefix and effective_remote_prefix.rstrip("/") != mirror_key_prefix:
+                raise ValueError("--remote-prefix must match the b2 mirror key prefix")
+            effective_remote_prefix = mirror_key_prefix
+
     root = Path(args.root)
     out_root = Path(args.out_root)
-    split_sources = _parse_split_sources(args.split_source)
-    split_start_indices = _parse_split_ints(args.split_start_index, setting="--split-start-index")
-    split_block_offsets = _parse_split_ints(args.split_block_offset, setting="--split-block-offset")
     written: list[Path] = []
     records: list[dict[str, Any]] = []
+    if args.field_kind == "temporal" and args.time_axis is None:
+        raise ValueError("Temporal fields require --time-axis")
+    if args.field_kind == "steady" and args.time_axis is not None:
+        raise ValueError("Steady fields reject --time-axis")
     for task in args.tasks:
-        task_records = build_task_shard_records(
+        task_records = build_stratified_task_shard_records(
             root=root,
             out_root=out_root,
             task=str(task),
@@ -460,14 +582,15 @@ def main() -> None:
             train_count=args.train_count,
             val_count=args.val_count,
             test_count=args.test_count,
-            start_index=args.start_index,
             overwrite=args.overwrite,
-            split_sources=split_sources,
-            split_start_indices=split_start_indices,
-            split_block_size=args.split_block_size,
-            split_block_offsets=split_block_offsets,
-            fallback_source_split=args.fallback_source_split,
-            remote_prefix=args.remote_prefix,
+            provenance_datasets=args.provenance_dataset,
+            regime_dataset=args.regime_dataset,
+            field_kind=args.field_kind,
+            time_axis=args.time_axis,
+            remote_prefix=effective_remote_prefix,
+            content_addressed_remote=args.content_addressed_mirror,
+            selection_seed=args.selection_seed,
+            selection_protocol=args.version,
         )
         records.extend(task_records)
         written.extend(Path(str(record["output_path"])) for record in task_records)
@@ -475,38 +598,65 @@ def main() -> None:
     for path in written:
         print(path)
 
-    if args.manifest:
-        manifest = {
-            "version": args.version,
-            "source_root": str(root),
-            "out_root": str(out_root),
-            "remote_prefix": args.remote_prefix,
-            "tasks": [str(task) for task in args.tasks],
-            "splits": {
-                "train": {
-                    "samples": args.train_count,
-                    "preferred_source_split": split_sources.get("train", args.source_split),
-                },
-                "val": {
-                    "samples": args.val_count,
-                    "preferred_source_split": split_sources.get("val", "val"),
-                    "fallback_source_split": args.fallback_source_split,
-                },
-                "test": {
-                    "samples": args.test_count,
-                    "preferred_source_split": split_sources.get("test", "test"),
-                    "fallback_source_split": args.fallback_source_split,
-                },
+    manifest = {
+        "version": args.version,
+        "source_root": str(root),
+        "out_root": str(out_root),
+        "remote_prefix": effective_remote_prefix,
+        "tasks": [str(task) for task in args.tasks],
+        "splits": {
+            "train": {
+                "samples": args.train_count,
+                "preferred_source_split": args.source_split,
             },
-            "split_start_indices": split_start_indices,
-            "split_block_size": args.split_block_size,
-            "split_block_offsets": split_block_offsets,
-            "records": records,
-        }
-        manifest_path = Path(args.manifest)
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
-        print(manifest_path)
+            "val": {
+                "samples": args.val_count,
+                "preferred_source_split": args.source_split,
+            },
+            "test": {
+                "samples": args.test_count,
+                "preferred_source_split": args.source_split,
+            },
+        },
+        "protocol_mode": "strat-v1",
+        "selection": {
+            "algorithm": SELECTION_ALGORITHM,
+            "seed": args.selection_seed,
+            "protocol": args.version,
+        },
+        "protocol_gates": {
+            str(task): next(
+                record["protocol_gate"] for record in records if record["task"] == str(task)
+            )
+            for task in args.tasks
+        },
+        "records": records,
+    }
+    manifest_path = Path(args.manifest)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+    source_manifest_path = (
+        Path(args.source_manifest)
+        if args.source_manifest
+        else manifest_path.with_name(f"{manifest_path.stem}.source.yaml")
+    )
+    protocol_manifest_path = (
+        Path(args.protocol_manifest)
+        if args.protocol_manifest
+        else manifest_path.with_name(f"{manifest_path.stem}.protocol.yaml")
+    )
+    _write_control_manifests(
+        construction_manifest=manifest,
+        records=records,
+        provenance_datasets=list(args.provenance_dataset),
+        source_path=source_manifest_path,
+        protocol_path=protocol_manifest_path,
+        mirror_uri_prefix=args.mirror_uri_prefix,
+        content_addressed_mirror=args.content_addressed_mirror,
+    )
+    print(manifest_path)
+    print(source_manifest_path)
+    print(protocol_manifest_path)
 
 
 if __name__ == "__main__":

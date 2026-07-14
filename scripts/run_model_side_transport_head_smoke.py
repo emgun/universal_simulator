@@ -49,9 +49,11 @@ def _write_synthetic_hdf5(root: Path, *, steps: int, width: int) -> None:
     with h5py.File(root / "burgers1d_val.h5", "w") as handle:
         handle.create_dataset("data", data=burgers.numpy())
 
-    darcy = torch.full((1, steps + 1, width), 3.0, dtype=torch.float32)
+    darcy_coefficient = torch.full((1, 1, width), 3.0, dtype=torch.float32)
+    darcy_solution = darcy_coefficient.clone()
     with h5py.File(root / "darcy2d_val.h5", "w") as handle:
-        handle.create_dataset("data", data=darcy.numpy())
+        handle.create_dataset("data", data=darcy_coefficient.numpy())
+        handle.create_dataset("targets", data=darcy_solution.numpy())
 
 
 def run_smoke(*, output_dir: Path, rollout_steps: int = 16, width: int = 8) -> dict[str, Any]:

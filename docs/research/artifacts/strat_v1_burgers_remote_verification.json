@@ -1,0 +1,145 @@
+{
+  "artifacts": {
+    "burgers1d_test.h5": {
+      "bytes": 26148529,
+      "sha256": "2ae9435f10c5450a03fcfdfba34a512a2dd8a602f2fd30c3675610f743b716cd"
+    },
+    "burgers1d_train.h5": {
+      "bytes": 136466087,
+      "sha256": "de2556ab5bd1635a1d6e0681b1662a53cebe815163068d33b76f727f457a1697"
+    },
+    "burgers1d_val.h5": {
+      "bytes": 32289060,
+      "sha256": "cdebe1d6cca8be00e8d75c1ae8999c04acff5c0d61d4cf2cfa7cbe2984140280"
+    },
+    "manifest.protocol.yaml": {
+      "bytes": 771,
+      "sha256": "fcae5dd0208904eda9ac11eab798c4c9e477c3dae2dff9b863318acb5773665e"
+    },
+    "manifest.source.yaml": {
+      "bytes": 1751,
+      "sha256": "2eecb10b6a7d96e3fdffed22e4d880eb92e1da823bbc449bb3e8391f8a7d3b37"
+    },
+    "manifest.yaml": {
+      "bytes": 8545,
+      "sha256": "510c36b14788ef9d9c91966ed8d48d802443eab45d316e76a5ff52e253970641"
+    }
+  },
+  "cross_split_provenance_overlap": 0,
+  "protocol_manifest": {
+    "adapter": "pdebench_hdf5",
+    "adapter_revision": "1.0.0",
+    "coverage_dimensions": [
+      "task",
+      "physical_parameter_regime"
+    ],
+    "dataset_id": "pdebench",
+    "identity_fields": [
+      "source_file_id",
+      "source_sample_index"
+    ],
+    "metadata": {
+      "construction_manifest_sha256": "f0a291f5a24ef37116c3d7922ae93e97f30b07f049498e3583aadceec62e8f93"
+    },
+    "normalization": {
+      "fit_role": "train",
+      "method": "zscore"
+    },
+    "protocol_id": "pdebench-strat-v1",
+    "schema_version": 1,
+    "selection": {
+      "algorithm": "sha256-protocol-seed-provenance-v1",
+      "protocol": "strat-v1",
+      "seed": 0
+    },
+    "source_revision": "sha256:f0a291f5a24ef37116c3d7922ae93e97f30b07f049498e3583aadceec62e8f93",
+    "split_authority": "constructed_trajectory_disjoint_parameter_stratified",
+    "splits": {
+      "test": [
+        "burgers1d-test"
+      ],
+      "train": [
+        "burgers1d-train"
+      ],
+      "valid": [
+        "burgers1d-valid"
+      ]
+    },
+    "test_access": "measurement_contract_required"
+  },
+  "splits": {
+    "test": {
+      "finite": true,
+      "regime_counts": {
+        "0.001": 6,
+        "0.002": 6,
+        "0.004": 6,
+        "0.01": 6,
+        "0.02": 6,
+        "0.04": 6,
+        "0.1": 6,
+        "0.2": 6,
+        "0.4": 6,
+        "1.0": 6,
+        "2.0": 6,
+        "4.0": 6
+      },
+      "shape": [
+        72,
+        201,
+        1024,
+        1
+      ],
+      "unique_provenance_pairs": 72
+    },
+    "train": {
+      "finite": true,
+      "regime_counts": {
+        "0.001": 24,
+        "0.002": 24,
+        "0.004": 24,
+        "0.01": 24,
+        "0.02": 24,
+        "0.04": 24,
+        "0.1": 24,
+        "0.2": 24,
+        "0.4": 24,
+        "1.0": 24,
+        "2.0": 24,
+        "4.0": 24
+      },
+      "shape": [
+        288,
+        201,
+        1024,
+        1
+      ],
+      "unique_provenance_pairs": 288
+    },
+    "val": {
+      "finite": true,
+      "regime_counts": {
+        "0.001": 6,
+        "0.002": 6,
+        "0.004": 6,
+        "0.01": 6,
+        "0.02": 6,
+        "0.04": 6,
+        "0.1": 6,
+        "0.2": 6,
+        "0.4": 6,
+        "1.0": 6,
+        "2.0": 6,
+        "4.0": 6
+      },
+      "shape": [
+        72,
+        201,
+        1024,
+        1
+      ],
+      "unique_provenance_pairs": 72
+    }
+  },
+  "status": "passed"
+}

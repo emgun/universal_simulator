@@ -34,8 +34,11 @@ from scripts.run_physical_conv_baseline import (
     group_key,
 )
 from ups.data.latent_pairs import infer_grid_shape
+from ups.data.manifests import canonical_sha256, load_data_lock
 from ups.data.pdebench import get_pdebench_spec
 from ups.eval.pdebench_runner import _aggregate_chunk_metrics, _flatten_field_step
+from ups.eval.persistence_baselines import _regime_label, _regime_slug, _regime_value
+from ups.eval.regime_metrics import global_scale_regime_nrmse
 
 NEURALOP_IMPORT = "neuralop.models.FNO"
 NEURALOP_SOURCE_URL = "https://github.com/neuraloperator/neuraloperator"
@@ -43,6 +46,57 @@ NEURALOP_SOURCE_URL = "https://github.com/neuraloperator/neuraloperator"
 
 class MissingNeuralOperatorError(RuntimeError):
     """Raised when a live external FNO run is requested without neuralop installed."""
+
+
+def bind_training_lock(cfg: dict[str, Any], args: argparse.Namespace) -> None:
+    """Bind external runners to one verified train+valid lock in strict mode."""
+
+    lock_path = getattr(args, "data_lock", None)
+    strict = bool(getattr(args, "strict_contract", False))
+    if not lock_path:
+        if strict:
+            raise ValueError("strict external baseline runs require --data-lock")
+        return
+    lock = load_data_lock(lock_path)
+    if lock.purpose != "training" or set(lock.requested_roles) != {"train", "valid"}:
+        raise ValueError("external baseline data lock must contain exactly train and valid roles")
+    if any(item.role == "test" for item in lock.objects):
+        raise ValueError("external baseline training lock must not expose test objects")
+    expected = getattr(args, "expected_data_lock_sha256", None)
+    if expected and expected != lock.lock_sha256:
+        raise ValueError("external baseline data lock identity does not match expected SHA-256")
+    data_cfg = cfg.setdefault("data", {})
+    data_cfg["data_lock_path"] = str(Path(lock_path).resolve())
+    data_cfg["data_lock_sha256"] = lock.lock_sha256
+    data_cfg["selection_sha256"] = canonical_sha256(lock.selection)
+
+
+def training_lock_provenance(args: argparse.Namespace) -> dict[str, Any] | None:
+    """Return the immutable data identity serialized into external summaries."""
+
+    lock_path = getattr(args, "data_lock", None)
+    if not lock_path:
+        return None
+    lock = load_data_lock(lock_path)
+    return {
+        "path": str(lock_path),
+        "lock_sha256": lock.lock_sha256,
+        "purpose": lock.purpose,
+        "requested_roles": list(lock.requested_roles),
+        "source_revision": lock.source_revision,
+        "source_manifest_sha256": lock.source_manifest_sha256,
+        "protocol_manifest_sha256": lock.protocol_manifest_sha256,
+        "selection_sha256": canonical_sha256(lock.selection),
+        "normalization": dict(lock.normalization),
+        "objects": [
+            {
+                "object_id": item.object_id,
+                "role": item.role,
+                "sha256": item.checksums["sha256"],
+            }
+            for item in lock.objects
+        ],
+    }
 
 
 class FNOGridAdapter(nn.Module):
@@ -181,6 +235,9 @@ def _external_test_measurement_key(
         "metric": args.metric,
         "n_layers": args.n_layers,
         "residual": bool(args.residual),
+        "strict_contract": bool(getattr(args, "strict_contract", False)),
+        "data_lock_path": getattr(args, "data_lock", None),
+        "data_lock_sha256": getattr(args, "expected_data_lock_sha256", None),
         "rollout_steps": args.rollout_steps,
         "seed": args.seed,
         "tasks": list(tasks),
@@ -416,7 +473,15 @@ def evaluate_external_fno_baseline(
     max_samples: int | None,
     rollout_steps: int,
     device: str | torch.device = "cpu",
+    strict_contract: bool = False,
 ) -> dict[str, float]:
+    """Evaluate shared external models under temporal and steady semantics.
+
+    Temporal predictions are genuinely autoregressive: horizon ``h`` consumes
+    the prediction from ``h-1``.  Steady operators map the coefficient field to
+    the explicit solution target once.  The strict strat-v1 mode additionally
+    requires 16 temporal horizons and scalar regime metadata.
+    """
     device = torch.device(device)
     total_pred: list[torch.Tensor] = []
     total_target: list[torch.Tensor] = []
@@ -424,6 +489,10 @@ def evaluate_external_fno_baseline(
     per_task_target: dict[str, list[torch.Tensor]] = {}
     per_family_pred: dict[str, list[torch.Tensor]] = {}
     per_family_target: dict[str, list[torch.Tensor]] = {}
+    task_horizon_pred: dict[str, dict[int, list[torch.Tensor]]] = {}
+    task_horizon_target: dict[str, dict[int, list[torch.Tensor]]] = {}
+    task_regime_pred: dict[str, dict[str, list[torch.Tensor]]] = {}
+    task_regime_target: dict[str, dict[str, list[torch.Tensor]]] = {}
 
     for task in tasks:
         dataset = _dataset(
@@ -434,26 +503,63 @@ def evaluate_external_fno_baseline(
             max_samples=max_samples,
         )
         family = get_pdebench_spec(task).family
+        spec = get_pdebench_spec(task)
         for sample_idx in range(len(dataset)):
-            fields = dataset[sample_idx]["fields"].float()
+            sample = dataset[sample_idx]
+            fields = sample["fields"].float()
             grid_shape = infer_grid_shape(fields)
-            max_steps = min(int(fields.shape[0]) - 1, int(rollout_steps))
-            for step in range(max_steps):
-                current_grid = field_step_to_grid(fields[step], grid_shape)
+            regime = _regime_label(
+                _regime_value(sample, task=task, strict_contract=strict_contract)
+            )
+            if spec.mapping_kind == "steady_operator":
+                targets = sample["targets"].float()
+                if fields.shape[0] != 1 or targets.shape[0] != 1:
+                    raise ValueError("Steady external baseline requires one input and one target")
+                current_grid = field_step_to_grid(fields[0], grid_shape)
                 key = group_key(task, grid_shape, int(current_grid.shape[1]))
                 if key not in models:
-                    raise ValueError(f"No trained external FNO baseline for group {key}")
-                model = models[key].to(device).eval()
+                    raise ValueError(f"No trained external baseline for steady group {key}")
                 with torch.no_grad():
-                    pred_grid = model(current_grid.to(device)).cpu()
-                pred = grid_to_flat(pred_grid)
-                target = _flatten_field_step(fields[step + 1].float(), grid_shape).cpu()
+                    pred_grid = models[key].to(device).eval()(current_grid.to(device)).cpu()
+                predictions = [grid_to_flat(pred_grid)]
+                targets_for_sample = [_flatten_field_step(targets[0], grid_shape).cpu()]
+            else:
+                available_steps = int(fields.shape[0]) - 1
+                steps = int(rollout_steps)
+                if strict_contract and steps != 16:
+                    raise ValueError("strat-v1 external baselines require 16 rollout steps")
+                if available_steps < steps:
+                    raise ValueError(
+                        f"{task} sample {sample_idx} has {available_steps} horizons; {steps} required"
+                    )
+                current_grid = field_step_to_grid(fields[0], grid_shape)
+                key = group_key(task, grid_shape, int(current_grid.shape[1]))
+                if key not in models:
+                    raise ValueError(f"No trained external baseline for group {key}")
+                model = models[key].to(device).eval()
+                predictions = []
+                targets_for_sample = []
+                for horizon in range(1, steps + 1):
+                    with torch.no_grad():
+                        current_grid = model(current_grid.to(device)).cpu()
+                    prediction = grid_to_flat(current_grid)
+                    target = _flatten_field_step(fields[horizon].float(), grid_shape).cpu()
+                    predictions.append(prediction)
+                    targets_for_sample.append(target)
+                    task_horizon_pred.setdefault(task, {}).setdefault(horizon, []).append(
+                        prediction
+                    )
+                    task_horizon_target.setdefault(task, {}).setdefault(horizon, []).append(target)
+
+            for pred, target in zip(predictions, targets_for_sample, strict=True):
                 total_pred.append(pred)
                 total_target.append(target)
                 per_task_pred.setdefault(task, []).append(pred)
                 per_task_target.setdefault(task, []).append(target)
                 per_family_pred.setdefault(family, []).append(pred)
                 per_family_target.setdefault(family, []).append(target)
+                task_regime_pred.setdefault(task, {}).setdefault(regime, []).append(pred)
+                task_regime_target.setdefault(task, {}).setdefault(regime, []).append(target)
 
     if not total_pred:
         raise RuntimeError("External FNO baseline received no eval pairs")
@@ -474,13 +580,47 @@ def evaluate_external_fno_baseline(
         "mae": stats["mae"],
         "rmse": stats["mse"] ** 0.5,
     }
+    primary_values = []
+    temporal_horizon_values: dict[int, list[float]] = {}
     for task, pred_chunks in per_task_pred.items():
+        spec = get_pdebench_spec(task)
         _add_rollout_metrics(
             metrics,
             prefix=f"task_{task}_",
             pred_chunks=pred_chunks,
             target_chunks=per_task_target[task],
         )
+        task_stats = _aggregate_chunk_metrics(pred_chunks, per_task_target[task])
+        primary_name = (
+            "decoded_solution_nrmse"
+            if spec.mapping_kind == "steady_operator"
+            else "decoded_rollout_nrmse"
+        )
+        metrics[f"task_{task}_{primary_name}"] = task_stats["nrmse"]
+        primary_values.append(task_stats["nrmse"])
+        for horizon in sorted(task_horizon_pred.get(task, {})):
+            horizon_stats = _aggregate_chunk_metrics(
+                task_horizon_pred[task][horizon], task_horizon_target[task][horizon]
+            )
+            metrics[f"task_{task}_decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
+            temporal_horizon_values.setdefault(horizon, []).append(horizon_stats["nrmse"])
+        suffix = primary_name
+        seen_slugs = set()
+        for regime in sorted(task_regime_pred[task], key=lambda value: (value == "unknown", value)):
+            slug = _regime_slug(regime)
+            if slug in seen_slugs:
+                raise ValueError(f"{task} regime labels collide after metric slugging")
+            seen_slugs.add(slug)
+            regime_stats = _aggregate_chunk_metrics(
+                task_regime_pred[task][regime], task_regime_target[task][regime]
+            )
+            metrics[f"task_{task}_regime_{slug}_{suffix}"] = regime_stats["nrmse"]
+            global_scale_key = suffix.replace("_nrmse", "_global_scale_nrmse")
+            metrics[f"task_{task}_regime_{slug}_{global_scale_key}"] = global_scale_regime_nrmse(
+                task_regime_pred[task][regime],
+                task_regime_target[task][regime],
+                per_task_target[task],
+            )
     for family, pred_chunks in per_family_pred.items():
         _add_rollout_metrics(
             metrics,
@@ -488,6 +628,11 @@ def evaluate_external_fno_baseline(
             pred_chunks=pred_chunks,
             target_chunks=per_family_target[family],
         )
+    metrics["micro_decoded_rollout_nrmse"] = stats["nrmse"]
+    metrics["macro_primary_nrmse"] = sum(primary_values) / len(primary_values)
+    metrics["decoded_rollout_nrmse"] = metrics["macro_primary_nrmse"]
+    for horizon, values in sorted(temporal_horizon_values.items()):
+        metrics[f"temporal_macro_decoded_h{horizon}_nrmse"] = sum(values) / len(values)
     return metrics
 
 
@@ -557,6 +702,7 @@ def _command_record(args: argparse.Namespace) -> list[str]:
 
 def _summary_common(args: argparse.Namespace, *, tasks: Sequence[str]) -> dict[str, Any]:
     return {
+        "data_provenance": training_lock_provenance(args),
         "extra": {
             "baseline": "external_neuraloperator_fno",
             "implementation": NEURALOP_IMPORT,
@@ -674,6 +820,7 @@ def _write_group_manifest(path: Path, fit: dict[str, Any]) -> None:
 
 def run_baseline(args: argparse.Namespace) -> Path:
     cfg = _load_cfg(args.config)
+    bind_training_lock(cfg, args)
     tasks = _as_task_names(cfg, args.tasks or args.task)
     if args.dry_run:
         return write_dry_run_summary(args, tasks=tasks)
@@ -722,6 +869,7 @@ def run_baseline(args: argparse.Namespace) -> Path:
         max_samples=args.max_eval_samples,
         rollout_steps=args.rollout_steps,
         device=args.device,
+        strict_contract=bool(getattr(args, "strict_contract", False)),
     )
     finished = time.time()
     output_root = Path(args.output_root)
@@ -800,6 +948,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--residual", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--strict-contract", action="store_true")
+    parser.add_argument("--data-lock")
+    parser.add_argument("--expected-data-lock-sha256")
     parser.add_argument("--allow-held-out-test-eval", action="store_true")
     parser.add_argument("--allow-repeat-test", action="store_true")
     return parser

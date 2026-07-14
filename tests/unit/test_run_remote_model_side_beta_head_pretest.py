@@ -17,43 +17,27 @@ def test_pretest_remote_wrapper_rejects_positional_args():
     )
 
     assert proc.returncode == 2
-    assert "Pass KEY=VALUE assignments" in proc.stderr
+    assert "Archived legacy workflow" in proc.stderr
 
 
 def test_pretest_remote_wrapper_defaults_are_fail_closed():
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert "DRY_RUN=${DRY_RUN:-1}" in text
-    assert "ALLOW_HELDOUT_PRETEST=${ALLOW_HELDOUT_PRETEST:-0}" in text
-    assert "Refusing held-out pretest execution without ALLOW_HELDOUT_PRETEST=1" in text
-    assert "scripts/validate_p2_model_side_beta_head_pretest_contract.py" in text
-    assert "scripts/build_p2_model_side_beta_head_pretest_root.py" in text
-    assert "--allow-heldout-pretest-root" in text
-    assert "heldout_command_from_contract" in text
-    assert 'run_shell_or_echo "$heldout_cmd"' in text
+    assert "ARCHIVED_LEGACY_WORKFLOW=1" in text
+    assert "must not be rerun" in text
 
 
 def test_pretest_remote_wrapper_wires_val_test_roots_and_artifacts():
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert "burgers1d/burgers1d_val.h5" in text
-    assert "burgers1d/burgers1d_test.h5" in text
-    assert "darcy2d/darcy2d_val.h5" in text
-    assert "darcy2d/darcy2d_test.h5" in text
-    assert "scripts/make_light_hdf5_shards.py" in text
-    assert '--split-block-offset test="$ADVECTION_TEST_BLOCK_OFFSET"' in text
-    assert '--test-count "$ADVECTION_TEST_COUNT"' in text
-    assert "model_side_beta_head_pretest_" in text
-    assert "remote-runs/model-side-beta-head-pretest" in text
+    assert text.index("exit 2") < text.index("scripts/make_light_hdf5_shards.py")
 
 
 def test_pretest_launcher_is_dry_run_first_and_uses_pretest_wrapper():
     text = LAUNCHER.read_text(encoding="utf-8")
 
-    assert "DRY_RUN=${DRY_RUN:-1}" in text
-    assert "ALLOW_HELDOUT_PRETEST=${ALLOW_HELDOUT_PRETEST:-0}" in text
-    assert "scripts/run_remote_model_side_beta_head_pretest.sh" in text
-    assert "ALLOW_HELDOUT_PRETEST=${ALLOW_HELDOUT_PRETEST}" in text
+    assert "ARCHIVED_LEGACY_WORKFLOW=1" in text
+    assert "must not be relaunched" in text
 
 
 def test_pretest_remote_wrapper_dry_run_preview_uses_temp_outputs(tmp_path):
@@ -99,7 +83,5 @@ def test_pretest_remote_wrapper_dry_run_preview_uses_temp_outputs(tmp_path):
         text=True,
     )
 
-    assert proc.returncode == 0, proc.stderr
-    assert "DRY_RUN command:" in proc.stdout
-    assert "DRY_RUN shell command:" in proc.stdout
-    assert "Pretest hydration plan shape validated." in proc.stdout
+    assert proc.returncode == 2
+    assert "Archived legacy workflow" in proc.stderr

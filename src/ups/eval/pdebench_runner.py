@@ -758,13 +758,14 @@ def evaluate_pdebench(task: str, split: str = "test", root: str | None = None) -
 
     dataset = PDEBenchDataset(PDEBenchConfig(task=task, split=split, root=root))
     fields = torch.stack([sample["fields"].float() for sample in dataset], dim=0)
-    preds = fields  # identity baseline for now
+    targets = torch.stack([sample["targets"].float() for sample in dataset], dim=0)
+    preds = fields  # explicit identity-map baseline for both trajectories and operators
     metrics = {
-        "mae": mae(preds, fields).item(),
-        "mse": mse(preds, fields).item(),
-        "nrmse": nrmse(preds, fields).item(),
-        "rrmse": relative_rrmse(preds, fields).item(),
-        "spectral_energy_error": spectral_energy_error(preds, fields).item(),
+        "mae": mae(preds, targets).item(),
+        "mse": mse(preds, targets).item(),
+        "nrmse": nrmse(preds, targets).item(),
+        "rrmse": relative_rrmse(preds, targets).item(),
+        "spectral_energy_error": spectral_energy_error(preds, targets).item(),
     }
     return MetricReport(metrics=metrics, extra={"task": task, "split": split, "root": root})
 
@@ -1076,7 +1077,7 @@ def evaluate_decoded_operator(
                 continue
             if len(dataset) == 0:
                 continue
-            sample_fields = dataset.fields[0]
+            sample_fields = dataset[0]["fields"]
             grid_shape = infer_grid_shape(sample_fields)
             coords = make_grid_coords(grid_shape, device)
             base_cond: dict[str, torch.Tensor] = {}
@@ -1091,6 +1092,14 @@ def evaluate_decoded_operator(
             for idx in range(len(dataset)):
                 sample = dataset[idx]
                 fields = sample["fields"].float()
+                if get_pdebench_spec(task_name).mapping_kind == "steady_operator":
+                    solution = sample["targets"].float()
+                    if fields.shape[0] != 1 or solution.shape[0] != 1:
+                        raise ValueError(
+                            "Steady operator evaluation requires one coefficient and one solution"
+                        )
+                    # One supervised operator application, with no physical time assigned.
+                    fields = torch.cat([fields, solution], dim=0)
                 params = sample.get("params")
                 bc = sample.get("bc")
                 collect_preview = len(preview_records) < preview_sample_count

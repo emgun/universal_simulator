@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: medium-v1 launches are disabled before provider access." >&2
+exit 2
+
 # Dry-run-first Vast launcher for the medium-v1 confirmation pipeline.
 #
 # Defaults do not launch paid compute. Set DRY_RUN=0 only after reviewing the

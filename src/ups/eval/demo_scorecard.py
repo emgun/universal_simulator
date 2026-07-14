@@ -13,6 +13,7 @@ from typing import Any
 from ups.eval.promotion import evaluate_promotion_rules, parse_promotion_rule
 
 MAIN_METRIC_ORDER = (
+    "macro_primary_nrmse",
     "decoded_rollout_nrmse",
     "decoded_step1_nrmse",
     "mse",

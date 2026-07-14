@@ -50,7 +50,10 @@ PYTHONPATH=src python scripts/train.py --config configs/train_pdebench_scale.yam
 (Or pass a list of tasks directly: `data.task=[burgers1d,advection1d]`; the loader mixes via `ConcatDataset`.)
 
 ## Environment variables
-- `PDEBENCH_ROOT`: local path where artifacts are hydrated (set automatically by `scripts/run_remote_scale.sh`).
+- `DATA_LOCK`: immutable training/validation data lock resolved by `ups-data` (required by `scripts/run_remote_scale.sh`).
+- `DATA_CACHE`: content-addressed job-local cache; reuse it across runs when possible.
+- `PDEBENCH_ROOT`: flat staged run view (set automatically by `scripts/run_remote_scale.sh`).
+- `RUN_TEST_MEASUREMENT=1` plus `MEASUREMENT_DATA_LOCK`: explicitly authorize a separate held-out measurement phase.
 - `WANDB_PROJECT`, `WANDB_ENTITY`, `WANDB_GROUP`: logging metadata.
 
 Refer to `docs/scaling_plan.md` for the broader roadmap.

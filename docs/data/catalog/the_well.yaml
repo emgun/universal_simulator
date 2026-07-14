@@ -1,0 +1,400 @@
+schema_version: 1
+dataset_id: the-well
+provider: Polymathic AI via Hugging Face Hub
+revision: hf:2ee7756575ff6f90981d0308cbcb6a2ab5995bdc
+native_format: The Well self-describing HDF5
+license: CC-BY-4.0
+citation: The Well, NeurIPS Datasets and Benchmarks 2024
+objects:
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.03
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_0.03.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 7cfc3b5be027792100b20cc4c1ab2f2835f983b00f6f86c3833bb52484c5a68e
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_0.03.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_0.03.hdf5
+    git_lfs_sha256: 7cfc3b5be027792100b20cc4c1ab2f2835f983b00f6f86c3833bb52484c5a68e
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.06
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_0.06.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 7274a1ee2daf404e392cafac0a7de08668a834d78c5af48ed1c3eb844822be99
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_0.06.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_0.06.hdf5
+    git_lfs_sha256: 7274a1ee2daf404e392cafac0a7de08668a834d78c5af48ed1c3eb844822be99
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.10
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_0.10.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 4a8d39a19bea829b01de8c25a78fa7d089de82f14c676fca3a94365e6e994ebe
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_0.10.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_0.10.hdf5
+    git_lfs_sha256: 4a8d39a19bea829b01de8c25a78fa7d089de82f14c676fca3a94365e6e994ebe
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.18
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_0.18.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 30a0218124429556c889dfbb94b3f20acee1946d35d74c7ed5179b717f57dc21
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_0.18.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_0.18.hdf5
+    git_lfs_sha256: 30a0218124429556c889dfbb94b3f20acee1946d35d74c7ed5179b717f57dc21
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.32
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_0.32.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 06cbd36c1dbea84e70906a363d20143b228765ee37850ec65351e247cf7df747
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_0.32.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_0.32.hdf5
+    git_lfs_sha256: 06cbd36c1dbea84e70906a363d20143b228765ee37850ec65351e247cf7df747
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.56
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_0.56.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: d69d6f41c950d69e2a21688c65e303fd5cd415c37ec686df055db7da73a838fe
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_0.56.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_0.56.hdf5
+    git_lfs_sha256: d69d6f41c950d69e2a21688c65e303fd5cd415c37ec686df055db7da73a838fe
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-1.00
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_1.00.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 97f5d10132c6f4b100d1c77d94e91fa2acdc4954cc359733087b9ae5fc983838
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_1.00.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_1.00.hdf5
+    git_lfs_sha256: 97f5d10132c6f4b100d1c77d94e91fa2acdc4954cc359733087b9ae5fc983838
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-1.78
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_1.78.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: f53524c481e095be20d607dd3f9a2738dd1a2dd8c0a675c0794f000822c79c2b
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_1.78.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_1.78.hdf5
+    git_lfs_sha256: f53524c481e095be20d607dd3f9a2738dd1a2dd8c0a675c0794f000822c79c2b
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-3.16
+  path: turbulent_radiative_layer_2D/data/test/turbulent_radiative_layer_tcool_3.16.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 02a7d46a9ac1f36a479d32396a07818e26832015d083dee63845d64b92b39cf3
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/test/turbulent_radiative_layer_tcool_3.16.hdf5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/test/turbulent_radiative_layer_tcool_3.16.hdf5
+    git_lfs_sha256: 02a7d46a9ac1f36a479d32396a07818e26832015d083dee63845d64b92b39cf3
+    upstream_split: test
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.03
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_0.03.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: 28bf420ba755421e485b93257538456586fffa661629af78d702ab4bc33aa07d
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_0.03.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_0.03.hdf5
+    git_lfs_sha256: 28bf420ba755421e485b93257538456586fffa661629af78d702ab4bc33aa07d
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.06
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_0.06.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: 79294070bcb0d16d55afa198902495d9f0b5f9f230396dc9e09f6e53a771f2c8
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_0.06.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_0.06.hdf5
+    git_lfs_sha256: 79294070bcb0d16d55afa198902495d9f0b5f9f230396dc9e09f6e53a771f2c8
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.10
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_0.10.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: 1534cddf841b9ad0cea419d091bbef470c6bdfee8d64d58cc45b9bcc7162d01d
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_0.10.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_0.10.hdf5
+    git_lfs_sha256: 1534cddf841b9ad0cea419d091bbef470c6bdfee8d64d58cc45b9bcc7162d01d
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.18
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_0.18.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: bc299be9ca49c1cc5ff9a295ab7f56ff0905bfb6cbcbb6ffbbcc2802dd3b009d
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_0.18.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_0.18.hdf5
+    git_lfs_sha256: bc299be9ca49c1cc5ff9a295ab7f56ff0905bfb6cbcbb6ffbbcc2802dd3b009d
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.32
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_0.32.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: 2d8551a0513e1bf3372ffb401b820467b154c4125edb34344fed7c5339839e1e
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_0.32.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_0.32.hdf5
+    git_lfs_sha256: 2d8551a0513e1bf3372ffb401b820467b154c4125edb34344fed7c5339839e1e
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.56
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_0.56.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: fe0441e70db85ba142185992f94d38253d28af42e5f2c1fa75c4b5ed44d07d1b
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_0.56.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_0.56.hdf5
+    git_lfs_sha256: fe0441e70db85ba142185992f94d38253d28af42e5f2c1fa75c4b5ed44d07d1b
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-1.00
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_1.00.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: 7ac5fec8803d79d55d83c783f3a571d1ed65b0d5b4294954c37bd39ccb1e591e
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_1.00.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_1.00.hdf5
+    git_lfs_sha256: 7ac5fec8803d79d55d83c783f3a571d1ed65b0d5b4294954c37bd39ccb1e591e
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-1.78
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_1.78.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: 8b9e27c459451608176a705cb6ba624ec1906b3b9e7ab73ca0852316da4e715c
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_1.78.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_1.78.hdf5
+    git_lfs_sha256: 8b9e27c459451608176a705cb6ba624ec1906b3b9e7ab73ca0852316da4e715c
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-3.16
+  path: turbulent_radiative_layer_2D/data/train/turbulent_radiative_layer_tcool_3.16.hdf5
+  size_bytes: 654311424
+  checksums:
+    sha256: b48663418fe3523f9d56c800ef86775a8c360142a4f66f2075cd00c707217eb8
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/train/turbulent_radiative_layer_tcool_3.16.hdf5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/train/turbulent_radiative_layer_tcool_3.16.hdf5
+    git_lfs_sha256: b48663418fe3523f9d56c800ef86775a8c360142a4f66f2075cd00c707217eb8
+    upstream_split: train
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.03
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_0.03.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 0d2739f1225318a36bd3d32032eb52ede23c236ac02fae3b89e26832b55001b9
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_0.03.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_0.03.hdf5
+    git_lfs_sha256: 0d2739f1225318a36bd3d32032eb52ede23c236ac02fae3b89e26832b55001b9
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.06
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_0.06.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 0c7a77915c3618ba1cef9fefd2277c04a083c3b7ce04e171263dbe2f3f59b00a
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_0.06.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_0.06.hdf5
+    git_lfs_sha256: 0c7a77915c3618ba1cef9fefd2277c04a083c3b7ce04e171263dbe2f3f59b00a
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.10
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_0.10.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: a8b834999eaa28d6f4f16d90f51ee4b56eee755236300426ce1ba0f48f869474
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_0.10.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_0.10.hdf5
+    git_lfs_sha256: a8b834999eaa28d6f4f16d90f51ee4b56eee755236300426ce1ba0f48f869474
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.18
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_0.18.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: f329812e119203201fd395d80899e904b05e979ff00ddee378501c580911b534
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_0.18.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_0.18.hdf5
+    git_lfs_sha256: f329812e119203201fd395d80899e904b05e979ff00ddee378501c580911b534
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.32
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_0.32.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: b3fc6251549ffe11ea816defa33160aa6e43ef25dbe9c74d3effd1675d8b60c1
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_0.32.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_0.32.hdf5
+    git_lfs_sha256: b3fc6251549ffe11ea816defa33160aa6e43ef25dbe9c74d3effd1675d8b60c1
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.56
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_0.56.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 6b326925ec8ac5043d29449e56262d056cbed1b5ca152c24322564aa4acefa8f
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_0.56.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_0.56.hdf5
+    git_lfs_sha256: 6b326925ec8ac5043d29449e56262d056cbed1b5ca152c24322564aa4acefa8f
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-1.00
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_1.00.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 211f07412eae457e16e993444d33a0226967161220ad7e717ce70425230fdec1
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_1.00.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_1.00.hdf5
+    git_lfs_sha256: 211f07412eae457e16e993444d33a0226967161220ad7e717ce70425230fdec1
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-1.78
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_1.78.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 523a2c3682221c7cda6207462880c39dd1fa74a3792ec3111ffac66a71ee3f8c
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_1.78.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_1.78.hdf5
+    git_lfs_sha256: 523a2c3682221c7cda6207462880c39dd1fa74a3792ec3111ffac66a71ee3f8c
+    upstream_split: valid
+- object_id: well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-3.16
+  path: turbulent_radiative_layer_2D/data/valid/turbulent_radiative_layer_tcool_3.16.hdf5
+  size_bytes: 109051904
+  checksums:
+    sha256: 04c2d10f88779fba941dfe9d6ec0b942701ed7b7aa83533c6da1d9de8d5fc1e0
+  uris:
+  - https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D/resolve/2ee7756575ff6f90981d0308cbcb6a2ab5995bdc/data/valid/turbulent_radiative_layer_tcool_3.16.hdf5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    hub_path: data/valid/turbulent_radiative_layer_tcool_3.16.hdf5
+    git_lfs_sha256: 04c2d10f88779fba941dfe9d6ec0b942701ed7b7aa83533c6da1d9de8d5fc1e0
+    upstream_split: valid
+metadata:
+  hub_repo: polymathic-ai/turbulent_radiative_layer_2D
+  hub_commit: 2ee7756575ff6f90981d0308cbcb6a2ab5995bdc
+  inventory_scope: all native HDF5 split objects
+  object_count_by_role:
+    train: 9
+    valid: 9
+    test: 9
+  size_bytes_by_role:
+    train: 5888802816
+    valid: 981467136
+    test: 981467136
+  the_well_package_version: v1.2.0
+  the_well_package_commit: bf4e08a3d0231f590cc796052e32c1a25fb816f9

@@ -3,9 +3,9 @@
   "generator": "scripts/build_public_assets.py",
   "inputs": [
     {
-      "bytes": 15163,
+      "bytes": 15601,
       "path": "docs/claim_evidence/universal_sota_claim_evidence.json",
-      "sha256": "9685adaa590e4907f6bd510c1180d9ae846317097e1dc21900bf726f7810c698"
+      "sha256": "4a377fd7dcac38381f7198f8b0afb616f021787c804b904cc19f2692eb5a3cb5"
     },
     {
       "bytes": 52778,

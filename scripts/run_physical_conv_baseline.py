@@ -20,6 +20,7 @@ from torch.nn import functional as F
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from ups.data.baseline_runtime import BaselineRuntimeError, bounded_balanced_indices
 from ups.data.latent_pairs import infer_grid_shape
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
 from ups.eval.pdebench_runner import _aggregate_chunk_metrics, _flatten_field_step
@@ -238,16 +239,62 @@ def _dataset(
     max_samples: int | None,
 ) -> PDEBenchDataset:
     data_cfg = cfg.get("data", {})
-    return PDEBenchDataset(
+    task_roots = data_cfg.get("task_roots", {})
+    task_param_keys = data_cfg.get("task_param_keys", {})
+    task_bc_keys = data_cfg.get("task_bc_keys", {})
+    task_root = task_roots.get(task)
+    if data_cfg.get("data_lock_path") and task_root and data_root:
+        if Path(data_root).resolve() != Path(task_root).resolve():
+            raise PermissionError(
+                f"--data-root for {task} does not match its authorized staged task root"
+            )
+    balanced_by_task = data_cfg.get("balanced_sample_indices", {}).get(task, {})
+    role = "valid" if split in {"val", "valid", "validation"} else split
+    balanced_indices = balanced_by_task.get(role)
+    dataset = PDEBenchDataset(
         PDEBenchConfig(
             task=task,
             split=split,
-            root=data_root or data_cfg.get("root"),
-            param_keys=tuple(data_cfg.get("param_keys", ())),
-            bc_keys=tuple(data_cfg.get("bc_keys", ())),
-            max_samples=max_samples,
+            root=task_root or data_root or data_cfg.get("root"),
+            data_lock_path=data_cfg.get("data_lock_path"),
+            data_lock_sha256=data_cfg.get("data_lock_sha256"),
+            selection_sha256=data_cfg.get("selection_sha256"),
+            param_keys=tuple(task_param_keys.get(task, data_cfg.get("param_keys", ()))),
+            bc_keys=tuple(task_bc_keys.get(task, data_cfg.get("bc_keys", ()))),
+            max_samples=None if balanced_indices is not None else max_samples,
         )
     )
+    if balanced_indices is None:
+        return dataset
+    regime_count = len(data_cfg.get("regime_counts", {}).get(task, {}).get(role, ()))
+    if regime_count <= 0:
+        raise BaselineRuntimeError(f"Missing regime counts for bounded {task} {role} loading")
+    selected = bounded_balanced_indices(
+        balanced_indices, limit=max_samples, regime_count=regime_count
+    )
+    return _IndexedPDEBenchDataset(dataset, selected)
+
+
+class _IndexedPDEBenchDataset:
+    """Minimal index view retaining the PDEBenchDataset interface used by runners."""
+
+    def __init__(self, dataset: PDEBenchDataset, indices: Sequence[int]) -> None:
+        self.dataset = dataset
+        self.indices = tuple(int(index) for index in indices)
+        self.cfg = dataset.cfg
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        if index < 0:
+            index += len(self.indices)
+        if index < 0 or index >= len(self.indices):
+            raise IndexError(index)
+        return self.dataset[self.indices[index]]
+
+    def close(self) -> None:
+        self.dataset.close()
 
 
 def collect_training_pairs(
@@ -272,21 +319,50 @@ def collect_training_pairs(
             data_root=data_root,
             max_samples=max_samples,
         )
+        regime_count = len(
+            cfg.get("data", {})
+            .get("regime_counts", {})
+            .get(task, {})
+            .get("valid" if split in {"val", "valid", "validation"} else split, ())
+        )
+        if regime_count and int(max_pairs_per_task) < regime_count:
+            raise BaselineRuntimeError(
+                f"max_pairs_per_task={max_pairs_per_task} would omit a {task} regime"
+            )
         task_pairs = 0
-        for sample_idx in range(len(dataset)):
-            fields = dataset[sample_idx]["fields"].float()
-            grid_shape = infer_grid_shape(fields)
-            max_steps = min(int(fields.shape[0]) - 1, int(rollout_steps))
-            for step in range(0, max_steps, max(int(stride), 1)):
-                current = field_step_to_grid(fields[step], grid_shape)
-                target = field_step_to_grid(fields[step + 1], grid_shape)
+        spec = get_pdebench_spec(task)
+        if spec.mapping_kind == "steady_operator":
+            for sample_idx in range(len(dataset)):
+                sample = dataset[sample_idx]
+                fields = sample["fields"].float()
+                targets = sample["targets"].float()
+                grid_shape = infer_grid_shape(fields)
+                current = field_step_to_grid(fields[0], grid_shape)
+                target = field_step_to_grid(targets[0], grid_shape)
                 key = group_key(task, grid_shape, int(current.shape[1]))
                 groups.setdefault(key, []).append((current.squeeze(0), target.squeeze(0)))
                 task_pairs += 1
                 if task_pairs >= int(max_pairs_per_task):
                     break
-            if task_pairs >= int(max_pairs_per_task):
-                break
+        else:
+            step_values = range(0, max(int(rollout_steps), 0), max(int(stride), 1))
+            # Step-major traversal gives every regime one pair before taking a
+            # second horizon from an earlier regime in the balanced sample order.
+            for step in step_values:
+                for sample_idx in range(len(dataset)):
+                    fields = dataset[sample_idx]["fields"].float()
+                    if step + 1 >= int(fields.shape[0]):
+                        continue
+                    grid_shape = infer_grid_shape(fields)
+                    current = field_step_to_grid(fields[step], grid_shape)
+                    target = field_step_to_grid(fields[step + 1], grid_shape)
+                    key = group_key(task, grid_shape, int(current.shape[1]))
+                    groups.setdefault(key, []).append((current.squeeze(0), target.squeeze(0)))
+                    task_pairs += 1
+                    if task_pairs >= int(max_pairs_per_task):
+                        break
+                if task_pairs >= int(max_pairs_per_task):
+                    break
 
     stacked: dict[tuple[str, int, int, int], tuple[torch.Tensor, torch.Tensor]] = {}
     for key, pairs in groups.items():

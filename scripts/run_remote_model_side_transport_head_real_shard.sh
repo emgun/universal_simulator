@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: validation used legacy light-v1 roots and is evidence-only." >&2
+exit 2
+
 # Remote validation-only model-side beta transport-head runner.
 #
 # Contract:

@@ -1,0 +1,4 @@
+# Keep byte-for-byte public-asset rendering stable in CI. Update these pins only
+# together with a locally regenerated docs/results/generated/ asset set.
+matplotlib==3.9.2
+seaborn==0.13.2

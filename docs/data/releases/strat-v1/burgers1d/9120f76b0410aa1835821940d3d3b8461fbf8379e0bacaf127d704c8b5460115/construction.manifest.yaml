@@ -1,0 +1,660 @@
+version: strat-v1
+source_root: data/pdebench_burgers_canonical
+out_root: data/pdebench_burgers_strat_v1
+remote_prefix: strat-v1
+tasks:
+- burgers1d
+splits:
+  train:
+    samples: 288
+    preferred_source_split: train
+  val:
+    samples: 72
+    preferred_source_split: train
+  test:
+    samples: 72
+    preferred_source_split: train
+protocol_mode: strat-v1
+selection:
+  algorithm: sha256-protocol-seed-provenance-v1
+  seed: 0
+  protocol: strat-v1
+protocol_gates:
+  burgers1d: &id001
+    status: passed
+    field_kind: temporal
+    time_axis: 1
+    provenance_datasets:
+    - source_file_id
+    - source_sample_index
+    regime_dataset: nu
+    within_split_provenance_unique:
+      train: true
+      val: true
+      test: true
+    within_split_field_regime_pairs_unique:
+      train: true
+      val: true
+      test: true
+    unique_field_regime_pairs:
+      train: 288
+      val: 72
+      test: 72
+    unique_field_groups:
+      train: 24
+      val: 6
+      test: 6
+    regime_counts:
+      train:
+        '0.001': 24
+        '0.002': 24
+        '0.004': 24
+        '0.01': 24
+        '0.02': 24
+        '0.04': 24
+        '0.1': 24
+        '0.2': 24
+        '0.4': 24
+        '1.0': 24
+        '2.0': 24
+        '4.0': 24
+      val:
+        '0.001': 6
+        '0.002': 6
+        '0.004': 6
+        '0.01': 6
+        '0.02': 6
+        '0.04': 6
+        '0.1': 6
+        '0.2': 6
+        '0.4': 6
+        '1.0': 6
+        '2.0': 6
+        '4.0': 6
+      test:
+        '0.001': 6
+        '0.002': 6
+        '0.004': 6
+        '0.01': 6
+        '0.02': 6
+        '0.04': 6
+        '0.1': 6
+        '0.2': 6
+        '0.4': 6
+        '1.0': 6
+        '2.0': 6
+        '4.0': 6
+    identical_regime_coverage: true
+    balanced_regime_coverage: true
+    cross_split_overlap:
+      train:val:
+        provenance_overlap: 0
+        field_overlap: 0
+      train:test:
+        provenance_overlap: 0
+        field_overlap: 0
+      val:test:
+        provenance_overlap: 0
+        field_overlap: 0
+records:
+- task: burgers1d
+  split: train
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: false
+  source_paths:
+  - data/pdebench_burgers_canonical/burgers1d_train.h5
+  selected_source_indices:
+  - 33
+  - 2
+  - 34
+  - 8
+  - 19
+  - 26
+  - 12
+  - 28
+  - 4
+  - 27
+  - 18
+  - 5
+  - 10
+  - 13
+  - 23
+  - 7
+  - 16
+  - 15
+  - 22
+  - 1
+  - 20
+  - 14
+  - 25
+  - 0
+  - 69
+  - 38
+  - 70
+  - 44
+  - 55
+  - 62
+  - 48
+  - 64
+  - 40
+  - 63
+  - 54
+  - 41
+  - 46
+  - 49
+  - 59
+  - 43
+  - 52
+  - 51
+  - 58
+  - 37
+  - 56
+  - 50
+  - 61
+  - 36
+  - 105
+  - 74
+  - 106
+  - 80
+  - 91
+  - 98
+  - 84
+  - 100
+  - 76
+  - 99
+  - 90
+  - 77
+  - 82
+  - 85
+  - 95
+  - 79
+  - 88
+  - 87
+  - 94
+  - 73
+  - 92
+  - 86
+  - 97
+  - 72
+  - 141
+  - 110
+  - 142
+  - 116
+  - 127
+  - 134
+  - 120
+  - 136
+  - 112
+  - 135
+  - 126
+  - 113
+  - 118
+  - 121
+  - 131
+  - 115
+  - 124
+  - 123
+  - 130
+  - 109
+  - 128
+  - 122
+  - 133
+  - 108
+  - 177
+  - 146
+  - 178
+  - 152
+  - 163
+  - 170
+  - 156
+  - 172
+  - 148
+  - 171
+  - 162
+  - 149
+  - 154
+  - 157
+  - 167
+  - 151
+  - 160
+  - 159
+  - 166
+  - 145
+  - 164
+  - 158
+  - 169
+  - 144
+  - 213
+  - 182
+  - 214
+  - 188
+  - 199
+  - 206
+  - 192
+  - 208
+  - 184
+  - 207
+  - 198
+  - 185
+  - 190
+  - 193
+  - 203
+  - 187
+  - 196
+  - 195
+  - 202
+  - 181
+  - 200
+  - 194
+  - 205
+  - 180
+  - 249
+  - 218
+  - 250
+  - 224
+  - 235
+  - 242
+  - 228
+  - 244
+  - 220
+  - 243
+  - 234
+  - 221
+  - 226
+  - 229
+  - 239
+  - 223
+  - 232
+  - 231
+  - 238
+  - 217
+  - 236
+  - 230
+  - 241
+  - 216
+  - 285
+  - 254
+  - 286
+  - 260
+  - 271
+  - 278
+  - 264
+  - 280
+  - 256
+  - 279
+  - 270
+  - 257
+  - 262
+  - 265
+  - 275
+  - 259
+  - 268
+  - 267
+  - 274
+  - 253
+  - 272
+  - 266
+  - 277
+  - 252
+  - 321
+  - 290
+  - 322
+  - 296
+  - 307
+  - 314
+  - 300
+  - 316
+  - 292
+  - 315
+  - 306
+  - 293
+  - 298
+  - 301
+  - 311
+  - 295
+  - 304
+  - 303
+  - 310
+  - 289
+  - 308
+  - 302
+  - 313
+  - 288
+  - 357
+  - 326
+  - 358
+  - 332
+  - 343
+  - 350
+  - 336
+  - 352
+  - 328
+  - 351
+  - 342
+  - 329
+  - 334
+  - 337
+  - 347
+  - 331
+  - 340
+  - 339
+  - 346
+  - 325
+  - 344
+  - 338
+  - 349
+  - 324
+  - 393
+  - 362
+  - 394
+  - 368
+  - 379
+  - 386
+  - 372
+  - 388
+  - 364
+  - 387
+  - 378
+  - 365
+  - 370
+  - 373
+  - 383
+  - 367
+  - 376
+  - 375
+  - 382
+  - 361
+  - 380
+  - 374
+  - 385
+  - 360
+  - 429
+  - 398
+  - 430
+  - 404
+  - 415
+  - 422
+  - 408
+  - 424
+  - 400
+  - 423
+  - 414
+  - 401
+  - 406
+  - 409
+  - 419
+  - 403
+  - 412
+  - 411
+  - 418
+  - 397
+  - 416
+  - 410
+  - 421
+  - 396
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 882042fffa2fb364679b204e86d04e2506e29044ec41aa1747d2de8c8f013131
+  sample_count: 288
+  output_path: data/pdebench_burgers_strat_v1/burgers1d_train.h5
+  remote_key: strat-v1/immutable/sha256/9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82/burgers1d_train.h5
+  bytes: 136414903
+  sha256: 9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82
+  datasets:
+    data:
+      shape:
+      - 288
+      - 201
+      - 1024
+      - 1
+      dtype: float32
+    nu:
+      shape:
+      - 288
+      dtype: float64
+    source_file_id:
+      shape:
+      - 288
+      dtype: int64
+    source_file_index:
+      shape:
+      - 288
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 288
+      dtype: int64
+  protocol_gate: *id001
+- task: burgers1d
+  split: val
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: true
+  source_paths:
+  - data/pdebench_burgers_canonical/burgers1d_train.h5
+  selected_source_indices:
+  - 6
+  - 31
+  - 24
+  - 21
+  - 32
+  - 29
+  - 42
+  - 67
+  - 60
+  - 57
+  - 68
+  - 65
+  - 78
+  - 103
+  - 96
+  - 93
+  - 104
+  - 101
+  - 114
+  - 139
+  - 132
+  - 129
+  - 140
+  - 137
+  - 150
+  - 175
+  - 168
+  - 165
+  - 176
+  - 173
+  - 186
+  - 211
+  - 204
+  - 201
+  - 212
+  - 209
+  - 222
+  - 247
+  - 240
+  - 237
+  - 248
+  - 245
+  - 258
+  - 283
+  - 276
+  - 273
+  - 284
+  - 281
+  - 294
+  - 319
+  - 312
+  - 309
+  - 320
+  - 317
+  - 330
+  - 355
+  - 348
+  - 345
+  - 356
+  - 353
+  - 366
+  - 391
+  - 384
+  - 381
+  - 392
+  - 389
+  - 402
+  - 427
+  - 420
+  - 417
+  - 428
+  - 425
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 86ab033909876cf5e543f6f6cba1675bf152bc2367c6a26f7390c9b0cfe36be1
+  sample_count: 72
+  output_path: data/pdebench_burgers_strat_v1/burgers1d_val.h5
+  remote_key: strat-v1/immutable/sha256/496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73/burgers1d_val.h5
+  bytes: 32289060
+  sha256: 496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73
+  datasets:
+    data:
+      shape:
+      - 72
+      - 201
+      - 1024
+      - 1
+      dtype: float32
+    nu:
+      shape:
+      - 72
+      dtype: float64
+    source_file_id:
+      shape:
+      - 72
+      dtype: int64
+    source_file_index:
+      shape:
+      - 72
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 72
+      dtype: int64
+  protocol_gate: *id001
+- task: burgers1d
+  split: test
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: true
+  source_paths:
+  - data/pdebench_burgers_canonical/burgers1d_train.h5
+  selected_source_indices:
+  - 30
+  - 3
+  - 17
+  - 9
+  - 35
+  - 11
+  - 66
+  - 39
+  - 53
+  - 45
+  - 71
+  - 47
+  - 102
+  - 75
+  - 89
+  - 81
+  - 107
+  - 83
+  - 138
+  - 111
+  - 125
+  - 117
+  - 143
+  - 119
+  - 174
+  - 147
+  - 161
+  - 153
+  - 179
+  - 155
+  - 210
+  - 183
+  - 197
+  - 189
+  - 215
+  - 191
+  - 246
+  - 219
+  - 233
+  - 225
+  - 251
+  - 227
+  - 282
+  - 255
+  - 269
+  - 261
+  - 287
+  - 263
+  - 318
+  - 291
+  - 305
+  - 297
+  - 323
+  - 299
+  - 354
+  - 327
+  - 341
+  - 333
+  - 359
+  - 335
+  - 390
+  - 363
+  - 377
+  - 369
+  - 395
+  - 371
+  - 426
+  - 399
+  - 413
+  - 405
+  - 431
+  - 407
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: e4030a250be1b334dae296e1f30d1971b0f010d3a9a353e1471a4815acbaa945
+  sample_count: 72
+  output_path: data/pdebench_burgers_strat_v1/burgers1d_test.h5
+  remote_key: strat-v1/immutable/sha256/b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9/burgers1d_test.h5
+  bytes: 26148529
+  sha256: b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9
+  datasets:
+    data:
+      shape:
+      - 72
+      - 201
+      - 1024
+      - 1
+      dtype: float32
+    nu:
+      shape:
+      - 72
+      dtype: float64
+    source_file_id:
+      shape:
+      - 72
+      dtype: int64
+    source_file_index:
+      shape:
+      - 72
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 72
+      dtype: int64
+  protocol_gate: *id001

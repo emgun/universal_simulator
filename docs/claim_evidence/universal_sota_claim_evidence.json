@@ -126,7 +126,17 @@
     "evidence_json": "docs/claim_evidence/medium_v1_confirmation_evidence.json",
     "status": "complete"
   },
-  "claim_scope": "guarded shared-context decoded UPS candidate on held-out light-v1 test",
+  "claim_scope": "guarded shared-context decoded UPS candidate on legacy mixed-protocol light-v1 test",
+  "protocol_interpretation": {
+    "broad_generalization_supported": false,
+    "evidence": "docs/research/2026-07-09-split-integrity-audit.md",
+    "label": "legacy mixed-protocol light-v1",
+    "task_scope": {
+      "advection1d": "reused initial conditions with transport-regime extrapolation",
+      "burgers1d": "test trajectories contained in training",
+      "darcy2d": "trajectory-disjoint generalization"
+    }
+  },
   "schema_version": 1,
   "scoped_claim_variants": [
     {

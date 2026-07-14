@@ -50,7 +50,13 @@ Homepage = "https://github.com/emgun/universal_simulator"
 Repository = "https://github.com/emgun/universal_simulator"
 Issues = "https://github.com/emgun/universal_simulator/issues"
 
+[project.scripts]
+ups-data = "ups.data.cli:main"
+
 [project.optional-dependencies]
+well = [
+  "the_well==1.2.0",
+]
 dev = [
   "pytest>=7.4",
   "pytest-xdist>=3.3",

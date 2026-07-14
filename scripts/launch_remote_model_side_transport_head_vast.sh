@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: model-side light-v1 validation must not be relaunched." >&2
+exit 2
+
 # Dry-run-first Vast launcher for model-side beta transport-head real-shard
 # validation. Defaults do not launch paid compute.
 

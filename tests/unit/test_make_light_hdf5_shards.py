@@ -1,210 +1,388 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import h5py
 import numpy as np
+import pytest
 import yaml
 
-from scripts.make_light_hdf5_shards import build_task_shard_records, build_task_shards
+from scripts.make_light_hdf5_shards import build_stratified_task_shard_records
+from scripts.protocol_split_gates import evaluate_protocol_splits
+from ups.data.manifests import load_protocol_manifest, load_source_manifest, resolve_data_lock
 
 
-def test_build_task_shards_slices_source_train_file(tmp_path):
-    root = tmp_path / "source"
-    out_root = tmp_path / "light"
-    root.mkdir()
-    with h5py.File(root / "burgers1d_train.h5", "w") as handle:
-        data = np.arange(10 * 4, dtype=np.float32).reshape(10, 4)
-        params = np.arange(10, dtype=np.float32).reshape(10, 1)
+def _write_protocol_source(
+    path,
+    *,
+    regime_count: int = 3,
+    rows_per_regime: int = 6,
+    temporal: bool = True,
+) -> None:
+    rows = regime_count * rows_per_regime
+    if temporal:
+        data = np.arange(rows * 2 * 3, dtype=np.float32).reshape(rows, 2, 3)
+    else:
+        data = np.arange(rows * 2 * 3, dtype=np.float32).reshape(rows, 2, 3)
+    with h5py.File(path, "w") as handle:
         handle.create_dataset("data", data=data)
-        handle.create_dataset("nu", data=params)
-        handle.create_dataset("not_sample_aligned", data=np.arange(3, dtype=np.float32))
-        handle.attrs["source_paths"] = ["source_train.hdf5"]
-
-    outputs = build_task_shards(
-        root=root,
-        out_root=out_root,
-        task="burgers1d",
-        source_split="train",
-        train_count=3,
-        val_count=2,
-        test_count=1,
-        start_index=1,
-        overwrite=False,
-    )
-
-    assert [path.name for path in outputs] == [
-        "burgers1d_train.h5",
-        "burgers1d_val.h5",
-        "burgers1d_test.h5",
-    ]
-    with h5py.File(out_root / "burgers1d_train.h5", "r") as handle:
-        assert handle["data"].shape == (3, 4)
-        assert handle["data"][0].tolist() == [4.0, 5.0, 6.0, 7.0]
-        assert handle["nu"][:, 0].tolist() == [1.0, 2.0, 3.0]
-        assert list(handle.attrs["source_paths"]) == ["source_train.hdf5"]
-        assert "not_sample_aligned" not in handle
-    with h5py.File(out_root / "burgers1d_val.h5", "r") as handle:
-        assert handle["data"][:, 0].tolist() == [16.0, 20.0]
-    with h5py.File(out_root / "burgers1d_test.h5", "r") as handle:
-        assert handle["data"][:, 0].tolist() == [24.0]
+        handle.create_dataset(
+            "source_file_index", data=np.repeat(np.arange(regime_count), rows_per_regime)
+        )
+        handle.create_dataset(
+            "source_sample_index", data=np.tile(np.arange(rows_per_regime), regime_count)
+        )
+        handle.create_dataset("beta", data=np.repeat(np.arange(regime_count), rows_per_regime))
 
 
-def test_build_task_shard_records_prefers_native_splits_and_falls_back_to_train(tmp_path):
+def _gate_arrays(provenance: np.ndarray, regime: np.ndarray | None = None):
+    count = int(provenance.shape[0])
+    return {
+        split: {
+            "data": np.arange(count * 2, dtype=np.float32).reshape(count, 2, 1) + split_index * 100,
+            "source_sample_index": provenance.copy(),
+            "beta": regime.copy() if regime is not None else np.arange(count, dtype=np.float64),
+        }
+        for split_index, split in enumerate(("train", "val", "test"))
+    }
+
+
+def test_build_universal_temporal_shards_records_passed_gate(tmp_path):
     root = tmp_path / "source"
-    out_root = tmp_path / "light"
+    out_root = tmp_path / "universal"
     root.mkdir()
-    for split, offset in (("train", 0), ("val", 100), ("test", 200)):
-        with h5py.File(root / f"burgers1d_{split}.h5", "w") as handle:
-            data = np.arange(10 * 2, dtype=np.float32).reshape(10, 2) + offset
-            handle.create_dataset("data", data=data)
-    with h5py.File(root / "darcy2d_train.h5", "w") as handle:
-        handle.create_dataset("data", data=np.arange(10 * 2, dtype=np.float32).reshape(10, 2))
-    with h5py.File(root / "darcy2d_test.h5", "w") as handle:
-        handle.create_dataset("data", data=np.arange(10 * 2, dtype=np.float32).reshape(10, 2) + 300)
+    _write_protocol_source(root / "advection1d_train.h5")
 
-    burgers = build_task_shard_records(
-        root=root,
-        out_root=out_root,
-        task="burgers1d",
-        source_split="train",
-        train_count=2,
-        val_count=2,
-        test_count=2,
-        start_index=1,
-        overwrite=True,
-        remote_prefix="light-v1",
-    )
-    darcy = build_task_shard_records(
-        root=root,
-        out_root=out_root,
-        task="darcy2d",
-        source_split="train",
-        train_count=2,
-        val_count=2,
-        test_count=2,
-        start_index=1,
-        overwrite=True,
-        remote_prefix="light-v1",
-    )
-
-    assert [record["source_split"] for record in burgers] == ["train", "val", "test"]
-    assert [record["derived_from_source_split"] for record in burgers] == [False, False, False]
-    assert [record["source_split"] for record in darcy] == ["train", "train", "test"]
-    assert [record["derived_from_source_split"] for record in darcy] == [False, True, False]
-    assert burgers[0]["remote_key"] == "light-v1/burgers1d/burgers1d_train.h5"
-    assert len(str(burgers[0]["sha256"])) == 64
-
-    with h5py.File(out_root / "burgers1d_val.h5", "r") as handle:
-        assert handle["data"][0, 0] == 102.0
-    with h5py.File(out_root / "darcy2d_val.h5", "r") as handle:
-        assert handle["data"][0, 0] == 6.0
-
-
-def test_build_task_shard_records_accepts_split_start_indices(tmp_path):
-    root = tmp_path / "source"
-    out_root = tmp_path / "light"
-    root.mkdir()
-    for split, offset in (("train", 0), ("val", 100), ("test", 200)):
-        with h5py.File(root / f"advection1d_{split}.h5", "w") as handle:
-            data = np.arange(10 * 2, dtype=np.float32).reshape(10, 2) + offset
-            handle.create_dataset("data", data=data)
-
-    records = build_task_shard_records(
+    records = build_stratified_task_shard_records(
         root=root,
         out_root=out_root,
         task="advection1d",
         source_split="train",
-        train_count=2,
-        val_count=2,
-        test_count=2,
-        start_index=0,
-        overwrite=True,
-        split_start_indices={"train": 4, "val": 1, "test": 2},
-    )
-
-    assert [record["start_index"] for record in records] == [4, 1, 2]
-    with h5py.File(out_root / "advection1d_train.h5", "r") as handle:
-        assert handle["data"][0, 0] == 8.0
-    with h5py.File(out_root / "advection1d_val.h5", "r") as handle:
-        assert handle["data"][0, 0] == 102.0
-    with h5py.File(out_root / "advection1d_test.h5", "r") as handle:
-        assert handle["data"][0, 0] == 204.0
-
-
-def test_build_task_shard_records_accepts_stratified_block_offsets(tmp_path):
-    root = tmp_path / "source"
-    out_root = tmp_path / "light"
-    root.mkdir()
-    with h5py.File(root / "advection1d_train.h5", "w") as handle:
-        data = np.arange(3 * 6, dtype=np.float32).reshape(18, 1)
-        handle.create_dataset("data", data=data)
-        handle.attrs["source_paths"] = ["beta0.1.hdf5", "beta0.2.hdf5", "beta0.4.hdf5"]
-
-    records = build_task_shard_records(
-        root=root,
-        out_root=out_root,
-        task="advection1d",
-        source_split="train",
-        train_count=9,
+        train_count=6,
         val_count=6,
-        test_count=3,
-        start_index=0,
-        overwrite=True,
-        split_sources={"val": "train", "test": "train"},
-        split_block_size=6,
-        split_block_offsets={"train": 0, "val": 3, "test": 5},
+        test_count=6,
+        overwrite=False,
+        provenance_datasets=["source_file_index", "source_sample_index"],
+        regime_dataset="beta",
+        field_kind="temporal",
+        time_axis=1,
     )
 
-    assert [record["stratified_block_offset"] for record in records] == [0, 3, 5]
-    with h5py.File(out_root / "advection1d_train.h5", "r") as handle:
-        assert handle["data"][:, 0].tolist() == [0.0, 1.0, 2.0, 6.0, 7.0, 8.0, 12.0, 13.0, 14.0]
-    with h5py.File(out_root / "advection1d_val.h5", "r") as handle:
-        assert handle["data"][:, 0].tolist() == [3.0, 4.0, 9.0, 10.0, 15.0, 16.0]
-        assert list(handle.attrs["source_paths"]) == [
-            "beta0.1.hdf5",
-            "beta0.2.hdf5",
-            "beta0.4.hdf5",
-        ]
-    with h5py.File(out_root / "advection1d_test.h5", "r") as handle:
-        assert handle["data"][:, 0].tolist() == [5.0, 11.0, 17.0]
+    gate = records[0]["protocol_gate"]
+    assert gate["status"] == "passed"
+    assert gate["regime_counts"] == {
+        "train": {"0": 2, "1": 2, "2": 2},
+        "val": {"0": 2, "1": 2, "2": 2},
+        "test": {"0": 2, "1": 2, "2": 2},
+    }
+    assert all(
+        check == {"provenance_overlap": 0, "field_overlap": 0}
+        for check in gate["cross_split_overlap"].values()
+    )
 
 
-def test_build_task_shard_records_rejects_incomplete_sequential_hydration(tmp_path):
+def test_stable_selection_is_invariant_to_source_file_and_row_order(tmp_path):
+    def write_source(root, *, reverse_files: bool, reverse_rows: bool) -> None:
+        root.mkdir()
+        rows = []
+        for regime in range(2):
+            for sample in range(8):
+                rows.append((100 + regime, sample, regime, regime * 1000 + sample))
+        if reverse_rows:
+            rows.reverse()
+        halves = (rows[:8], rows[8:])
+        if reverse_files:
+            halves = tuple(reversed(halves))
+        for suffix, file_rows in zip(("a", "b"), halves, strict=True):
+            with h5py.File(root / f"advection1d_train_{suffix}.h5", "w") as handle:
+                handle.create_dataset(
+                    "data",
+                    data=np.asarray(
+                        [[[float(row[3])], [float(row[3]) + 0.5]] for row in file_rows],
+                        dtype=np.float32,
+                    ),
+                )
+                handle.create_dataset("source_file_id", data=[row[0] for row in file_rows])
+                handle.create_dataset("source_sample_index", data=[row[1] for row in file_rows])
+                handle.create_dataset("beta", data=[row[2] for row in file_rows])
+
+    first_root = tmp_path / "first-source"
+    second_root = tmp_path / "second-source"
+    write_source(first_root, reverse_files=False, reverse_rows=False)
+    write_source(second_root, reverse_files=True, reverse_rows=True)
+
+    kwargs = {
+        "task": "advection1d",
+        "source_split": "train",
+        "train_count": 4,
+        "val_count": 4,
+        "test_count": 4,
+        "overwrite": False,
+        "provenance_datasets": ["source_file_id", "source_sample_index"],
+        "regime_dataset": "beta",
+        "field_kind": "temporal",
+        "time_axis": 1,
+        "selection_seed": 23,
+        "selection_protocol": "strat-v1-test",
+    }
+    first = build_stratified_task_shard_records(
+        root=first_root, out_root=tmp_path / "first-out", **kwargs
+    )
+    second = build_stratified_task_shard_records(
+        root=second_root, out_root=tmp_path / "second-out", **kwargs
+    )
+
+    assert [record["selected_identity_sha256"] for record in first] == [
+        record["selected_identity_sha256"] for record in second
+    ]
+    for split in ("train", "val", "test"):
+        with (
+            h5py.File(tmp_path / "first-out" / f"advection1d_{split}.h5", "r") as left,
+            h5py.File(tmp_path / "second-out" / f"advection1d_{split}.h5", "r") as right,
+        ):
+            np.testing.assert_array_equal(left["source_file_id"], right["source_file_id"])
+            np.testing.assert_array_equal(left["source_sample_index"], right["source_sample_index"])
+            np.testing.assert_array_equal(left["data"], right["data"])
+            assert left.attrs["selection_algorithm"] == "sha256-protocol-seed-provenance-v1"
+            assert int(left.attrs["selection_seed"]) == 23
+
+
+def test_build_universal_allows_initial_field_reuse_across_regimes(tmp_path):
     root = tmp_path / "source"
-    out_root = tmp_path / "light"
     root.mkdir()
-    with h5py.File(root / "advection1d_train.h5", "w") as handle:
-        handle.create_dataset("data", data=np.arange(8, dtype=np.float32).reshape(8, 1))
-        handle.attrs["source_paths"] = ["beta0.1.hdf5"]
-        handle.attrs["sequential_hydration_complete"] = False
+    path = root / "advection1d_train.h5"
+    _write_protocol_source(path)
+    with h5py.File(path, "r+") as handle:
+        for regime in (1, 2):
+            start = regime * 6
+            handle["data"][start : start + 6, 0] = handle["data"][:6, 0]
+
+    records = build_stratified_task_shard_records(
+        root=root,
+        out_root=tmp_path / "universal",
+        task="advection1d",
+        source_split="train",
+        train_count=6,
+        val_count=6,
+        test_count=6,
+        overwrite=False,
+        provenance_datasets=["source_file_index", "source_sample_index"],
+        regime_dataset="beta",
+        field_kind="temporal",
+        time_axis=1,
+    )
+
+    gate = records[0]["protocol_gate"]
+    assert gate["unique_field_regime_pairs"] == {"train": 6, "val": 6, "test": 6}
+    assert gate["unique_field_groups"] == {"train": 2, "val": 2, "test": 2}
+    assert gate["within_split_field_regime_pairs_unique"] == {
+        "train": True,
+        "val": True,
+        "test": True,
+    }
+
+
+def test_build_universal_rejects_initial_field_reuse_within_one_regime(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    path = root / "advection1d_train.h5"
+    _write_protocol_source(path)
+    with h5py.File(path, "r+") as handle:
+        handle["data"][1, 0] = handle["data"][0, 0]
 
     try:
-        build_task_shard_records(
+        build_stratified_task_shard_records(
             root=root,
-            out_root=out_root,
+            out_root=tmp_path / "universal",
             task="advection1d",
             source_split="train",
-            train_count=4,
-            val_count=0,
-            test_count=0,
-            start_index=0,
-            overwrite=True,
+            train_count=6,
+            val_count=6,
+            test_count=6,
+            overwrite=False,
+            provenance_datasets=["source_file_index", "source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
         )
     except ValueError as exc:
-        assert "sequential_hydration_complete=False" in str(exc)
+        assert "initial-field overlap" in str(exc) or (
+            "repeats an identical initial field within one regime" in str(exc)
+        )
     else:
-        raise AssertionError("Expected incomplete sequential hydration to be rejected")
+        raise AssertionError("Expected same-regime initial-field reuse to be rejected")
 
 
-def test_make_light_hdf5_manifest_cli(tmp_path, monkeypatch):
+def test_build_universal_rejects_cross_split_initial_field_overlap(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    path = root / "advection1d_train.h5"
+    _write_protocol_source(path)
+    with h5py.File(path, "r+") as handle:
+        # Regime 0 rows 0 and 2 are allocated to train and val respectively.
+        handle["data"][2, 0] = handle["data"][0, 0]
+
+    try:
+        build_stratified_task_shard_records(
+            root=root,
+            out_root=tmp_path / "universal",
+            task="advection1d",
+            source_split="train",
+            train_count=6,
+            val_count=6,
+            test_count=6,
+            overwrite=False,
+            provenance_datasets=["source_file_index", "source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "initial-field overlap" in str(exc)
+    else:
+        raise AssertionError("Expected initial-field overlap to be rejected")
+    assert not (tmp_path / "universal").exists()
+
+
+def test_build_universal_rejects_cross_split_provenance_overlap(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    path = root / "advection1d_train.h5"
+    _write_protocol_source(path)
+    with h5py.File(path, "r+") as handle:
+        # Regime 0 rows 0 and 2 are allocated to train and val respectively.
+        handle["source_sample_index"][2] = handle["source_sample_index"][0]
+
+    try:
+        build_stratified_task_shard_records(
+            root=root,
+            out_root=tmp_path / "universal",
+            task="advection1d",
+            source_split="train",
+            train_count=6,
+            val_count=6,
+            test_count=6,
+            overwrite=False,
+            provenance_datasets=["source_file_index", "source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "provenance overlap" in str(exc)
+    else:
+        raise AssertionError("Expected provenance overlap to be rejected")
+
+
+def test_build_universal_rejects_missing_provenance(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    path = root / "burgers1d_train.h5"
+    _write_protocol_source(path)
+    with h5py.File(path, "r+") as handle:
+        del handle["source_sample_index"]
+
+    try:
+        build_stratified_task_shard_records(
+            root=root,
+            out_root=tmp_path / "universal",
+            task="burgers1d",
+            source_split="train",
+            train_count=6,
+            val_count=6,
+            test_count=6,
+            overwrite=False,
+            provenance_datasets=["source_file_index", "source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "missing required dataset: source_sample_index" in str(exc)
+    else:
+        raise AssertionError("Expected missing provenance to be rejected")
+
+
+def test_build_universal_rejects_unbalanced_or_missing_regime(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    path = root / "advection1d_train.h5"
+    _write_protocol_source(path)
+
+    try:
+        build_stratified_task_shard_records(
+            root=root,
+            out_root=tmp_path / "unbalanced",
+            task="advection1d",
+            source_split="train",
+            train_count=5,
+            val_count=6,
+            test_count=6,
+            overwrite=False,
+            provenance_datasets=["source_file_index", "source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "must be a positive multiple" in str(exc)
+    else:
+        raise AssertionError("Expected unbalanced regime allocation to be rejected")
+
+    with h5py.File(path, "r+") as handle:
+        del handle["beta"]
+    try:
+        build_stratified_task_shard_records(
+            root=root,
+            out_root=tmp_path / "missing",
+            task="advection1d",
+            source_split="train",
+            train_count=6,
+            val_count=6,
+            test_count=6,
+            overwrite=False,
+            provenance_datasets=["source_file_index", "source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "missing required dataset: beta" in str(exc)
+    else:
+        raise AssertionError("Expected missing regime provenance to be rejected")
+
+
+def test_build_universal_supports_steady_fields_without_time_axis(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    _write_protocol_source(root / "darcy2d_train.h5", temporal=False)
+
+    records = build_stratified_task_shard_records(
+        root=root,
+        out_root=tmp_path / "universal",
+        task="darcy2d",
+        source_split="train",
+        train_count=6,
+        val_count=6,
+        test_count=6,
+        overwrite=False,
+        provenance_datasets=["source_file_index", "source_sample_index"],
+        regime_dataset="beta",
+        field_kind="steady",
+        time_axis=None,
+    )
+
+    assert records[0]["protocol_gate"]["field_kind"] == "steady"
+    assert records[0]["protocol_gate"]["time_axis"] is None
+
+
+def test_make_light_hdf5_universal_cli_writes_gate_to_manifest(tmp_path, monkeypatch):
     from scripts import make_light_hdf5_shards
 
     root = tmp_path / "source"
-    out_root = tmp_path / "light"
-    manifest = tmp_path / "manifest.yaml"
     root.mkdir()
-    with h5py.File(root / "burgers1d_train.h5", "w") as handle:
-        handle.create_dataset("data", data=np.arange(10 * 2, dtype=np.float32).reshape(10, 2))
-
+    _write_protocol_source(root / "advection1d_train.h5")
+    manifest = tmp_path / "manifest.yaml"
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -212,29 +390,365 @@ def test_make_light_hdf5_manifest_cli(tmp_path, monkeypatch):
             "--root",
             str(root),
             "--out-root",
-            str(out_root),
+            str(tmp_path / "universal"),
             "--tasks",
-            "burgers1d",
+            "advection1d",
             "--train-count",
-            "2",
+            "6",
             "--val-count",
-            "1",
+            "6",
             "--test-count",
+            "6",
+            "--provenance-dataset",
+            "source_file_index",
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "temporal",
+            "--time-axis",
             "1",
             "--manifest",
             str(manifest),
-            "--version",
-            "smoke-v1",
-            "--remote-prefix",
-            "smoke-v1",
         ],
     )
 
     make_light_hdf5_shards.main()
 
     payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
-    assert payload["version"] == "smoke-v1"
-    assert payload["remote_prefix"] == "smoke-v1"
-    assert len(payload["records"]) == 3
-    assert payload["records"][1]["split"] == "val"
-    assert payload["records"][1]["derived_from_source_split"] is True
+    assert payload["protocol_mode"] == "strat-v1"
+    assert payload["protocol_gates"]["advection1d"]["status"] == "passed"
+    assert payload["records"][0]["protocol_gate"]["identical_regime_coverage"] is True
+    source = load_source_manifest(tmp_path / "manifest.source.yaml")
+    protocol = load_protocol_manifest(tmp_path / "manifest.protocol.yaml")
+    training_lock = resolve_data_lock(
+        source,
+        protocol,
+        requested_roles=("train", "valid"),
+    )
+    assert training_lock.requested_roles == ("train", "valid")
+    assert all(item.role != "test" for item in training_lock.objects)
+
+
+def test_make_light_hdf5_content_addressed_b2_mirror(tmp_path, monkeypatch):
+    from scripts import make_light_hdf5_shards
+
+    root = tmp_path / "source"
+    root.mkdir()
+    _write_protocol_source(root / "advection1d_train.h5")
+    manifest = tmp_path / "manifest.yaml"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--root",
+            str(root),
+            "--out-root",
+            str(tmp_path / "universal"),
+            "--tasks",
+            "advection1d",
+            "--train-count",
+            "6",
+            "--val-count",
+            "6",
+            "--test-count",
+            "6",
+            "--provenance-dataset",
+            "source_file_index",
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "temporal",
+            "--time-axis",
+            "1",
+            "--manifest",
+            str(manifest),
+            "--mirror-uri-prefix",
+            "b2://ups-datasets/runtime",
+            "--content-addressed-mirror",
+        ],
+    )
+
+    make_light_hdf5_shards.main()
+
+    source = load_source_manifest(tmp_path / "manifest.source.yaml")
+    construction = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    records = {Path(item["output_path"]).name: item for item in construction["records"]}
+    for item in source.objects:
+        key = f"runtime/immutable/sha256/{item.checksums['sha256']}/{item.path}"
+        assert item.uris[0] == f"b2://ups-datasets/{key}"
+        assert records[item.path]["remote_key"] == key
+
+
+def test_make_light_hdf5_content_addressed_mirror_requires_prefix(monkeypatch):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "steady",
+            "--content-addressed-mirror",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="requires --mirror-uri-prefix"):
+        make_light_hdf5_shards.main()
+
+
+@pytest.mark.parametrize(
+    "removed_args",
+    [
+        ["--protocol-mode", "legacy"],
+        ["--protocol-mode", "strat-v1"],
+        ["--start-index", "0"],
+        ["--split-source", "val=train"],
+        ["--split-start-index", "train=0"],
+        ["--split-block-size", "6"],
+        ["--split-block-offset", "train=0"],
+        ["--fallback-source-split", "train"],
+    ],
+)
+def test_make_light_hdf5_cli_rejects_removed_legacy_options(monkeypatch, removed_args):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            *removed_args,
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="2"):
+        make_light_hdf5_shards.main()
+
+
+def test_make_light_hdf5_cli_requires_manifest(monkeypatch):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr("sys.argv", ["make_light_hdf5_shards", "--tasks", "advection1d"])
+
+    with pytest.raises(SystemExit, match="2"):
+        make_light_hdf5_shards.main()
+
+
+@pytest.mark.parametrize("version", ["smoke-v1", "light-v1", "medium-v1"])
+def test_make_light_hdf5_cli_reserves_legacy_version_labels(monkeypatch, version):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            "--version",
+            version,
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "steady",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="reserved for immutable legacy artifacts"):
+        make_light_hdf5_shards.main()
+
+
+@pytest.mark.parametrize("prefix", ["smoke-v1", "light-v1", "medium-v1"])
+def test_make_light_hdf5_cli_reserves_legacy_remote_prefixes(monkeypatch, prefix):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            "--remote-prefix",
+            prefix,
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "steady",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="reserved for immutable legacy artifacts"):
+        make_light_hdf5_shards.main()
+
+
+@pytest.mark.parametrize(
+    "omitted_option",
+    ["--provenance-dataset", "--regime-dataset", "--field-kind"],
+)
+def test_make_light_hdf5_cli_requires_protocol_semantics(monkeypatch, omitted_option):
+    from scripts import make_light_hdf5_shards
+
+    option_pairs = [
+        ("--provenance-dataset", "source_sample_index"),
+        ("--regime-dataset", "beta"),
+        ("--field-kind", "temporal"),
+    ]
+    required_args = [
+        value
+        for option, option_value in option_pairs
+        if option != omitted_option
+        for value in (option, option_value)
+    ]
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            *required_args,
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="2"):
+        make_light_hdf5_shards.main()
+
+
+def test_make_light_hdf5_cli_requires_time_axis_for_temporal_fields(monkeypatch):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "temporal",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="time-axis"):
+        make_light_hdf5_shards.main()
+
+
+@pytest.mark.parametrize("count_option", ["--train-count", "--val-count", "--test-count"])
+def test_make_light_hdf5_cli_rejects_nonpositive_split_counts(monkeypatch, count_option):
+    from scripts import make_light_hdf5_shards
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "make_light_hdf5_shards",
+            "--tasks",
+            "advection1d",
+            "--manifest",
+            "manifest.yaml",
+            "--provenance-dataset",
+            "source_sample_index",
+            "--regime-dataset",
+            "beta",
+            "--field-kind",
+            "steady",
+            count_option,
+            "0",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="positive"):
+        make_light_hdf5_shards.main()
+
+
+def test_protocol_gate_rejects_all_nan_provenance_before_within_split_sets():
+    arrays = _gate_arrays(np.full(2, np.nan))
+
+    try:
+        evaluate_protocol_splits(
+            arrays,
+            provenance_datasets=["source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "train identity dataset source_sample_index contains a non-finite value" in str(exc)
+    else:
+        raise AssertionError("Expected all-NaN provenance to be rejected")
+
+
+def test_protocol_gate_rejects_nonfinite_provenance_across_splits():
+    for value in (np.nan, np.inf, -np.inf):
+        arrays = _gate_arrays(np.asarray([value]))
+        try:
+            evaluate_protocol_splits(
+                arrays,
+                provenance_datasets=["source_sample_index"],
+                regime_dataset="beta",
+                field_kind="temporal",
+                time_axis=1,
+            )
+        except ValueError as exc:
+            assert "identity dataset source_sample_index contains a non-finite value" in str(exc)
+        else:
+            raise AssertionError(f"Expected provenance value {value!r} to be rejected")
+
+
+def test_protocol_gate_rejects_nonfinite_regime_identity():
+    arrays = _gate_arrays(np.asarray([0.0]), regime=np.asarray([np.nan]))
+
+    try:
+        evaluate_protocol_splits(
+            arrays,
+            provenance_datasets=["source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )
+    except ValueError as exc:
+        assert "train identity dataset beta contains a non-finite value" in str(exc)
+    else:
+        raise AssertionError("Expected non-finite regime identity to be rejected")
+
+
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+def test_protocol_gate_rejects_nonfinite_physical_fields(value):
+    arrays = _gate_arrays(np.asarray([0.0]))
+    arrays["val"]["data"][0, 0, 0] = value
+
+    with pytest.raises(ValueError, match="val physical field data contains non-finite values"):
+        evaluate_protocol_splits(
+            arrays,
+            provenance_datasets=["source_sample_index"],
+            regime_dataset="beta",
+            field_kind="temporal",
+            time_axis=1,
+        )

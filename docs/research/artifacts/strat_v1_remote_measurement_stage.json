@@ -1,0 +1,84 @@
+{
+  "lock_sha256": "04a7936327611af3879d095bfc706ad03a60ac6fabda0a64671319b7b6db3fa2",
+  "bytes_transferred": 77222552,
+  "cache_hits": 0,
+  "duration_seconds": 3.314282,
+  "object_count": 3,
+  "objects": [
+    {
+      "bytes_transferred": 47140053,
+      "cache_hit": false,
+      "cache_path": "data/verification/strat_v1_measurement_cache/objects/sha256/17/17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a"
+      },
+      "id": "advection1d-test",
+      "name": "advection1d_test.h5",
+      "role": "test",
+      "size": 47140053,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a/advection1d_test.h5"
+    },
+    {
+      "bytes_transferred": 26148529,
+      "cache_hit": false,
+      "cache_path": "data/verification/strat_v1_measurement_cache/objects/sha256/b4/b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9"
+      },
+      "id": "burgers1d-test",
+      "name": "burgers1d_test.h5",
+      "role": "test",
+      "size": 26148529,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9/burgers1d_test.h5"
+    },
+    {
+      "bytes_transferred": 3933970,
+      "cache_hit": false,
+      "cache_path": "data/verification/strat_v1_measurement_cache/objects/sha256/ea/ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6"
+      },
+      "id": "darcy2d-test",
+      "name": "darcy2d_test.h5",
+      "role": "test",
+      "size": 3933970,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6/darcy2d_test.h5"
+    }
+  ],
+  "plan": {
+    "cached_bytes": 0,
+    "entries": [
+      {
+        "cache_path": "data/verification/strat_v1_measurement_cache/objects/sha256/17/17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a",
+        "cached": false,
+        "id": "advection1d-test",
+        "role": "test",
+        "size": 47140053
+      },
+      {
+        "cache_path": "data/verification/strat_v1_measurement_cache/objects/sha256/b4/b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9",
+        "cached": false,
+        "id": "burgers1d-test",
+        "role": "test",
+        "size": 26148529
+      },
+      {
+        "cache_path": "data/verification/strat_v1_measurement_cache/objects/sha256/ea/ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6",
+        "cached": false,
+        "id": "darcy2d-test",
+        "role": "test",
+        "size": 3933970
+      }
+    ],
+    "free_bytes": 710807552,
+    "largest_object_bytes": 47140053,
+    "missing_bytes": 77222552,
+    "object_count": 3,
+    "reserve_bytes": 134217728
+  },
+  "schema_version": 1,
+  "status": "complete"
+}

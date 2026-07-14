@@ -85,6 +85,19 @@ def test_collect_scorecard_rows_and_promotion_rules(tmp_path):
     assert scorecard.rows[0]["tracking_wandb_urls"].endswith("/run_a-id")
 
 
+def test_scorecard_prefers_strat_v1_macro_primary_metric(tmp_path):
+    summary = tmp_path / "persistence" / "summary.json"
+    _write_summary(summary, run_name="persistence", decoded_rollout_nrmse=0.9, split="val")
+    payload = json.loads(summary.read_text(encoding="utf-8"))
+    payload["metrics"]["macro_primary_nrmse"] = 0.4
+    summary.write_text(json.dumps(payload), encoding="utf-8")
+
+    scorecard = collect_scorecard([summary])
+
+    assert scorecard.rows[0]["main_metric_name"] == "macro_primary_nrmse"
+    assert scorecard.rows[0]["main_metric_value"] == 0.4
+
+
 def test_write_scorecard_outputs(tmp_path):
     summary = tmp_path / "run_a" / "summary.json"
     _write_summary(summary, run_name="run_a", decoded_rollout_nrmse=0.8)

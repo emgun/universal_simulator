@@ -4,19 +4,25 @@ from __future__ import annotations
 
 import os
 import re
+from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import h5py
 import torch
 from torch.utils.data import Dataset
+
+from ups.data.manifests import RunDataLock, canonical_sha256, load_data_lock
+from ups.data.normalization import NormalizationStats
 
 
 @dataclass
 class PDEBenchSpec:
     field_key: str
     target_key: str | None = None
+    mapping_kind: str = "trajectory"
     param_keys: tuple[str, ...] = ()
     bc_keys: tuple[str, ...] = ()
     family: str = "generic"
@@ -36,6 +42,8 @@ TASK_SPECS: dict[str, PDEBenchSpec] = {
     ),
     "darcy2d": PDEBenchSpec(
         field_key="data",
+        target_key="targets",
+        mapping_kind="steady_operator",
         family="elliptic",
         traits=("scalar", "steady_state", "elliptic", "heterogeneous_medium"),
     ),
@@ -215,21 +223,18 @@ class PDEBenchConfig:
     task: str
     split: str = "train"
     root: str | None = None
-    normalize: bool = True
+    normalize: bool = False
+    normalization_path: str | None = None
+    target_normalization_path: str | None = None
+    data_lock_path: str | None = None
+    data_lock_sha256: str | None = None
+    selection_sha256: str | None = None
     param_keys: tuple[str, ...] = ()
     bc_keys: tuple[str, ...] = ()
     max_samples: int | None = None
 
 
 _BETA_PATTERN = re.compile(r"beta(?P<beta>[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)")
-
-
-def _normalise_fields(fields: torch.Tensor) -> torch.Tensor:
-    mean = fields.mean()
-    std = fields.std()
-    if std < 1e-6:
-        std = torch.tensor(1.0)
-    return (fields - mean) / std
 
 
 def _h5_attr_strings(value) -> tuple[str, ...]:
@@ -278,7 +283,12 @@ def _derive_param_from_source_provenance(
 
 
 class PDEBenchDataset(Dataset):
-    """Loader for PDEBench HDF5 dumps (with fallback tensor data for tests)."""
+    """Worker-safe lazy loader for local PDEBench HDF5 shards.
+
+    Files are indexed at construction, but physical field arrays are read only
+    from ``__getitem__``. Remote objects must be staged locally before this
+    class is constructed.
+    """
 
     def __init__(
         self,
@@ -287,131 +297,325 @@ class PDEBenchDataset(Dataset):
     ) -> None:
         super().__init__()
         self.cfg = cfg
+        self.spec = get_pdebench_spec(cfg.task)
+        self.param_keys = tuple(cfg.param_keys or self.spec.param_keys)
+        self.bc_keys = tuple(cfg.bc_keys or self.spec.bc_keys)
+        self._sample_param_keys = self.param_keys
+        self._sample_bc_keys = self.bc_keys
+        self._handles: dict[Path, h5py.File] = {}
+        self._handle_pid: int | None = None
+        self._shard_paths: list[Path] = []
+        self._shard_lengths: list[int] = []
+        self._shard_ends: list[int] = []
+        self._length = 0
+        self._tensor_fields: torch.Tensor | None = None
+        self._tensor_targets: torch.Tensor | None = None
+        self._tensor_params: dict[str, torch.Tensor] | None = None
+        self._tensor_bc: dict[str, torch.Tensor] | None = None
+        self._normalization: NormalizationStats | None = None
+        self._target_normalization: NormalizationStats | None = None
+        self._data_lock: RunDataLock | None = None
+        data_lock_path = cfg.data_lock_path or os.environ.get("DATA_LOCK")
+        expected_data_lock_sha256 = cfg.data_lock_sha256
+        expected_selection_sha256 = cfg.selection_sha256
+        if data_lock_path:
+            self._data_lock = load_data_lock(data_lock_path)
+            role = "valid" if cfg.split in {"val", "valid", "validation"} else cfg.split
+            if role not in self._data_lock.requested_roles:
+                raise PermissionError(
+                    f"Run data lock does not authorize the requested {cfg.split!r} split"
+                )
+            if (
+                expected_data_lock_sha256
+                and expected_data_lock_sha256 != self._data_lock.lock_sha256
+            ):
+                raise ValueError("Configured data_lock_sha256 does not match data_lock_path")
+            expected_data_lock_sha256 = self._data_lock.lock_sha256
+            resolved_selection_sha256 = canonical_sha256(self._data_lock.selection)
+            if expected_selection_sha256 and expected_selection_sha256 != resolved_selection_sha256:
+                raise ValueError("Configured selection_sha256 does not match data_lock_path")
+            expected_selection_sha256 = resolved_selection_sha256
         max_samples = int(cfg.max_samples) if cfg.max_samples is not None else None
         if max_samples is not None and max_samples <= 0:
             raise ValueError("PDEBenchConfig.max_samples must be positive when set")
+        if cfg.normalize:
+            if not cfg.normalization_path:
+                raise ValueError(
+                    "normalize=True requires checksum-bound training statistics via "
+                    "PDEBenchConfig.normalization_path"
+                )
+            self._normalization = NormalizationStats.load(
+                Path(cfg.normalization_path),
+                expected_data_lock_sha256=expected_data_lock_sha256,
+                expected_selection_sha256=expected_selection_sha256,
+            )
+            if self.spec.target_key is not None:
+                if not cfg.target_normalization_path:
+                    raise ValueError(
+                        f"normalize=True for {cfg.task} requires separately fitted target "
+                        "statistics via PDEBenchConfig.target_normalization_path"
+                    )
+                self._target_normalization = NormalizationStats.load(
+                    Path(cfg.target_normalization_path),
+                    expected_data_lock_sha256=expected_data_lock_sha256,
+                    expected_selection_sha256=expected_selection_sha256,
+                )
         if tensor_data is not None:
-            self.spec = get_pdebench_spec(cfg.task)
-            self.param_keys = tuple(cfg.param_keys or self.spec.param_keys)
-            self.bc_keys = tuple(cfg.bc_keys or self.spec.bc_keys)
+            if not self._sample_param_keys and tensor_data.get("params") is not None:
+                self._sample_param_keys = tuple(tensor_data["params"])
+            if not self._sample_bc_keys and tensor_data.get("bc") is not None:
+                self._sample_bc_keys = tuple(tensor_data["bc"])
             sample_slice = slice(0, max_samples) if max_samples is not None else slice(None)
-            self.fields = tensor_data["fields"][sample_slice].float()
-            self.targets = tensor_data.get("targets", tensor_data["fields"])[sample_slice].float()
-            self.params = (
+            self._tensor_fields = tensor_data["fields"][sample_slice].float()
+            self._tensor_targets = tensor_data.get("targets", tensor_data["fields"])[
+                sample_slice
+            ].float()
+            self._tensor_params = (
                 {key: value[sample_slice] for key, value in tensor_data["params"].items()}
                 if tensor_data.get("params") is not None
                 else None
             )
-            self.bc = (
+            self._tensor_bc = (
                 {key: value[sample_slice] for key, value in tensor_data["bc"].items()}
                 if tensor_data.get("bc") is not None
                 else None
             )
+            self._length = int(self._tensor_fields.shape[0])
+            if self._tensor_fields.shape != self._tensor_targets.shape:
+                raise ValueError("Fields and targets must share shape")
+            if self.spec.target_key is not None and "targets" not in tensor_data:
+                raise ValueError(
+                    f"{cfg.task} requires explicit coefficient inputs and solution targets"
+                )
         else:
-            if cfg.root is None:
-                # Allow environment override for convenience in remote runs
-                env_root = os.environ.get("PDEBENCH_ROOT")
-                if env_root:
-                    cfg.root = env_root
-                else:
-                    raise ValueError("Either tensor_data or cfg.root must be provided")
-            spec = get_pdebench_spec(cfg.task)
-            self.spec = spec
-            param_keys = tuple(cfg.param_keys or spec.param_keys)
-            bc_keys = tuple(cfg.bc_keys or spec.bc_keys)
-            self.param_keys = param_keys
-            self.bc_keys = bc_keys
-            base = Path(cfg.root)
+            resolved_root = cfg.root or os.environ.get("PDEBENCH_ROOT")
+            if resolved_root is None:
+                raise ValueError("Either tensor_data, cfg.root, or PDEBENCH_ROOT must be provided")
+            if "://" in str(resolved_root):
+                raise ValueError("PDEBenchDataset requires a verified local staged root")
+            base = Path(resolved_root)
             file_path = base / f"{cfg.task}_{cfg.split}.h5"
-            shard_paths = []
+            shard_paths: list[Path]
             if file_path.exists():
                 shard_paths = [file_path]
             else:
                 shard_paths = sorted(base.glob(f"{cfg.task}_{cfg.split}_*.h5"))
                 if not shard_paths:
                     raise FileNotFoundError(file_path)
-
-            fields_list = []
-            targets_list = []
-            params_accum = None
-            bc_accum = None
             remaining = max_samples
-
             for path in shard_paths:
                 if remaining is not None and remaining <= 0:
                     break
-                with h5py.File(path, "r") as f:
-                    available = int(f[spec.field_key].shape[0])
+                with h5py.File(path, "r") as handle:
+                    if self.spec.field_key not in handle:
+                        raise ValueError(
+                            f"{path} is missing explicit field dataset {self.spec.field_key!r}"
+                        )
+                    if self.spec.target_key is not None and self.spec.target_key not in handle:
+                        raise ValueError(
+                            f"{path} is missing required target dataset {self.spec.target_key!r}; "
+                            f"{cfg.task} cannot be represented as a solution trajectory"
+                        )
+                    available = int(handle[self.spec.field_key].shape[0])
+                    if self.spec.target_key is not None:
+                        targets = handle[self.spec.target_key]
+                        if int(targets.shape[0]) != available:
+                            raise ValueError(f"{path} input and target sample counts differ")
+                        if tuple(targets.shape[1:]) != tuple(handle[self.spec.field_key].shape[1:]):
+                            raise ValueError(f"{path} input and target canonical shapes differ")
                     take = available if remaining is None else min(remaining, available)
                     if take <= 0:
                         continue
-                    sample_slice = slice(0, take)
-                    f_fields = torch.from_numpy(f[spec.field_key][sample_slice]).float()
-                    if cfg.normalize:
-                        f_fields = _normalise_fields(f_fields)
-                    fields_list.append(f_fields)
-                    if spec.target_key and spec.target_key in f:
-                        targets_list.append(
-                            torch.from_numpy(f[spec.target_key][sample_slice]).float()
-                        )
-                    else:
-                        targets_list.append(f_fields)
-                    # Parameter/BC aggregation (if present): concatenate along first axis
-                    if param_keys:
-                        p = {}
-                        for key in param_keys:
-                            if key in f:
-                                p[key] = torch.from_numpy(f[key][sample_slice]).float()
-                                continue
-                            derived = _derive_param_from_source_provenance(
-                                f, key=key, sample_slice=sample_slice
-                            )
-                            if derived is not None:
-                                p[key] = derived
-                        if p:
-                            if params_accum is None:
-                                params_accum = {k: v.clone() for k, v in p.items()}
-                            else:
-                                for k, v in p.items():
-                                    if k in params_accum:
-                                        params_accum[k] = torch.cat([params_accum[k], v], dim=0)
-                    if bc_keys:
-                        b = {
-                            key: torch.from_numpy(f[key][sample_slice]).float()
-                            for key in bc_keys
-                            if key in f
-                        }
-                        if b:
-                            if bc_accum is None:
-                                bc_accum = {k: v.clone() for k, v in b.items()}
-                            else:
-                                for k, v in b.items():
-                                    if k in bc_accum:
-                                        bc_accum[k] = torch.cat([bc_accum[k], v], dim=0)
-                    if remaining is not None:
-                        remaining -= take
-
-            if not fields_list:
+                self._shard_paths.append(path)
+                self._shard_lengths.append(take)
+                self._length += take
+                self._shard_ends.append(self._length)
+                if remaining is not None:
+                    remaining -= take
+            if not self._shard_paths:
                 raise RuntimeError(
                     f"No samples loaded for PDEBench task '{cfg.task}' split '{cfg.split}'"
                 )
-            self.fields = torch.cat(fields_list, dim=0)
-            self.targets = torch.cat(targets_list, dim=0)
-            self.params = params_accum
-            self.bc = bc_accum
-        if self.fields.shape != self.targets.shape:
-            raise ValueError("Fields and targets must share shape")
+            if self._data_lock is not None:
+                locked_names = {
+                    Path(item.path).name for item in self._data_lock.objects if item.role == role
+                }
+                unlocked = [
+                    path.name for path in self._shard_paths if path.name not in locked_names
+                ]
+                if unlocked:
+                    raise PermissionError(
+                        "Dataset root contains selected files outside the run data lock: "
+                        + ", ".join(unlocked)
+                    )
 
     def __len__(self) -> int:
-        return self.fields.shape[0]
+        return self._length
 
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+    def _normalise_index(self, idx: int) -> int:
+        if idx < 0:
+            idx += self._length
+        if idx < 0 or idx >= self._length:
+            raise IndexError(idx)
+        return idx
+
+    def _locate(self, idx: int) -> tuple[Path, int]:
+        idx = self._normalise_index(idx)
+        shard_index = bisect_right(self._shard_ends, idx)
+        start = 0 if shard_index == 0 else self._shard_ends[shard_index - 1]
+        return self._shard_paths[shard_index], idx - start
+
+    def _get_handle(self, path: Path) -> h5py.File:
+        pid = os.getpid()
+        if self._handle_pid != pid:
+            self.close()
+            self._handle_pid = pid
+        handle = self._handles.get(path)
+        if handle is None:
+            handle = h5py.File(path, "r")
+            self._handles[path] = handle
+        return handle
+
+    def _read_param(self, idx: int, key: str) -> torch.Tensor | None:
+        if self._tensor_fields is not None:
+            if self._tensor_params is None or key not in self._tensor_params:
+                return None
+            return self._tensor_params[key][self._normalise_index(idx)]
+        path, local_idx = self._locate(idx)
+        handle = self._get_handle(path)
+        if key in handle:
+            return torch.as_tensor(handle[key][local_idx]).float()
+        derived = _derive_param_from_source_provenance(
+            handle, key=key, sample_slice=slice(local_idx, local_idx + 1)
+        )
+        return None if derived is None else derived[0]
+
+    def _read_bc(self, idx: int, key: str) -> torch.Tensor | None:
+        if self._tensor_fields is not None:
+            if self._tensor_bc is None or key not in self._tensor_bc:
+                return None
+            return self._tensor_bc[key][self._normalise_index(idx)]
+        path, local_idx = self._locate(idx)
+        handle = self._get_handle(path)
+        return torch.as_tensor(handle[key][local_idx]).float() if key in handle else None
+
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        idx = self._normalise_index(idx)
+        if self._tensor_fields is not None:
+            fields = self._tensor_fields[idx]
+            assert self._tensor_targets is not None
+            targets = self._tensor_targets[idx]
+        else:
+            path, local_idx = self._locate(idx)
+            handle = self._get_handle(path)
+            fields = torch.as_tensor(handle[self.spec.field_key][local_idx]).float()
+            if self.spec.target_key and self.spec.target_key in handle:
+                targets = torch.as_tensor(handle[self.spec.target_key][local_idx]).float()
+            else:
+                targets = fields.clone()
+        if self._normalization is not None:
+            fields = self._normalization.apply(fields)
+            target_normalization = self._target_normalization or self._normalization
+            targets = target_normalization.apply(targets)
         sample = {
-            "fields": self.fields[idx],
-            "targets": self.targets[idx],
+            "fields": fields,
+            "targets": targets,
         }
-        if self.params is not None:
-            sample["params"] = {k: v[idx] for k, v in self.params.items()}
-        if self.bc is not None:
-            sample["bc"] = {k: v[idx] for k, v in self.bc.items()}
+        params = {
+            key: value
+            for key in self._sample_param_keys
+            if (value := self._read_param(idx, key)) is not None
+        }
+        bc = {
+            key: value
+            for key in self._sample_bc_keys
+            if (value := self._read_bc(idx, key)) is not None
+        }
+        if params:
+            sample["params"] = params
+        if bc:
+            sample["bc"] = bc
         return sample
+
+    def _stack_component(self, component: str, item: int | slice) -> torch.Tensor:
+        if isinstance(item, slice):
+            indices = range(*item.indices(self._length))
+            values = [self[index][component] for index in indices]
+            if not values:
+                raise IndexError("Cannot materialize an empty lazy slice")
+            return torch.stack(values)
+        return self[item][component]
+
+    @property
+    def fields(self) -> _LazyTensorView:
+        return _LazyTensorView(self, "fields")
+
+    @property
+    def targets(self) -> _LazyTensorView:
+        return _LazyTensorView(self, "targets")
+
+    @property
+    def params(self) -> _LazyMappingView | None:
+        return (
+            _LazyMappingView(self, "params", self._sample_param_keys)
+            if self._sample_param_keys
+            else None
+        )
+
+    @property
+    def bc(self) -> _LazyMappingView | None:
+        return _LazyMappingView(self, "bc", self._sample_bc_keys) if self._sample_bc_keys else None
+
+    def close(self) -> None:
+        for handle in getattr(self, "_handles", {}).values():
+            try:
+                handle.close()
+            except Exception:
+                pass
+        self._handles = {}
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        state["_handles"] = {}
+        state["_handle_pid"] = None
+        return state
+
+    def __del__(self) -> None:
+        self.close()
+
+
+class _LazyTensorView:
+    """Compatibility view that materializes only explicitly requested rows."""
+
+    def __init__(self, dataset: PDEBenchDataset, component: str) -> None:
+        self._dataset = dataset
+        self._component = component
+
+    @property
+    def shape(self) -> torch.Size:
+        sample = self._dataset[0][self._component]
+        return torch.Size((len(self._dataset), *sample.shape))
+
+    def __len__(self) -> int:
+        return len(self._dataset)
+
+    def __getitem__(self, item: int | slice) -> torch.Tensor:
+        return self._dataset._stack_component(self._component, item)
+
+
+class _LazyMappingView:
+    def __init__(self, dataset: PDEBenchDataset, component: str, keys: Sequence[str]) -> None:
+        self._dataset = dataset
+        self._component = component
+        self._keys = tuple(keys)
+
+    def __getitem__(self, key: str) -> torch.Tensor:
+        if key not in self._keys:
+            raise KeyError(key)
+        values = []
+        for index in range(len(self._dataset)):
+            mapping = self._dataset[index].get(self._component, {})
+            if key not in mapping:
+                raise KeyError(key)
+            values.append(mapping[key])
+        return torch.stack(values)

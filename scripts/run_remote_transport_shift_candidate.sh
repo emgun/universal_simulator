@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: positional transport-split construction is no longer supported." >&2
+exit 2
+
 # Remote/full-source pipeline for the benchmark-clean constant transport-shift gate.
 #
 # This is intended for a remote/data-prep box, not a local laptop. It hydrates

@@ -5,6 +5,7 @@ import tarfile
 
 import numpy as np
 
+from scripts import build_public_assets as public_assets_module
 from scripts.build_public_assets import (
     build_benchmark_readiness_rows,
     build_benchmark_rows,
@@ -20,6 +21,40 @@ from scripts.build_public_assets import (
     build_transport_ablation_rows,
     sha256_file,
 )
+
+
+def test_structured_only_check_skips_platform_dependent_png_and_manifest(monkeypatch, tmp_path):
+    generated = tmp_path / "generated"
+    committed = tmp_path / "committed"
+    generated.mkdir()
+    committed.mkdir()
+    (generated / "summary.tsv").write_text("stable\n", encoding="utf-8")
+    (committed / "summary.tsv").write_text("stable\n", encoding="utf-8")
+    (generated / "chart.png").write_bytes(b"linux-raster")
+    (committed / "chart.png").write_bytes(b"mac-raster")
+    (generated / "asset_manifest.json").write_text("linux", encoding="utf-8")
+    (committed / "asset_manifest.json").write_text("mac", encoding="utf-8")
+
+    monkeypatch.setattr(
+        public_assets_module,
+        "build_public_assets",
+        lambda **kwargs: [
+            generated / "summary.tsv",
+            generated / "chart.png",
+            generated / "asset_manifest.json",
+        ],
+    )
+
+    assert public_assets_module.check_public_assets(
+        claim_evidence_path=tmp_path / "claim.json",
+        external_mapping_path=tmp_path / "mapping.json",
+        durable_scorecard_path=tmp_path / "scorecard.json",
+        transport_ablation_path=tmp_path / "ablation.json",
+        transfer_scorecard_path=tmp_path / "transfer.json",
+        rollout_preview_manifest_path=None,
+        output_dir=committed,
+        structured_only=True,
+    )
 
 
 def _fixture_payloads():
