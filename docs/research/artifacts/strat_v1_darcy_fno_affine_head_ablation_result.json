@@ -1,0 +1,53 @@
+{
+  "all_gates_passed": false,
+  "arms": {
+    "A-affine": {
+      "beta100_global_scale_nrmse": 0.231361037684217,
+      "maximum_corrected_spread_ratio": 2.2232885969785094,
+      "plateau_epoch": null,
+      "primary_value": 0.10406253061282325,
+      "selected_epoch": 192
+    },
+    "K-long": {
+      "beta100_global_scale_nrmse": 0.2702953385456401,
+      "maximum_corrected_spread_ratio": 2.207506231380099,
+      "plateau_epoch": null,
+      "primary_value": 0.12244374883447355,
+      "selected_epoch": 192
+    }
+  },
+  "artifact_id": "strat-v1-darcy-fno-affine-head-ablation-d2-result",
+  "artifact_sha256": "9a85f5f7e2eb0192381d5ee2b412f9db343ea2b1a01988e53699607b4358eaec",
+  "effect": {
+    "candidate_counterfactual_relative_prediction_rms": 0.9994193477451793,
+    "candidate_primary_improvement_vs_control": 0.1501196949343578,
+    "candidate_shuffled_beta_relative_degradation": 11.708132822324902
+  },
+  "gate_checks": {
+    "candidate_beta100_better_than_control": true,
+    "candidate_beta_sensitivity": true,
+    "candidate_primary_below_frozen_d1": true,
+    "candidate_primary_better_than_control": true,
+    "candidate_regime_spread": false,
+    "candidate_shuffled_beta_degradation": true,
+    "heldout_zero": true,
+    "plateau_by_cap": false
+  },
+  "heldout_reads": 0,
+  "interpretation": "affine_head_not_validated",
+  "materialization_repair": {
+    "manifest_path": "docs/research/artifacts/strat_v1_darcy_fno_affine_head_ablation_materialization_repair.json",
+    "manifest_sha256": "79a83ae3c7294248737d2a6785ca909377890ff6d3cffcddee4279b3e348ff87",
+    "original_materializer_sha256": "b620bf997eb037cc04c30443bfcb2c99e03046a57aa786989d3e714f60dc9427",
+    "reason": "The frozen verifier compared float32-decoded Darcy beta labels to decimal literals with exact equality. The repair changes only label validation to a tight numeric tolerance; measurement tensors, metrics, checkpoints, gates, and held-out policy are unchanged.",
+    "repaired_materializer_sha256": "bf0eca144f7808e105f86b60f2fe210aa48f92d4fcdbfad01fe99117e1dc9722"
+  },
+  "plan_sha256": "090d0864f6b40a538941f7787b3bb0d2a86f85bb1ea3c828b4a549a292e40f76",
+  "schema_version": 2,
+  "source_summary": {
+    "artifact_sha256": "a80762d37572045656fecf5c2c303b67b1dafa122c0a1b6c808bd9f401e83dcc",
+    "file_sha256": "38784bf0df4f7ed6faf21fc7cc3a5b4219d215700aec534ef937dd06d88eaa4a",
+    "path": "reports/research/darcy_fno_affine_head_ablation/summary.json"
+  },
+  "status": "complete_validation_only"
+}

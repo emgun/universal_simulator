@@ -173,6 +173,17 @@ curve is still improving at epoch 24. Treat parameter value/presence as a
 universal interface requirement, but do not promote this checkpoint or access
 held-out data.
 
+The matched D2 affine-head follow-up also completed and is negative under its
+frozen gate. Extending both arms to epoch 192 improved the direct conditioned
+control to `0.122444`; the affine basis further improved primary validation
+NRMSE to `0.104063` (`15.01%`) and beta-100 global-scale NRMSE from `0.270295`
+to `0.231361`. However, corrected spread remained `2.223289` versus `<=1.5`,
+and neither arm plateaued. Parameter-aware capacity is useful, but a linear
+beta-affine output basis does not solve the high-beta error concentration or
+optimization imbalance. No held-out data was read. The exact result and repair
+provenance are committed under
+`docs/research/artifacts/strat_v1_darcy_fno_affine_head_ablation_*.json`.
+
 The complete 15.3 MiB run bundle is immutable at B2 SHA-256
 `bc917695cdec16a517995036576933628a8d9a3136ad2f1fb1bffaaa2e5b78b7`.
 Compact plan, stage, and selection evidence is committed under
@@ -216,11 +227,14 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 ## Active Work and Next Move
 
-1. Make parameter value/presence universal in specialist and shared candidate
-   contracts; the Darcy D1 causal beta-use mechanism is confirmed.
-2. Pre-register a regime-balanced, plateau-capable conditioned Darcy specialist
-   with resumable optimizer checkpoints; target beta-100 error concentration.
-3. Only after that gate, repair Poseidon and `tier_b` conditioning/evaluation
+1. Keep parameter value/presence universal in specialist and shared candidate
+   contracts; D1 and D2 confirm causal parameter use.
+2. Pre-register one validation-only regime-balanced objective or sampling
+   ablation that explicitly targets beta-100 error and requires plateau by cap.
+   Do not extend the rejected affine-head family unchanged.
+3. If balancing still misses the spread gate, test one stronger steady-operator
+   architecture before any held-out access. Only after a specialist clears the
+   gate, repair Poseidon and `tier_b` conditioning/evaluation
    contracts and measure shared-versus-single-task interference, low-data transfer, regime
    handling, and consolidation economics. Select exactly one specialist and
    one shared candidate before drafting any held-out sequence.
