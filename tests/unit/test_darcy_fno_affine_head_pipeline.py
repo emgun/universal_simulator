@@ -178,6 +178,13 @@ def test_materializer_verifies_lineage_bindings_and_passes_gates(monkeypatch, tm
     assert result["arms"]["A-affine"]["plateau_epoch"] == 48
 
 
+def test_regime_validation_accepts_float32_decoded_frozen_values():
+    assert materialize.regime_values_match(
+        [0.009999999776482582, 0.10000000149011612, 1.0, 10.0, 100.0]
+    )
+    assert not materialize.regime_values_match([0.02, 0.1, 1.0, 10.0, 100.0])
+
+
 def test_materializer_rejects_checkpoint_lineage_tampering(monkeypatch, tmp_path):
     plan, summary, output = _fixture(tmp_path)
     payload = json.loads(summary.read_text())

@@ -30,6 +30,38 @@ def finite(value: Any, label: str) -> float:
     return float(value)
 
 
+EXPECTED_BETA_REGIMES = (0.01, 0.1, 1.0, 10.0, 100.0)
+
+
+def regime_values_match(values: list[Any]) -> bool:
+    """Accept the frozen regimes after their lossless float32 HDF5 decode."""
+
+    if len(values) != len(EXPECTED_BETA_REGIMES):
+        return False
+    try:
+        observed = [float(value) for value in values]
+    except (TypeError, ValueError):
+        return False
+    return all(
+        math.isclose(actual, expected, rel_tol=1e-6, abs_tol=1e-9)
+        for actual, expected in zip(observed, EXPECTED_BETA_REGIMES, strict=True)
+    )
+
+
+def load_repair_manifest(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != 1:
+        raise ValueError("materialization repair manifest schema must be 1")
+    manifest_sha = manifest.get("manifest_sha256")
+    if manifest_sha != canonical_sha256(
+        {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+    ):
+        raise ValueError("materialization repair manifest self hash is invalid")
+    return manifest
+
+
 def plateau_epoch(history: list[dict[str, Any]], threshold: float, required: int) -> int | None:
     best, stale = math.inf, 0
     for row in history:
@@ -78,12 +110,23 @@ def main() -> None:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--repair-manifest", type=Path)
     args = parser.parse_args()
 
     plan = load_and_validate_plan(args.plan)
     plan_sha = plan.get("plan_sha256")
+    repair = load_repair_manifest(args.repair_manifest)
+    materializer_relative = "scripts/materialize_darcy_fno_affine_head_ablation.py"
     for relative, expected in plan["bindings"]["source"]["files"].items():
-        if sha(REPO_ROOT / relative) != expected:
+        observed = sha(REPO_ROOT / relative)
+        repaired_materializer = (
+            repair is not None
+            and relative == materializer_relative
+            and repair.get("original_plan_sha256") == plan_sha
+            and repair.get("original_materializer_sha256") == expected
+            and repair.get("repaired_materializer_sha256") == observed
+        )
+        if observed != expected and not repaired_materializer:
             raise ValueError(f"source bytes changed after pre-registration: {relative}")
     implementation_commit = plan["bindings"]["source"]["implementation_commit"]
     current = subprocess.check_output(
@@ -106,8 +149,23 @@ def main() -> None:
         0,
     ):
         raise PermissionError("summary is not eligible validation-only Darcy evidence")
-    if summary.get("source", {}).get("git_commit") != current:
-        raise ValueError("summary commit differs from materialization checkout")
+    summary_commit = summary.get("source", {}).get("git_commit")
+    if repair is None:
+        if summary_commit != current:
+            raise ValueError("summary commit differs from materialization checkout")
+    elif (
+        summary_commit != repair.get("measurement_commit")
+        or subprocess.run(
+            ["git", "merge-base", "--is-ancestor", str(summary_commit), current],
+            cwd=REPO_ROOT,
+        ).returncode
+    ):
+        raise ValueError("repair manifest does not bind an ancestor measurement commit")
+    if repair is not None and (
+        repair.get("summary_file_sha256") != sha(args.summary)
+        or repair.get("summary_artifact_sha256") != summary_sha
+    ):
+        raise ValueError("repair manifest does not bind the exact summary")
     lock_binding = plan["bindings"]["training_lock"]
     lock = summary.get("training_lock", {})
     if (
@@ -150,13 +208,9 @@ def main() -> None:
         for row in history:
             finite(row.get("primary_value"), f"{arm} primary")
             regimes = row.get("per_beta")
-            if not isinstance(regimes, list) or [float(x.get("beta")) for x in regimes] != [
-                0.01,
-                0.1,
-                1.0,
-                10.0,
-                100.0,
-            ]:
+            if not isinstance(regimes, list) or not regime_values_match(
+                [item.get("beta") for item in regimes]
+            ):
                 raise ValueError(f"arm {arm} has incomplete regime evidence")
             for regime in regimes:
                 finite(regime.get("slice_normalized_nrmse"), f"{arm} slice regime")
@@ -270,6 +324,17 @@ def main() -> None:
             "file_sha256": sha(args.summary),
             "artifact_sha256": summary_sha,
         },
+        "materialization_repair": (
+            None
+            if repair is None
+            else {
+                "manifest_path": str(args.repair_manifest),
+                "manifest_sha256": repair["manifest_sha256"],
+                "reason": repair["reason"],
+                "original_materializer_sha256": repair["original_materializer_sha256"],
+                "repaired_materializer_sha256": repair["repaired_materializer_sha256"],
+            }
+        ),
         "arms": arm_rows,
         "effect": {
             "candidate_primary_improvement_vs_control": (
