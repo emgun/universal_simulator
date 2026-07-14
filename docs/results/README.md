@@ -128,6 +128,17 @@ To verify committed generated assets are up to date without rewriting them:
 python scripts/build_public_assets.py --check
 ```
 
+PNG bytes can differ across operating systems because Matplotlib delegates font
+rasterization to platform-specific FreeType builds. CI therefore verifies every
+source-derived JSON/TSV output byte-for-byte with:
+
+```bash
+python scripts/build_public_assets.py --check --check-structured-only
+```
+
+The default `--check` remains the stronger same-environment verification for
+PNG files and `asset_manifest.json` as well as the structured outputs.
+
 The generator reads:
 
 - `docs/claim_evidence/universal_sota_claim_evidence.json`

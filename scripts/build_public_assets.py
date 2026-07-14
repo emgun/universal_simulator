@@ -2021,6 +2021,7 @@ def check_public_assets(
     rollout_preview_manifest_path: Path | None,
     output_dir: Path,
     artifact_root: Path = Path("."),
+    structured_only: bool = False,
 ) -> bool:
     with tempfile.TemporaryDirectory() as tmpdir:
         generated_paths = build_public_assets(
@@ -2035,6 +2036,15 @@ def check_public_assets(
         )
         mismatches: list[str] = []
         for generated_path in generated_paths:
+            if structured_only and (
+                generated_path.suffix.lower() == ".png"
+                or generated_path.name == "asset_manifest.json"
+            ):
+                # Font and FreeType rasterization differs across operating systems.
+                # CI still byte-checks every structured source-derived artifact;
+                # canonical images and their hash manifest remain a same-environment
+                # reproducibility check through the default --check path.
+                continue
             committed_path = output_dir / generated_path.name
             if not committed_path.exists():
                 mismatches.append(f"missing {committed_path}")
@@ -2082,6 +2092,14 @@ def main() -> None:
         action="store_true",
         help="Regenerate into a temporary directory and fail if committed assets are stale.",
     )
+    parser.add_argument(
+        "--check-structured-only",
+        action="store_true",
+        help=(
+            "With --check, compare cross-platform byte-stable JSON/TSV outputs only. "
+            "PNG rasterization and its hash manifest remain covered by same-environment checks."
+        ),
+    )
     args = parser.parse_args()
 
     if args.check:
@@ -2094,6 +2112,7 @@ def main() -> None:
             rollout_preview_manifest_path=args.rollout_preview_manifest,
             output_dir=args.output_dir,
             artifact_root=Path("."),
+            structured_only=args.check_structured_only,
         ):
             sys.exit(1)
         print("public assets are up to date")
