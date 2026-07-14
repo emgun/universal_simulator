@@ -1,0 +1,41 @@
+schema_version: 1
+protocol_id: the-well-turbulent-radiative-layer-2d-pilot-v1
+dataset_id: the-well
+source_revision: hf:2ee7756575ff6f90981d0308cbcb6a2ab5995bdc
+adapter: the_well_native
+adapter_revision: 1.0.0
+split_authority: upstream_trajectory_split
+splits:
+  train:
+  - well-turbulent_radiative_layer_2D-train-turbulent-radiative-layer-tcool-0.03
+  valid:
+  - well-turbulent_radiative_layer_2D-valid-turbulent-radiative-layer-tcool-0.03
+  test:
+  - well-turbulent_radiative_layer_2D-test-turbulent-radiative-layer-tcool-0.03
+identity_fields:
+- dataset_name
+- source_file
+- trajectory_index
+- window_start
+selection:
+  algorithm: preserve_upstream_split_then_exact_parameter_file
+  dataset_name: turbulent_radiative_layer_2D
+  pilot_parameter:
+    tcool: '0.03'
+normalization:
+  fit_role: train
+  method: channel_standardization
+  preserve_physical_metadata: true
+  artifact_required_for_roles:
+  - valid
+  - test
+test_access: measurement_contract_required
+coverage_dimensions:
+- dataset_name
+- physical_system
+- tcool
+metadata:
+  scope: smallest one-file-per-upstream-split integration pilot
+  not_a_benchmark_claim: true
+  the_well_package_version: v1.2.0
+  the_well_package_commit: bf4e08a3d0231f590cc796052e32c1a25fb816f9

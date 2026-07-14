@@ -1,0 +1,15 @@
+include: train_multitask_heterogeneous_light_best
+
+# A4 runtime overlay. The orchestration layer also supplies and verifies this
+# lock on every command; these values make direct runner invocations fail closed.
+data:
+  task: [advection1d, burgers1d, darcy2d]
+  split: train
+  root: data/pdebench_strat_v1_training
+  data_lock_path: docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json
+  data_lock_sha256: 5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd
+  selection_sha256: 54aee5e59b8b55a3627b40e8ba1d75655895836abc2d95532414efccbfee590e
+  task_param_keys:
+    advection1d: [beta]
+    burgers1d: [nu]
+    darcy2d: [beta]

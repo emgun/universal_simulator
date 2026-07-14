@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PROTOCOL_ROOTS_PENDING=1
+echo "Blocked: strat-v1 smoke launch is disabled before provider access." >&2
+exit 2
+
 # Dry-run-first Vast launcher for the remote smoke pipeline.
 #
 # Defaults do not launch paid compute. Set DRY_RUN=0 only after reviewing the

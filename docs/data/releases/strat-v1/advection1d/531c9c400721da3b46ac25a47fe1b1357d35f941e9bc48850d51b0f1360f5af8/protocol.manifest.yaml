@@ -1,0 +1,30 @@
+schema_version: 1
+protocol_id: pdebench-strat-v1
+dataset_id: pdebench
+source_revision: sha256:531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8
+adapter: pdebench_hdf5
+adapter_revision: 1.0.0
+split_authority: constructed_trajectory_disjoint_parameter_stratified
+splits:
+  train:
+  - advection1d-train
+  valid:
+  - advection1d-valid
+  test:
+  - advection1d-test
+identity_fields:
+- source_file_index
+- source_sample_index
+selection:
+  algorithm: sha256-protocol-seed-provenance-v1
+  seed: 0
+  protocol: strat-v1
+normalization:
+  fit_role: train
+  method: zscore
+test_access: measurement_contract_required
+coverage_dimensions:
+- task
+- physical_parameter_regime
+metadata:
+  construction_manifest_sha256: 531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8

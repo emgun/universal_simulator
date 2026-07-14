@@ -274,7 +274,7 @@
   "max_samples": 32,
   "measurement_type": "held_out_test_ups_data_conditioned_context_phase_measurement",
   "pretest_contract_json": "docs/claim_evidence/ups_advection_data_conditioned_pretest_contract.json",
-  "pretest_contract_sha256": "d9a08432acfbb3428ec02d8a38bfb46ac9de8c56f9e15dab376feb0298e63050",
+  "pretest_contract_sha256": "dda551373f35854aa497167bd9fff100c826745b955d8198f328b90593d2db68",
   "repo_commit_at_measurement": "755ea815ea7f91ff66e0b573cd68d52dc4891bef",
   "run_dir": "reports/research/sota_loop/data_conditioned_transport_phase/ups_light_advection_data_conditioned_context_phase_guarded",
   "run_name": "ups_light_advection_data_conditioned_context_phase_guarded",
@@ -316,7 +316,7 @@
   },
   "test_split_accessed": true,
   "validation_evidence_json": "docs/claim_evidence/ups_advection_data_conditioned_phase_candidate_val_evidence.json",
-  "validation_evidence_sha256": "b92a664b6ff48e32a6eb455a97c4cf868db20caee6aac354a835d20bd09451a4",
+  "validation_evidence_sha256": "91a9b7a02adbbf7a877b5ee4696d4e255232fa4192610d8190648296dd021e73",
   "validation_metrics": {
     "decoded_data_conditioned_roll_shift_mean": 40.999999914583334,
     "decoded_rollout_nrmse": 0.1379312547168074,

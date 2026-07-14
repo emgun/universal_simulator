@@ -1,0 +1,75 @@
+{
+  "download_verification": "downloader_size_and_md5_passed",
+  "expected_md5": "44cb784d5a07aa2b1c864cabdcf625f9",
+  "expected_size": 8232968312,
+  "file_id": 268190,
+  "logical_path": "1D/Burgers/Train/1D_Burgers_Sols_Nu0.001.hdf5",
+  "objects": [
+    {
+      "chunks": null,
+      "compression": null,
+      "compression_opts": null,
+      "dtype": "float32",
+      "name": "t-coordinate",
+      "object_type": "dataset",
+      "sample0": {
+        "finite": true,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "shape": [],
+        "std": 0.0
+      },
+      "shape": [
+        202
+      ]
+    },
+    {
+      "chunks": null,
+      "compression": null,
+      "compression_opts": null,
+      "dtype": "float32",
+      "name": "tensor",
+      "object_type": "dataset",
+      "sample0": {
+        "finite": true,
+        "max": 0.8320080637931824,
+        "mean": 0.7737143039703369,
+        "min": 0.71530681848526,
+        "shape": [
+          201,
+          1024
+        ],
+        "std": 0.03176286071538925
+      },
+      "shape": [
+        10000,
+        201,
+        1024
+      ]
+    },
+    {
+      "chunks": null,
+      "compression": null,
+      "compression_opts": null,
+      "dtype": "float32",
+      "name": "x-coordinate",
+      "object_type": "dataset",
+      "sample0": {
+        "finite": true,
+        "max": 0.00048828125,
+        "mean": 0.00048828125,
+        "min": 0.00048828125,
+        "shape": [],
+        "std": 0.0
+      },
+      "shape": [
+        1024
+      ]
+    }
+  ],
+  "observed_size": 8232968312,
+  "root_attrs": {
+    "Nu": "0.001"
+  }
+}

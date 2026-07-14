@@ -1,0 +1,49 @@
+schema_version: 1
+protocol_id: pdebench-darcy-source-v1
+dataset_id: pdebench-darcy2d-source
+source_revision: darus:doi:10.18419/darus-2986@8.0
+adapter: pdebench_darcy_source_hdf5
+adapter_revision: 1.0.0
+split_authority: upstream_training_objects_for_protocol_construction_only
+splits:
+  train:
+    - darus-datafile-133217
+    - darus-datafile-133218
+    - darus-datafile-133219
+    - darus-datafile-133220
+    - darus-datafile-133221
+identity_fields:
+  - darus_file_id
+  - source_sample_index
+selection:
+  phase: canonical_source_construction
+  algorithm: sha256-protocol-seed-provenance-v1
+  protocol: strat-v1-source-v1
+  seed: 0
+  samples_per_beta: 78
+  downstream_protocol:
+    protocol: strat-v1
+    algorithm: sha256-protocol-seed-provenance-v1
+    seed: 0
+    ranking_identity: source_sample_index
+    per_beta:
+      train: 52
+      valid: 13
+      test: 13
+normalization:
+  fit_role: train
+  method: deferred_to_derived_strat_v1_train_shard
+test_access: forbidden
+coverage_dimensions:
+  - beta
+  - darus_file_id
+metadata:
+  purpose: acquire and verify upstream objects before privileged protocol construction
+  output_schema: steady coefficient-to-solution operator
+  input_dataset_key: nu
+  target_dataset_key: tensor
+  not_an_experiment_data_lock: true
+  note: >-
+    All five objects are upstream PDEBench Train files. The later canonical builder
+    constructs and gates sample-level train, valid, and test derivatives; those
+    derivatives require separate runtime manifests and locks.

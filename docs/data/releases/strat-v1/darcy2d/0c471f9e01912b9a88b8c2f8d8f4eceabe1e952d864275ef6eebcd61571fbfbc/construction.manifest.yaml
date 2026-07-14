@@ -1,0 +1,624 @@
+version: strat-v1
+source_root: data/pdebench_darcy_canonical
+out_root: data/pdebench_darcy_strat_v1
+remote_prefix: strat-v1
+tasks:
+- darcy2d
+splits:
+  train:
+    samples: 260
+    preferred_source_split: train
+  val:
+    samples: 65
+    preferred_source_split: train
+  test:
+    samples: 65
+    preferred_source_split: train
+protocol_mode: strat-v1
+selection:
+  algorithm: sha256-protocol-seed-provenance-v1
+  seed: 0
+  protocol: strat-v1
+protocol_gates:
+  darcy2d: &id001
+    status: passed
+    field_kind: steady
+    time_axis: null
+    provenance_datasets:
+    - source_file_id
+    - source_sample_index
+    regime_dataset: beta
+    within_split_provenance_unique:
+      train: true
+      val: true
+      test: true
+    within_split_field_regime_pairs_unique:
+      train: true
+      val: true
+      test: true
+    unique_field_regime_pairs:
+      train: 260
+      val: 65
+      test: 65
+    unique_field_groups:
+      train: 52
+      val: 13
+      test: 13
+    regime_counts:
+      train:
+        '0.01': 52
+        '0.1': 52
+        '1.0': 52
+        '10.0': 52
+        '100.0': 52
+      val:
+        '0.01': 13
+        '0.1': 13
+        '1.0': 13
+        '10.0': 13
+        '100.0': 13
+      test:
+        '0.01': 13
+        '0.1': 13
+        '1.0': 13
+        '10.0': 13
+        '100.0': 13
+    identical_regime_coverage: true
+    balanced_regime_coverage: true
+    cross_split_overlap:
+      train:val:
+        provenance_overlap: 0
+        field_overlap: 0
+      train:test:
+        provenance_overlap: 0
+        field_overlap: 0
+      val:test:
+        provenance_overlap: 0
+        field_overlap: 0
+records:
+- task: darcy2d
+  split: train
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: false
+  source_paths:
+  - data/pdebench_darcy_canonical/darcy2d_train.h5
+  selected_source_indices:
+  - 33
+  - 36
+  - 49
+  - 52
+  - 53
+  - 40
+  - 2
+  - 34
+  - 8
+  - 37
+  - 19
+  - 73
+  - 26
+  - 12
+  - 28
+  - 4
+  - 66
+  - 27
+  - 18
+  - 68
+  - 48
+  - 75
+  - 5
+  - 42
+  - 62
+  - 10
+  - 13
+  - 63
+  - 50
+  - 72
+  - 23
+  - 61
+  - 74
+  - 7
+  - 54
+  - 16
+  - 15
+  - 22
+  - 1
+  - 65
+  - 44
+  - 76
+  - 46
+  - 20
+  - 14
+  - 57
+  - 70
+  - 51
+  - 39
+  - 25
+  - 0
+  - 6
+  - 111
+  - 114
+  - 127
+  - 130
+  - 131
+  - 118
+  - 80
+  - 112
+  - 86
+  - 115
+  - 97
+  - 151
+  - 104
+  - 90
+  - 106
+  - 82
+  - 144
+  - 105
+  - 96
+  - 146
+  - 126
+  - 153
+  - 83
+  - 120
+  - 140
+  - 88
+  - 91
+  - 141
+  - 128
+  - 150
+  - 101
+  - 139
+  - 152
+  - 85
+  - 132
+  - 94
+  - 93
+  - 100
+  - 79
+  - 143
+  - 122
+  - 154
+  - 124
+  - 98
+  - 92
+  - 135
+  - 148
+  - 129
+  - 117
+  - 103
+  - 78
+  - 84
+  - 189
+  - 192
+  - 205
+  - 208
+  - 209
+  - 196
+  - 158
+  - 190
+  - 164
+  - 193
+  - 175
+  - 229
+  - 182
+  - 168
+  - 184
+  - 160
+  - 222
+  - 183
+  - 174
+  - 224
+  - 204
+  - 231
+  - 161
+  - 198
+  - 218
+  - 166
+  - 169
+  - 219
+  - 206
+  - 228
+  - 179
+  - 217
+  - 230
+  - 163
+  - 210
+  - 172
+  - 171
+  - 178
+  - 157
+  - 221
+  - 200
+  - 232
+  - 202
+  - 176
+  - 170
+  - 213
+  - 226
+  - 207
+  - 195
+  - 181
+  - 156
+  - 162
+  - 267
+  - 270
+  - 283
+  - 286
+  - 287
+  - 274
+  - 236
+  - 268
+  - 242
+  - 271
+  - 253
+  - 307
+  - 260
+  - 246
+  - 262
+  - 238
+  - 300
+  - 261
+  - 252
+  - 302
+  - 282
+  - 309
+  - 239
+  - 276
+  - 296
+  - 244
+  - 247
+  - 297
+  - 284
+  - 306
+  - 257
+  - 295
+  - 308
+  - 241
+  - 288
+  - 250
+  - 249
+  - 256
+  - 235
+  - 299
+  - 278
+  - 310
+  - 280
+  - 254
+  - 248
+  - 291
+  - 304
+  - 285
+  - 273
+  - 259
+  - 234
+  - 240
+  - 345
+  - 348
+  - 361
+  - 364
+  - 365
+  - 352
+  - 314
+  - 346
+  - 320
+  - 349
+  - 331
+  - 385
+  - 338
+  - 324
+  - 340
+  - 316
+  - 378
+  - 339
+  - 330
+  - 380
+  - 360
+  - 387
+  - 317
+  - 354
+  - 374
+  - 322
+  - 325
+  - 375
+  - 362
+  - 384
+  - 335
+  - 373
+  - 386
+  - 319
+  - 366
+  - 328
+  - 327
+  - 334
+  - 313
+  - 377
+  - 356
+  - 388
+  - 358
+  - 332
+  - 326
+  - 369
+  - 382
+  - 363
+  - 351
+  - 337
+  - 312
+  - 318
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 2a19c458c86f11ceaa0aaff2cc7b996b00843805604f437f31380971790df619
+  sample_count: 260
+  output_path: data/pdebench_darcy_strat_v1/darcy2d_train.h5
+  remote_key: strat-v1/immutable/sha256/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe/darcy2d_train.h5
+  bytes: 15661205
+  sha256: 47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe
+  datasets:
+    beta:
+      shape:
+      - 260
+      dtype: float64
+    data:
+      shape:
+      - 260
+      - 1
+      - 128
+      - 128
+      - 1
+      dtype: float32
+    source_file_id:
+      shape:
+      - 260
+      dtype: int64
+    source_file_index:
+      shape:
+      - 260
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 260
+      dtype: int64
+    targets:
+      shape:
+      - 260
+      - 1
+      - 128
+      - 128
+      - 1
+      dtype: float32
+  protocol_gate: *id001
+- task: darcy2d
+  split: val
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: true
+  source_paths:
+  - data/pdebench_darcy_canonical/darcy2d_train.h5
+  selected_source_indices:
+  - 31
+  - 64
+  - 60
+  - 24
+  - 21
+  - 58
+  - 69
+  - 45
+  - 71
+  - 47
+  - 43
+  - 67
+  - 32
+  - 109
+  - 142
+  - 138
+  - 102
+  - 99
+  - 136
+  - 147
+  - 123
+  - 149
+  - 125
+  - 121
+  - 145
+  - 110
+  - 187
+  - 220
+  - 216
+  - 180
+  - 177
+  - 214
+  - 225
+  - 201
+  - 227
+  - 203
+  - 199
+  - 223
+  - 188
+  - 265
+  - 298
+  - 294
+  - 258
+  - 255
+  - 292
+  - 303
+  - 279
+  - 305
+  - 281
+  - 277
+  - 301
+  - 266
+  - 343
+  - 376
+  - 372
+  - 336
+  - 333
+  - 370
+  - 381
+  - 357
+  - 383
+  - 359
+  - 355
+  - 379
+  - 344
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: dd01a9fbce472dca98c1fda096643a3282c5f5a5a438289511904b9e269b562b
+  sample_count: 65
+  output_path: data/pdebench_darcy_strat_v1/darcy2d_val.h5
+  remote_key: strat-v1/immutable/sha256/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595/darcy2d_val.h5
+  bytes: 3918783
+  sha256: 2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595
+  datasets:
+    beta:
+      shape:
+      - 65
+      dtype: float64
+    data:
+      shape:
+      - 65
+      - 1
+      - 128
+      - 128
+      - 1
+      dtype: float32
+    source_file_id:
+      shape:
+      - 65
+      dtype: int64
+    source_file_index:
+      shape:
+      - 65
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 65
+      dtype: int64
+    targets:
+      shape:
+      - 65
+      - 1
+      - 128
+      - 128
+      - 1
+      dtype: float32
+  protocol_gate: *id001
+- task: darcy2d
+  split: test
+  source_split: train
+  preferred_source_split: train
+  derived_from_source_split: true
+  source_paths:
+  - data/pdebench_darcy_canonical/darcy2d_train.h5
+  selected_source_indices:
+  - 38
+  - 29
+  - 30
+  - 59
+  - 77
+  - 3
+  - 41
+  - 17
+  - 9
+  - 35
+  - 55
+  - 11
+  - 56
+  - 116
+  - 107
+  - 108
+  - 137
+  - 155
+  - 81
+  - 119
+  - 95
+  - 87
+  - 113
+  - 133
+  - 89
+  - 134
+  - 194
+  - 185
+  - 186
+  - 215
+  - 233
+  - 159
+  - 197
+  - 173
+  - 165
+  - 191
+  - 211
+  - 167
+  - 212
+  - 272
+  - 263
+  - 264
+  - 293
+  - 311
+  - 237
+  - 275
+  - 251
+  - 243
+  - 269
+  - 289
+  - 245
+  - 290
+  - 350
+  - 341
+  - 342
+  - 371
+  - 389
+  - 315
+  - 353
+  - 329
+  - 321
+  - 347
+  - 367
+  - 323
+  - 368
+  selection_algorithm: sha256-protocol-seed-provenance-v1
+  selection_seed: 0
+  selection_protocol: strat-v1
+  selection_ranking_provenance_dataset: source_sample_index
+  selected_identity_sha256: 08f6e49c8d5e7839ae3c7fb07431132a6579c8f01addba684529d14fa51f0496
+  sample_count: 65
+  output_path: data/pdebench_darcy_strat_v1/darcy2d_test.h5
+  remote_key: strat-v1/immutable/sha256/ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6/darcy2d_test.h5
+  bytes: 3933970
+  sha256: ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6
+  datasets:
+    beta:
+      shape:
+      - 65
+      dtype: float64
+    data:
+      shape:
+      - 65
+      - 1
+      - 128
+      - 128
+      - 1
+      dtype: float32
+    source_file_id:
+      shape:
+      - 65
+      dtype: int64
+    source_file_index:
+      shape:
+      - 65
+      dtype: int32
+    source_sample_index:
+      shape:
+      - 65
+      dtype: int64
+    targets:
+      shape:
+      - 65
+      - 1
+      - 128
+      - 128
+      - 1
+      dtype: float32
+  protocol_gate: *id001

@@ -5,6 +5,7 @@ import subprocess
 
 import h5py
 import numpy as np
+import pytest
 import yaml
 
 
@@ -31,7 +32,7 @@ def test_remote_shard_prep_dry_run_supports_source_key_overrides():
     assert "burgers1d_val.h5" not in proc.stdout
 
 
-def test_remote_shard_prep_dry_run_supports_split_source_mapping():
+def test_remote_shard_prep_dry_run_reports_protocol_settings():
     proc = subprocess.run(
         [
             "bash",
@@ -44,14 +45,17 @@ def test_remote_shard_prep_dry_run_supports_split_source_mapping():
             "DRY_RUN": "1",
             "TASKS": "advection1d",
             "ADVECTION1D_SOURCE_SPLITS": "val",
-            "ADVECTION1D_SPLIT_SOURCES": "train=val,val=val,test=val",
+            "ADVECTION1D_PROVENANCE_DATASETS": "source_file_index,source_sample_index",
+            "ADVECTION1D_REGIME_DATASET": "beta",
+            "ADVECTION1D_FIELD_KIND": "temporal",
+            "ADVECTION1D_TIME_AXIS": "1",
         },
         text=True,
     )
 
     assert "source_splits=val" in proc.stdout
     assert (
-        "split_source_args=--split-source train=val --split-source val=val --split-source test=val"
+        "provenance=source_file_index,source_sample_index regime=beta field_kind=temporal"
         in proc.stdout
     )
     assert "fetch full/advection1d/advection1d_val.h5" in proc.stdout
@@ -65,7 +69,7 @@ def test_remote_shard_prep_accepts_cli_assignments():
             "scripts/run_remote_shard_prep_b2.sh",
             "DRY_RUN=1",
             "TASKS=darcy2d",
-            "REMOTE_PREFIX=light-v1",
+            "REMOTE_PREFIX=strat-v1",
         ],
         check=True,
         capture_output=True,
@@ -73,56 +77,62 @@ def test_remote_shard_prep_accepts_cli_assignments():
         text=True,
     )
 
-    assert "would build light-v1 shards for tasks: darcy2d" in proc.stdout
-    assert "task=darcy2d source_splits=train test" in proc.stdout
+    assert "would build strat-v1 shards for tasks: darcy2d" in proc.stdout
+    assert "task=darcy2d source_splits=train" in proc.stdout
 
 
-def test_remote_shard_prep_uses_version_specific_defaults_for_medium():
+@pytest.mark.parametrize("version", ["smoke-v1", "light-v1", "medium-v1"])
+def test_remote_shard_prep_rejects_legacy_version_labels(version):
     proc = subprocess.run(
         [
             "bash",
             "scripts/run_remote_shard_prep_b2.sh",
         ],
-        check=True,
         capture_output=True,
         env={
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
             "DRY_RUN": "1",
-            "VERSION": "medium-v1",
-            "REMOTE_PREFIX": "medium-v1",
+            "VERSION": version,
+            "REMOTE_PREFIX": "strat-v1-test",
             "TASKS": "burgers1d",
         },
         text=True,
     )
 
-    assert "would build medium-v1 shards for tasks: burgers1d" in proc.stdout
-    assert "cut burgers1d shards into data/pdebench_medium_v1/burgers1d" in proc.stdout
-    assert (
-        "publish data/pdebench_medium_v1/*.h5 and docs/demo_medium_v1_data_manifest.yaml "
-        "to prefix medium-v1"
-    ) in proc.stdout
+    assert proc.returncode == 2
+    assert "reserved for immutable legacy artifacts" in proc.stderr
 
 
-def test_smoke_shard_prep_wrapper_uses_smoke_defaults():
+def test_remote_shard_prep_rejects_legacy_remote_prefix_override():
+    proc = subprocess.run(
+        ["bash", "scripts/run_remote_shard_prep_b2.sh"],
+        capture_output=True,
+        env={
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "DRY_RUN": "1",
+            "VERSION": "strat-v1",
+            "REMOTE_PREFIX": "light-v1",
+        },
+        text=True,
+    )
+
+    assert proc.returncode == 2
+    assert "frozen legacy remote prefix" in proc.stderr
+
+
+def test_smoke_shard_prep_wrapper_blocks_until_all_protocol_roots_exist():
     proc = subprocess.run(
         [
             "bash",
             "scripts/run_smoke_shard_prep_b2.sh",
         ],
-        check=True,
         capture_output=True,
         env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
         text=True,
     )
 
-    assert "would build smoke-v1 shards" in proc.stdout
-    assert "fetch full/burgers1d/burgers1d_train_000.h5" in proc.stdout
-    assert "fetch full/advection1d/advection1d_val.h5" in proc.stdout
-    assert "fetch full/darcy2d/darcy2d_test.h5" in proc.stdout
-    assert (
-        "publish data/pdebench_smoke/*.h5 and docs/demo_smoke_data_manifest.yaml to prefix smoke-v1"
-        in proc.stdout
-    )
+    assert proc.returncode == 2
+    assert "requires canonical Burgers and Darcy provenance roots" in proc.stderr
 
 
 def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp_path):
@@ -131,7 +141,10 @@ def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp
     manifest = tmp_path / "manifest.yaml"
     data_root.mkdir()
     with h5py.File(data_root / "advection1d_val.h5", "w") as handle:
-        handle.create_dataset("data", data=np.arange(20 * 2, dtype=np.float32).reshape(20, 2))
+        handle.create_dataset("data", data=np.arange(8 * 2 * 2, dtype=np.float32).reshape(8, 2, 2))
+        handle.create_dataset("source_file_index", data=np.repeat(np.arange(2), 4))
+        handle.create_dataset("source_sample_index", data=np.tile(np.arange(4), 2))
+        handle.create_dataset("beta", data=np.repeat(np.asarray([0.1, 0.2]), 4))
 
     env = os.environ.copy()
     env.update(
@@ -142,7 +155,10 @@ def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp
             "CLEAN_SOURCE": "0",
             "TASKS": "advection1d",
             "ADVECTION1D_SOURCE_SPLITS": "val",
-            "ADVECTION1D_SPLIT_SOURCES": "train=val,val=val,test=val",
+            "ADVECTION1D_PROVENANCE_DATASETS": "source_file_index,source_sample_index",
+            "ADVECTION1D_REGIME_DATASET": "beta",
+            "ADVECTION1D_FIELD_KIND": "temporal",
+            "ADVECTION1D_TIME_AXIS": "1",
             "DATA_ROOT": str(data_root),
             "OUT_ROOT": str(out_root),
             "MANIFEST": str(manifest),
@@ -166,6 +182,8 @@ def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp
     assert "Skipping fetch for advection1d/advection1d_val.h5" in proc.stdout
     assert "PUBLISH_SHARDS=0: skipping B2 publish." in proc.stdout
     payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    assert payload["protocol_mode"] == "strat-v1"
+    assert payload["protocol_gates"]["advection1d"]["status"] == "passed"
     assert [record["source_split"] for record in payload["records"]] == ["val", "val", "val"]
     assert [record["derived_from_source_split"] for record in payload["records"]] == [
         True,
@@ -173,7 +191,7 @@ def test_remote_shard_prep_can_use_existing_sources_without_fetch_or_publish(tmp
         True,
     ]
     with h5py.File(out_root / "advection1d" / "advection1d_train.h5", "r") as handle:
-        assert handle["data"].shape == (4, 2)
+        assert handle["data"].shape == (4, 2, 2)
 
 
 def test_remote_shard_prep_fails_early_when_required_disk_is_unavailable(tmp_path):

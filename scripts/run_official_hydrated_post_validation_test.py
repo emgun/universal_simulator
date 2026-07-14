@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
-"""Run or preview the official hydrated held-out test after literal test readiness."""
+"""Archived runner retained to interpret the completed legacy held-out workflow."""
+
+ARCHIVED_LEGACY_WORKFLOW = True
 
 import argparse
 import hashlib
@@ -215,6 +217,9 @@ def run_post_validation_test(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
+    raise SystemExit(
+        "Archived legacy workflow: the recorded held-out measurement must not be regenerated"
+    )
     parser = argparse.ArgumentParser(
         description="Run official hydrated held-out test after literal test readiness"
     )

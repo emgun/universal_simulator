@@ -273,9 +273,10 @@ def test_infer_grid_shape_handles_channel_first_scalar_2d():
     assert channels == 1
 
 
-def test_grid_latent_pair_dataset_handles_channel_first_scalar_2d():
+def test_grid_latent_pair_dataset_maps_darcy_coefficient_to_solution_once():
     tensor_data = {
-        "fields": torch.randn(1, 4, 1, 4, 4),
+        "fields": torch.zeros(1, 1, 4, 4, 1),
+        "targets": torch.ones(1, 1, 4, 4, 1),
     }
     dataset = PDEBenchDataset(PDEBenchConfig(task="darcy2d"), tensor_data=tensor_data)
 
@@ -294,8 +295,10 @@ def test_grid_latent_pair_dataset_handles_channel_first_scalar_2d():
     latent_dataset = GridLatentPairDataset(dataset, encoder, coords, grid_shape)
     pair = latent_dataset[0]
 
-    assert pair.z0.shape == (3, 4, 6)
-    assert pair.z1.shape == (3, 4, 6)
+    assert pair.z0.shape == (1, 4, 6)
+    assert pair.z1.shape == (1, 4, 6)
+    assert pair.z_seq is not None
+    assert pair.z_seq.shape == (2, 4, 6)
 
 
 def test_collate_conditions_zero_fills_missing_keys():

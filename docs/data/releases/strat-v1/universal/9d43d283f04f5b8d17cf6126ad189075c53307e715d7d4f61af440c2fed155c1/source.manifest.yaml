@@ -1,0 +1,145 @@
+schema_version: 1
+dataset_id: pdebench-strat-v1-universal
+provider: UPS protocol-gated derivatives of PDEBench
+revision: sha256:9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1
+native_format: HDF5
+license: CC BY 4.0
+citation: PDEBench, NeurIPS Datasets and Benchmarks 2022
+objects:
+- object_id: advection1d-train
+  path: advection1d_train.h5
+  size_bytes: 191457334
+  checksums:
+    sha256: aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d/advection1d_train.h5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    task: advection1d
+    sample_count: 256
+    selected_identity_sha256: 8a105dc5aa0ab94344579529d9b8385800b91272467a80cdccb964b1e6e8c0be
+- object_id: advection1d-valid
+  path: advection1d_val.h5
+  size_bytes: 47288356
+  checksums:
+    sha256: 0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726/advection1d_val.h5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    task: advection1d
+    sample_count: 64
+    selected_identity_sha256: 80d3dc9f442fa8206c0ef052dda12969ff0587b70ca2c006743298dcf9b755e9
+- object_id: advection1d-test
+  path: advection1d_test.h5
+  size_bytes: 47140053
+  checksums:
+    sha256: 17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/17b0741b2914674a052cedc44f3c072ca7ac8aa44c5a84d242bf738efd83f76a/advection1d_test.h5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    task: advection1d
+    sample_count: 64
+    selected_identity_sha256: 9750ce2c659940ad7af167588d0c8d8c1f0f68133980fe28fe143f86a6dc848e
+- object_id: burgers1d-train
+  path: burgers1d_train.h5
+  size_bytes: 136414903
+  checksums:
+    sha256: 9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82/burgers1d_train.h5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    task: burgers1d
+    sample_count: 288
+    selected_identity_sha256: 882042fffa2fb364679b204e86d04e2506e29044ec41aa1747d2de8c8f013131
+- object_id: burgers1d-valid
+  path: burgers1d_val.h5
+  size_bytes: 32289060
+  checksums:
+    sha256: 496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73/burgers1d_val.h5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    task: burgers1d
+    sample_count: 72
+    selected_identity_sha256: 86ab033909876cf5e543f6f6cba1675bf152bc2367c6a26f7390c9b0cfe36be1
+- object_id: burgers1d-test
+  path: burgers1d_test.h5
+  size_bytes: 26148529
+  checksums:
+    sha256: b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/b4d1f65a5ba9b60c97832dc843fb2d58a0a61f2e81a7ac39af3244b49bc1b0a9/burgers1d_test.h5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    task: burgers1d
+    sample_count: 72
+    selected_identity_sha256: e4030a250be1b334dae296e1f30d1971b0f010d3a9a353e1471a4815acbaa945
+- object_id: darcy2d-train
+  path: darcy2d_train.h5
+  size_bytes: 15661205
+  checksums:
+    sha256: 47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe/darcy2d_train.h5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    task: darcy2d
+    sample_count: 260
+    selected_identity_sha256: 2a19c458c86f11ceaa0aaff2cc7b996b00843805604f437f31380971790df619
+- object_id: darcy2d-valid
+  path: darcy2d_val.h5
+  size_bytes: 3918783
+  checksums:
+    sha256: 2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595/darcy2d_val.h5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    task: darcy2d
+    sample_count: 65
+    selected_identity_sha256: dd01a9fbce472dca98c1fda096643a3282c5f5a5a438289511904b9e269b562b
+- object_id: darcy2d-test
+  path: darcy2d_test.h5
+  size_bytes: 3933970
+  checksums:
+    sha256: ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6/darcy2d_test.h5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    task: darcy2d
+    sample_count: 65
+    selected_identity_sha256: 08f6e49c8d5e7839ae3c7fb07431132a6579c8f01addba684529d14fa51f0496
+metadata:
+  task_releases:
+    advection1d:
+      source_revision: sha256:531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8
+      construction_manifest_sha256: 531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8
+    burgers1d:
+      source_revision: sha256:9120f76b0410aa1835821940d3d3b8461fbf8379e0bacaf127d704c8b5460115
+      construction_manifest_sha256: 9120f76b0410aa1835821940d3d3b8461fbf8379e0bacaf127d704c8b5460115
+    darcy2d:
+      source_revision: sha256:0c471f9e01912b9a88b8c2f8d8f4eceabe1e952d864275ef6eebcd61571fbfbc
+      construction_manifest_sha256: 0c471f9e01912b9a88b8c2f8d8f4eceabe1e952d864275ef6eebcd61571fbfbc

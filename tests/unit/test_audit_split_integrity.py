@@ -9,9 +9,11 @@ import pytest
 from scripts.audit_split_integrity import audit_task, main
 
 
-def _write(path, arrays):
+def _write(path, arrays, *, beta=None):
     with h5py.File(path, "w") as handle:
         handle.create_dataset("data", data=np.stack(arrays).astype(np.float32))
+        if beta is not None:
+            handle.create_dataset("beta", data=np.asarray(beta, dtype=np.float64))
 
 
 def _traj(seed, steps=4, width=16):
@@ -39,11 +41,73 @@ def test_audit_reports_clean_disjoint_splits(tmp_path):
     record = audit_task(tmp_path, "darcy2d", ["train", "val"])
 
     assert record["overlaps"]["train<->val"] == 0
+    assert record["duplicate_count_per_split"] == {"train": 0, "val": 0}
+
+
+def test_cli_can_fail_on_duplicate_fields_within_a_split(tmp_path):
+    duplicate = _traj(10, steps=8)
+    _write(tmp_path / "darcy2d_train.h5", [duplicate, duplicate])
+
+    assert (
+        main(
+            [
+                "--root",
+                str(tmp_path),
+                "--tasks",
+                "darcy2d",
+                "--splits",
+                "train",
+                "--require-unique-within-split",
+            ]
+        )
+        == 2
+    )
+
+
+def test_steady_audit_hashes_full_channel_less_field(tmp_path):
+    first = np.zeros((2, 3), dtype=np.float32)
+    second = first.copy()
+    second[:, 1:] = 1.0
+    _write(tmp_path / "darcy2d_train.h5", [first, second])
+
+    record = audit_task(tmp_path, "darcy2d", ["train"])
+
+    assert record["unique_keys_per_split"]["train"] == 2
+    assert record["duplicate_count_per_split"]["train"] == 0
+
+
+def test_steady_audit_allows_same_field_across_regimes_within_split(tmp_path):
+    shared = np.zeros((2, 3), dtype=np.float32)
+    _write(
+        tmp_path / "darcy2d_train.h5",
+        [shared, shared],
+        beta=[0.1, 1.0],
+    )
+
+    record = audit_task(tmp_path, "darcy2d", ["train"])
+
+    assert record["unique_keys_per_split"]["train"] == 2
+    assert record["unique_field_groups_per_split"]["train"] == 1
+    assert record["duplicate_count_per_split"]["train"] == 0
 
 
 def test_cli_refuses_test_without_flag(tmp_path):
     with pytest.raises(SystemExit, match="--include-test"):
         main(["--root", str(tmp_path), "--splits", "train", "test"])
+
+
+def test_cli_refuses_test_without_measurement_lock(tmp_path):
+    with pytest.raises(SystemExit, match="--data-lock"):
+        main(
+            [
+                "--root",
+                str(tmp_path),
+                "--splits",
+                "train",
+                "test",
+                "--include-test",
+            ]
+        )
 
 
 def test_cli_writes_honest_record(tmp_path):

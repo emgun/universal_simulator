@@ -1,0 +1,53 @@
+schema_version: 1
+dataset_id: pdebench
+provider: UPS protocol-gated derivative of PDEBench
+revision: sha256:0c471f9e01912b9a88b8c2f8d8f4eceabe1e952d864275ef6eebcd61571fbfbc
+native_format: HDF5
+license: CC BY 4.0
+citation: PDEBench, NeurIPS Datasets and Benchmarks 2022
+objects:
+- object_id: darcy2d-train
+  path: darcy2d_train.h5
+  size_bytes: 15661205
+  checksums:
+    sha256: 47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe/darcy2d_train.h5
+  declared_roles:
+  - train
+  media_type: application/x-hdf5
+  metadata:
+    task: darcy2d
+    sample_count: 260
+    selected_identity_sha256: 2a19c458c86f11ceaa0aaff2cc7b996b00843805604f437f31380971790df619
+- object_id: darcy2d-valid
+  path: darcy2d_val.h5
+  size_bytes: 3918783
+  checksums:
+    sha256: 2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595/darcy2d_val.h5
+  declared_roles:
+  - valid
+  media_type: application/x-hdf5
+  metadata:
+    task: darcy2d
+    sample_count: 65
+    selected_identity_sha256: dd01a9fbce472dca98c1fda096643a3282c5f5a5a438289511904b9e269b562b
+- object_id: darcy2d-test
+  path: darcy2d_test.h5
+  size_bytes: 3933970
+  checksums:
+    sha256: ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6
+  uris:
+  - b2://pdebench/strat-v1/immutable/sha256/ea170e3031a48ed400fdcc255fc8dd67e588388573275f0607d91ad7d3aafca6/darcy2d_test.h5
+  declared_roles:
+  - test
+  media_type: application/x-hdf5
+  metadata:
+    task: darcy2d
+    sample_count: 65
+    selected_identity_sha256: 08f6e49c8d5e7839ae3c7fb07431132a6579c8f01addba684529d14fa51f0496
+metadata:
+  construction_manifest_sha256: 0c471f9e01912b9a88b8c2f8d8f4eceabe1e952d864275ef6eebcd61571fbfbc
+  construction_protocol: strat-v1

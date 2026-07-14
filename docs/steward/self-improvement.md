@@ -38,6 +38,14 @@ not claim evidence.
   shards are not enough. Future ticks must preflight `source_file_index`,
   `source_paths`, and checkpoint availability before proposing or running
   validation.
+- When an audit invalidates a construction protocol, preserve its immutable
+  result artifacts but remove its executable default. Compatibility is not a
+  sufficient reason to let contaminated split logic remain available to new
+  workflows; active callers must adopt the same fail-closed gates.
+- Derive target split sizes from the number of regimes before freezing a
+  protocol. Exact balance makes `256/64/64` impossible for 12-regime Burgers
+  and five-regime Darcy; use `288/72/72` and `260/65/65` instead of weakening
+  the gate.
 - If local disk cannot fit even sequential official-data hydration, route the
   work to remote scratch rather than weakening the beta-provenance requirement.
   The remote route must keep held-out stages disabled and publish only small
@@ -87,3 +95,17 @@ not claim evidence.
 - Treat a provider credit failure as a hard stop before retrying, even when the
   offer and wrapper preflight are clean. Record the selected offer and dry-run
   evidence, then wait for explicit top-up or reroute confirmation.
+
+## 2026-07-12
+
+- For regime-stratified protocols, distinguish an initial-condition group from
+  a sample identity. The same initial condition may intentionally appear under
+  several regimes inside one split; require unique `(initial condition,
+  regime)` pairs and unique provenance identities, while forbidding the raw
+  initial condition from crossing train, validation, or test boundaries.
+- Treat protocol construction as a fail-closed build, not a later audit. Verify
+  provenance, within-split identities, regime balance, and cross-split overlap
+  before writing shards, then persist the gate result in the manifest.
+- Keep `docs/current-state.md` as a compact decision snapshot. Move completed
+  chronology to the experiment ledger and evidence notes instead of allowing
+  stale provider blockers to obscure the active protocol gate.

@@ -328,12 +328,17 @@ def _pdebench_codec_context(cfg: dict) -> tuple[list[dict[str, Any]], int, str]:
                 task=task,
                 split=data_cfg.get("split", "train"),
                 root=data_cfg.get("root"),
+                normalize=bool(data_cfg.get("normalize", False)),
+                normalization_path=data_cfg.get("normalization_path"),
+                data_lock_path=data_cfg.get("data_lock_path"),
+                data_lock_sha256=data_cfg.get("data_lock_sha256"),
+                selection_sha256=data_cfg.get("selection_sha256"),
                 param_keys=tuple(data_cfg.get("param_keys", ())),
                 bc_keys=tuple(data_cfg.get("bc_keys", ())),
                 max_samples=data_cfg.get("max_samples"),
             )
         )
-        sample_fields = dataset.fields[0]
+        sample_fields = dataset[0]["fields"]
         grid_shape = infer_grid_shape(sample_fields)
         channels = infer_channel_count(sample_fields, grid_shape)
         specs.append(

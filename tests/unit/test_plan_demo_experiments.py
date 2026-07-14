@@ -5,9 +5,43 @@ import pytest
 from scripts.plan_demo_experiments import build_rows, write_shell
 
 
+@pytest.mark.parametrize("tier", ["light", "medium"])
+def test_build_rows_rejects_frozen_legacy_tiers(tier):
+    with pytest.raises(SystemExit, match="legacy light/medium tiers are frozen"):
+        build_rows(
+            tier=tier,
+            variants=["current_best"],
+            train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+            tasks="burgers1d,advection1d,darcy2d",
+            output_root="reports/light_experiments_remote",
+            eval_split="test",
+            stages="operator,decoder",
+            run_prefix="ups",
+            remote_b2_prefix=None,
+            required_gb=None,
+        )
+
+
+@pytest.mark.parametrize("prefix", ["smoke-v1", "light-v1", "medium-v1"])
+def test_build_rows_rejects_legacy_prefix_override(prefix):
+    with pytest.raises(SystemExit, match="frozen historical evidence"):
+        build_rows(
+            tier="smoke",
+            variants=["current_best"],
+            train_config="configs/train_multitask_heterogeneous_light_best.yaml",
+            tasks="burgers1d,advection1d,darcy2d",
+            output_root="reports/light_experiments_remote",
+            eval_split="test",
+            stages="operator,decoder",
+            run_prefix="ups",
+            remote_b2_prefix=prefix,
+            required_gb=None,
+        )
+
+
 def test_build_rows_applies_tier_caps_and_variant_overrides():
     rows = build_rows(
-        tier="light",
+        tier="smoke",
         variants=["current_best", "joint48"],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",
@@ -20,10 +54,10 @@ def test_build_rows_applies_tier_caps_and_variant_overrides():
     )
 
     assert [row["variant"] for row in rows] == ["current_best", "joint48"]
-    assert rows[0]["remote_b2_prefix"] == "light-v1"
-    assert rows[0]["train_max_samples"] == 128
-    assert rows[0]["eval_max_samples"] == 32
-    assert "--decoded-rollout-steps 16" in rows[0]["light_extra_args"]
+    assert rows[0]["remote_b2_prefix"] == "strat-v1-smoke"
+    assert rows[0]["train_max_samples"] == 8
+    assert rows[0]["eval_max_samples"] == 4
+    assert "--decoded-rollout-steps 4" in rows[0]["light_extra_args"]
     assert "stages.joint_codec_operator.epochs=48" in rows[1]["light_extra_args"]
 
 
@@ -37,7 +71,7 @@ def test_write_shell_defaults_to_dry_run_commands(tmp_path):
         eval_split="test",
         stages="operator,decoder",
         run_prefix="ups",
-        remote_b2_prefix="smoke-v1",
+        remote_b2_prefix="strat-v1-smoke",
         required_gb=4,
     )
     output = tmp_path / "queue.sh"
@@ -115,7 +149,7 @@ def test_task_signature_decoded_and_reconstruction_variants():
 
 def test_task_signature_residual_variants_add_eval_blend_override():
     rows = build_rows(
-        tier="light",
+        tier="smoke",
         variants=["task_signature_residual_alpha25", "task_signature_residual_alpha50"],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",
@@ -137,7 +171,7 @@ def test_task_signature_residual_variants_add_eval_blend_override():
 
 def test_task_signature_trained_residual_variant_adds_training_losses():
     rows = build_rows(
-        tier="light",
+        tier="smoke",
         variants=["task_signature_trained_residual"],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",
@@ -160,7 +194,7 @@ def test_task_signature_trained_residual_variant_adds_training_losses():
 
 def test_task_signature_transport_residual_gate_adds_family_alpha_overrides():
     rows = build_rows(
-        tier="light",
+        tier="smoke",
         variants=["task_signature_transport_residual_gate"],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",
@@ -182,7 +216,7 @@ def test_task_signature_transport_residual_gate_adds_family_alpha_overrides():
 
 def test_task_signature_advection_roll_shift_variant_adds_shift_override():
     rows = build_rows(
-        tier="light",
+        tier="smoke",
         variants=["task_signature_advection_roll_shift40"],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",
@@ -202,7 +236,7 @@ def test_task_signature_advection_roll_shift_variant_adds_shift_override():
 def test_checkpoint_required_capacity_finetune_variant_fails_closed_without_source():
     with pytest.raises(SystemExit, match="requires --checkpoint-source"):
         build_rows(
-            tier="light",
+            tier="smoke",
             variants=["task_signature_rollout4_residual_ft2"],
             train_config="configs/train_multitask_heterogeneous_light_best.yaml",
             tasks="burgers1d,advection1d,darcy2d",
@@ -218,7 +252,7 @@ def test_checkpoint_required_capacity_finetune_variant_fails_closed_without_sour
 def test_checkpoint_capacity_finetune_variant_generates_remote_recipe(tmp_path):
     checkpoint_source = "reports/light_experiments_remote/ups_light_task_signature_trained_residual"
     rows = build_rows(
-        tier="light",
+        tier="smoke",
         variants=["task_signature_rollout4_residual_ft2"],
         train_config="configs/train_multitask_heterogeneous_light_best.yaml",
         tasks="burgers1d,advection1d,darcy2d",

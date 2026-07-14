@@ -240,7 +240,7 @@ def _check_unet_grid_shape(grid_shape: tuple[int, int]) -> None:
             raise ValueError(f"PDEBench UNet1d requires width divisible by 16, got {width}")
     elif height < 16 or width < 16 or height % 16 != 0 or width % 16 != 0:
         raise ValueError(
-            "PDEBench UNet2d requires height and width divisible by 16, " f"got {(height, width)}"
+            f"PDEBench UNet2d requires height and width divisible by 16, got {(height, width)}"
         )
 
 
@@ -408,6 +408,9 @@ def _external_test_measurement_key(
         "max_train_samples": args.max_train_samples,
         "metric": args.metric,
         "residual": bool(args.residual),
+        "strict_contract": bool(getattr(args, "strict_contract", False)),
+        "data_lock_path": getattr(args, "data_lock", None),
+        "data_lock_sha256": getattr(args, "expected_data_lock_sha256", None),
         "rollout_steps": args.rollout_steps,
         "seed": args.seed,
         "source_commit": PDEBENCH_SOURCE_COMMIT,
@@ -537,6 +540,7 @@ def _command_record(args: argparse.Namespace) -> list[str]:
 
 def _summary_common(args: argparse.Namespace, *, tasks: Sequence[str]) -> dict[str, Any]:
     return {
+        "data_provenance": fno_runner.training_lock_provenance(args),
         "extra": {
             "baseline": "external_pdebench_unet",
             "implementation": PDEBENCH_UNET_IMPLEMENTATION,
@@ -649,6 +653,7 @@ def _write_group_manifest(path: Path, fit: dict[str, Any]) -> None:
 
 def run_baseline(args: argparse.Namespace) -> Path:
     cfg = fno_runner._load_cfg(args.config)
+    fno_runner.bind_training_lock(cfg, args)
     tasks = fno_runner._as_task_names(cfg, args.tasks or args.task)
     if args.dry_run:
         return write_dry_run_summary(args, tasks=tasks)
@@ -694,6 +699,7 @@ def run_baseline(args: argparse.Namespace) -> Path:
         max_samples=args.max_eval_samples,
         rollout_steps=args.rollout_steps,
         device=args.device,
+        strict_contract=bool(getattr(args, "strict_contract", False)),
     )
     finished = time.time()
     output_root = Path(args.output_root)
@@ -770,6 +776,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--residual", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--strict-contract", action="store_true")
+    parser.add_argument("--data-lock")
+    parser.add_argument("--expected-data-lock-sha256")
     parser.add_argument("--allow-held-out-test-eval", action="store_true")
     parser.add_argument("--allow-repeat-test", action="store_true")
     return parser

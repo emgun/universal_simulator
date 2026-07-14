@@ -242,33 +242,41 @@ Verified 2026-05-01 on a Vast.ai RTX 4090 after the shard was already hydrated:
 
 This is a remote plumbing check, not a benchmark, because it evaluates on a tiny slice of the train shard. For a held-out cheap benchmark, publish small `train/val/test` shards for `burgers1d`, `advection1d`, and `darcy2d`, then pass those keys via `REMOTE_DATASET_FILES`.
 
-Small local or remote HDF5 shards can be cut from already-hydrated source files with:
+New shards must be built one task at a time from a canonical source containing
+sample-aligned provenance and regime datasets. For example, a temporal
+Advection root with beta provenance is built with:
 
 ```bash
 python scripts/make_light_hdf5_shards.py \
   --root data/pdebench \
   --out-root data/pdebench_light \
-  --tasks burgers1d advection1d darcy2d \
+  --tasks advection1d \
+  --source-split train \
   --train-count 16 \
   --val-count 8 \
   --test-count 8 \
-  --manifest docs/demo_data_manifest.yaml \
-  --version light-v1 \
-  --remote-prefix light-v1 \
+  --provenance-dataset source_file_index \
+  --provenance-dataset source_sample_index \
+  --regime-dataset beta \
+  --field-kind temporal \
+  --time-axis 1 \
+  --manifest docs/strat_v1_advection_manifest.yaml \
+  --version strat-v1 \
+  --remote-prefix strat-v1 \
   --overwrite
 ```
 
-The shard builder prefers native split files when they exist. If a native split is missing, it falls back to `train` and records `derived_from_source_split: true` in the manifest; this is expected for `darcy2d` validation until a real `val` split exists.
+The builder allocates all three splits together and refuses missing provenance,
+missing regimes, unbalanced regimes, duplicate identities, or cross-split
+field overlap. Positional slicing and native-split fallback are unsupported.
 
 Dry-run shard publishing without exposing B2 secrets:
 
 ```bash
 DRY_RUN=1 \
-BUILD_SHARDS=1 \
-VERSION=light-v1 \
-SOURCE_ROOT=data/pdebench \
-OUT_ROOT=data/pdebench_light \
-MANIFEST=docs/demo_data_manifest.yaml \
+VERSION=strat-v1 \
+OUT_ROOT=data/pdebench_strat_v1 \
+MANIFEST=docs/strat_v1_manifest.yaml \
 bash scripts/publish_light_hdf5_shards_b2.sh
 ```
 
@@ -277,53 +285,34 @@ When the dry run is correct and the local source files are present, publish with
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
 DRY_RUN=0 \
-BUILD_SHARDS=1 \
-VERSION=light-v1 \
-SOURCE_ROOT=data/pdebench \
-OUT_ROOT=data/pdebench_light \
-MANIFEST=docs/demo_data_manifest.yaml \
+VERSION=strat-v1 \
+OUT_ROOT=data/pdebench_strat_v1 \
+MANIFEST=docs/strat_v1_manifest.yaml \
 bash scripts/publish_light_hdf5_shards_b2.sh
 ```
+
+Publishing is separate from construction and refuses manifests whose protocol
+gates are absent or failed.
 
 If source files are only available in B2 `full/`, use a remote/data-prep box and hydrate one task at a time:
 
 ```bash
 DRY_RUN=1 \
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
-VERSION=light-v1 \
+VERSION=strat-v1 \
+TASKS=advection1d \
+ADVECTION1D_PROVENANCE_DATASETS=source_file_index,source_sample_index \
+ADVECTION1D_REGIME_DATASET=beta \
+ADVECTION1D_FIELD_KIND=temporal \
+ADVECTION1D_TIME_AXIS=1 \
 DATA_ROOT=/workspace/pdebench_full \
-OUT_ROOT=/workspace/pdebench_light \
+OUT_ROOT=/workspace/pdebench_strat_v1 \
 bash scripts/run_remote_shard_prep_b2.sh
 ```
 
-For smoke-only preparation, source-key overrides can avoid hydrating the
-largest native source files when a smaller shard already exists:
-
-```bash
-DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
-```
-
-This is only a plumbing shortcut. It intentionally derives smoke validation and
-test slices from the fetched train source and must not be used for held-out
-benchmark claims.
-
-The default smoke wrapper derives Advection and Darcy smoke splits from smaller
-non-train sources, so it is about 10 GiB of source hydration instead of about
-50 GiB. Plan roughly 12 GiB scratch. This is plumbing-only and must not be used
-for held-out benchmark claims.
-
-For a one-command smoke remote loop:
-
-```bash
-DRY_RUN=0 \
-ENV_FILE=/workspace/.env \
-PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
-bash scripts/run_remote_smoke_pipeline.sh
-```
-
-The pipeline writes readiness JSON, shard-prep logs, and a generated smoke
-queue. It does not run training unless `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` is
-set explicitly.
+The former three-task smoke prep and remote loop are blocked before download or
+provider access. They cannot be reopened until canonical Burgers and Darcy
+provenance roots exist and the universal contract is frozen.
 
 The actual run needs enough disk for the largest single task source set. Current B2 source sizes are approximately:
 
@@ -331,11 +320,15 @@ The actual run needs enough disk for the largest single task source set. Current
 - `full/advection1d`: train 46.03 GiB, val 7.704 GiB, test 7.704 GiB
 - `full/darcy2d`: train 2.441 GiB, test 0.613 GiB
 
-After uploading those outputs to B2, run the remote promotion wrapper with `REMOTE_B2_PREFIX=light-v1`. The default generated keys match the publish layout, e.g. `light-v1/burgers1d/burgers1d_train.h5`.
+New gated outputs use a distinct `strat-v1` prefix. Existing `light-v1` and
+`smoke-v1` keys are immutable historical artifacts, not construction targets.
 
 Check whether the manifest's expected B2 keys exist before launching compute.
-Use `docs/demo_smoke_data_manifest.yaml` for smoke-tier plumbing checks and
-`docs/demo_data_manifest.yaml` for held-out light-tier checks:
+The old `docs/demo_smoke_data_manifest.yaml` and `docs/demo_data_manifest.yaml`
+remain historical readiness records. The commands below are historical
+presence checks only; they cannot authorize construction, candidate selection,
+or new claims. New three-task smoke construction is blocked until the missing
+Burgers and Darcy roots exist.
 
 ```bash
 python scripts/check_demo_readiness.py \
@@ -355,8 +348,8 @@ python scripts/check_demo_readiness.py \
   --candidate-run ups_light_v1_current_best
 ```
 
-Use `--check-b2` when credentials are available and you need a live shard
-presence check.
+Use `--check-b2` only to inspect historical artifact availability, not to
+authorize a new run.
 
 ```bash
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \

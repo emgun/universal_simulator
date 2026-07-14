@@ -131,6 +131,7 @@ def _redact_text(text: str) -> str:
 
 def ensure_onstart(
     datasets: str | None,
+    data_lock: str | None,
     overrides: str | None,
     remote_script: str,
     script_args: str | None,
@@ -202,6 +203,11 @@ def ensure_onstart(
     datasets_export = (
         f'export WANDB_DATASETS="{datasets}"' if datasets else "# WANDB_DATASETS optional"
     )
+    data_lock_export = (
+        f"export DATA_LOCK={shlex.quote(data_lock)}"
+        if data_lock
+        else "# DATA_LOCK required by data-consuming workflows"
+    )
     wandb_project_export = (
         f'export WANDB_PROJECT="{wandb_project}"' if wandb_project else "# WANDB_PROJECT optional"
     )
@@ -214,7 +220,7 @@ def ensure_onstart(
     fetch_cmd = (
         "# Prefetch disabled; the remote script is responsible for hydration"
         if skip_prefetch
-        else 'if [ -n "$WANDB_DATASETS" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi'
+        else 'if [ -n "${DATA_LOCK:-}" ]; then\n  bash scripts/fetch_datasets_b2.sh\nfi'
     )
     remote_cmd = "bash " + shlex.quote(remote_script)
     if combined_args:
@@ -348,6 +354,7 @@ def ensure_onstart(
         *install_cmds,
         "",
         datasets_export,
+        data_lock_export,
         (f'export B2_KEY_ID="{b2_key_id}"' if b2_key_id else "# B2_KEY_ID optional"),
         (f'export B2_APP_KEY="{b2_app_key}"' if b2_app_key else "# B2_APP_KEY optional"),
         (f'export B2_BUCKET="{b2_bucket}"' if b2_bucket else "# B2_BUCKET optional"),
@@ -390,6 +397,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
     dry_run = bool(args.dry_run)
     onstart = ensure_onstart(
         args.datasets,
+        args.data_lock,
         args.overrides,
         args.remote_script,
         args.script_args,
@@ -414,6 +422,8 @@ def cmd_launch(args: argparse.Namespace) -> None:
     env_parts = []
     if args.wandb_project:
         env_parts.append(f"-e WANDB_PROJECT={args.wandb_project}")
+    if args.data_lock:
+        env_parts.append(f"-e DATA_LOCK={args.data_lock}")
     if args.wandb_entity:
         env_parts.append(f"-e WANDB_ENTITY={args.wandb_entity}")
     if args.wandb_api_key:
@@ -537,7 +547,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument(
         "--datasets",
         default=os.environ.get("WANDB_DATASETS"),
-        help="WANDB_DATASETS value to pass to training",
+        help="Deprecated dataset nickname metadata; does not authorize dataset bytes",
+    )
+    p_launch.add_argument(
+        "--data-lock",
+        default=os.environ.get("DATA_LOCK"),
+        help="Repo-relative immutable run data lock to pass to the remote workflow",
     )
     p_launch.add_argument(
         "--wandb-project", default=os.environ.get("WANDB_PROJECT"), help="WANDB project name"

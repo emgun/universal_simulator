@@ -11,15 +11,16 @@ visual and tabular rendering.
 
 The scorecard compares the primary UPS result against persistence, a repo-native
 Fourier neural baseline, and measured third-party baselines run under the same
-`light-v1` protocol. Lower decoded rollout NRMSE is better.
+legacy `light-v1` protocol. Lower decoded rollout NRMSE is better. These are
+matched-protocol comparisons, not broad held-out-generalization claims.
 
 ![Per-task light-v1 breakdown](generated/per_task_breakdown.png)
 
-The per-task view shows the important shape of the result: advection/transport
-is the dominant long-horizon difficulty, while Burgers and Darcy are already
-near the strongest baselines in this bounded protocol. Scoped context variants
-are shown as separate variants because they do not have the same inference
-contract as the primary UPS result.
+The per-task view shows the shape of the result inside this bounded protocol.
+Burgers test trajectories occur in training, Advection reuses initial
+conditions while extrapolating transport speed, and Darcy is
+trajectory-disjoint. Scoped context variants are shown separately because they
+do not have the same inference contract as the primary UPS result.
 
 ![Measured third-party baselines](generated/external_benchmarks.png)
 
@@ -145,10 +146,18 @@ committed files byte-for-byte.
 
 ## Scope
 
-These figures report held-out `light-v1` results measured under this
-repository's protocol. They do not mix in published PDEBench, NeuralOperator,
-CNO, Poseidon, PDEArena, PhysicsNeMo, or RealPDEBench paper tables unless a
-compatible rerun or mapping exists.
+These figures report legacy `light-v1` results measured under this repository's
+frozen mixed protocol. The split-integrity audit found train contamination for
+Burgers, reused initial conditions plus regime extrapolation for Advection, and
+clean disjoint splits for Darcy. Comparisons remain scoped and internally
+matched, but should not be read as broad generalization evidence. New primary
+generalization results wait for `strat-v1`. These figures do not mix in
+published PDEBench, NeuralOperator, CNO, Poseidon, PDEArena, PhysicsNeMo, or
+RealPDEBench paper tables unless a compatible rerun or mapping exists.
+
+See `../research/2026-07-09-split-integrity-audit.md` for the audit and
+`../research/2026-07-09-strat-v1-advection-root.md` for replacement-protocol
+progress.
 
 See `metrics_beyond_nrmse.md` for the secondary metric interpretation and the
 next metrics that would require new evaluator outputs.

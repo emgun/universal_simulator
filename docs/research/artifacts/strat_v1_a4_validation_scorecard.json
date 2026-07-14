@@ -1,0 +1,393 @@
+{
+  "cno_scope": "Darcy excluded because the audited runner is CNO1d-only",
+  "config": {
+    "path": "configs/a4_strat_v1_baselines.yaml",
+    "sha256": "2cd94514857a3f68dcbd5c4335f913f9578af370a074f4411bba67242662a4fa"
+  },
+  "evidence_binding": "frozen plan identities plus content-hashed complete summaries; historic external summaries enforced the lock at runtime but did not embed it",
+  "held_out_measurements": 0,
+  "metric_contract": {
+    "aggregation": "macro_average_by_task",
+    "primary": "decoded_rollout_nrmse",
+    "sample_selection": {
+      "pair_cap": 1152,
+      "policy": "full_shards_no_first_n_truncation",
+      "regime_balance_authority": "training lock source objects",
+      "sample_counts": {
+        "advection1d": {
+          "train": 256,
+          "valid": 64
+        },
+        "burgers1d": {
+          "train": 288,
+          "valid": 72
+        },
+        "darcy2d": {
+          "train": 260,
+          "valid": 65
+        }
+      },
+      "temporal_pairs_per_sample": 4,
+      "temporal_train_stride": 4
+    },
+    "steady_task": "darcy2d",
+    "temporal_rollout_steps": 16
+  },
+  "model_rollup": {
+    "cno": {
+      "applicable_to_all_tasks": false,
+      "macro_primary_nrmse": null,
+      "partial_macro_primary_nrmse": 1.7049954831472873,
+      "tasks": {
+        "advection1d": 2.822912988700854,
+        "burgers1d": 0.5870779775937207
+      }
+    },
+    "fno": {
+      "applicable_to_all_tasks": true,
+      "macro_primary_nrmse": 0.6789331419461727,
+      "partial_macro_primary_nrmse": 0.6789331419461727,
+      "tasks": {
+        "advection1d": 0.8329793988781539,
+        "burgers1d": 0.30654698369876193,
+        "darcy2d": 0.8972730432616021
+      }
+    },
+    "persistence": {
+      "applicable_to_all_tasks": true,
+      "macro_primary_nrmse": 0.7618194555309813,
+      "partial_macro_primary_nrmse": 0.7618194555309813,
+      "tasks": {
+        "advection1d": 0.673296470301147,
+        "burgers1d": 0.6400475744644419,
+        "darcy2d": 0.9721143218273548
+      }
+    },
+    "unet": {
+      "applicable_to_all_tasks": true,
+      "macro_primary_nrmse": 0.859456651802765,
+      "partial_macro_primary_nrmse": 0.859456651802765,
+      "tasks": {
+        "advection1d": 0.8376444578923684,
+        "burgers1d": 0.7484631558608159,
+        "darcy2d": 0.9922623416551106
+      }
+    },
+    "uno": {
+      "applicable_to_all_tasks": true,
+      "macro_primary_nrmse": 0.6777764348705645,
+      "partial_macro_primary_nrmse": 0.6777764348705645,
+      "tasks": {
+        "advection1d": 0.8158696084100775,
+        "burgers1d": 0.3209932637514018,
+        "darcy2d": 0.8964664324502143
+      }
+    }
+  },
+  "overall_wall": {
+    "eligible_models": {
+      "fno": 0.6789331419461727,
+      "persistence": 0.7618194555309813,
+      "unet": 0.859456651802765,
+      "uno": 0.6777764348705645
+    },
+    "macro_primary_nrmse": 0.6777764348705645,
+    "model": "uno"
+  },
+  "plan_sha256": "c24e8540d1b2e95e50e1eb852a11491cf668ac508fe0bd9031d878a4f910b5c3",
+  "rows": [
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_advection1d_decoded_rollout_nrmse",
+      "model": "persistence",
+      "primary_nrmse": 0.673296470301147,
+      "regime_metric_count": 8,
+      "row_id": "a4_strat_v1_advection1d_persistence_val",
+      "run_id": "a4_strat_v1_universal_persistence_val",
+      "runner_sha256": "8d839763aae61494a50de5792c2ab9fc80e8546b855551eefcc3ce64decc4293",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_universal_persistence_val/summary.json",
+      "summary_sha256": "d19faeafc5f8f8c86c8990d1fd3b43abb5fb7fa01cb01b04e48a32e2cf980b71",
+      "task": "advection1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_advection1d_decoded_rollout_nrmse",
+      "model": "fno",
+      "primary_nrmse": 0.8329793988781539,
+      "regime_metric_count": 8,
+      "row_id": "a4_strat_v1_advection1d_fno_val",
+      "run_id": "a4_strat_v1_advection1d_fno_val",
+      "runner_sha256": "47437b5e246a33e5442b4b91877cc1c3c755e28e94c041a1cd76c4456c498600",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_advection1d_fno_val/summary.json",
+      "summary_sha256": "6ab6f40c8ad315c61d8ff2bb3226ece91840a337df80b4eef96f2862c787ed1f",
+      "task": "advection1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_advection1d_decoded_rollout_nrmse",
+      "model": "uno",
+      "primary_nrmse": 0.8158696084100775,
+      "regime_metric_count": 8,
+      "row_id": "a4_strat_v1_advection1d_uno_val",
+      "run_id": "a4_strat_v1_advection1d_uno_val",
+      "runner_sha256": "5bb753c7a4472ebae9357c7b9fbdb88b5c262e9f3dd697b06bada853d1bc15e6",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_advection1d_uno_val/summary.json",
+      "summary_sha256": "130d28be402a8914e43385f255e7e030aa9d61f6c3ebe12b02bd16c4dc3a4f62",
+      "task": "advection1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_advection1d_decoded_rollout_nrmse",
+      "model": "unet",
+      "primary_nrmse": 0.8376444578923684,
+      "regime_metric_count": 8,
+      "row_id": "a4_strat_v1_advection1d_unet_val",
+      "run_id": "a4_strat_v1_advection1d_unet_val",
+      "runner_sha256": "2dcf83e0e17ff41af548c37192a514b978d4aad4fc1bf4aabbccb138c83ddc08",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_advection1d_unet_val/summary.json",
+      "summary_sha256": "83575e095021872918c6196d9e9873027571c9566dd11f1978bc4a3fc2a9b935",
+      "task": "advection1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_advection1d_decoded_rollout_nrmse",
+      "model": "cno",
+      "primary_nrmse": 2.822912988700854,
+      "regime_metric_count": 8,
+      "row_id": "a4_strat_v1_advection1d_cno_val",
+      "run_id": "a4_strat_v1_advection1d_cno_val",
+      "runner_sha256": "b4164ff3cdd0159619f1c47b54c91be5ff3c9bd8dec42fe45b730a8ebaa51149",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_advection1d_cno_val/summary.json",
+      "summary_sha256": "7aa7f967fc6ec75cf4e3e8ddc28208de1f726b371f0b92869db4e59c13a040a8",
+      "task": "advection1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_burgers1d_decoded_rollout_nrmse",
+      "model": "persistence",
+      "primary_nrmse": 0.6400475744644419,
+      "regime_metric_count": 12,
+      "row_id": "a4_strat_v1_burgers1d_persistence_val",
+      "run_id": "a4_strat_v1_universal_persistence_val",
+      "runner_sha256": "8d839763aae61494a50de5792c2ab9fc80e8546b855551eefcc3ce64decc4293",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_universal_persistence_val/summary.json",
+      "summary_sha256": "d19faeafc5f8f8c86c8990d1fd3b43abb5fb7fa01cb01b04e48a32e2cf980b71",
+      "task": "burgers1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_burgers1d_decoded_rollout_nrmse",
+      "model": "fno",
+      "primary_nrmse": 0.30654698369876193,
+      "regime_metric_count": 12,
+      "row_id": "a4_strat_v1_burgers1d_fno_val",
+      "run_id": "a4_strat_v1_burgers1d_fno_val",
+      "runner_sha256": "47437b5e246a33e5442b4b91877cc1c3c755e28e94c041a1cd76c4456c498600",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_burgers1d_fno_val/summary.json",
+      "summary_sha256": "35adc314b0fac634326fc66a90fdd8d77722cb91718aa02b58cef1d5deed619f",
+      "task": "burgers1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_burgers1d_decoded_rollout_nrmse",
+      "model": "uno",
+      "primary_nrmse": 0.3209932637514018,
+      "regime_metric_count": 12,
+      "row_id": "a4_strat_v1_burgers1d_uno_val",
+      "run_id": "a4_strat_v1_burgers1d_uno_val",
+      "runner_sha256": "5bb753c7a4472ebae9357c7b9fbdb88b5c262e9f3dd697b06bada853d1bc15e6",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_burgers1d_uno_val/summary.json",
+      "summary_sha256": "313110caf4b66d8b9a7bda681a61090bc7d25ad3f9a73dcf3eff481c5cfa4e99",
+      "task": "burgers1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_burgers1d_decoded_rollout_nrmse",
+      "model": "unet",
+      "primary_nrmse": 0.7484631558608159,
+      "regime_metric_count": 12,
+      "row_id": "a4_strat_v1_burgers1d_unet_val",
+      "run_id": "a4_strat_v1_burgers1d_unet_val",
+      "runner_sha256": "2dcf83e0e17ff41af548c37192a514b978d4aad4fc1bf4aabbccb138c83ddc08",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_burgers1d_unet_val/summary.json",
+      "summary_sha256": "77c7915d75aaae797e8c2e65056f8ddd56c8054310fff1b8a6fd84a1ab1958e4",
+      "task": "burgers1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 16,
+      "metric_key": "task_burgers1d_decoded_rollout_nrmse",
+      "model": "cno",
+      "primary_nrmse": 0.5870779775937207,
+      "regime_metric_count": 12,
+      "row_id": "a4_strat_v1_burgers1d_cno_val",
+      "run_id": "a4_strat_v1_burgers1d_cno_val",
+      "runner_sha256": "b4164ff3cdd0159619f1c47b54c91be5ff3c9bd8dec42fe45b730a8ebaa51149",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_burgers1d_cno_val/summary.json",
+      "summary_sha256": "f09ea63e9bf8e26cf6e880c3c46214e54d3cee12ce80aa8731aabfefed46c75c",
+      "task": "burgers1d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 0,
+      "metric_key": "task_darcy2d_decoded_solution_nrmse",
+      "model": "persistence",
+      "primary_nrmse": 0.9721143218273548,
+      "regime_metric_count": 5,
+      "row_id": "a4_strat_v1_darcy2d_persistence_val",
+      "run_id": "a4_strat_v1_universal_persistence_val",
+      "runner_sha256": "8d839763aae61494a50de5792c2ab9fc80e8546b855551eefcc3ce64decc4293",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_universal_persistence_val/summary.json",
+      "summary_sha256": "d19faeafc5f8f8c86c8990d1fd3b43abb5fb7fa01cb01b04e48a32e2cf980b71",
+      "task": "darcy2d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 0,
+      "metric_key": "task_darcy2d_decoded_solution_nrmse",
+      "model": "fno",
+      "primary_nrmse": 0.8972730432616021,
+      "regime_metric_count": 5,
+      "row_id": "a4_strat_v1_darcy2d_fno_val",
+      "run_id": "a4_strat_v1_darcy2d_fno_val",
+      "runner_sha256": "47437b5e246a33e5442b4b91877cc1c3c755e28e94c041a1cd76c4456c498600",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_darcy2d_fno_val/summary.json",
+      "summary_sha256": "15650abd4b40d9c940d026729de527d55edede5f323ffda527fc767bfac9857c",
+      "task": "darcy2d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 0,
+      "metric_key": "task_darcy2d_decoded_solution_nrmse",
+      "model": "uno",
+      "primary_nrmse": 0.8964664324502143,
+      "regime_metric_count": 5,
+      "row_id": "a4_strat_v1_darcy2d_uno_val",
+      "run_id": "a4_strat_v1_darcy2d_uno_val",
+      "runner_sha256": "5bb753c7a4472ebae9357c7b9fbdb88b5c262e9f3dd697b06bada853d1bc15e6",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_darcy2d_uno_val/summary.json",
+      "summary_sha256": "f1e03abf76a944af4c32867d234883fbbc244c0b5c02a181b53719830ccd0739",
+      "task": "darcy2d"
+    },
+    {
+      "embedded_data_provenance": false,
+      "horizon_metric_count": 0,
+      "metric_key": "task_darcy2d_decoded_solution_nrmse",
+      "model": "unet",
+      "primary_nrmse": 0.9922623416551106,
+      "regime_metric_count": 5,
+      "row_id": "a4_strat_v1_darcy2d_unet_val",
+      "run_id": "a4_strat_v1_darcy2d_unet_val",
+      "runner_sha256": "2dcf83e0e17ff41af548c37192a514b978d4aad4fc1bf4aabbccb138c83ddc08",
+      "source_summary": "reports/a4_strat_v1_baselines/a4_strat_v1_darcy2d_unet_val/summary.json",
+      "summary_sha256": "6d6504fc28266213a72e98c48dcd46e6317bef228de58805b3007f9338d5ef6c",
+      "task": "darcy2d"
+    }
+  ],
+  "schema_version": 1,
+  "scorecard_id": "a4-strat-v1-baseline-validation-v1",
+  "scorecard_sha256": "57d463cbdea0bf54c4b894926457c73458f670bb1ba64a03289390882a994777",
+  "status": "complete_validation_only",
+  "task_wall": {
+    "advection1d": {
+      "model": "persistence",
+      "primary_nrmse": 0.673296470301147
+    },
+    "burgers1d": {
+      "model": "fno",
+      "primary_nrmse": 0.30654698369876193
+    },
+    "darcy2d": {
+      "model": "uno",
+      "primary_nrmse": 0.8964664324502143
+    }
+  },
+  "training_lock": {
+    "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+    "normalization": {
+      "fit_role": "train",
+      "method": "zscore"
+    },
+    "objects": [
+      {
+        "object_id": "advection1d-train",
+        "path": "advection1d_train.h5",
+        "role": "train",
+        "sha256": "aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
+        "size_bytes": 191457334,
+        "uris": [
+          "b2://pdebench/strat-v1/immutable/sha256/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d/advection1d_train.h5"
+        ]
+      },
+      {
+        "object_id": "burgers1d-train",
+        "path": "burgers1d_train.h5",
+        "role": "train",
+        "sha256": "9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",
+        "size_bytes": 136414903,
+        "uris": [
+          "b2://pdebench/strat-v1/immutable/sha256/9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82/burgers1d_train.h5"
+        ]
+      },
+      {
+        "object_id": "darcy2d-train",
+        "path": "darcy2d_train.h5",
+        "role": "train",
+        "sha256": "47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+        "size_bytes": 15661205,
+        "uris": [
+          "b2://pdebench/strat-v1/immutable/sha256/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe/darcy2d_train.h5"
+        ]
+      },
+      {
+        "object_id": "advection1d-valid",
+        "path": "advection1d_val.h5",
+        "role": "valid",
+        "sha256": "0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+        "size_bytes": 47288356,
+        "uris": [
+          "b2://pdebench/strat-v1/immutable/sha256/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726/advection1d_val.h5"
+        ]
+      },
+      {
+        "object_id": "burgers1d-valid",
+        "path": "burgers1d_val.h5",
+        "role": "valid",
+        "sha256": "496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+        "size_bytes": 32289060,
+        "uris": [
+          "b2://pdebench/strat-v1/immutable/sha256/496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73/burgers1d_val.h5"
+        ]
+      },
+      {
+        "object_id": "darcy2d-valid",
+        "path": "darcy2d_val.h5",
+        "role": "valid",
+        "sha256": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595",
+        "size_bytes": 3918783,
+        "uris": [
+          "b2://pdebench/strat-v1/immutable/sha256/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595/darcy2d_val.h5"
+        ]
+      }
+    ],
+    "path": "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+    "protocol_id": "pdebench-strat-v1-universal",
+    "protocol_manifest_sha256": "fc3de3aaef9f50352b6618ffdb702a5615782e7399493ab45c238ce0ab8db558",
+    "selection": {
+      "algorithm": "sha256-protocol-seed-provenance-v1",
+      "protocol": "strat-v1",
+      "seed": 0
+    },
+    "source_manifest_sha256": "d7190612c0fdc751a460048b13dfbef0d65ee9d984622785e7942d6abe8db2fe",
+    "source_revision": "sha256:9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1"
+  }
+}

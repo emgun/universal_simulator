@@ -16,24 +16,11 @@ TIER_CAPS: dict[str, dict[str, Any]] = {
         "train_max_samples": 8,
         "eval_max_samples": 4,
         "decoded_rollout_steps": 4,
-        "remote_b2_prefix": "smoke-v1",
+        "remote_b2_prefix": "strat-v1-smoke",
         "required_gb": 4,
     },
-    "light": {
-        "train_max_samples": 128,
-        "eval_max_samples": 32,
-        "decoded_rollout_steps": 16,
-        "remote_b2_prefix": "light-v1",
-        "required_gb": 10,
-    },
-    "medium": {
-        "train_max_samples": 512,
-        "eval_max_samples": 128,
-        "decoded_rollout_steps": 32,
-        "remote_b2_prefix": "medium-v1",
-        "required_gb": 40,
-    },
 }
+RESERVED_LEGACY_PREFIXES = {"smoke-v1", "light-v1", "medium-v1"}
 
 
 @dataclass(frozen=True)
@@ -300,7 +287,16 @@ def build_rows(
     required_gb: int | None,
     checkpoint_source: str | None = None,
 ) -> list[dict[str, Any]]:
+    if tier not in TIER_CAPS:
+        raise SystemExit(
+            f"Tier {tier!r} is not available for new queues; legacy light/medium tiers are frozen"
+        )
     caps = TIER_CAPS[tier]
+    resolved_prefix = remote_b2_prefix or str(caps["remote_b2_prefix"])
+    if resolved_prefix in RESERVED_LEGACY_PREFIXES:
+        raise SystemExit(
+            f"Remote prefix {resolved_prefix!r} is frozen historical evidence and cannot be queued"
+        )
     selected = sorted(VARIANTS, key=lambda item: item.priority)
     if variants:
         wanted = set(variants)
@@ -333,7 +329,7 @@ def build_rows(
                 "eval_split": eval_split,
                 "stages": variant.stages or stages,
                 "checkpoint_source": checkpoint_source or "",
-                "remote_b2_prefix": remote_b2_prefix or str(caps["remote_b2_prefix"]),
+                "remote_b2_prefix": resolved_prefix,
                 "required_gb": required_gb if required_gb is not None else int(caps["required_gb"]),
                 "train_max_samples": caps["train_max_samples"],
                 "eval_max_samples": caps["eval_max_samples"],

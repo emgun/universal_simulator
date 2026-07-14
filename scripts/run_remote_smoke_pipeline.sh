@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PROTOCOL_ROOTS_PENDING=1
+echo "Blocked: the three-task strat-v1 protocol is not frozen; smoke experiments are disabled." >&2
+exit 2
+
 # Orchestrate the cheapest remote UPS demo loop:
 # 1. Check smoke shard readiness in B2.
 # 2. Prepare/publish smoke shards if they are missing and PREP_SHARDS=1.
@@ -35,7 +39,7 @@ normalize_list() {
 
 ENV_FILE=${ENV_FILE:-.env}
 PIPELINE_ROOT=${PIPELINE_ROOT:-reports/demo/remote_smoke_pipeline}
-SMOKE_MANIFEST=${SMOKE_MANIFEST:-docs/demo_smoke_data_manifest.yaml}
+SMOKE_MANIFEST=${SMOKE_MANIFEST:-docs/strat_v1_smoke_data_manifest.yaml}
 SUMMARY_GLOB=${SUMMARY_GLOB:-reports/light_experiments_remote/*/summary.json}
 QUEUE_VARIANTS=${QUEUE_VARIANTS:-"current_best no_conditioning task_signature_only"}
 QUEUE_DIR=${QUEUE_DIR:-$PIPELINE_ROOT/queue}

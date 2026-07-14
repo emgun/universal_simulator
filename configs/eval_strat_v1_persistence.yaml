@@ -1,0 +1,14 @@
+# Frozen strat-v1 validation-only physical-space persistence baseline.
+data:
+  task: [advection1d, burgers1d, darcy2d]
+  split: val
+  root: data/pdebench_strat_v1_training
+  normalize: false
+  data_lock_sha256: 5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd
+
+evaluation:
+  baseline: persistence
+  rollout_steps: 16
+  macro_average: tasks
+  report_all_horizon_metrics: true
+  physical_parameter_conditioning: false

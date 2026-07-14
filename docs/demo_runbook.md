@@ -137,9 +137,10 @@ The matched smoke persistence baseline also completed:
 - comparison: `ups_smoke_current_best` fails baseline improvement on smoke
   (`0.6297059754071941` vs persistence `0.1876487120420463`)
 
-Interpretation: the pipeline is now ready for cheap iteration, but the current
-UPS config should not be scaled until it beats persistence on bounded held-out
-shards.
+Historical interpretation at the time: the plumbing worked, but the UPS config
+did not beat persistence. The later split audit supersedes the iteration advice:
+do not select or scale candidates from these `smoke-v1` results. Resume only on
+the frozen universal protocol.
 
 The first smoke-v1 variant matrix completed on 2026-05-05 UTC:
 
@@ -342,119 +343,36 @@ Current expected result:
 - baseline summary is `persistence_light_v1_test`
 - candidate summary is `ups_light_v1_task_signature_only`
 
-## Step 2: Dry-Run Remote Shard Prep
+## Step 2: Dry-Run Universal Shard Prep
 
 Run this locally first:
 
 ```bash
 DRY_RUN=1 \
 ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
-VERSION=light-v1 \
+VERSION=strat-v1 \
+TASKS=advection1d \
+ADVECTION1D_PROVENANCE_DATASETS=source_file_index,source_sample_index \
+ADVECTION1D_REGIME_DATASET=beta \
+ADVECTION1D_FIELD_KIND=temporal \
+ADVECTION1D_TIME_AXIS=1 \
 DATA_ROOT=/workspace/pdebench_full \
-OUT_ROOT=/workspace/pdebench_light \
+OUT_ROOT=/workspace/pdebench_strat_v1 \
 bash scripts/run_remote_shard_prep_b2.sh
 ```
 
-Expected:
+Expected: one canonical Advection source fetch plan, the declared protocol
+semantics, and no network writes. Repeat per task only after its canonical
+provenance-bearing source adapter exists.
 
-- fetch plan for Burgers train/val/test
-- fetch plan for Advection train/val/test
-- fetch plan for Darcy train/test
-- no network writes
+Three-task smoke preparation, execution, and launch are currently blocked
+before download or provider access. Burgers and Darcy still lack canonical
+provenance roots, so there is no honest smoke shortcut. Use the single-task
+universal builder above only for a task whose canonical source is established.
 
-For a cheaper smoke-only data-prep pass, you can opt into known smaller source
-keys and derive smoke validation/test from the same small source. Do not use
-this shortcut for benchmark claims.
-
-```bash
-DRY_RUN=1 bash scripts/run_smoke_shard_prep_b2.sh
-```
-
-If the source files are already hydrated on the remote box, skip fetching and
-only cut local shards:
-
-```bash
-DRY_RUN=0 \
-FETCH_DATA=0 \
-PUBLISH_SHARDS=0 \
-DATA_ROOT=/workspace/pdebench_full \
-OUT_ROOT=/workspace/pdebench_smoke \
-MANIFEST=/workspace/demo_smoke_data_manifest.yaml \
-bash scripts/run_smoke_shard_prep_b2.sh
-```
-
-Default smoke source set size from live B2 inspection after split-source
-shortcuts:
-
-- `full/burgers1d/burgers1d_train_000.h5`: `1.570 GiB`
-- `full/advection1d/advection1d_val.h5`: `7.704 GiB`
-- `full/darcy2d/darcy2d_test.h5`: `0.613 GiB`
-
-Plan roughly 12 GiB scratch for default three-task smoke prep. The wrapper
-derives Advection and Darcy smoke train/val/test slices from smaller non-train
-sources by default; this is why the output is plumbing-only.
-`scripts/run_smoke_shard_prep_b2.sh` enforces `REQUIRED_GB=12` by default when
-`DRY_RUN=0`; override it only if you have checked the source set manually.
-
-To run the whole remote smoke pipeline on a remote/data-prep or cheap GPU box:
-
-```bash
-DRY_RUN=0 \
-ENV_FILE=/workspace/.env \
-PIPELINE_ROOT=reports/demo/remote_smoke_pipeline \
-bash scripts/run_remote_smoke_pipeline.sh
-```
-
-Dry-run a Vast.ai launch plan for the same pipeline without printing B2 secret
-values:
-
-```bash
-ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
-DRY_RUN=1 \
-GIT_REF=codex/vast-no-apt-onstart \
-DISK_GB=32 \
-ORDER=dph_total \
-LIMIT=10 \
-SSH=0 \
-ARGS_MODE=1 \
-INSTALL_MODE=smoke \
-bash scripts/launch_remote_smoke_vast.sh
-```
-
-Summarize current cheap Vast offers without launching:
-
-```bash
-python scripts/search_vast_smoke_offers.py \
-  --limit 10 \
-  --output-json reports/demo/vast_smoke_offers.json \
-  --output-tsv reports/demo/vast_smoke_offers.tsv
-```
-
-If you choose a specific reviewed offer from that snapshot, pin it explicitly
-instead of letting `vastai launch instance` re-run the search at launch time:
-
-```bash
-ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
-DRY_RUN=1 \
-GIT_REF=codex/vast-no-apt-onstart \
-DISK_GB=32 \
-OFFER_ID=<offer_id_from_search> \
-SSH=0 \
-ARGS_MODE=1 \
-INSTALL_MODE=smoke \
-bash scripts/launch_remote_smoke_vast.sh
-```
-
-Only switch that command to `DRY_RUN=0` after reviewing the generated onstart
-script. Vast offer IDs are time-sensitive and single-use.
-
-This prepares/publishes missing `smoke-v1` shards, writes readiness artifacts,
-and generates a smoke queue. Add `RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0` only after
-reviewing `reports/demo/remote_smoke_pipeline/queue/run_smoke_queue.sh`.
-`QUEUE_DRY_RUN` defaults to `1` even when `DRY_RUN=0` is used for shard prep.
-Live smoke queue execution requires `CHECK_B2=1` unless
-`ALLOW_UNCHECKED_LIVE_QUEUE=1` is explicitly set for a controlled test
-environment.
+Do not search for or launch a smoke compute instance yet. The launcher exits
+before provider access. Reopen provider planning only after all three task roots
+and the universal contract are frozen.
 
 Before tearing down the remote box, package artifacts:
 
@@ -463,28 +381,8 @@ OUTPUT=reports/demo/demo_artifacts.tar.gz \
 bash scripts/package_demo_artifacts.sh
 ```
 
-To run one cheap smoke experiment after `smoke-v1` readiness passes, launch a
-new one-shot Vast instance with the experiment install profile:
-
-```bash
-ENV_FILE=/Users/emerygunselman/Code/universal_simulator/.env \
-DRY_RUN=1 \
-GIT_REF=codex/vast-no-apt-onstart \
-DISK_GB=32 \
-OFFER_ID=<offer_id_from_search> \
-SSH=0 \
-ARGS_MODE=1 \
-INSTALL_MODE=experiment \
-EXTRA_PIPELINE_ARGS="PREP_SHARDS=0 RUN_EXPERIMENTS=1 QUEUE_DRY_RUN=0 QUEUE_VARIANTS=current_best" \
-bash scripts/launch_remote_smoke_vast.sh
-```
-
-Use `DRY_RUN=0` only after reviewing the generated command. This runs just the
-`current_best` smoke queue entry against `smoke-v1`.
-For no-SSH runs where files cannot be copied back directly, add
-`PUBLISH_PIPELINE_ARTIFACTS=1` and a stable `PIPELINE_ARTIFACT_NAME=...` inside
-`EXTRA_PIPELINE_ARGS` so the remote uploads a tarball under
-`remote-runs/smoke/` in B2 before exit.
+Do not launch new experiments against `smoke-v1`; it is frozen historical
+evidence. There is no active three-task smoke queue until `strat-v1` is complete.
 
 ## Step 3: Run Remote Shard Prep
 
@@ -504,10 +402,15 @@ Command on the remote box:
 ```bash
 DRY_RUN=0 \
 ENV_FILE=/workspace/.env \
-VERSION=light-v1 \
+VERSION=strat-v1 \
+TASKS=advection1d \
+ADVECTION1D_PROVENANCE_DATASETS=source_file_index,source_sample_index \
+ADVECTION1D_REGIME_DATASET=beta \
+ADVECTION1D_FIELD_KIND=temporal \
+ADVECTION1D_TIME_AXIS=1 \
 DATA_ROOT=/workspace/pdebench_full \
-OUT_ROOT=/workspace/pdebench_light \
-MANIFEST=/workspace/demo_data_manifest.yaml \
+OUT_ROOT=/workspace/pdebench_strat_v1 \
+MANIFEST=/workspace/strat_v1_manifest.yaml \
 TRAIN_COUNT=128 \
 VAL_COUNT=32 \
 TEST_COUNT=32 \

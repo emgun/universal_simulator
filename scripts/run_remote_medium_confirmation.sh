@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: medium-v1 is frozen historical evidence and cannot be rerun." >&2
+exit 2
+
 # Orchestrate the medium-v1 confirmation gate for the current UPS candidate.
 #
 # Defaults are dry-run and do not launch training or contact B2. Set DRY_RUN=0

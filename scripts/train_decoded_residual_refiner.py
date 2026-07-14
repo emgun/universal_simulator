@@ -266,7 +266,7 @@ def collect_refiner_tensors(
                 continue
             metadata["task_count"] += 1
             task_rows = 0
-            sample_fields = dataset.fields[0]
+            sample_fields = dataset[0]["fields"]
             grid_shape = infer_grid_shape(sample_fields)
             coords = make_grid_coords(grid_shape, device)
             base_cond: dict[str, torch.Tensor] = {}

@@ -50,6 +50,11 @@ def ensure_paths(paths: Iterable[str]) -> list[Path]:
 
 def main() -> None:
     args = parse_args()
+    if args.type.lower() in {"dataset", "dataset-shard", "data"}:
+        raise SystemExit(
+            "Dataset-byte W&B artifacts are retired. Publish exact mirrors referenced by a "
+            "source manifest; keep W&B for checkpoints, metrics, and evidence."
+        )
     files = ensure_paths(args.paths)
 
     if args.cache_dir:

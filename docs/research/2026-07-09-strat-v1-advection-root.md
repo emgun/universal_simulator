@@ -2,7 +2,18 @@
 
 Date: 2026-07-09
 
-Status: Track A2 progress (universal-baseline roadmap). Data construction only; nothing trained or scored; the reserved test shard was built and read only by the two protocol audits, recorded truthfully in their artifacts.
+Status: historical first root; superseded for forward execution on 2026-07-13.
+Data construction only; nothing trained or scored.
+
+The first published root omitted an explicit `beta` dataset in the shards and
+used mutable remote paths. Its scientific allocation remains valid historical
+evidence, but it is not a runnable forward release. The universal builder
+reconstructed a canonical source with explicit beta provenance and emitted the
+replacement immutable root. Its task release is
+`docs/data/releases/strat-v1/advection1d/531c9c400721da3b46ac25a47fe1b1357d35f941e9bc48850d51b0f1360f5af8/`;
+shard SHA-256 values are `aeaf3cc5...` train, `0671198b...` validation, and
+`17b0741b...` test. The new root was fetched from B2 by the frozen universal
+locks and re-verified before A3 froze.
 
 ## What was built
 

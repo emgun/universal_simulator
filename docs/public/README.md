@@ -7,7 +7,7 @@ reproducible result artifacts.
 
 ## Current Scope
 
-UPS currently reports bounded PDEBench-shaped `light-v1` results:
+UPS currently reports bounded, legacy PDEBench-shaped `light-v1` results:
 
 - protocol family: `light-v1` / bounded PDEBench-shaped tasks
 - representative tasks: `advection1d`, `burgers1d`, `darcy2d`
@@ -17,6 +17,17 @@ UPS currently reports bounded PDEBench-shaped `light-v1` results:
 
 Results outside this protocol need their own split, command, metric, and
 artifact record before they should appear in public tables.
+
+`light-v1` and `medium-v1` are mixed protocols rather than uniform held-out
+generalization tests. Burgers test trajectories occur in training; Advection
+reuses initial conditions across splits while changing transport speed; Darcy
+is trajectory-disjoint. Matched-protocol comparisons remain scoped and useful,
+but they do not establish broad generalization. The replacement protocol,
+`strat-v1`, requires trajectory-disjoint and regime-stratified splits. Its
+Advection root is complete; Burgers source hydration is the critical path, and
+full-tier Darcy is blocked on duplicate-data provenance. See
+`docs/research/2026-07-09-split-integrity-audit.md` and
+`docs/research/2026-07-09-strat-v1-advection-root.md`.
 
 ## Where To Start
 
@@ -54,6 +65,8 @@ The north star is one model family that improves physical-space rollout quality
 across task families while preserving strict validation/test separation and
 reproducible artifacts.
 
-The current highest-signal model-side blocker is long-horizon transport and
-advection phase tracking. Broader backbone or pretraining changes should be
-ranked against that measured blocker.
+The current gate is protocol integrity rather than model selection: complete
+and freeze `strat-v1`, remeasure its baselines, then compare candidate families.
+The scoped beta-parameter transport-head diagnostic demonstrates that explicit
+regime conditioning can work, but it is not a primary or public-comparable
+result.

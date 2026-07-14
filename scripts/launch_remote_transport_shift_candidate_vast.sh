@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARCHIVED_LEGACY_WORKFLOW=1
+echo "Archived legacy workflow: positional transport-shift launches are no longer supported." >&2
+exit 2
+
 # Dry-run-first Vast launcher for the remote transport-shift candidate pipeline.
 #
 # Defaults do not launch paid compute. Set DRY_RUN=0 after reviewing the command.

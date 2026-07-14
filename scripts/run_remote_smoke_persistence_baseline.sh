@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PROTOCOL_ROOTS_PENDING=1
+echo "Blocked: persistence evaluation waits for the frozen three-task strat-v1 contract." >&2
+exit 2
+
 # Run a matched physical-space persistence baseline against B2-hosted smoke shards.
 
 apply_cli_assignments() {
@@ -66,7 +70,7 @@ CONFIG=${CONFIG:-configs/train_multitask_heterogeneous_light_best.yaml}
 RUN_NAME=${RUN_NAME:-persistence_smoke_v1_test}
 TASKS=${TASKS:-burgers1d,advection1d,darcy2d}
 SPLIT=${SPLIT:-test}
-REMOTE_B2_PREFIX=${REMOTE_B2_PREFIX:-smoke-v1}
+REMOTE_B2_PREFIX=${REMOTE_B2_PREFIX:-strat-v1-smoke}
 MAX_SAMPLES=${MAX_SAMPLES:-4}
 ROLLOUT_STEPS=${ROLLOUT_STEPS:-4}
 PROMOTION_RULE=${PROMOTION_RULE:-decoded_rollout_nrmse<=1.0}

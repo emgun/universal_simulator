@@ -197,7 +197,7 @@ def _pdebench_grid_spec(cfg: dict[str, Any]) -> tuple[tuple[int, int], int, str]
             if not skip_missing_tasks:
                 raise
             continue
-        sample_fields = dataset.fields[0]
+        sample_fields = dataset[0]["fields"]
         task_grid_shape = infer_grid_shape(sample_fields)
         task_channels = infer_channel_count(sample_fields, task_grid_shape)
         if channels is None:

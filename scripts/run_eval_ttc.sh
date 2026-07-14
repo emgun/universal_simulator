@@ -12,6 +12,8 @@ WANDB_ENTITY="${WANDB_ENTITY:-emgun-morpheus-space}"
 WANDB_RUN_NAME="${WANDB_RUN_NAME:-}"
 WORKDIR="${WORKDIR:-$PWD}"
 DATA_ROOT="${DATA_ROOT:-$WORKDIR/data/pdebench}"
+DATA_CACHE="${DATA_CACHE:-$WORKDIR/data/cache}"
+DATA_LOCK="${DATA_LOCK:-}"
 EVAL_CONFIG="${EVAL_CONFIG:-configs/eval_pdebench_scale_ttc.yaml}"
 EVAL_TEST_CONFIG="${EVAL_TEST_CONFIG:-configs/eval_pdebench_scale_test_ttc.yaml}"
 
@@ -34,25 +36,11 @@ fi
 export WANDB_PROJECT
 export WANDB_ENTITY
 
-# Dataset hydration (if needed)
-if [ -n "${WANDB_DATASETS:-}" ]; then
-  echo "Hydrating datasets: $WANDB_DATASETS"
-  IFS=', ' read -r -a DATASET_ARRAY <<< "$WANDB_DATASETS"
-
-  if [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_BUCKET:-}" ]; then
-    echo "Using Backblaze B2 for dataset hydration..."
-    CLEAN_OLD_SPLITS=1 scripts/fetch_datasets_b2.sh "${DATASET_ARRAY[@]}"
-  else
-    echo "Using W&B artifacts for dataset hydration..."
-    PYTHONPATH=src python scripts/fetch_datasets.py "${DATASET_ARRAY[@]}" \
-      --root "$DATA_ROOT" \
-      --cache "$WORKDIR/artifacts/cache" \
-      --project "${WANDB_PROJECT}" \
-      ${WANDB_ENTITY:+--entity "$WANDB_ENTITY"}
-  fi
-else
-  echo "WANDB_DATASETS not set, assuming datasets already present"
-fi
+: "${DATA_LOCK:?Set DATA_LOCK to an immutable validation-capable run lock}"
+PYTHONPATH=src python -m ups.data.cli stage \
+  --lock "$DATA_LOCK" --cache "$DATA_CACHE" --run-dir "$DATA_ROOT" \
+  --report "$WORKDIR/reports/ttc_data_stage.json"
+PYTHONPATH=src python -m ups.data.cli verify --lock "$DATA_LOCK" --cache "$DATA_CACHE"
 
 export PDEBENCH_ROOT="$DATA_ROOT"
 
@@ -139,16 +127,21 @@ PYTHONPATH=src python scripts/evaluate.py \
   --output-prefix reports/ttc_eval_val \
   --print-json
 
-# Run evaluation on test split
-echo ""
-echo "=== Running TTC Evaluation (Test) ==="
-PYTHONPATH=src python scripts/evaluate.py \
-  --config "$EVAL_TEST_CONFIG" \
-  --operator "$OP_CKPT" \
-  --diffusion "$DIFF_CKPT" \
-  --device cuda \
-  --output-prefix reports/ttc_eval_test \
-  --print-json
+if [ "${RUN_TEST_MEASUREMENT:-0}" -eq 1 ]; then
+  : "${MEASUREMENT_DATA_LOCK:?RUN_TEST_MEASUREMENT=1 requires MEASUREMENT_DATA_LOCK}"
+  PYTHONPATH=src python -m ups.data.cli stage \
+    --lock "$MEASUREMENT_DATA_LOCK" --cache "$DATA_CACHE" --run-dir "$DATA_ROOT" \
+    --report "$WORKDIR/reports/ttc_measurement_stage.json"
+  echo ""
+  echo "=== Running TTC Evaluation (Test) ==="
+  DATA_LOCK="$MEASUREMENT_DATA_LOCK" PYTHONPATH=src python scripts/evaluate.py \
+    --config "$EVAL_TEST_CONFIG" \
+    --operator "$OP_CKPT" \
+    --diffusion "$DIFF_CKPT" \
+    --device cuda \
+    --output-prefix reports/ttc_eval_test \
+    --print-json
+fi
 
 echo ""
 echo "=== TTC Evaluation Complete ==="
@@ -156,6 +149,5 @@ ls -lh reports/ttc_eval_*
 
 # Optional cleanup
 if [ "${CLEANUP_AFTER_RUN:-0}" -eq 1 ]; then
-  echo "Cleaning up cache..."
-  rm -rf "$WORKDIR/artifacts/cache" || true
+  PYTHONPATH=src python -m ups.data.cli evict --cache "$DATA_CACHE" --lock "$DATA_LOCK"
 fi
