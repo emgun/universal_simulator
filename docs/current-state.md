@@ -126,12 +126,17 @@ threshold. CNO is scoped to the two 1D tasks because the audited implementation
 is CNO1d-only. The checksum-bound scorecard is
 `docs/research/artifacts/strat_v1_a4_validation_scorecard.json`.
 
-The frozen per-regime promotion rule also has a confirmed Darcy denominator
-defect: slice-normalized NRMSE can reach hundreds for low-magnitude regimes
-even for persistence while pooled task NRMSE remains near one. Preserve the raw
-metric for diagnostics, but do not use the `1.5x task mean` gate for candidate
-selection. A validation-only, metric-versioned `strat-v1.1` addendum is required;
-see `docs/research/2026-07-13-strat-v1-metric-erratum.md`.
+The Darcy denominator defect is repaired by the frozen metric-only
+`strat-v1.1` addendum. It preserves the original task metrics and `1.5x`
+threshold but normalizes every regime by one task-level validation target
+scale. The validation-only reprojection touched no test object and reconstructs
+every frozen task primary within `3e-9`. All Advection and Burgers calibration
+rows pass the corrected spread gate. Every Darcy calibration row still fails:
+persistence `2.221`, FNO `2.022`, UNO `2.089`, and U-Net `2.198`. The old
+hundreds-scale values were a denominator artifact, but the corrected result
+shows a real Darcy regime imbalance that candidates must address. See
+`docs/data/protocols/strat_v1_1_metric_addendum.yaml` and
+`docs/research/artifacts/strat_v1_1_validation_regime_diagnostics.json`.
 
 ## Latest Model Evidence
 
@@ -169,12 +174,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 ## Active Work and Next Move
 
-1. Implement and freeze the validation-only `strat-v1.1` regime-metric erratum.
-2. Pre-register validation-only recipe adequacy for FNO and UNO; A4 remains
+1. Pre-register validation-only recipe adequacy for FNO and UNO; A4 remains
    calibration evidence and receives no held-out run.
-3. Add lock-bound, parameter-conditioned validation plans for Poseidon Option
+2. Add lock-bound, parameter-conditioned validation plans for Poseidon Option
    A/B and the one-shot in-house `tier_b` retrial.
-4. Measure shared-versus-single-task interference, low-data transfer, regime
+3. Measure shared-versus-single-task interference, low-data transfer, regime
    handling, and consolidation economics. Select exactly one specialist and
    one shared candidate before drafting any held-out sequence.
 

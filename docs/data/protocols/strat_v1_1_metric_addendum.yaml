@@ -1,0 +1,74 @@
+schema_version: 1
+addendum_id: pdebench-strat-v1.1-regime-metric
+status: frozen
+scope: metric_only_validation_candidate_promotion
+base_protocol:
+  protocol_id: pdebench-strat-v1-universal
+  protocol_manifest_path: docs/data/protocols/strat_v1.yaml
+  protocol_manifest_file_sha256: 317c39e8a008a5be7ba0b2ee5cfa4a75fc596108897556f04807d10fe569d9a5
+  protocol_manifest_sha256: fc3de3aaef9f50352b6618ffdb702a5615782e7399493ab45c238ce0ab8db558
+  source_revision: sha256:9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1
+  training_lock_path: docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json
+  training_lock_file_sha256: b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18
+  training_lock_sha256: 5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd
+  selection_sha256: 54aee5e59b8b55a3627b40e8ba1d75655895836abc2d95532414efccbfee590e
+  immutable_constraints:
+    data_objects: unchanged
+    split_membership: unchanged
+    task_membership: unchanged
+    primary_task_metrics: unchanged
+    training_data: unchanged
+    heldout_access_rules: unchanged
+reference_evidence:
+  calibration_scorecard_path: docs/research/artifacts/strat_v1_a4_validation_scorecard.json
+  calibration_scorecard_file_sha256: 3f3e3bfb0e86c752ab46d96b8523e2c1dfe4aedfa8dd851425f868f41d388e61
+  calibration_scorecard_sha256: 57d463cbdea0bf54c4b894926457c73458f670bb1ba64a03289390882a994777
+  interpretation: pipeline_calibration_only
+numeric_contract:
+  accumulation_dtype: float64
+  epsilon: 1.0e-8
+  epsilon_placement: task_target_mean_square_before_square_root
+  finite_values_required: true
+metrics:
+  task_primary_nrmse:
+    status: unchanged_from_strat-v1
+    formula: sqrt(sum((prediction-target)^2)/N_task)/sqrt(sum(target^2)/N_task+epsilon)
+    pooling: all_elements_of_one_task_validation_split
+  global_scale_regime_nrmse:
+    report_key_suffix: global_scale_nrmse
+    formula: sqrt(sum_regime((prediction-target)^2)/N_regime)/sqrt(sum_task(target^2)/N_task+epsilon)
+    numerator_pooling: all_elements_of_one_declared_regime
+    denominator_pooling: all_elements_of_the_same_task_validation_split
+    aggregation: element_weighted_root_mean_square
+    selection_role: promotion_gate
+  regime_error_ratio_to_persistence:
+    report_key_suffix: error_ratio_to_persistence
+    formula: candidate_global_scale_regime_nrmse/persistence_global_scale_regime_nrmse
+    denominator_policy: same_task_same_regime_same_validation_split
+    selection_role: reporting_only
+  slice_normalized_regime_nrmse:
+    report_key_suffix: nrmse
+    status: retained_unchanged
+    selection_role: diagnostic_only
+promotion_gate:
+  metric: global_scale_regime_nrmse_to_task_primary_nrmse
+  formula: global_scale_regime_nrmse/task_primary_nrmse
+  aggregation: maximum_over_declared_regimes_within_each_task
+  operator: less_than_or_equal
+  maximum: 1.5
+  required_scope: every_task
+  persistence_ratio_role: reporting_only
+freeze_access:
+  derivation_split: valid
+  allowed_roles:
+  - valid
+  forbidden_roles:
+  - test
+  measurement_lock_access: forbidden
+  heldout_reads: forbidden
+  heldout_metrics: forbidden
+self_hash:
+  algorithm: sha256
+  canonicalization: canonical_json_sorted_keys_utf8
+  excluded_field: self_hash.value
+  value: 2fedaaf445d093a40571a475d5793567842582b5a457d7039ab21db525f50ad0

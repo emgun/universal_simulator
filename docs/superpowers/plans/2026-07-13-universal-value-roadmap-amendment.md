@@ -93,6 +93,12 @@ for an unbounded sweep.
 
 ### Phase V0 — repair measurement semantics
 
+**Completed 2026-07-13.** The self-hashed `strat-v1.1` metric addendum and
+validation-only A4 reprojection are frozen. No model was retrained and no test
+object was read. Corrected spread ratios pass for every Advection/Burgers row
+and fail for every Darcy row (`2.022-2.221`), so Darcy regime robustness remains
+a real candidate gate rather than a denominator artifact.
+
 1. Freeze A4 as calibration evidence; do not run its held-out sequence.
 2. Implement and validate the `strat-v1.1` regime metrics on existing
    validation predictions or validation-only reruns.
@@ -173,7 +179,7 @@ principal breadth claim is the k-shot adaptation curve, not a task-count total.
 
 ## 6. Immediate implementation queue
 
-1. Publish the `strat-v1.1` metric erratum and tests.
+1. ~~Publish the `strat-v1.1` metric erratum and tests.~~ Completed 2026-07-13.
 2. Add a validation-only FNO/UNO recipe-adequacy planner with checkpoint and
    convergence evidence.
 3. Add one lock-bound shared candidate configuration whose conditioning

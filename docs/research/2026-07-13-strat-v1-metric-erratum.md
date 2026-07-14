@@ -1,7 +1,7 @@
 # `strat-v1` Regime-Metric Erratum
 
-Status: confirmed on validation evidence; versioned metric addendum required
-before candidate promotion.
+Status: repaired by frozen metric-only `strat-v1.1` addendum and validation-only
+diagnostic reprojection; candidate promotion may use the corrected gate.
 
 ## Finding
 
@@ -49,3 +49,17 @@ held-out access rules. The correction is derived and tested on validation only.
   A4 summaries where predictions are available;
 - a frozen `strat-v1.1` addendum with a content hash; and
 - no measurement-lock staging or test-data read.
+
+## Closure
+
+The frozen addendum is
+`docs/data/protocols/strat_v1_1_metric_addendum.yaml` with self-hash
+`2fedaaf445d093a40571a475d5793567842582b5a457d7039ab21db525f50ad0`.
+The derived artifact is
+`docs/research/artifacts/strat_v1_1_validation_regime_diagnostics.json` with
+artifact hash
+`83f7e9579f641f3c2bc302723d7543137906d1d5bef6663b959dcc06a29254d4`.
+It verifies the frozen A4 source-summary hashes, reads only the three locked
+validation objects, retains the raw metrics, and reports zero held-out
+measurements. The weighted corrected regime metrics reconstruct every frozen
+task primary within `3e-9`.

@@ -38,7 +38,7 @@ from ups.data.manifests import canonical_sha256, load_data_lock
 from ups.data.pdebench import get_pdebench_spec
 from ups.eval.pdebench_runner import _aggregate_chunk_metrics, _flatten_field_step
 from ups.eval.persistence_baselines import _regime_label, _regime_slug, _regime_value
-from ups.eval.regime_metrics import global_scale_regime_nrmse
+from ups.eval.regime_metrics import aligned_element_count, global_scale_regime_nrmse
 
 NEURALOP_IMPORT = "neuralop.models.FNO"
 NEURALOP_SOURCE_URL = "https://github.com/neuraloperator/neuraloperator"
@@ -620,6 +620,10 @@ def evaluate_external_fno_baseline(
                 task_regime_pred[task][regime],
                 task_regime_target[task][regime],
                 per_task_target[task],
+            )
+            element_count_key = suffix.replace("_nrmse", "_element_count")
+            metrics[f"task_{task}_regime_{slug}_{element_count_key}"] = aligned_element_count(
+                task_regime_pred[task][regime], task_regime_target[task][regime]
             )
     for family, pred_chunks in per_family_pred.items():
         _add_rollout_metrics(

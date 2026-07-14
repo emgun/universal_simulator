@@ -12,7 +12,11 @@ import torch
 from ups.data.latent_pairs import infer_grid_shape
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
 from ups.eval.pdebench_runner import _aggregate_chunk_metrics, _flatten_field_step
-from ups.eval.regime_metrics import global_scale_regime_nrmse
+from ups.eval.regime_metrics import (
+    aligned_element_count,
+    global_scale_regime_nrmse,
+    weighted_reconstructed_nrmse,
+)
 from ups.eval.reports import MetricReport
 
 _REGIME_KEYS = {
@@ -206,6 +210,8 @@ def evaluate_persistence_decoded(
                 temporal_horizon_values.setdefault(horizon, []).append(horizon_stats["nrmse"])
 
         regime_details: dict[str, float] = {}
+        global_scale_regime_details: dict[str, float] = {}
+        regime_element_counts: dict[str, int] = {}
         suffix = (
             "decoded_solution_nrmse"
             if spec.mapping_kind == "steady_operator"
@@ -225,15 +231,24 @@ def evaluate_persistence_decoded(
             )
             metrics[f"task_{task_name}_regime_{slug}_{suffix}"] = regime_stats["nrmse"]
             global_scale_key = suffix.replace("_nrmse", "_global_scale_nrmse")
-            metrics[f"task_{task_name}_regime_{slug}_{global_scale_key}"] = (
-                global_scale_regime_nrmse(
-                    task_regime_pred[task_name][regime],
-                    task_regime_target[task_name][regime],
-                    task_target[task_name],
-                )
+            global_scale_value = global_scale_regime_nrmse(
+                task_regime_pred[task_name][regime],
+                task_regime_target[task_name][regime],
+                task_target[task_name],
             )
+            metrics[f"task_{task_name}_regime_{slug}_{global_scale_key}"] = global_scale_value
+            element_count = aligned_element_count(
+                task_regime_pred[task_name][regime], task_regime_target[task_name][regime]
+            )
+            element_count_key = suffix.replace("_nrmse", "_element_count")
+            metrics[f"task_{task_name}_regime_{slug}_{element_count_key}"] = element_count
             regime_details[regime] = regime_stats["nrmse"]
+            global_scale_regime_details[regime] = global_scale_value
+            regime_element_counts[regime] = element_count
 
+        reconstructed_nrmse = weighted_reconstructed_nrmse(
+            list(global_scale_regime_details.values()), list(regime_element_counts.values())
+        )
         details["tasks"][task_name] = {
             "mapping_kind": spec.mapping_kind,
             "primary_metric": primary_name,
@@ -241,6 +256,10 @@ def evaluate_persistence_decoded(
             "sample_count": sample_counts[task_name],
             "per_horizon_nrmse": horizon_details,
             "per_regime_nrmse": regime_details,
+            "per_regime_global_scale_nrmse": global_scale_regime_details,
+            "per_regime_element_count": regime_element_counts,
+            "global_scale_weighted_reconstructed_nrmse": reconstructed_nrmse,
+            "global_scale_reconstruction_delta": reconstructed_nrmse - task_stats["nrmse"],
             "regime_normalization": {
                 "slice_normalized": "regime target RMS",
                 "global_scale": "complete task target RMS",
