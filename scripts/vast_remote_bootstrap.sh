@@ -10,6 +10,7 @@ set -euo pipefail
 : "${UPS_INSTALL_MODE:=experiment}"
 : "${UPS_SCRIPT_ARGS_B64:=}"
 : "${UPS_EXIT_SENTINEL:=$UPS_WORKDIR/.ups_remote_bootstrap_exit_status}"
+: "${UPS_MAX_RUNTIME_SECONDS:=0}"
 
 stop_container() {
   sync || true
@@ -31,6 +32,9 @@ fi
 
 shutdown_on_exit() {
   local status=$?
+  if [ -n "${REMOTE_DEADLINE_PID:-}" ]; then
+    kill "$REMOTE_DEADLINE_PID" 2>/dev/null || true
+  fi
   echo "REMOTE_BOOTSTRAP_EXIT_STATUS=${status}"
   mkdir -p "$(dirname "$UPS_EXIT_SENTINEL")"
   echo "$status" > "$UPS_EXIT_SENTINEL" || true
@@ -40,6 +44,15 @@ shutdown_on_exit() {
 
 if [ "$UPS_AUTO_SHUTDOWN" = "1" ]; then
   trap shutdown_on_exit EXIT
+fi
+
+if [ "$UPS_MAX_RUNTIME_SECONDS" -gt 0 ]; then
+  (
+    sleep "$UPS_MAX_RUNTIME_SECONDS"
+    echo "REMOTE_MAX_RUNTIME_REACHED seconds=${UPS_MAX_RUNTIME_SECONDS}" >&2
+    stop_container
+  ) &
+  REMOTE_DEADLINE_PID=$!
 fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -127,8 +140,12 @@ if command -v git >/dev/null 2>&1; then
     cd universal_simulator
   fi
   git fetch --all --prune
-  git checkout "$UPS_GIT_REF" || git checkout -b "$UPS_GIT_REF" "origin/$UPS_GIT_REF"
-  git pull --ff-only || git pull
+  if [[ "$UPS_GIT_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    git checkout --detach "$UPS_GIT_REF"
+  else
+    git checkout "$UPS_GIT_REF" || git checkout -b "$UPS_GIT_REF" "origin/$UPS_GIT_REF"
+    git pull --ff-only || git pull
+  fi
 else
   echo "git unavailable; using downloaded repo archive for $UPS_GIT_REF"
 fi

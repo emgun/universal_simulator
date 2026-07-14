@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import io
 import os
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import torch
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data import ConcatDataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 from ups.data.datasets import GridZarrDataset, MeshZarrDataset, ParticleZarrDataset
+from ups.data.parameter_conditioning import (
+    ParameterTransform,
+    resolve_parameter_conditioning,
+    transform_parameter,
+)
 from ups.data.pdebench import (
     PDEBenchConfig,
     PDEBenchDataset,
@@ -160,6 +164,7 @@ def prepare_conditioning(
     extras: Optional[Dict[str, Any]] = None,
     param_vocab: Optional[Sequence[str]] = None,
     bc_vocab: Optional[Sequence[str]] = None,
+    parameter_transforms: Optional[Mapping[str, ParameterTransform]] = None,
 ) -> Dict[str, torch.Tensor]:
     cond: Dict[str, torch.Tensor] = {}
 
@@ -170,6 +175,8 @@ def prepare_conditioning(
             tensor = _to_float_tensor(value)
             if tensor is None:
                 continue
+            if prefix == "param":
+                tensor = transform_parameter(key, tensor, parameter_transforms)
             cond[f"{prefix}_{key}"] = _broadcast_condition_tensor(tensor, seq_len)
 
     ingest("param", params)
@@ -279,6 +286,7 @@ def conditioning_source_dims_from_sample(
     task_vocab: Optional[Sequence[str]] = None,
     param_vocab: Optional[Sequence[str]] = None,
     bc_vocab: Optional[Sequence[str]] = None,
+    parameter_transforms: Optional[Mapping[str, ParameterTransform]] = None,
 ) -> Dict[str, int]:
     fields = sample["fields"]
     seq_len = max(int(fields.shape[0]) - 1, 1)
@@ -292,6 +300,7 @@ def conditioning_source_dims_from_sample(
         extras=extras,
         param_vocab=param_vocab,
         bc_vocab=bc_vocab,
+        parameter_transforms=parameter_transforms,
     )
     return {key: int(value.shape[-1]) for key, value in cond.items()}
 
@@ -326,6 +335,7 @@ def pdebench_condition_step(
     extras: Optional[Mapping[str, Any]] = None,
     param_vocab: Optional[Sequence[str]] = None,
     bc_vocab: Optional[Sequence[str]] = None,
+    parameter_transforms: Optional[Mapping[str, ParameterTransform]] = None,
 ) -> Dict[str, torch.Tensor]:
     cond: Dict[str, torch.Tensor] = {}
     if params:
@@ -333,6 +343,7 @@ def pdebench_condition_step(
             tensor = _to_float_tensor(value)
             if tensor is None:
                 continue
+            tensor = transform_parameter(key, tensor, parameter_transforms)
             cond[f"param_{key}"] = _condition_step_tensor(tensor, batch_size=batch_size, step=step)
     if bc:
         for key, value in bc.items():
@@ -497,6 +508,7 @@ class GridLatentPairDataset(Dataset):
         conditioning_extras: Optional[Mapping[str, Any]] = None,
         param_vocab: Optional[Sequence[str]] = None,
         bc_vocab: Optional[Sequence[str]] = None,
+        parameter_transforms: Optional[Mapping[str, ParameterTransform]] = None,
         *,
         device: torch.device | None = None,
         cache_dir: Optional[Path] = None,
@@ -515,6 +527,7 @@ class GridLatentPairDataset(Dataset):
             param_vocab if param_vocab is not None else getattr(base, "param_keys", ())
         )
         self.bc_vocab = tuple(bc_vocab if bc_vocab is not None else getattr(base, "bc_keys", ()))
+        self.parameter_transforms = dict(parameter_transforms or {})
         self.cache_dir = Path(cache_dir) if cache_dir else None
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -616,6 +629,7 @@ class GridLatentPairDataset(Dataset):
             extras=self.conditioning_extras,
             param_vocab=self.param_vocab,
             bc_vocab=self.bc_vocab,
+            parameter_transforms=self.parameter_transforms,
         )
         return LatentPair(latent_seq[:-1], latent_seq[1:], cond, z_seq=latent_seq)
 
@@ -879,6 +893,8 @@ def build_latent_pair_loader(
     # Support single task or a list of tasks for multi-dataset mixing
     tasks = data_cfg.get("task")
     if tasks:
+        task_names = (tasks,) if isinstance(tasks, str) else tuple(str(task) for task in tasks)
+        parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
         auto_conditioning = bool(train_cfg.get("auto_conditioning", False))
         skip_missing_tasks = bool(
             eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
@@ -887,7 +903,12 @@ def build_latent_pair_loader(
             datasets: List[Dataset] = []
             task_vocab = tuple(str(task_name) for task_name in tasks)
             for task_name in tasks:
-                ds_cfg = {**data_cfg, "task": task_name}
+                ds_cfg = {
+                    **data_cfg,
+                    "task": task_name,
+                    "root": parameter_contract.root_for(str(task_name)),
+                    "param_keys": parameter_contract.param_keys_for(str(task_name)),
+                }
                 try:
                     dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
                         {
@@ -919,6 +940,8 @@ def build_latent_pair_loader(
                     grid_shape,
                     field_name=field_name,
                     conditioning_extras=extras,
+                    param_vocab=parameter_contract.param_vocab,
+                    parameter_transforms=parameter_contract.transforms_for(str(task_name)),
                     device=device,
                     cache_dir=ds_cache,
                     cache_dtype=cache_dtype,
@@ -932,9 +955,14 @@ def build_latent_pair_loader(
             mixed = ConcatDataset(datasets)
             return DataLoader(mixed, **loader_kwargs)
         else:
+            single_cfg = {
+                **data_cfg,
+                "root": parameter_contract.root_for(str(tasks)),
+                "param_keys": parameter_contract.param_keys_for(str(tasks)),
+            }
             dataset, encoder, grid_shape, field_name = _build_pdebench_dataset(
                 {
-                    **data_cfg,
+                    **single_cfg,
                     "latent_dim": latent_cfg.get("dim", 32),
                     "latent_len": latent_cfg.get("tokens", 16),
                 }
@@ -960,6 +988,8 @@ def build_latent_pair_loader(
                 grid_shape,
                 field_name=field_name,
                 conditioning_extras=extras,
+                param_vocab=parameter_contract.param_vocab,
+                parameter_transforms=parameter_contract.transforms_for(str(tasks)),
                 device=device,
                 cache_dir=ds_cache,
                 cache_dtype=cache_dtype,

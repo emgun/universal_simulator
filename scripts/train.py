@@ -47,6 +47,7 @@ from ups.data.latent_pairs import (
     pdebench_conditioning_extras,
     unpack_batch,
 )
+from ups.data.parameter_conditioning import resolve_parameter_conditioning
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
 from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
@@ -320,20 +321,22 @@ def _pdebench_tasks(cfg: dict) -> list[str]:
 
 def _pdebench_codec_context(cfg: dict) -> tuple[list[dict[str, Any]], int, str]:
     data_cfg = cfg.get("data", {})
+    tasks = _pdebench_tasks(cfg)
+    parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=tasks)
     field_name = data_cfg.get("field_name", "u")
     specs: list[dict[str, Any]] = []
-    for task in _pdebench_tasks(cfg):
+    for task in tasks:
         dataset = PDEBenchDataset(
             PDEBenchConfig(
                 task=task,
                 split=data_cfg.get("split", "train"),
-                root=data_cfg.get("root"),
+                root=parameter_contract.root_for(task),
                 normalize=bool(data_cfg.get("normalize", False)),
                 normalization_path=data_cfg.get("normalization_path"),
                 data_lock_path=data_cfg.get("data_lock_path"),
                 data_lock_sha256=data_cfg.get("data_lock_sha256"),
                 selection_sha256=data_cfg.get("selection_sha256"),
-                param_keys=tuple(data_cfg.get("param_keys", ())),
+                param_keys=parameter_contract.param_keys_for(task),
                 bc_keys=tuple(data_cfg.get("bc_keys", ())),
                 max_samples=data_cfg.get("max_samples"),
             )
@@ -342,7 +345,13 @@ def _pdebench_codec_context(cfg: dict) -> tuple[list[dict[str, Any]], int, str]:
         grid_shape = infer_grid_shape(sample_fields)
         channels = infer_channel_count(sample_fields, grid_shape)
         specs.append(
-            {"task": task, "dataset": dataset, "grid_shape": grid_shape, "channels": channels}
+            {
+                "task": task,
+                "dataset": dataset,
+                "grid_shape": grid_shape,
+                "channels": channels,
+                "parameter_transforms": parameter_contract.transforms_for(task),
+            }
         )
     channels = int(specs[0]["channels"])
     if any(int(spec["channels"]) != channels for spec in specs[1:]):
@@ -356,7 +365,10 @@ def _auto_conditioning_sources(cfg: dict[str, Any]) -> dict[str, int]:
     specs, _, _ = _pdebench_codec_context(cfg)
     task_vocab = tuple(str(spec["task"]) for spec in specs) if len(specs) > 1 else None
     data_cfg = cfg.get("data", {})
-    param_vocab = tuple(data_cfg.get("param_keys", ()))
+    parameter_contract = resolve_parameter_conditioning(
+        data_cfg, task_names=tuple(str(spec["task"]) for spec in specs)
+    )
+    param_vocab = parameter_contract.param_vocab
     bc_vocab = tuple(data_cfg.get("bc_keys", ()))
     sources: dict[str, int] = {}
     for spec in specs:
@@ -368,6 +380,7 @@ def _auto_conditioning_sources(cfg: dict[str, Any]) -> dict[str, int]:
             task_vocab=task_vocab,
             param_vocab=param_vocab,
             bc_vocab=bc_vocab,
+            parameter_transforms=spec["parameter_transforms"],
         )
         for key, dim in sample_sources.items():
             sources[key] = max(sources.get(key, 0), int(dim))
@@ -544,6 +557,8 @@ def _grid_structured_conditioning(
         task_name if task_name is not None else (task if isinstance(task, str) else None)
     )
     task_vocab = tuple(str(name) for name in task) if isinstance(task, (list, tuple)) else None
+    task_names = (task,) if isinstance(task, str) else tuple(str(name) for name in task)
+    parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
     extras = pdebench_conditioning_extras(
         task_name=resolved_task, grid_shape=grid_shape, task_vocab=task_vocab
     )
@@ -553,8 +568,11 @@ def _grid_structured_conditioning(
         batch_size=batch_size,
         step=step,
         extras=extras,
-        param_vocab=tuple(data_cfg.get("param_keys", ())),
+        param_vocab=parameter_contract.param_vocab,
         bc_vocab=tuple(data_cfg.get("bc_keys", ())),
+        parameter_transforms=(
+            parameter_contract.transforms_for(resolved_task) if resolved_task is not None else {}
+        ),
     )
     return {key: value.to(device) for key, value in cond.items()}
 

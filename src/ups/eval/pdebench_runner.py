@@ -18,6 +18,7 @@ from ups.data.latent_pairs import (
     pdebench_conditioning_extras,
     unpack_batch,
 )
+from ups.data.parameter_conditioning import resolve_parameter_conditioning
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
 from ups.eval.metrics import mae, mse, nrmse, relative_rrmse, spectral_energy_error
 from ups.eval.reports import MetricReport
@@ -1023,7 +1024,8 @@ def evaluate_decoded_operator(
     skip_missing_tasks = bool(
         eval_cfg.get("skip_missing_tasks", data_cfg.get("skip_missing_tasks", False))
     )
-    task_roots = _task_root_map(data_cfg.get("task_roots"), setting="data.task_roots")
+    parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
+    task_roots = dict(parameter_contract.task_roots)
     preview_sample_count = max(int(preview_sample_count), 0)
 
     total_pred = []
@@ -1064,8 +1066,14 @@ def evaluate_decoded_operator(
                     PDEBenchConfig(
                         task=task_name,
                         split=data_cfg.get("split", "train"),
-                        root=task_roots.get(task_name, data_cfg.get("root")),
-                        param_keys=tuple(data_cfg.get("param_keys", ())),
+                        root=parameter_contract.root_for(task_name),
+                        normalize=bool(data_cfg.get("normalize", False)),
+                        normalization_path=data_cfg.get("normalization_path"),
+                        target_normalization_path=data_cfg.get("target_normalization_path"),
+                        data_lock_path=data_cfg.get("data_lock_path"),
+                        data_lock_sha256=data_cfg.get("data_lock_sha256"),
+                        selection_sha256=data_cfg.get("selection_sha256"),
+                        param_keys=parameter_contract.param_keys_for(task_name),
                         bc_keys=tuple(data_cfg.get("bc_keys", ())),
                         max_samples=data_cfg.get("max_samples"),
                     )
@@ -1086,7 +1094,7 @@ def evaluate_decoded_operator(
                     task_name=task_name, grid_shape=grid_shape, task_vocab=task_names
                 )
                 base_cond = {key: value.to(device) for key, value in extras.items()}
-            param_vocab = tuple(data_cfg.get("param_keys", ()))
+            param_vocab = parameter_contract.param_vocab
             bc_vocab = tuple(data_cfg.get("bc_keys", ()))
 
             for idx in range(len(dataset)):
@@ -1161,6 +1169,7 @@ def evaluate_decoded_operator(
                     extras=base_cond,
                     param_vocab=param_vocab,
                     bc_vocab=bc_vocab,
+                    parameter_transforms=parameter_contract.transforms_for(task_name),
                 )
                 state = LatentState(
                     z=latent_seq[0:1].to(device),
@@ -1177,6 +1186,7 @@ def evaluate_decoded_operator(
                         extras=base_cond,
                         param_vocab=param_vocab,
                         bc_vocab=bc_vocab,
+                        parameter_transforms=parameter_contract.transforms_for(task_name),
                     )
                     state = LatentState(
                         z=state.z, t=state.t, cond={k: v.to(device) for k, v in cond.items()}

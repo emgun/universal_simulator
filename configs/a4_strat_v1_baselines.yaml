@@ -13,3 +13,31 @@ data:
     advection1d: [beta]
     burgers1d: [nu]
     darcy2d: [beta]
+  parameter_transforms:
+    advection1d:
+      beta:
+        kind: log10_zscore
+        mean: -0.06295299324844986
+        std: 0.592293348823297
+        count: 256
+        source_sha256: aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d
+    burgers1d:
+      nu:
+        kind: log10_zscore
+        mean: -1.1989700043360187
+        std: 1.1447325912746191
+        count: 288
+        source_sha256: 9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82
+    darcy2d:
+      beta:
+        kind: log10_zscore
+        mean: 0.0
+        std: 1.4142135623730951
+        count: 260
+        source_sha256: 47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe
+
+operator:
+  conditioning:
+    # Force active A4 runs through deterministic auto-discovery so task
+    # parameters and presence signatures cannot be bypassed by the base config.
+    sources: null
