@@ -1,0 +1,294 @@
+{
+  "bindings": {
+    "metric_addendum": {
+      "addendum_id": "pdebench-strat-v1.1-regime-metric",
+      "file_sha256": "46eb8ddc87e127f0ab18cfc003ece8e8bf5e94ad4feb5b94a132a8ce050e12d0",
+      "path": "/workspace/universal_simulator/docs/data/protocols/strat_v1_1_metric_addendum.yaml",
+      "self_sha256": "2fedaaf445d093a40571a475d5793567842582b5a457d7039ab21db525f50ad0"
+    },
+    "training_lock": {
+      "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
+      "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+      "object_ids": [
+        "advection1d-train",
+        "burgers1d-train",
+        "darcy2d-train",
+        "advection1d-valid",
+        "burgers1d-valid",
+        "darcy2d-valid"
+      ],
+      "path": "/workspace/universal_simulator/docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+      "protocol_manifest_sha256": "fc3de3aaef9f50352b6618ffdb702a5615782e7399493ab45c238ce0ab8db558",
+      "roles": [
+        "train",
+        "valid"
+      ],
+      "selection_sha256": "54aee5e59b8b55a3627b40e8ba1d75655895836abc2d95532414efccbfee590e",
+      "source_manifest_sha256": "d7190612c0fdc751a460048b13dfbef0d65ee9d984622785e7942d6abe8db2fe",
+      "source_revision": "sha256:9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1"
+    }
+  },
+  "config": {
+    "file_sha256": "2cd94514857a3f68dcbd5c4335f913f9578af370a074f4411bba67242662a4fa",
+    "path": "configs/a4_strat_v1_baselines.yaml"
+  },
+  "confirmation": {
+    "additional_seeds": [
+      29,
+      43
+    ],
+    "completion_rule": "one all-task artifact at seeds 17, 29, and 43; seed 17 is reused from discovery",
+    "evidence_binding": null,
+    "required_seeds": [
+      17,
+      29,
+      43
+    ],
+    "reuse_discovery_seed_17": false,
+    "runs": [],
+    "selected_architecture": null,
+    "selected_epochs": null
+  },
+  "discovery": {
+    "architectures": [
+      "fno",
+      "uno"
+    ],
+    "epoch_rungs": [
+      3,
+      6,
+      12,
+      24,
+      48
+    ],
+    "independent_rung_restarts": false,
+    "maximum_epochs": 48,
+    "runs": [
+      {
+        "architecture": "fno",
+        "command": [
+          "/opt/conda/bin/python",
+          "scripts/run_external_neuraloperator_fno_baseline.py",
+          "--config",
+          "configs/a4_strat_v1_baselines.yaml",
+          "--name",
+          "r0_strat_v1_1_fno_all_e48_s17_discovery_val",
+          "--output-root",
+          "reports/research/reference_recipe_adequacy",
+          "--data-root",
+          "/workspace/reference_recipe_scratch/data",
+          "--tasks",
+          "advection1d",
+          "burgers1d",
+          "darcy2d",
+          "--data-lock",
+          "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+          "--expected-data-lock-sha256",
+          "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+          "--train-split",
+          "train",
+          "--eval-split",
+          "val",
+          "--max-train-samples",
+          "288",
+          "--max-eval-samples",
+          "72",
+          "--rollout-steps",
+          "16",
+          "--max-pairs-per-task",
+          "1152",
+          "--train-stride",
+          "4",
+          "--epochs",
+          "48",
+          "--validation-rungs",
+          "3",
+          "6",
+          "12",
+          "24",
+          "48",
+          "--learning-rate",
+          "0.001",
+          "--weight-decay",
+          "0.0001",
+          "--batch-size",
+          "8",
+          "--seed",
+          "17",
+          "--device",
+          "cuda",
+          "--metric",
+          "decoded_rollout_nrmse",
+          "--strict-contract",
+          "--refuse-overwrite",
+          "--hidden-channels",
+          "16",
+          "--fourier-modes",
+          "16",
+          "--n-layers",
+          "4"
+        ],
+        "command_display": "/opt/conda/bin/python scripts/run_external_neuraloperator_fno_baseline.py --config configs/a4_strat_v1_baselines.yaml --name r0_strat_v1_1_fno_all_e48_s17_discovery_val --output-root reports/research/reference_recipe_adequacy --data-root /workspace/reference_recipe_scratch/data --tasks advection1d burgers1d darcy2d --data-lock docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json --expected-data-lock-sha256 5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd --train-split train --eval-split val --max-train-samples 288 --max-eval-samples 72 --rollout-steps 16 --max-pairs-per-task 1152 --train-stride 4 --epochs 48 --validation-rungs 3 6 12 24 48 --learning-rate 0.001 --weight-decay 0.0001 --batch-size 8 --seed 17 --device cuda --metric decoded_rollout_nrmse --strict-contract --refuse-overwrite --hidden-channels 16 --fourier-modes 16 --n-layers 4",
+        "command_sha256": "4ed5545442dcc274b4ad9c9015df97ec803044915297a0c0b0e769291a66cc58",
+        "epochs": 48,
+        "evaluation_role": "valid",
+        "expected_summary": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/summary.json",
+        "phase": "discovery",
+        "run_id": "r0_strat_v1_1_fno_all_e48_s17_discovery_val",
+        "seed": 17,
+        "tasks": [
+          "advection1d",
+          "burgers1d",
+          "darcy2d"
+        ],
+        "train_role": "train"
+      },
+      {
+        "architecture": "uno",
+        "command": [
+          "/opt/conda/bin/python",
+          "scripts/run_external_neuraloperator_uno_baseline.py",
+          "--config",
+          "configs/a4_strat_v1_baselines.yaml",
+          "--name",
+          "r0_strat_v1_1_uno_all_e48_s17_discovery_val",
+          "--output-root",
+          "reports/research/reference_recipe_adequacy",
+          "--data-root",
+          "/workspace/reference_recipe_scratch/data",
+          "--tasks",
+          "advection1d",
+          "burgers1d",
+          "darcy2d",
+          "--data-lock",
+          "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+          "--expected-data-lock-sha256",
+          "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+          "--train-split",
+          "train",
+          "--eval-split",
+          "val",
+          "--max-train-samples",
+          "288",
+          "--max-eval-samples",
+          "72",
+          "--rollout-steps",
+          "16",
+          "--max-pairs-per-task",
+          "1152",
+          "--train-stride",
+          "4",
+          "--epochs",
+          "48",
+          "--validation-rungs",
+          "3",
+          "6",
+          "12",
+          "24",
+          "48",
+          "--learning-rate",
+          "0.001",
+          "--weight-decay",
+          "0.0001",
+          "--batch-size",
+          "8",
+          "--seed",
+          "17",
+          "--device",
+          "cuda",
+          "--metric",
+          "decoded_rollout_nrmse",
+          "--strict-contract",
+          "--refuse-overwrite",
+          "--hidden-channels",
+          "16",
+          "--fourier-modes",
+          "16",
+          "--n-layers",
+          "4",
+          "--lifting-channels",
+          "32",
+          "--projection-channels",
+          "32",
+          "--channel-mlp-skip",
+          "linear"
+        ],
+        "command_display": "/opt/conda/bin/python scripts/run_external_neuraloperator_uno_baseline.py --config configs/a4_strat_v1_baselines.yaml --name r0_strat_v1_1_uno_all_e48_s17_discovery_val --output-root reports/research/reference_recipe_adequacy --data-root /workspace/reference_recipe_scratch/data --tasks advection1d burgers1d darcy2d --data-lock docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json --expected-data-lock-sha256 5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd --train-split train --eval-split val --max-train-samples 288 --max-eval-samples 72 --rollout-steps 16 --max-pairs-per-task 1152 --train-stride 4 --epochs 48 --validation-rungs 3 6 12 24 48 --learning-rate 0.001 --weight-decay 0.0001 --batch-size 8 --seed 17 --device cuda --metric decoded_rollout_nrmse --strict-contract --refuse-overwrite --hidden-channels 16 --fourier-modes 16 --n-layers 4 --lifting-channels 32 --projection-channels 32 --channel-mlp-skip linear",
+        "command_sha256": "c376f39c75d1a9daca8d10316a46b9c033e91fd23f98183a49b1c60ca171696e",
+        "epochs": 48,
+        "evaluation_role": "valid",
+        "expected_summary": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/summary.json",
+        "phase": "discovery",
+        "run_id": "r0_strat_v1_1_uno_all_e48_s17_discovery_val",
+        "seed": 17,
+        "tasks": [
+          "advection1d",
+          "burgers1d",
+          "darcy2d"
+        ],
+        "train_role": "train"
+      }
+    ],
+    "seed": 17,
+    "tasks": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "trajectory_semantics": "one_continuous_training_trajectory_with_validation_checkpoint_at_each_rung"
+  },
+  "execution_policy": "plan_only_no_runner_invocation",
+  "forbidden_actions": [
+    "test split access",
+    "measurement lock access",
+    "held-out metric computation",
+    "selecting more than one architecture for confirmation",
+    "calling a recipe strong when labeled budget-capped"
+  ],
+  "heldout_access": "forbidden",
+  "measurement_lock_access": "forbidden",
+  "mode": "validation_only",
+  "plan_id": "strat-v1.1-fno-uno-reference-recipe-adequacy-v1",
+  "plan_sha256": "59bab7d1f7efb69f98aad41b3de41d46cc19cc5174ce00f660c0cb8a4dcb0b05",
+  "plateau_criterion": {
+    "adequate_label": "adequate",
+    "best_so_far_relative_improvement_formula": "(previous_best-current_best)/previous_best",
+    "consecutive_transitions_required": 2,
+    "maximum_rung_without_plateau_label": "budget-capped",
+    "non_finite_label": "invalid",
+    "operator": "strictly_less_than",
+    "plateau_when": "best_so_far_relative_improvement < 0.01 for two consecutive rung transitions",
+    "relative_improvement_threshold": 0.01,
+    "selection_metric": "macro_average_of_three_task_primary_validation_nrmse",
+    "task_metrics": {
+      "advection1d": "task_advection1d_decoded_rollout_nrmse",
+      "burgers1d": "task_burgers1d_decoded_rollout_nrmse",
+      "darcy2d": "task_darcy2d_decoded_solution_nrmse"
+    }
+  },
+  "runner_identity": {
+    "fno": {
+      "external_package": "neuraloperator==2.0.0",
+      "file_sha256": "c8a903722a6369f09410eaea4afb3d2e5082fd3f5ea32efb322e2b5dbc27816d",
+      "path": "scripts/run_external_neuraloperator_fno_baseline.py"
+    },
+    "uno": {
+      "external_package": "neuraloperator==2.0.0",
+      "file_sha256": "d07e1d04e2f16b8b32160a4c8eec87f5b368d1201ca385cb2f0ee48f1204f7ac",
+      "path": "scripts/run_external_neuraloperator_uno_baseline.py"
+    }
+  },
+  "schema_version": 1,
+  "selection": {
+    "architecture_policy": "lowest_selected_rung_macro_nrmse_among_adequate_eligible_architectures",
+    "no_eligible_architecture_action": "stop_without_confirmation_or_heldout",
+    "rung_policy": "best_validation_rung_from_the_continuous_trajectory_after_declared_plateau_else_no_adequate_recipe",
+    "secondary_eligibility_gate": {
+      "maximum": 1.5,
+      "metric": "maximum_global_scale_regime_nrmse_to_task_primary_nrmse",
+      "operator": "less_than_or_equal",
+      "required_scope": "every_task",
+      "source": "strat-v1.1 promotion_gate"
+    }
+  }
+}

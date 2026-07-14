@@ -1,0 +1,232 @@
+{
+  "architectures": {
+    "fno": {
+      "architecture": "fno",
+      "chosen_checkpoint": {
+        "epoch": 6,
+        "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/models_epoch_6.pt",
+        "sha256": "8213bdbd09dfa1459e8096d813420a26724fc81b3f3a0fe61d04434539ac41b8"
+      },
+      "chosen_epoch": 6,
+      "chosen_macro_primary_nrmse": 0.6518386019514375,
+      "chosen_regime_gate_passed": false,
+      "compute": {
+        "cuda_device_name": "NVIDIA GeForce RTX 4090",
+        "device": "cuda",
+        "duration_sec": 452.2695138454437,
+        "examples_seen": 116928,
+        "optimizer_steps": 14640,
+        "peak_cuda_memory_bytes": 387396096,
+        "total_parameter_count": 176339,
+        "trainable_parameter_count": 176339
+      },
+      "eligible": false,
+      "label": "adequate",
+      "plateau_epoch": 24,
+      "rungs": [
+        {
+          "best_so_far_relative_improvement": null,
+          "checkpoint": {
+            "epoch": 3,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/models_epoch_3.pt",
+            "sha256": "14748100c3a8dc5d81a28b833717ba938c4df6c133503399b6d8fd86d2e8e0ce"
+          },
+          "epoch": 3,
+          "macro_primary_nrmse": 0.7984532717544894,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.1991473992068997,
+            "burgers1d": 1.0604205082566265,
+            "darcy2d": 1.98161130857794
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.18362335654394238,
+          "checkpoint": {
+            "epoch": 6,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/models_epoch_6.pt",
+            "sha256": "8213bdbd09dfa1459e8096d813420a26724fc81b3f3a0fe61d04434539ac41b8"
+          },
+          "epoch": 6,
+          "macro_primary_nrmse": 0.6518386019514375,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.2161613060974181,
+            "burgers1d": 1.3312890915591282,
+            "darcy2d": 1.9107915257917076
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.0,
+          "checkpoint": {
+            "epoch": 12,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/models_epoch_12.pt",
+            "sha256": "36d8ec0b3d4d0beb1316c15b6d9dbf06901528315af4497934b5de620c3250db"
+          },
+          "epoch": 12,
+          "macro_primary_nrmse": 0.6651047935751955,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.2211975568849467,
+            "burgers1d": 1.3378784934383654,
+            "darcy2d": 1.9761124212801042
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.0,
+          "checkpoint": {
+            "epoch": 24,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/models_epoch_24.pt",
+            "sha256": "1b2f340cd2273a58a7e33bdf75146fb31ba008d371e8263466e80ac173eebcc2"
+          },
+          "epoch": 24,
+          "macro_primary_nrmse": 0.7986720330792366,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.0940825050456453,
+            "burgers1d": 1.0935801258526623,
+            "darcy2d": 1.885013108563481
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.0,
+          "checkpoint": {
+            "epoch": 48,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/models_epoch_48.pt",
+            "sha256": "4682fd8ba273745635933e56671fc330fa3532afd6d5e3c2f0fc42bd02b17123"
+          },
+          "epoch": 48,
+          "macro_primary_nrmse": 0.7130541247577318,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.0689925277210104,
+            "burgers1d": 1.2470637736855228,
+            "darcy2d": 2.037202565480101
+          },
+          "regime_gate_passed": false
+        }
+      ],
+      "summary": {
+        "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_fno_all_e48_s17_discovery_val/summary.json",
+        "sha256": "febd6d36a52eb780ff62447c58d1f44467cc6d462cb8ddb5805516b9c59c9cb6"
+      }
+    },
+    "uno": {
+      "architecture": "uno",
+      "chosen_checkpoint": {
+        "epoch": 6,
+        "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/models_epoch_6.pt",
+        "sha256": "14e807e2e2bc5d87cd337fcddc80cedce84e68e7d9abfb2387a4ecbbfdd00a04"
+      },
+      "chosen_epoch": 6,
+      "chosen_macro_primary_nrmse": 0.6582274683442176,
+      "chosen_regime_gate_passed": false,
+      "compute": {
+        "cuda_device_name": "NVIDIA GeForce RTX 4090",
+        "device": "cuda",
+        "duration_sec": 476.37395572662354,
+        "examples_seen": 116928,
+        "optimizer_steps": 14640,
+        "peak_cuda_memory_bytes": 320877056,
+        "total_parameter_count": 266771,
+        "trainable_parameter_count": 266771
+      },
+      "eligible": false,
+      "label": "adequate",
+      "plateau_epoch": 24,
+      "rungs": [
+        {
+          "best_so_far_relative_improvement": null,
+          "checkpoint": {
+            "epoch": 3,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/models_epoch_3.pt",
+            "sha256": "31604ff9dafd57fe5ce7954f395a1df9c06e68f5b6bbc6f5f197ee63704a6d85"
+          },
+          "epoch": 3,
+          "macro_primary_nrmse": 0.7611862407085327,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.206601862169868,
+            "burgers1d": 1.0972739840942531,
+            "darcy2d": 1.8728831363767098
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.13526094779180226,
+          "checkpoint": {
+            "epoch": 6,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/models_epoch_6.pt",
+            "sha256": "14e807e2e2bc5d87cd337fcddc80cedce84e68e7d9abfb2387a4ecbbfdd00a04"
+          },
+          "epoch": 6,
+          "macro_primary_nrmse": 0.6582274683442176,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.2187033229252904,
+            "burgers1d": 1.1592660857382584,
+            "darcy2d": 1.9175834524691149
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.0,
+          "checkpoint": {
+            "epoch": 12,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/models_epoch_12.pt",
+            "sha256": "c55911a246694c7366b9bc02b169ee034025b1ae9644fe2e72748e0ecf88b90c"
+          },
+          "epoch": 12,
+          "macro_primary_nrmse": 0.6996601335503435,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.2204823262451343,
+            "burgers1d": 1.317109574681228,
+            "darcy2d": 1.926718626193668
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.0,
+          "checkpoint": {
+            "epoch": 24,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/models_epoch_24.pt",
+            "sha256": "6d9172c8f866c2c5cdce394c4a2da5094cc6c4b2de9c80e8c8f741844729568f"
+          },
+          "epoch": 24,
+          "macro_primary_nrmse": 0.7663922100051778,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.152597945030878,
+            "burgers1d": 1.1132025843483384,
+            "darcy2d": 1.8833902908299227
+          },
+          "regime_gate_passed": false
+        },
+        {
+          "best_so_far_relative_improvement": 0.0,
+          "checkpoint": {
+            "epoch": 48,
+            "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/models_epoch_48.pt",
+            "sha256": "52c378453cf5d5b5c88d1263acc023c01e9cbe4eae22d298d6362ecab96e01a3"
+          },
+          "epoch": 48,
+          "macro_primary_nrmse": 0.6754618594380669,
+          "max_regime_spread_by_task": {
+            "advection1d": 1.1720560338942996,
+            "burgers1d": 1.2729680769217573,
+            "darcy2d": 2.072200410428045
+          },
+          "regime_gate_passed": false
+        }
+      ],
+      "summary": {
+        "path": "reports/research/reference_recipe_adequacy/r0_strat_v1_1_uno_all_e48_s17_discovery_val/summary.json",
+        "sha256": "393f8a4d8dd104961ea5ec2ac9fb6095027c00096007d700ba7ba935a2b37fc7"
+      }
+    }
+  },
+  "held_out_measurements": 0,
+  "no_eligible_architecture": true,
+  "plan_sha256": "59bab7d1f7efb69f98aad41b3de41d46cc19cc5174ce00f660c0cb8a4dcb0b05",
+  "schema_version": 1,
+  "selection": null,
+  "selection_id": "strat-v1.1-reference-recipe-adequacy-selection-v1",
+  "selection_sha256": "616e2d7b616a8f8d21d53ca189590b194829b796d428dc00035d2bbc90194270",
+  "status": "complete_validation_only"
+}

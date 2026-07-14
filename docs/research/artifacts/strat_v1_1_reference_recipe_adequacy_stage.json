@@ -1,0 +1,147 @@
+{
+  "bytes_transferred": 427029641,
+  "cache_hits": 0,
+  "duration_seconds": 17.301991,
+  "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+  "object_count": 6,
+  "objects": [
+    {
+      "bytes_transferred": 191457334,
+      "cache_hit": false,
+      "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/ae/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d"
+      },
+      "id": "advection1d-train",
+      "name": "advection1d_train.h5",
+      "role": "train",
+      "size": 191457334,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d/advection1d_train.h5"
+    },
+    {
+      "bytes_transferred": 136414903,
+      "cache_hit": false,
+      "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/9b/9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82"
+      },
+      "id": "burgers1d-train",
+      "name": "burgers1d_train.h5",
+      "role": "train",
+      "size": 136414903,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82/burgers1d_train.h5"
+    },
+    {
+      "bytes_transferred": 15661205,
+      "cache_hit": false,
+      "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/47/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe"
+      },
+      "id": "darcy2d-train",
+      "name": "darcy2d_train.h5",
+      "role": "train",
+      "size": 15661205,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe/darcy2d_train.h5"
+    },
+    {
+      "bytes_transferred": 47288356,
+      "cache_hit": false,
+      "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/06/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726"
+      },
+      "id": "advection1d-valid",
+      "name": "advection1d_val.h5",
+      "role": "valid",
+      "size": 47288356,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726/advection1d_val.h5"
+    },
+    {
+      "bytes_transferred": 32289060,
+      "cache_hit": false,
+      "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/49/496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73"
+      },
+      "id": "burgers1d-valid",
+      "name": "burgers1d_val.h5",
+      "role": "valid",
+      "size": 32289060,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73/burgers1d_val.h5"
+    },
+    {
+      "bytes_transferred": 3918783,
+      "cache_hit": false,
+      "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/2b/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595",
+      "checksum": {
+        "algorithm": "sha256",
+        "value": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595"
+      },
+      "id": "darcy2d-valid",
+      "name": "darcy2d_val.h5",
+      "role": "valid",
+      "size": 3918783,
+      "source_uri": "b2://pdebench/strat-v1/immutable/sha256/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595/darcy2d_val.h5"
+    }
+  ],
+  "plan": {
+    "cached_bytes": 0,
+    "entries": [
+      {
+        "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/ae/aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
+        "cached": false,
+        "id": "advection1d-train",
+        "role": "train",
+        "size": 191457334
+      },
+      {
+        "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/9b/9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",
+        "cached": false,
+        "id": "burgers1d-train",
+        "role": "train",
+        "size": 136414903
+      },
+      {
+        "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/47/47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+        "cached": false,
+        "id": "darcy2d-train",
+        "role": "train",
+        "size": 15661205
+      },
+      {
+        "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/06/0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+        "cached": false,
+        "id": "advection1d-valid",
+        "role": "valid",
+        "size": 47288356
+      },
+      {
+        "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/49/496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+        "cached": false,
+        "id": "burgers1d-valid",
+        "role": "valid",
+        "size": 32289060
+      },
+      {
+        "cache_path": "/workspace/reference_recipe_scratch/cache/objects/sha256/2b/2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595",
+        "cached": false,
+        "id": "darcy2d-valid",
+        "role": "valid",
+        "size": 3918783
+      }
+    ],
+    "free_bytes": 68114710528,
+    "largest_object_bytes": 191457334,
+    "missing_bytes": 427029641,
+    "object_count": 6,
+    "reserve_bytes": 8589934592
+  },
+  "schema_version": 1,
+  "status": "complete"
+}

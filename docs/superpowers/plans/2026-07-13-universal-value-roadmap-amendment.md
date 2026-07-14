@@ -107,6 +107,13 @@ a real candidate gate rather than a denominator artifact.
 
 ### Phase V1 — establish only the references we need
 
+**Discovery completed negative 2026-07-14.** Both FNO and UNO plateau under
+the frozen ladder, but neither passes the corrected Darcy regime-spread gate at
+its selected checkpoint. No architecture was eligible, so confirmation seeds
+and held-out access were not run. R0 remains unresolved; the next experiment
+must address the identified Darcy robustness mechanism or nominate a different
+decision-relevant specialist under a new pre-registration, not relax the gate.
+
 1. Pre-register a validation-only recipe-adequacy ladder for FNO and UNO.
 2. Use the smallest checkpoints that can establish a learning plateau under a
    fixed budget. Do not optimize U-Net or CNO unless later evidence makes one
@@ -180,8 +187,9 @@ principal breadth claim is the k-shot adaptation curve, not a task-count total.
 ## 6. Immediate implementation queue
 
 1. ~~Publish the `strat-v1.1` metric erratum and tests.~~ Completed 2026-07-13.
-2. Add a validation-only FNO/UNO recipe-adequacy planner with checkpoint and
-   convergence evidence.
+2. ~~Add a validation-only FNO/UNO recipe-adequacy planner with checkpoint and
+   convergence evidence.~~ Completed 2026-07-14; discovery was negative and
+   selected no specialist.
 3. Add one lock-bound shared candidate configuration whose conditioning
    sources explicitly include `beta` and `nu` values and presence masks.
 4. Add dedicated validation plans for `tier_b` and Poseidon A/B; do not reuse
