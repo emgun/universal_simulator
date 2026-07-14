@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def load_vast_launch_module():
@@ -161,6 +163,8 @@ def test_tracked_bootstrap_has_non_systemd_shutdown_fallback():
     assert "command -v poweroff" in source
     assert "kill -TERM 1" in source
     assert source.count("stop_container") >= 3
+    assert "UPS_MAX_RUNTIME_SECONDS" in source
+    assert "REMOTE_MAX_RUNTIME_REACHED" in source
 
 
 def test_run_can_display_redacted_command_without_changing_executed_command(monkeypatch, capsys):
@@ -349,3 +353,146 @@ def test_launch_can_skip_preflight(monkeypatch):
     args.func(args)
 
     assert calls
+
+
+def test_parse_instance_id_accepts_current_create_output():
+    vast_launch = load_vast_launch_module()
+    assert (
+        vast_launch.parse_instance_id("Started. {'success': True, 'new_contract': 44908875}")
+        == 44908875
+    )
+
+
+def test_managed_launch_requires_positive_runtime_before_paid_request(monkeypatch):
+    vast_launch = load_vast_launch_module()
+    calls = []
+    monkeypatch.setattr(vast_launch, "run_capture", lambda *args, **kwargs: calls.append(args))
+    parser = vast_launch.build_parser()
+    args = parser.parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--managed",
+            "--max-runtime-minutes",
+            "0",
+            "--auto-shutdown",
+        ]
+    )
+    try:
+        args.func(args)
+    except SystemExit as exc:
+        assert "positive --max-runtime-minutes" in str(exc)
+    else:
+        raise AssertionError("expected managed launch validation to abort")
+    assert calls == []
+
+
+def test_managed_launch_requires_remote_auto_shutdown_before_paid_request(monkeypatch):
+    vast_launch = load_vast_launch_module()
+    calls = []
+    monkeypatch.setattr(vast_launch, "run_capture", lambda *args, **kwargs: calls.append(args))
+    parser = vast_launch.build_parser()
+    args = parser.parse_args(
+        ["launch", "--offer-id", "123456", "--managed", "--max-runtime-minutes", "10"]
+    )
+    try:
+        args.func(args)
+    except SystemExit as exc:
+        assert "requires --auto-shutdown" in str(exc)
+    else:
+        raise AssertionError("expected managed launch validation to abort")
+    assert calls == []
+
+
+def test_start_managed_watchdog_writes_secret_free_receipt_and_detaches(tmp_path, monkeypatch):
+    vast_launch = load_vast_launch_module()
+    popen_calls = []
+
+    def fake_popen(command, **kwargs):
+        popen_calls.append((command, kwargs))
+        return SimpleNamespace(pid=321, wait=lambda: 0)
+
+    monkeypatch.setattr(vast_launch.subprocess, "Popen", fake_popen)
+    path, process = vast_launch.start_managed_watchdog(
+        instance_id=77,
+        offer_id="88",
+        args=Namespace(
+            max_runtime_minutes=10.0,
+            receipt=str(tmp_path / "receipt.json"),
+            image="image:tag",
+            git_ref="a" * 40,
+            remote_script="scripts/job.sh",
+            success_marker="PUBLISHED_OK",
+            b2_app_key="must-not-appear",
+        ),
+    )
+    receipt_text = path.read_text()
+    assert "must-not-appear" not in receipt_text
+    assert '"instance_id": 77' in receipt_text
+    assert '"watchdog_pid": 321' in receipt_text
+    assert process.wait() == 0
+    assert popen_calls[0][1]["start_new_session"] is False
+    assert popen_calls[0][1]["stdin"] is subprocess.DEVNULL
+
+
+def test_managed_launch_rejects_non_idempotent_create_retries(monkeypatch):
+    vast_launch = load_vast_launch_module()
+    calls = []
+    monkeypatch.setattr(vast_launch, "run_capture", lambda *args, **kwargs: calls.append(args))
+    parser = vast_launch.build_parser()
+    args = parser.parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--managed",
+            "--max-runtime-minutes",
+            "10",
+            "--auto-shutdown",
+            "--launch-retries",
+            "1",
+        ]
+    )
+    try:
+        args.func(args)
+    except SystemExit as exc:
+        assert "not idempotent" in str(exc)
+    else:
+        raise AssertionError("expected managed launch retry validation to abort")
+    assert calls == []
+
+
+def test_managed_launch_waits_for_foreground_watchdog(monkeypatch, tmp_path):
+    vast_launch = load_vast_launch_module()
+    waits = []
+    monkeypatch.setattr(vast_launch, "git_remote_url", lambda: "https://example.invalid/repo.git")
+    monkeypatch.setattr(vast_launch, "preflight_vast_dns", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        vast_launch,
+        "run_capture",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, "{'success': True, 'new_contract': 77}", ""
+        ),
+    )
+    monkeypatch.setattr(
+        vast_launch,
+        "start_managed_watchdog",
+        lambda **_kwargs: (
+            tmp_path / "receipt.json",
+            SimpleNamespace(wait=lambda: waits.append(True) or 0),
+        ),
+    )
+    args = vast_launch.build_parser().parse_args(
+        [
+            "launch",
+            "--offer-id",
+            "123456",
+            "--managed",
+            "--max-runtime-minutes",
+            "10",
+            "--auto-shutdown",
+        ]
+    )
+    args.func(args)
+    assert waits == [True]

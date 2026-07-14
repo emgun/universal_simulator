@@ -224,6 +224,41 @@ def test_make_operator_auto_conditioning_infers_multitask_semantic_sources(tmp_p
     }
 
 
+def test_make_operator_resolves_task_roots_keys_and_union_parameter_vocab(tmp_path):
+    roots = {"advection1d": tmp_path / "advection", "burgers1d": tmp_path / "burgers"}
+    for task_name, key in (("advection1d", "beta"), ("burgers1d", "nu")):
+        root = roots[task_name]
+        root.mkdir()
+        data = torch.randn(2, 3, 4, dtype=torch.float32)
+        with h5py.File(root / f"{task_name}_train.h5", "w") as handle:
+            handle.create_dataset("data", data=data.numpy())
+            handle.create_dataset(key, data=torch.ones(2, 1).numpy())
+
+    cfg = {
+        "training": {"batch_size": 2, "dt": 0.1, "auto_conditioning": True},
+        "latent": {"dim": 8, "tokens": 4},
+        "data": {
+            "task": ["advection1d", "burgers1d"],
+            "split": "train",
+            "root": str(tmp_path / "unused"),
+            "task_roots": {task: str(root) for task, root in roots.items()},
+            "task_param_keys": {"advection1d": ["beta"], "burgers1d": ["nu"]},
+            "patch_size": 1,
+        },
+    }
+
+    operator = train_script.make_operator(cfg)
+    assert operator.conditioner is not None
+    assert set(operator.conditioner.embedders.keys()) >= {
+        "param_beta",
+        "param_nu",
+        "param_presence",
+        "parameter_signature",
+        "parameter_nodes",
+    }
+    assert operator.conditioner.embedders["param_presence"][0].in_features == 2
+
+
 def test_grid_latent_pair_dataset_conditioning_broadcast():
     tensor_data = {
         "fields": torch.randn(1, 4, 2, 2, 1),  # (samples, time, H, W, C)

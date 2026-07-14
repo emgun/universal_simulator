@@ -25,6 +25,7 @@ from ups.data.latent_pairs import (
     infer_channel_count,
     infer_grid_shape,
 )
+from ups.data.parameter_conditioning import resolve_parameter_conditioning
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
 from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
 from ups.eval.promotion import (
@@ -112,7 +113,8 @@ def make_operator(cfg: dict[str, Any]) -> LatentOperator:
         task_cfg = data_cfg.get("task")
         task_names = [task_cfg] if isinstance(task_cfg, str) else [str(task) for task in task_cfg]
         task_vocab = tuple(task_names) if len(task_names) > 1 else None
-        param_vocab = tuple(data_cfg.get("param_keys", ()))
+        parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
+        param_vocab = parameter_contract.param_vocab
         bc_vocab = tuple(data_cfg.get("bc_keys", ()))
         auto_sources: dict[str, int] = {}
         for task_name in task_names:
@@ -120,8 +122,14 @@ def make_operator(cfg: dict[str, Any]) -> LatentOperator:
                 PDEBenchConfig(
                     task=task_name,
                     split=data_cfg.get("split", "train"),
-                    root=data_cfg.get("root"),
-                    param_keys=tuple(data_cfg.get("param_keys", ())),
+                    root=parameter_contract.root_for(task_name),
+                    normalize=bool(data_cfg.get("normalize", False)),
+                    normalization_path=data_cfg.get("normalization_path"),
+                    target_normalization_path=data_cfg.get("target_normalization_path"),
+                    data_lock_path=data_cfg.get("data_lock_path"),
+                    data_lock_sha256=data_cfg.get("data_lock_sha256"),
+                    selection_sha256=data_cfg.get("selection_sha256"),
+                    param_keys=parameter_contract.param_keys_for(task_name),
                     bc_keys=tuple(data_cfg.get("bc_keys", ())),
                     max_samples=data_cfg.get("max_samples"),
                 )
@@ -135,6 +143,7 @@ def make_operator(cfg: dict[str, Any]) -> LatentOperator:
                 task_vocab=task_vocab,
                 param_vocab=param_vocab,
                 bc_vocab=bc_vocab,
+                parameter_transforms=parameter_contract.transforms_for(task_name),
             )
             for key, dim_value in sample_sources.items():
                 auto_sources[key] = max(auto_sources.get(key, 0), int(dim_value))
@@ -181,14 +190,21 @@ def _pdebench_grid_spec(cfg: dict[str, Any]) -> tuple[tuple[int, int], int, str]
 
     channels = None
     grid_shape = None
+    parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
     for task in task_names:
         try:
             dataset = PDEBenchDataset(
                 PDEBenchConfig(
                     task=task,
                     split=data_cfg.get("split", "train"),
-                    root=data_cfg.get("root"),
-                    param_keys=tuple(data_cfg.get("param_keys", ())),
+                    root=parameter_contract.root_for(task),
+                    normalize=bool(data_cfg.get("normalize", False)),
+                    normalization_path=data_cfg.get("normalization_path"),
+                    target_normalization_path=data_cfg.get("target_normalization_path"),
+                    data_lock_path=data_cfg.get("data_lock_path"),
+                    data_lock_sha256=data_cfg.get("data_lock_sha256"),
+                    selection_sha256=data_cfg.get("selection_sha256"),
+                    param_keys=parameter_contract.param_keys_for(task),
                     bc_keys=tuple(data_cfg.get("bc_keys", ())),
                     max_samples=data_cfg.get("max_samples"),
                 )

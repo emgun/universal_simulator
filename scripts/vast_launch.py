@@ -13,12 +13,14 @@ import socket
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ONSTART_DIR = REPO_ROOT / ".vast"
 REDACTED = "<redacted>"
 VAST_API_HOST = "console.vast.ai"
+WATCHDOG_SCRIPT = REPO_ROOT / "scripts" / "vast_watchdog.py"
 
 
 def run(
@@ -54,6 +56,99 @@ def run(
             raise SystemExit(result.returncode)
         return result.returncode
     return result.returncode
+
+
+def run_capture(
+    cmd: list[str], *, retries: int = 0, retry_backoff: float = 5.0
+) -> subprocess.CompletedProcess[str]:
+    """Run a Vast command while retaining its redacted output for control-plane parsing."""
+    attempts = max(1, int(retries) + 1)
+    result: subprocess.CompletedProcess[str] | None = None
+    print("$", " ".join(shlex.quote(part) for part in _redact_command(cmd)))
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.stdout:
+            print(_redact_text(result.stdout), end="")
+        if result.stderr:
+            print(_redact_text(result.stderr), end="", file=sys.stderr)
+        if result.returncode == 0:
+            return result
+        if attempt < attempts and _is_transient_vast_cli_failure(result.stdout, result.stderr):
+            time.sleep(max(0.0, float(retry_backoff)) * attempt)
+            continue
+        raise SystemExit(result.returncode)
+    assert result is not None
+    return result
+
+
+def parse_instance_id(output: str) -> int:
+    patterns = (
+        r"['\"]new_contract['\"]\s*:\s*(\d+)",
+        r"['\"]instance_id['\"]\s*:\s*(\d+)",
+        r"\binstance\s+(\d+)\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, output, flags=re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+    raise ValueError("Vast create output did not contain an instance/contract ID")
+
+
+def _atomic_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    os.replace(temporary, path)
+
+
+def start_managed_watchdog(
+    *,
+    instance_id: int,
+    args: argparse.Namespace,
+    offer_id: str,
+) -> tuple[Path, subprocess.Popen[bytes]]:
+    if args.max_runtime_minutes is None or args.max_runtime_minutes <= 0:
+        raise ValueError("--managed requires a positive --max-runtime-minutes")
+    now = time.time()
+    receipt = (
+        Path(args.receipt).expanduser().resolve()
+        if args.receipt
+        else (ONSTART_DIR / "receipts" / f"vast-{instance_id}.json").resolve()
+    )
+    _atomic_json(
+        receipt,
+        {
+            "schema_version": 1,
+            "instance_id": instance_id,
+            "offer_id": offer_id,
+            "image": args.image,
+            "git_ref": args.git_ref,
+            "remote_script": args.remote_script,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_unix": now,
+            "deadline_unix": now + args.max_runtime_minutes * 60.0,
+            "max_runtime_minutes": args.max_runtime_minutes,
+            "success_marker": args.success_marker,
+            "status": "launch_succeeded_watchdog_pending",
+            "destroyed": False,
+        },
+    )
+    log_path = receipt.with_suffix(".watchdog.log")
+    with log_path.open("ab", buffering=0) as log:
+        process = subprocess.Popen(
+            [sys.executable, str(WATCHDOG_SCRIPT), "--receipt", str(receipt)],
+            cwd=REPO_ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            # Keep cleanup in the launcher's foreground process chain. Some
+            # agent/CI runtimes reap detached children even after setsid.
+            start_new_session=False,
+        )
+    payload = json.loads(receipt.read_text())
+    payload.update({"watchdog_pid": process.pid, "watchdog_log": str(log_path)})
+    _atomic_json(receipt, payload)
+    return receipt, process
 
 
 def _is_transient_vast_cli_failure(stdout: str, stderr: str) -> bool:
@@ -151,6 +246,7 @@ def ensure_onstart(
     b2_s3_region: str | None,
     install_mode: str,
     bootstrap_mode: str,
+    max_runtime_minutes: float | None,
 ) -> Path:
     ONSTART_DIR.mkdir(exist_ok=True)
     script_path = ONSTART_DIR / "onstart.sh"
@@ -170,6 +266,7 @@ def ensure_onstart(
             f"export UPS_SKIP_PREFETCH={'1' if skip_prefetch else '0'}",
             f"export UPS_AUTO_SHUTDOWN={'1' if auto_shutdown else '0'}",
             f"export UPS_INSTALL_MODE={shlex.quote(install_mode)}",
+            f"export UPS_MAX_RUNTIME_SECONDS={int(max_runtime_minutes * 60) if max_runtime_minutes else 0}",
             'export UPS_BOOTSTRAP_PATH="${UPS_BOOTSTRAP_PATH:-/tmp/ups_vast_remote_bootstrap.sh}"',
             "\"${PYTHON_BIN:-$(command -v python3 || command -v python)}\" - <<'PY'",
             "from pathlib import Path",
@@ -393,6 +490,14 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 
 def cmd_launch(args: argparse.Namespace) -> None:
+    if args.managed and (args.max_runtime_minutes is None or args.max_runtime_minutes <= 0):
+        raise SystemExit("--managed requires a positive --max-runtime-minutes")
+    if args.managed and not args.auto_shutdown:
+        raise SystemExit("--managed requires --auto-shutdown for a remote exit sentinel")
+    if args.managed and args.launch_retries:
+        raise SystemExit(
+            "--managed forbids create retries because paid instance creation is not idempotent"
+        )
     repo_url = args.repo_url or git_remote_url()
     dry_run = bool(args.dry_run)
     onstart = ensure_onstart(
@@ -417,6 +522,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.b2_s3_region,
         args.install_mode,
         args.bootstrap_mode,
+        args.max_runtime_minutes if args.managed else None,
     )
 
     env_parts = []
@@ -473,6 +579,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.image,
         "--disk",
         str(args.disk),
+        "--raw",
     ]
     if env_str:
         cmd.extend(["--env", env_str])
@@ -507,12 +614,37 @@ def cmd_launch(args: argparse.Namespace) -> None:
             f"(${offers[0].get('dph_total', '?')}/hr, {offers[0].get('gpu_name', '?')})"
         )
         cmd[cmd.index("<cheapest-offer-from-search>")] = resolved_offer
-    run(
-        cmd,
-        display_cmd=_redact_command(cmd),
-        retries=args.launch_retries,
-        retry_backoff=args.launch_retry_backoff,
-    )
+    if not args.managed:
+        run(
+            cmd,
+            display_cmd=_redact_command(cmd),
+            retries=args.launch_retries,
+            retry_backoff=args.launch_retry_backoff,
+        )
+        return
+    result = run_capture(cmd, retries=args.launch_retries, retry_backoff=args.launch_retry_backoff)
+    try:
+        instance_id = parse_instance_id(f"{result.stdout}\n{result.stderr}")
+        receipt, watchdog = start_managed_watchdog(
+            instance_id=instance_id, args=args, offer_id=cmd[3]
+        )
+    except Exception as exc:
+        try:
+            instance_id = parse_instance_id(f"{result.stdout}\n{result.stderr}")
+            subprocess.run(
+                ["vastai", "destroy", "instance", str(instance_id)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except ValueError:
+            pass
+        raise SystemExit(f"Managed launch setup failed; destroy requested: {exc}") from exc
+    print(f"Managed Vast receipt: {receipt}", flush=True)
+    if watchdog.wait() != 0:
+        raise SystemExit(
+            f"Managed Vast watchdog failed after launch; inspect receipt and log: {receipt}"
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -582,6 +714,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--workdir", default="/workspace", help="Remote working directory")
     p_launch.add_argument(
         "--auto-shutdown", action="store_true", help="Power off instance after training completes"
+    )
+    p_launch.add_argument(
+        "--managed",
+        action="store_true",
+        help="Run a foreground local watchdog that reconciles paid-instance destruction",
+    )
+    p_launch.add_argument(
+        "--max-runtime-minutes",
+        type=float,
+        help="Hard paid-runtime cap; required with --managed",
+    )
+    p_launch.add_argument(
+        "--success-marker",
+        default="Published immutable",
+        help="Remote log marker required alongside a zero bootstrap exit",
+    )
+    p_launch.add_argument(
+        "--receipt",
+        help="Secret-free managed-launch receipt path (default .vast/receipts/vast-ID.json)",
     )
     p_launch.add_argument(
         "--no-ssh",

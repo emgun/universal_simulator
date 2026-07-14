@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import h5py
+import pytest
 import torch
 import yaml
 
@@ -14,6 +16,12 @@ from ups.core.latent_state import LatentState
 from ups.eval import pdebench_runner
 from ups.eval.pdebench_runner import evaluate_decoded_operator, evaluate_latent_operator
 from ups.eval.persistence_baselines import evaluate_persistence_decoded
+
+TRAINING_LOCK = Path(
+    "docs/data/releases/strat-v1/universal/"
+    "9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/"
+    "training.lock.json"
+)
 
 
 def _write_minimal_hdf5(tmp_path) -> None:
@@ -41,6 +49,37 @@ def test_evaluate_latent_operator_runs(tmp_path):
 
     assert "mse" in report.metrics
     assert report.metrics["mse"] >= 0.0
+
+
+def test_evaluate_make_operator_fails_closed_on_lock_identity_mismatch(tmp_path):
+    cfg = {
+        "training": {"auto_conditioning": True},
+        "latent": {"dim": 8, "tokens": 4},
+        "data": {
+            "task": "burgers1d",
+            "split": "val",
+            "root": str(tmp_path),
+            "data_lock_path": str(TRAINING_LOCK),
+            "data_lock_sha256": "f" * 64,
+        },
+    }
+
+    with pytest.raises(ValueError, match="data_lock_sha256 does not match"):
+        evaluate_script.make_operator(cfg)
+
+
+def test_evaluate_grid_spec_fails_closed_on_unbound_normalization(tmp_path):
+    cfg = {
+        "data": {
+            "task": "burgers1d",
+            "split": "val",
+            "root": str(tmp_path),
+            "normalize": True,
+        }
+    }
+
+    with pytest.raises(ValueError, match="normalization_path"):
+        evaluate_script._pdebench_grid_spec(cfg)
 
 
 def test_evaluate_latent_operator_can_skip_missing_tasks(tmp_path):
@@ -91,6 +130,16 @@ class _DummyEncoder(torch.nn.Module):
 class _IdentityOperator(torch.nn.Module):
     def forward(self, state: LatentState, dt):
         return LatentState(z=state.z, t=dt if state.t is None else state.t + dt, cond=state.cond)
+
+
+class _RecordingIdentityOperator(_IdentityOperator):
+    def __init__(self) -> None:
+        super().__init__()
+        self.conditions = []
+
+    def forward(self, state: LatentState, dt):
+        self.conditions.append({key: value.detach().clone() for key, value in state.cond.items()})
+        return super().forward(state, dt)
 
 
 class _AddOperator(torch.nn.Module):
@@ -151,6 +200,22 @@ def test_evaluate_decoded_operator_runs_on_constant_sequence(tmp_path):
     assert report.metrics["decoded_mae"] == 0.0
     assert report.metrics["decoded_rollout_nrmse"] == 0.0
     assert report.metrics["decoded_step1_nrmse"] == 0.0
+
+
+def test_evaluate_decoded_operator_fails_closed_on_selection_mismatch(tmp_path):
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1},
+        "data": {
+            "task": "burgers1d",
+            "split": "val",
+            "root": str(tmp_path),
+            "data_lock_path": str(TRAINING_LOCK),
+            "selection_sha256": "f" * 64,
+        },
+    }
+
+    with pytest.raises(ValueError, match="selection_sha256 does not match"):
+        evaluate_decoded_operator(cfg, _DummyEncoder(), _IdentityOperator(), _DummyDecoder())
 
 
 def test_evaluate_decoded_operator_can_return_rollout_preview(tmp_path):
@@ -729,6 +794,40 @@ def test_evaluate_decoded_operator_can_use_task_specific_roots_for_parameter_sid
     assert report.metrics["task_burgers1d_decoded_rollout_nrmse"] == 0.0
     assert report.metrics["task_advection1d_decoded_rollout_nrmse"] < 1e-6
     assert abs(report.metrics["decoded_data_conditioned_roll_shift_mean"] - 1.0) < 1e-6
+
+
+def test_evaluate_decoded_operator_applies_task_parameter_transform(tmp_path):
+    data = torch.ones(1, 2, 4, dtype=torch.float32)
+    with h5py.File(tmp_path / "advection1d_train.h5", "w") as handle:
+        handle.create_dataset("data", data=data.numpy())
+        handle.create_dataset("beta", data=torch.tensor([[10.0]]).numpy())
+
+    cfg = {
+        "training": {"batch_size": 1, "dt": 0.1, "auto_conditioning": True},
+        "evaluation": {"decoded_persistence_residual_alpha": 0.0},
+        "data": {
+            "task": "advection1d",
+            "split": "train",
+            "root": str(tmp_path),
+            "param_keys": ["beta"],
+            "parameter_transforms": {
+                "advection1d": {
+                    "beta": {
+                        "kind": "log10_zscore",
+                        "mean": 0.5,
+                        "std": 2.0,
+                        "count": 1,
+                        "source_sha256": "a" * 64,
+                    }
+                }
+            },
+        },
+    }
+    operator = _RecordingIdentityOperator()
+    evaluate_decoded_operator(cfg, _DummyEncoder(), operator, _DummyDecoder())
+
+    assert operator.conditions
+    assert operator.conditions[0]["param_beta"].item() == pytest.approx(0.25)
 
 
 def test_evaluate_decoded_operator_data_conditioned_roll_shift_is_default_off(tmp_path):
