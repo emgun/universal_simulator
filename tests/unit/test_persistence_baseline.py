@@ -197,6 +197,9 @@ def test_run_persistence_baseline_writes_light_summary(tmp_path, monkeypatch):
     assert summary["details"]["protocol"]["code_files_sha256"]
     assert summary["details"]["protocol"]["normalization"] == "none_physical_space"
     assert summary["details"]["tasks"]["darcy2d"]["per_horizon_nrmse"] == {}
+    assert summary["details"]["tasks"]["darcy2d"]["per_regime_global_scale_nrmse"]
+    assert summary["details"]["tasks"]["darcy2d"]["per_regime_element_count"]
+    assert abs(summary["details"]["tasks"]["darcy2d"]["global_scale_reconstruction_delta"]) < 1e-6
     assert (output_root / "results.tsv").exists()
 
 

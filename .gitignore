@@ -36,6 +36,7 @@ docs/research/artifacts/strat_v1_burgers_remote/*
 !docs/research/artifacts/strat_v1_burgers_remote/manifest.source.yaml
 !docs/research/artifacts/strat_v1_burgers_remote/manifest.protocol.yaml
 !docs/research/artifacts/strat_v1_a4_validation_scorecard.json
+!docs/research/artifacts/strat_v1_1_validation_regime_diagnostics.json
 checkpoints/
 .vast/
 remote_artifacts/
