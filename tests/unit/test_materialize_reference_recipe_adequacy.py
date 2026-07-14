@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -265,3 +267,19 @@ def test_non_finite_discovery_is_labeled_invalid(tmp_path: Path) -> None:
     assert artifact["architectures"]["fno"]["label"] == "invalid"
     assert artifact["architectures"]["fno"]["eligible"] is False
     assert artifact["selection"]["architecture"] == "uno"
+
+
+def test_direct_script_execution_can_import_frozen_runner_from_any_cwd(tmp_path: Path) -> None:
+    script = (
+        Path(__file__).resolve().parents[2] / "scripts/materialize_reference_recipe_adequacy.py"
+    )
+    code = (
+        "import runpy; "
+        f"ns=runpy.run_path({str(script)!r}, run_name='not_main'); "
+        "parsed=ns['_parsed_command']("
+        "['python','scripts/run_external_neuraloperator_fno_baseline.py','--name','probe'], "
+        "architecture='fno', runner_path='scripts/run_external_neuraloperator_fno_baseline.py'); "
+        "assert parsed['name'] == 'probe'"
+    )
+
+    subprocess.run([sys.executable, "-c", code], cwd=tmp_path, check=True)

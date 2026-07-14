@@ -11,12 +11,21 @@ set -euo pipefail
 : "${UPS_SCRIPT_ARGS_B64:=}"
 : "${UPS_EXIT_SENTINEL:=$UPS_WORKDIR/.ups_remote_bootstrap_exit_status}"
 
+stop_container() {
+  sync || true
+  if command -v poweroff >/dev/null 2>&1 && poweroff; then
+    return 0
+  fi
+  # Vast images commonly expose a systemd-dependent poweroff binary while the
+  # container itself does not run systemd. Stopping PID 1 is the portable
+  # container fallback and prevents an exited bootstrap from continuing to bill.
+  kill -TERM 1 2>/dev/null || true
+}
+
 if [ "$UPS_AUTO_SHUTDOWN" = "1" ] && [ -f "$UPS_EXIT_SENTINEL" ]; then
   previous_status="$(cat "$UPS_EXIT_SENTINEL" 2>/dev/null || echo unknown)"
   echo "REMOTE_BOOTSTRAP_ALREADY_RAN previous_status=${previous_status}"
-  if command -v poweroff >/dev/null 2>&1; then
-    poweroff || true
-  fi
+  stop_container
   exit 0
 fi
 
@@ -25,10 +34,7 @@ shutdown_on_exit() {
   echo "REMOTE_BOOTSTRAP_EXIT_STATUS=${status}"
   mkdir -p "$(dirname "$UPS_EXIT_SENTINEL")"
   echo "$status" > "$UPS_EXIT_SENTINEL" || true
-  sync || true
-  if command -v poweroff >/dev/null 2>&1; then
-    poweroff || true
-  fi
+  stop_container
   exit "$status"
 }
 

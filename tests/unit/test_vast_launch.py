@@ -154,6 +154,15 @@ def test_vast_launch_tracked_bootstrap_keeps_onstart_small_and_secret_free():
     assert "rclone-current-linux-amd64.zip" not in proc.stdout
 
 
+def test_tracked_bootstrap_has_non_systemd_shutdown_fallback():
+    source = Path("scripts/vast_remote_bootstrap.sh").read_text(encoding="utf-8")
+
+    assert "stop_container()" in source
+    assert "command -v poweroff" in source
+    assert "kill -TERM 1" in source
+    assert source.count("stop_container") >= 3
+
+
 def test_run_can_display_redacted_command_without_changing_executed_command(monkeypatch, capsys):
     vast_launch = load_vast_launch_module()
     executed = []

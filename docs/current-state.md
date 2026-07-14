@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-13
+Updated: 2026-07-14
 
 ## Project
 
@@ -138,6 +138,28 @@ shows a real Darcy regime imbalance that candidates must address. See
 `docs/data/protocols/strat_v1_1_metric_addendum.yaml` and
 `docs/research/artifacts/strat_v1_1_validation_regime_diagnostics.json`.
 
+## `strat-v1.1` Reference-Recipe Adequacy
+
+The pre-registered validation-only FNO/UNO ladder completed on one Vast RTX
+4090 using only the six-object training lock. Both continuous trajectories
+used seed 17 and validation rungs `3/6/12/24/48`; no measurement lock or test
+object was staged or read.
+
+Both learning curves satisfy the declared plateau rule by epoch 24, with their
+best macro validation checkpoints at epoch 6: FNO `0.651839` and UNO
+`0.658227`. Neither recipe is eligible for confirmation, however, because the
+selected checkpoints fail the corrected Darcy regime-spread gate: FNO
+`1.9108` and UNO `1.9176` versus the frozen `<=1.5` limit. Seeds 29/43 were
+therefore not run and no specialist was selected. This is a negative R0 result,
+not authorization to weaken the gate or spend held-out access.
+
+The complete 15.3 MiB run bundle is immutable at B2 SHA-256
+`bc917695cdec16a517995036576933628a8d9a3136ad2f1fb1bffaaa2e5b78b7`.
+Compact plan, stage, and selection evidence is committed under
+`docs/research/artifacts/strat_v1_1_reference_recipe_adequacy_*.json`; the run
+receipt and exact object key are in
+`docs/research/2026-07-14-strat-v1-1-reference-recipe-adequacy-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -174,10 +196,10 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 ## Active Work and Next Move
 
-1. Pre-register validation-only recipe adequacy for FNO and UNO; A4 remains
-   calibration evidence and receives no held-out run.
-2. Add lock-bound, parameter-conditioned validation plans for Poseidon Option
-   A/B and the one-shot in-house `tier_b` retrial.
+1. Treat R0 as blocked on Darcy regime robustness; do not run confirmation or
+   held-out specialist measurements from the failed FNO/UNO recipes.
+2. Run the already-prioritized lock-bound, parameter-conditioned validation
+   plans for Poseidon Option A/B and the one-shot in-house `tier_b` retrial.
 3. Measure shared-versus-single-task interference, low-data transfer, regime
    handling, and consolidation economics. Select exactly one specialist and
    one shared candidate before drafting any held-out sequence.
