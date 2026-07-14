@@ -153,6 +153,16 @@ selected checkpoints fail the corrected Darcy regime-spread gate: FNO
 therefore not run and no specialist was selected. This is a negative R0 result,
 not authorization to weaken the gate or spend held-out access.
 
+The follow-up D0 identifiability diagnostic changes the mechanism
+interpretation without changing those recorded numbers. The frozen Darcy
+operator depends on coefficient field and beta, but R0 passed coefficient only.
+Across 13 validation provenance groups the coefficient input is byte-identical
+at all five betas. Even the minimum-MSE beta-blind oracle has NRMSE `0.869025`
+and maximum corrected spread `1.990764`, which closely matches the learned R0
+failure. R0 is therefore an unconditioned-interface negative, not evidence that
+FNO/UNO are generically inadequate. A matched validation-only coefficient-only
+versus beta-conditioned Darcy FNO ablation is now pre-registered.
+
 The complete 15.3 MiB run bundle is immutable at B2 SHA-256
 `bc917695cdec16a517995036576933628a8d9a3136ad2f1fb1bffaaa2e5b78b7`.
 Compact plan, stage, and selection evidence is committed under
@@ -196,11 +206,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 ## Active Work and Next Move
 
-1. Treat R0 as blocked on Darcy regime robustness; do not run confirmation or
-   held-out specialist measurements from the failed FNO/UNO recipes.
-2. Run the already-prioritized lock-bound, parameter-conditioned validation
-   plans for Poseidon Option A/B and the one-shot in-house `tier_b` retrial.
-3. Measure shared-versus-single-task interference, low-data transfer, regime
+1. Execute the pre-registered Darcy FNO U/K conditioning ablation and require
+   both predictive gains and causal beta-use diagnostics; do not run held-out.
+2. If the mechanism passes, make parameter value/presence universal in the
+   specialist and shared candidate contracts before Poseidon or `tier_b` spend.
+3. Then measure shared-versus-single-task interference, low-data transfer, regime
    handling, and consolidation economics. Select exactly one specialist and
    one shared candidate before drafting any held-out sequence.
 

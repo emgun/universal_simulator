@@ -40,6 +40,9 @@ docs/research/artifacts/strat_v1_burgers_remote/*
 !docs/research/artifacts/strat_v1_1_reference_recipe_adequacy_plan.json
 !docs/research/artifacts/strat_v1_1_reference_recipe_adequacy_selection.json
 !docs/research/artifacts/strat_v1_1_reference_recipe_adequacy_stage.json
+!docs/research/artifacts/strat_v1_1_darcy_beta_blind_identifiability.json
+!docs/research/artifacts/strat_v1_1_darcy_fno_conditioning_ablation_plan.json
+!docs/research/artifacts/strat_v1_1_darcy_fno_conditioning_ablation_result.json
 checkpoints/
 .vast/
 remote_artifacts/
