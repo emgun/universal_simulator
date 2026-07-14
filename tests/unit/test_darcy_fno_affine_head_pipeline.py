@@ -288,6 +288,8 @@ def test_remote_surfaces_are_validation_only_resumable_and_bounded():
         assert "_test.h5" not in text
         assert "--test" not in text
     assert "resumable/${plan_sha}" in wrapper
+    assert 'tee "$RUNNER_LOG"' in wrapper
+    assert 'cp "$RUNNER_LOG" "$OUTPUT_DIR/remote_runner.log"' in wrapper
     assert "D2 plan bytes changed after validation" in wrapper
     assert 'if [ -n "$resume_listing" ]' in wrapper
     assert 'test -f "$OUTPUT_DIR/run_identity.json"' in wrapper

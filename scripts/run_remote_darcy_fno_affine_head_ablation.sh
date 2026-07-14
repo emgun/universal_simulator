@@ -15,6 +15,7 @@ DATA_ROOT=${DATA_ROOT:-$SCRATCH_ROOT/data}
 OUTPUT_DIR=${OUTPUT_DIR:-reports/research/darcy_fno_affine_head_ablation}
 STAGE_REPORT=${STAGE_REPORT:-reports/research/darcy_fno_affine_head_stage.json}
 RESULT=${RESULT:-reports/research/darcy_fno_affine_head_result.json}
+RUNNER_LOG=${RUNNER_LOG:-$SCRATCH_ROOT/remote_runner.log}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/darcy-fno-affine-head-ablation}
 RESERVE_BYTES=${RESERVE_BYTES:-8589934592}
 NEURALOPERATOR_VERSION=${NEURALOPERATOR_VERSION:-2.0.0}
@@ -65,6 +66,9 @@ temporary_prefix="${ARTIFACT_PREFIX%/}/resumable/${plan_sha}"
 success=0
 preserve_resume() {
   status=$?
+  if [ -f "$RUNNER_LOG" ] && [ -d "$OUTPUT_DIR" ]; then
+    cp "$RUNNER_LOG" "$OUTPUT_DIR/remote_runner.log"
+  fi
   if [ "$success" -ne 1 ] && [ -d "$OUTPUT_DIR" ]; then
     rclone sync "$OUTPUT_DIR" "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" --exclude 'summary.json' || true
     echo "Preserved resumable D2 checkpoints: b2://${B2_BUCKET}/${temporary_prefix}/output" >&2
@@ -95,7 +99,7 @@ $PYTHON -m ups.data.cli verify --lock "$TRAINING_LOCK" --cache "$CACHE"
   exit 1
 }
 
-$PYTHON - "$PLAN" "${resume_arg[@]}" <<'PY'
+$PYTHON - "$PLAN" "${resume_arg[@]}" 2>&1 <<'PY' | tee "$RUNNER_LOG"
 import hashlib,json,pathlib,subprocess,sys
 plan=json.load(open(sys.argv[1], encoding="utf-8"))
 if plan.get("mode") != "validation_only" or plan.get("heldout_access") != "forbidden": raise SystemExit("refusing non-validation plan")
@@ -108,6 +112,7 @@ if not isinstance(command,list) or any("test" in str(x).lower() for x in command
 if len(sys.argv) > 2: command.append("--resume")
 subprocess.run(command, check=True)
 PY
+cp "$RUNNER_LOG" "$OUTPUT_DIR/remote_runner.log"
 
 $PYTHON scripts/materialize_darcy_fno_affine_head_ablation.py --plan "$PLAN" --summary "$OUTPUT_DIR/summary.json" --output "$RESULT"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)

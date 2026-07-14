@@ -38,6 +38,17 @@ class TinyFNO(nn.Module):
         return self.net(value)
 
 
+class BatchGuardFNO(TinyFNO):
+    maximum_batch_seen = 0
+    maximum_batch_allowed = 2
+
+    def forward(self, value: torch.Tensor) -> torch.Tensor:
+        type(self).maximum_batch_seen = max(type(self).maximum_batch_seen, len(value))
+        if len(value) > type(self).maximum_batch_allowed:
+            raise RuntimeError("evaluation batch exceeded bounded contract")
+        return super().forward(value)
+
+
 def _synthetic():
     beta = torch.tensor([0.01, 0.1, 1.0, 10.0, 100.0])
     coefficients = torch.arange(5 * 4 * 4, dtype=torch.float32).reshape(5, 1, 4, 4) / 80
@@ -292,6 +303,70 @@ def test_evaluation_and_causal_diagnostics_cover_exact_beta_regimes():
     assert set(diagnostics["deterministic_shuffled_beta"]["arms"]) == set(ablation.ARMS)
     assert set(diagnostics["counterfactual_beta_sensitivity"]) == set(ablation.ARMS)
     assert len(diagnostics["deterministic_shuffled_beta"]["permutation_sha256"]) == 64
+
+
+def test_evaluation_and_diagnostics_use_bounded_batches_and_release_models_to_cpu():
+    coefficients, targets, beta = _synthetic()
+    log_normalizer = ablation.BetaNormalizer.fit(beta)
+    raw_normalizer = ablation.RawBetaNormalizer.fit(beta)
+    BatchGuardFNO.maximum_batch_seen = 0
+    models = {
+        arm: ablation.build_model(
+            arm=arm,
+            grid_shape=(4, 4),
+            hidden_channels=2,
+            fourier_modes=2,
+            n_layers=1,
+            fno_cls=BatchGuardFNO,
+        )
+        for arm in ablation.ARMS
+    }
+    unbounded_reference_model = ablation.build_model(
+        arm="A-affine",
+        grid_shape=(4, 4),
+        hidden_channels=2,
+        fourier_modes=2,
+        n_layers=1,
+        fno_cls=TinyFNO,
+    )
+    unbounded_reference_model.load_state_dict(models["A-affine"].state_dict())
+    reference = ablation.evaluate_arm(
+        unbounded_reference_model,
+        coefficients,
+        targets,
+        beta,
+        arm="A-affine",
+        log_normalizer=log_normalizer,
+        raw_normalizer=raw_normalizer,
+        batch_size=len(beta),
+    )
+    bounded = ablation.evaluate_arm(
+        models["A-affine"],
+        coefficients,
+        targets,
+        beta,
+        arm="A-affine",
+        log_normalizer=log_normalizer,
+        raw_normalizer=raw_normalizer,
+        batch_size=2,
+    )
+    diagnostics = ablation.beta_diagnostics(
+        selected_models=models,
+        coefficients=coefficients,
+        targets=targets,
+        beta=beta,
+        log_normalizer=log_normalizer,
+        raw_normalizer=raw_normalizer,
+        device="cpu",
+        batch_size=2,
+    )
+
+    assert torch.equal(reference["predictions"], bounded["predictions"])
+    assert reference["primary_value"] == bounded["primary_value"]
+    assert bounded["predictions"].shape == targets.shape
+    assert BatchGuardFNO.maximum_batch_seen == 2
+    assert diagnostics["counterfactual_beta_sensitivity"]
+    assert all(next(model.parameters()).device.type == "cpu" for model in models.values())
 
 
 def test_exact_darcy_hashes_fail_closed():

@@ -417,17 +417,19 @@ def evaluate_arm(
     raw_normalizer: RawBetaNormalizer,
     device: str | torch.device = "cpu",
     conditioning_beta: torch.Tensor | None = None,
+    batch_size: int = 8,
 ) -> dict[str, Any]:
     channel_beta = beta if conditioning_beta is None else conditioning_beta
-    with torch.no_grad():
-        predictions = predict(
-            model.to(device).eval(),
-            coefficients.to(device),
-            channel_beta.to(device),
-            arm=arm,
-            log_normalizer=log_normalizer,
-            raw_normalizer=raw_normalizer,
-        ).cpu()
+    predictions = _predict_batched(
+        model,
+        coefficients,
+        channel_beta,
+        arm=arm,
+        log_normalizer=log_normalizer,
+        raw_normalizer=raw_normalizer,
+        device=device,
+        batch_size=batch_size,
+    )
     pred_chunks = [predictions[index : index + 1] for index in range(len(predictions))]
     target_chunks = [targets[index : index + 1] for index in range(len(targets))]
     primary = float(_aggregate_chunk_metrics(pred_chunks, target_chunks)["nrmse"])
@@ -456,6 +458,49 @@ def evaluate_arm(
     }
 
 
+def _predict_batched(
+    model: nn.Module,
+    coefficients: torch.Tensor,
+    beta: torch.Tensor,
+    *,
+    arm: str,
+    log_normalizer: BetaNormalizer,
+    raw_normalizer: RawBetaNormalizer,
+    device: str | torch.device,
+    batch_size: int,
+) -> torch.Tensor:
+    if batch_size <= 0:
+        raise ValueError("evaluation batch_size must be positive")
+    if len(coefficients) != len(beta):
+        raise ValueError("evaluation coefficients and beta must have equal length")
+    resolved_device = torch.device(device)
+    chunks: list[torch.Tensor] = []
+    runtime_model = model.to(resolved_device).eval()
+    try:
+        with torch.no_grad():
+            for start in range(0, len(coefficients), batch_size):
+                stop = min(start + batch_size, len(coefficients))
+                chunks.append(
+                    predict(
+                        runtime_model,
+                        coefficients[start:stop].to(resolved_device),
+                        beta[start:stop].to(resolved_device),
+                        arm=arm,
+                        log_normalizer=log_normalizer,
+                        raw_normalizer=raw_normalizer,
+                    ).cpu()
+                )
+    finally:
+        model.to("cpu")
+        if resolved_device.type == "cuda" and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return (
+        torch.cat(chunks, dim=0)
+        if chunks
+        else coefficients.new_empty((0, 1, *coefficients.shape[2:]))
+    )
+
+
 def beta_diagnostics(
     *,
     selected_models: Mapping[str, nn.Module],
@@ -465,6 +510,7 @@ def beta_diagnostics(
     log_normalizer: BetaNormalizer,
     raw_normalizer: RawBetaNormalizer,
     device: str | torch.device,
+    batch_size: int = 8,
 ) -> dict[str, Any]:
     permutation = deterministic_beta_permutation(len(beta), seed=SHUFFLE_SEED)
     shuffled_beta = beta.index_select(0, permutation)
@@ -481,6 +527,7 @@ def beta_diagnostics(
             log_normalizer=log_normalizer,
             raw_normalizer=raw_normalizer,
             device=device,
+            batch_size=batch_size,
         )
         shuffled_eval = evaluate_arm(
             selected_models[arm],
@@ -492,6 +539,7 @@ def beta_diagnostics(
             raw_normalizer=raw_normalizer,
             device=device,
             conditioning_beta=shuffled_beta,
+            batch_size=batch_size,
         )
         reference_primary = float(reference_eval["primary_value"])
         shuffled_eval["absolute_degradation_vs_true_beta"] = (
@@ -506,17 +554,18 @@ def beta_diagnostics(
         predictions = []
         for value in regimes:
             counterfactual = torch.full_like(beta, float(value))
-            with torch.no_grad():
-                predictions.append(
-                    predict(
-                        selected_models[arm].to(device).eval(),
-                        coefficients.to(device),
-                        counterfactual.to(device),
-                        arm=arm,
-                        log_normalizer=log_normalizer,
-                        raw_normalizer=raw_normalizer,
-                    ).cpu()
+            predictions.append(
+                _predict_batched(
+                    selected_models[arm],
+                    coefficients,
+                    counterfactual,
+                    arm=arm,
+                    log_normalizer=log_normalizer,
+                    raw_normalizer=raw_normalizer,
+                    device=device,
+                    batch_size=batch_size,
                 )
+            )
         stacked = torch.stack(predictions)
         rms = float(torch.sqrt(torch.mean((stacked - stacked[:1]).square())).item())
         scale = float(torch.sqrt(torch.mean(stacked.square())).item())
@@ -744,6 +793,7 @@ def run(args: argparse.Namespace, *, fno_cls: type[nn.Module] | None = None) -> 
                 log_normalizer=log_normalizer,
                 raw_normalizer=raw_normalizer,
                 device=args.device,
+                batch_size=args.batch_size,
             )
             evaluation.pop("predictions")
             history.append({"epoch": epoch, **evaluation})
@@ -801,6 +851,7 @@ def run(args: argparse.Namespace, *, fno_cls: type[nn.Module] | None = None) -> 
         log_normalizer=log_normalizer,
         raw_normalizer=raw_normalizer,
         device=args.device,
+        batch_size=args.batch_size,
     )
     summary = {
         "schema_version": 1,

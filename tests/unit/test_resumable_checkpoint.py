@@ -147,6 +147,50 @@ def test_cpu_resume_is_exactly_equivalent_to_uninterrupted_training(tmp_path: Pa
     assert torch.equal(full_sampler.get_state(), resumed_sampler.get_state())
 
 
+def test_neuraloperator_checkpoint_is_tensor_only_and_weights_only_safe(tmp_path: Path) -> None:
+    neuralop = pytest.importorskip("neuralop")
+    model = neuralop.models.FNO(
+        n_modes=(2, 2),
+        in_channels=1,
+        out_channels=1,
+        hidden_channels=2,
+        n_layers=1,
+    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+    sampler = torch.Generator().manual_seed(37)
+    checkpoint = tmp_path / "neuraloperator.pt"
+    save_training_checkpoint(
+        checkpoint,
+        model=model,
+        optimizer=optimizer,
+        sampler_generator=sampler,
+        progress=TrainingProgress(0, 0, 0, []),
+        bindings=_bindings(model_spec={"kind": "neuraloperator-fno"}),
+    )
+
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    assert "_metadata" not in payload["model_state"]
+    assert all(isinstance(value, torch.Tensor) for value in payload["model_state"].values())
+
+    target = neuralop.models.FNO(
+        n_modes=(2, 2),
+        in_channels=1,
+        out_channels=1,
+        hidden_channels=2,
+        n_layers=1,
+    )
+    target_optimizer = torch.optim.AdamW(target.parameters(), lr=0.01)
+    load_training_checkpoint(
+        checkpoint,
+        model=target,
+        optimizer=target_optimizer,
+        sampler_generator=torch.Generator().manual_seed(99),
+        expected_bindings=_bindings(model_spec={"kind": "neuraloperator-fno"}),
+    )
+    for expected, observed in zip(model.parameters(), target.parameters(), strict=True):
+        assert torch.equal(expected, observed)
+
+
 def test_load_fails_closed_before_mutation_on_binding_mismatch(tmp_path: Path) -> None:
     model, optimizer, sampler = _make_training()
     checkpoint = tmp_path / "checkpoint.pt"

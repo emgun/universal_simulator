@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -19,7 +20,7 @@ from typing import Any
 
 import torch
 
-FORMAT_VERSION = "ups-resumable-checkpoint-v2"
+FORMAT_VERSION = "ups-resumable-checkpoint-v3"
 RECORD_SUFFIX = ".record.json"
 
 
@@ -200,6 +201,40 @@ def _state_dict(value: Any, label: str) -> Mapping[str, Any]:
     return state
 
 
+def _tensor_only_model_state(model: torch.nn.Module) -> OrderedDict[str, torch.Tensor]:
+    """Return a weights-only-safe model state without framework configuration objects.
+
+    Some model libraries place constructor metadata, including Python callables and
+    classes, directly in ``state_dict()``.  Those objects are not model weights and
+    cannot be decoded by PyTorch's restricted ``weights_only`` loader.  Checkpoints
+    deliberately keep only tensors and fail closed for any unexpected extra state.
+    NeuralOperator's redundant top-level ``_metadata`` entry is the one supported
+    exception; the standard PyTorch ``state_dict._metadata`` attribute is retained.
+    """
+
+    raw_state = _state_dict(model, "model")
+    safe_state: OrderedDict[str, torch.Tensor] = OrderedDict()
+    unsupported: list[str] = []
+    for key, value in raw_state.items():
+        if isinstance(value, torch.Tensor):
+            safe_state[str(key)] = value
+        elif key != "_metadata":
+            unsupported.append(f"{key} ({type(value).__name__})")
+    if unsupported:
+        raise TypeError(
+            "model.state_dict() contains unsupported non-tensor state: "
+            + ", ".join(sorted(unsupported))
+        )
+    pytorch_metadata = getattr(raw_state, "_metadata", None)
+    if pytorch_metadata is not None:
+        if not isinstance(pytorch_metadata, Mapping):
+            raise TypeError("model state metadata must be a mapping")
+        # Module version metadata is made only of restricted-loader-safe primitives.
+        _canonical_json(pytorch_metadata)
+        safe_state._metadata = OrderedDict(pytorch_metadata)  # type: ignore[attr-defined]
+    return safe_state
+
+
 def save_training_checkpoint(
     path: str | Path,
     *,
@@ -225,7 +260,7 @@ def save_training_checkpoint(
         "bindings": _bindings_payload(bindings),
         "progress": _progress_payload(progress),
         "parent_checkpoint_sha256": parent_checkpoint_sha256,
-        "model_state": model.state_dict(),
+        "model_state": _tensor_only_model_state(model),
         "optimizer_state": optimizer.state_dict(),
         "normalizer_state": None if normalizer is None else _state_dict(normalizer, "normalizer"),
         "sampler_generator_state": sampler_generator.get_state(),
