@@ -4,10 +4,12 @@ from __future__ import annotations
 """Train/evaluate an optional NeuralOperator FNO baseline on the light-v1 protocol."""
 
 import argparse
+import copy
 import csv
 import hashlib
 import importlib.metadata as metadata
 import json
+import math
 import sys
 import time
 from collections.abc import Sequence
@@ -57,15 +59,21 @@ def bind_training_lock(cfg: dict[str, Any], args: argparse.Namespace) -> None:
         if strict:
             raise ValueError("strict external baseline runs require --data-lock")
         return
+    data_cfg = cfg.setdefault("data", {})
+    configured_expected = data_cfg.get("data_lock_sha256")
+    cli_expected = getattr(args, "expected_data_lock_sha256", None)
+    if configured_expected and cli_expected and configured_expected != cli_expected:
+        raise ValueError("configured data lock identity disagrees with --expected-data-lock-sha256")
+    expected = cli_expected or configured_expected
+    if strict and not expected:
+        raise ValueError("strict external baseline runs require an expected data lock identity")
     lock = load_data_lock(lock_path)
     if lock.purpose != "training" or set(lock.requested_roles) != {"train", "valid"}:
         raise ValueError("external baseline data lock must contain exactly train and valid roles")
     if any(item.role == "test" for item in lock.objects):
         raise ValueError("external baseline training lock must not expose test objects")
-    expected = getattr(args, "expected_data_lock_sha256", None)
     if expected and expected != lock.lock_sha256:
         raise ValueError("external baseline data lock identity does not match expected SHA-256")
-    data_cfg = cfg.setdefault("data", {})
     data_cfg["data_lock_path"] = str(Path(lock_path).resolve())
     data_cfg["data_lock_sha256"] = lock.lock_sha256
     data_cfg["selection_sha256"] = canonical_sha256(lock.selection)
@@ -343,6 +351,12 @@ def _clone_tensor_state_dict(module: nn.Module) -> dict[str, torch.Tensor]:
     }
 
 
+def _clone_module_at_state(module: nn.Module, state: dict[str, torch.Tensor]) -> nn.Module:
+    clone = copy.deepcopy(module).to("cpu")
+    clone.load_state_dict(state)
+    return clone
+
+
 def train_fno_group_model(
     currents: torch.Tensor,
     targets: torch.Tensor,
@@ -358,6 +372,8 @@ def train_fno_group_model(
     seed: int = 0,
     device: str | torch.device = "cpu",
     fno_cls: type[nn.Module] | None = None,
+    checkpoint_epochs: Sequence[int] = (),
+    checkpoint_states: dict[int, dict[str, torch.Tensor]] | None = None,
 ) -> tuple[nn.Module, dict[str, Any]]:
     if currents.shape != targets.shape:
         raise ValueError("currents and targets must have the same shape")
@@ -382,7 +398,10 @@ def train_fno_group_model(
     generator = torch.Generator().manual_seed(int(seed))
     best_loss = float("inf")
     best_state = _clone_tensor_state_dict(model)
-    for _ in range(int(epochs)):
+    epoch_train_mse: list[float] = []
+    best_epoch = 0
+    checkpoint_epoch_set = {int(epoch) for epoch in checkpoint_epochs}
+    for epoch in range(1, int(epochs) + 1):
         order = torch.randperm(int(currents.shape[0]), generator=generator)
         total_loss = 0.0
         batches = 0
@@ -398,9 +417,13 @@ def train_fno_group_model(
             total_loss += float(loss.detach().cpu().item())
             batches += 1
         mean_loss = total_loss / max(batches, 1)
+        epoch_train_mse.append(mean_loss)
         if mean_loss < best_loss:
             best_loss = mean_loss
             best_state = _clone_tensor_state_dict(model)
+            best_epoch = epoch
+        if epoch in checkpoint_epoch_set and checkpoint_states is not None:
+            checkpoint_states[epoch] = _clone_tensor_state_dict(model)
     model.load_state_dict(best_state)
     model.to("cpu")
     return model, {
@@ -420,6 +443,11 @@ def train_fno_group_model(
         "weight_decay": float(weight_decay),
         "batch_size": int(batch_size),
         "train_mse": best_loss,
+        "best_epoch": best_epoch,
+        "epoch_train_mse": epoch_train_mse,
+        "optimizer_steps": int(math.ceil(currents.shape[0] / max(int(batch_size), 1)))
+        * int(epochs),
+        "examples_seen": int(currents.shape[0]) * int(epochs),
     }
 
 
@@ -460,7 +488,98 @@ def train_fno_groups(
         fit["groups"][str(key)] = group_fit
     fit["group_count"] = len(models)
     fit["train_frames"] = sum(int(pair[0].shape[0]) for pair in grouped_pairs.values())
+    fit["optimizer_steps"] = sum(int(group["optimizer_steps"]) for group in fit["groups"].values())
+    fit["examples_seen"] = sum(int(group["examples_seen"]) for group in fit["groups"].values())
     return models, fit
+
+
+def train_fno_groups_with_rungs(
+    grouped_pairs: dict[tuple[str, int, int, int], tuple[torch.Tensor, torch.Tensor]],
+    *,
+    validation_rungs: Sequence[int],
+    hidden_channels: int,
+    fourier_modes: int,
+    n_layers: int,
+    residual: bool,
+    epochs: int,
+    learning_rate: float,
+    weight_decay: float,
+    batch_size: int,
+    seed: int,
+    device: str | torch.device,
+    fno_cls: type[nn.Module] | None = None,
+) -> tuple[
+    dict[tuple[str, int, int, int], nn.Module],
+    dict[str, Any],
+    dict[int, dict[tuple[str, int, int, int], nn.Module]],
+]:
+    """Train each specialist once and retain a common model ensemble at every rung."""
+
+    rungs = tuple(int(epoch) for epoch in validation_rungs)
+    models: dict[tuple[str, int, int, int], nn.Module] = {}
+    rung_models: dict[int, dict[tuple[str, int, int, int], nn.Module]] = {
+        epoch: {} for epoch in rungs
+    }
+    fit: dict[str, Any] = {"groups": {}}
+    for offset, (key, (currents, targets)) in enumerate(sorted(grouped_pairs.items())):
+        snapshots: dict[int, dict[str, torch.Tensor]] = {}
+        model, group_fit = train_fno_group_model(
+            currents,
+            targets,
+            hidden_channels=hidden_channels,
+            fourier_modes=fourier_modes,
+            n_layers=n_layers,
+            residual=residual,
+            epochs=epochs,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            batch_size=batch_size,
+            seed=seed + offset,
+            device=device,
+            fno_cls=fno_cls,
+            checkpoint_epochs=rungs,
+            checkpoint_states=snapshots,
+        )
+        missing = sorted(set(rungs).difference(snapshots))
+        if missing:
+            raise RuntimeError(f"FNO training did not produce requested rungs: {missing}")
+        models[key] = model
+        for epoch in rungs:
+            rung_models[epoch][key] = _clone_module_at_state(model, snapshots[epoch])
+        fit["groups"][str(key)] = group_fit
+    fit["group_count"] = len(models)
+    fit["train_frames"] = sum(int(pair[0].shape[0]) for pair in grouped_pairs.values())
+    fit["optimizer_steps"] = sum(int(group["optimizer_steps"]) for group in fit["groups"].values())
+    fit["examples_seen"] = sum(int(group["examples_seen"]) for group in fit["groups"].values())
+    return models, fit, rung_models
+
+
+def write_group_checkpoint(
+    path: Path,
+    models: dict[tuple[str, int, int, int], nn.Module],
+    *,
+    model_family: str,
+    fit: dict[str, Any],
+    epoch: int | None = None,
+) -> dict[str, Any]:
+    """Persist the exact selected group states for recipe-adequacy evidence."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "model_family": model_family,
+        "epoch": epoch,
+        "groups": {
+            str(key): _clone_tensor_state_dict(model) for key, model in sorted(models.items())
+        },
+        "fit": fit,
+    }
+    torch.save(payload, path)
+    return {
+        "path": str(path),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "epoch": epoch,
+    }
 
 
 def evaluate_external_fno_baseline(
@@ -640,6 +759,56 @@ def evaluate_external_fno_baseline(
     return metrics
 
 
+def _validated_rungs(args: argparse.Namespace) -> tuple[int, ...]:
+    rungs = tuple(int(epoch) for epoch in (getattr(args, "validation_rungs", None) or ()))
+    if not rungs:
+        return ()
+    if any(epoch <= 0 for epoch in rungs):
+        raise ValueError("validation rungs must be positive epochs")
+    if tuple(sorted(set(rungs))) != rungs:
+        raise ValueError("validation rungs must be unique and strictly increasing")
+    if int(args.epochs) != rungs[-1]:
+        raise ValueError("--epochs must equal the final validation rung")
+    if args.eval_split == "test":
+        raise ValueError("validation rungs forbid held-out test evaluation")
+    return rungs
+
+
+def _begin_compute_tracking(device: str | torch.device) -> None:
+    resolved = torch.device(device)
+    if resolved.type == "cuda" and torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(resolved)
+
+
+def _compute_evidence(
+    models: dict[tuple[str, int, int, int], nn.Module],
+    fit: dict[str, Any],
+    *,
+    duration_sec: float,
+    device: str | torch.device,
+) -> dict[str, Any]:
+    parameters = [parameter for model in models.values() for parameter in model.parameters()]
+    result: dict[str, Any] = {
+        "total_parameter_count": sum(int(parameter.numel()) for parameter in parameters),
+        "trainable_parameter_count": sum(
+            int(parameter.numel()) for parameter in parameters if parameter.requires_grad
+        ),
+        "optimizer_steps": int(fit.get("optimizer_steps", 0)),
+        "examples_seen": int(fit.get("examples_seen", 0)),
+        "duration_sec": float(duration_sec),
+        "device": str(device),
+    }
+    resolved = torch.device(device)
+    if resolved.type == "cuda" and torch.cuda.is_available():
+        result.update(
+            {
+                "cuda_device_name": torch.cuda.get_device_name(resolved),
+                "peak_cuda_memory_bytes": int(torch.cuda.max_memory_allocated(resolved)),
+            }
+        )
+    return result
+
+
 def _command_record(args: argparse.Namespace) -> list[str]:
     command = [
         "python",
@@ -689,6 +858,17 @@ def _command_record(args: argparse.Namespace) -> list[str]:
     ]
     if args.data_root:
         command.extend(["--data-root", args.data_root])
+    if getattr(args, "strict_contract", False):
+        command.append("--strict-contract")
+    if getattr(args, "data_lock", None):
+        command.extend(["--data-lock", args.data_lock])
+    if getattr(args, "expected_data_lock_sha256", None):
+        command.extend(["--expected-data-lock-sha256", args.expected_data_lock_sha256])
+    if getattr(args, "validation_rungs", None):
+        command.append("--validation-rungs")
+        command.extend(str(epoch) for epoch in args.validation_rungs)
+    if getattr(args, "refuse_overwrite", False):
+        command.append("--refuse-overwrite")
     tasks = list(args.tasks or args.task)
     if tasks:
         command.append("--tasks")
@@ -731,6 +911,8 @@ def _summary_common(args: argparse.Namespace, *, tasks: Sequence[str]) -> dict[s
             "seed": args.seed,
             "device": args.device,
             "residual": bool(args.residual),
+            "validation_rungs": list(getattr(args, "validation_rungs", None) or ()),
+            "refuse_overwrite": bool(getattr(args, "refuse_overwrite", False)),
             "allow_held_out_test_eval": bool(args.allow_held_out_test_eval),
             "held_out_ledger_reference": args.held_out_ledger_json,
             "command": _command_record(args),
@@ -826,6 +1008,11 @@ def run_baseline(args: argparse.Namespace) -> Path:
     cfg = _load_cfg(args.config)
     bind_training_lock(cfg, args)
     tasks = _as_task_names(cfg, args.tasks or args.task)
+    validation_rungs = _validated_rungs(args)
+    output_root = Path(args.output_root)
+    run_dir = output_root / args.name
+    if getattr(args, "refuse_overwrite", False) and run_dir.exists():
+        raise FileExistsError(f"refusing to overwrite existing run directory: {run_dir}")
     if args.dry_run:
         return write_dry_run_summary(args, tasks=tasks)
     if args.eval_split == "test" and not args.allow_held_out_test_eval:
@@ -838,6 +1025,7 @@ def run_baseline(args: argparse.Namespace) -> Path:
         held_out_test_policy = _guard_external_test_measurement(args=args, tasks=tasks)
 
     load_neuraloperator_fno_class()
+    _begin_compute_tracking(args.device)
     started = time.time()
     groups = collect_training_pairs(
         cfg,
@@ -851,36 +1039,97 @@ def run_baseline(args: argparse.Namespace) -> Path:
     )
     if not groups:
         raise RuntimeError("No training pairs collected for external FNO baseline")
-    models, fit = train_fno_groups(
-        groups,
-        hidden_channels=args.hidden_channels,
-        fourier_modes=args.fourier_modes,
-        n_layers=args.n_layers,
-        residual=args.residual,
-        epochs=args.epochs,
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-        batch_size=args.batch_size,
-        seed=args.seed,
-        device=args.device,
-    )
-    metrics = evaluate_external_fno_baseline(
-        cfg,
-        models,
-        tasks=tasks,
-        split=args.eval_split,
-        data_root=args.data_root,
-        max_samples=args.max_eval_samples,
-        rollout_steps=args.rollout_steps,
-        device=args.device,
-        strict_contract=bool(getattr(args, "strict_contract", False)),
-    )
+    training_kwargs = {
+        "hidden_channels": args.hidden_channels,
+        "fourier_modes": args.fourier_modes,
+        "n_layers": args.n_layers,
+        "residual": args.residual,
+        "epochs": args.epochs,
+        "learning_rate": args.learning_rate,
+        "weight_decay": args.weight_decay,
+        "batch_size": args.batch_size,
+        "seed": args.seed,
+        "device": args.device,
+    }
+    validation_history: list[dict[str, Any]] = []
+    rung_models: dict[int, dict[tuple[str, int, int, int], nn.Module]] = {}
+    if validation_rungs:
+        models, fit, rung_models = train_fno_groups_with_rungs(
+            groups, validation_rungs=validation_rungs, **training_kwargs
+        )
+        for epoch in validation_rungs:
+            evaluation_started = time.time()
+            rung_metrics = evaluate_external_fno_baseline(
+                cfg,
+                rung_models[epoch],
+                tasks=tasks,
+                split=args.eval_split,
+                data_root=args.data_root,
+                max_samples=args.max_eval_samples,
+                rollout_steps=args.rollout_steps,
+                device=args.device,
+                strict_contract=bool(getattr(args, "strict_contract", False)),
+            )
+            if args.metric not in rung_metrics:
+                raise KeyError(f"selection metric {args.metric!r} is absent at epoch {epoch}")
+            metric_value = float(rung_metrics[args.metric])
+            validation_history.append(
+                {
+                    "epoch": epoch,
+                    "metric_name": args.metric,
+                    "metric_value": metric_value,
+                    "metrics": rung_metrics,
+                    "duration_sec": time.time() - evaluation_started,
+                }
+            )
+        finite_history = [
+            record for record in validation_history if math.isfinite(record["metric_value"])
+        ]
+        if not finite_history:
+            raise RuntimeError("no validation rung produced a finite selection metric")
+        selected = min(finite_history, key=lambda record: (record["metric_value"], record["epoch"]))
+        selected_epoch = int(selected["epoch"])
+        selected_models = rung_models[selected_epoch]
+        metrics = selected["metrics"]
+    else:
+        models, fit = train_fno_groups(groups, **training_kwargs)
+        selected_models = models
+        selected_epoch = None
+        metrics = evaluate_external_fno_baseline(
+            cfg,
+            models,
+            tasks=tasks,
+            split=args.eval_split,
+            data_root=args.data_root,
+            max_samples=args.max_eval_samples,
+            rollout_steps=args.rollout_steps,
+            device=args.device,
+            strict_contract=bool(getattr(args, "strict_contract", False)),
+        )
     finished = time.time()
-    output_root = Path(args.output_root)
-    run_dir = output_root / args.name
     run_dir.mkdir(parents=True, exist_ok=True)
     group_manifest = run_dir / "fno_groups.tsv"
     _write_group_manifest(group_manifest, fit)
+    if validation_rungs:
+        rung_checkpoints = {
+            str(epoch): write_group_checkpoint(
+                run_dir / f"models_epoch_{epoch}.pt",
+                rung_models[epoch],
+                model_family="fno",
+                fit=fit,
+                epoch=epoch,
+            )
+            for epoch in validation_rungs
+        }
+        checkpoints = {
+            "rungs": rung_checkpoints,
+            "selected": dict(rung_checkpoints[str(selected_epoch)]),
+        }
+    else:
+        checkpoint = write_group_checkpoint(
+            run_dir / "models.pt", selected_models, model_family="fno", fit=fit
+        )
+        checkpoints = {"models": checkpoint}
     summary_path = run_dir / "summary.json"
     held_out_test_policy["recorded"] = _record_external_test_measurement(
         args=args,
@@ -897,10 +1146,26 @@ def run_baseline(args: argparse.Namespace) -> Path:
             "fit": fit,
             "group_manifest": str(group_manifest),
             "held_out_test_policy": held_out_test_policy,
+            "validation_history": validation_history,
         },
         "held_out_test_policy": held_out_test_policy,
         "duration_sec": finished - started,
+        "compute": _compute_evidence(
+            selected_models,
+            fit,
+            duration_sec=finished - started,
+            device=args.device,
+        ),
     }
+    summary["checkpoints"] = checkpoints
+    if validation_rungs:
+        summary["recipe_adequacy"] = {
+            "validation_rungs": list(validation_rungs),
+            "selection_metric": args.metric,
+            "selected_epoch": selected_epoch,
+            "selected_metric_value": float(metrics[args.metric]),
+            "selection_rule": "minimum_finite_validation_metric_earliest_tie",
+        }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     _append_external_results_row(
         output_root,
@@ -957,6 +1222,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-data-lock-sha256")
     parser.add_argument("--allow-held-out-test-eval", action="store_true")
     parser.add_argument("--allow-repeat-test", action="store_true")
+    parser.add_argument("--validation-rungs", nargs="+", type=int)
+    parser.add_argument("--refuse-overwrite", action="store_true")
     return parser
 
 

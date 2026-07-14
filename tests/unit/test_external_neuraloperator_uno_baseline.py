@@ -9,12 +9,14 @@ import pytest
 import torch
 from torch import nn
 
+from scripts import run_external_neuraloperator_uno_baseline as uno_runner
 from scripts.run_external_neuraloperator_uno_baseline import (
     _external_test_measurement_key,
     build_neuraloperator_uno_model,
     build_parser,
     run_baseline,
     train_uno_group_model,
+    train_uno_groups_with_rungs,
     uno_modes_for_grid,
     uno_scalings_for_grid,
 )
@@ -137,6 +139,8 @@ def test_train_uno_group_model_can_learn_simple_residual_with_fake_uno():
         mse = torch.mean((model(currents) - targets) ** 2).item()
     assert fit["implementation"] == "neuralop.models.UNO"
     assert fit["uno_n_modes"] == [[4], [4]]
+    assert len(fit["epoch_train_mse"]) == 80
+    assert 1 <= fit["best_epoch"] <= 80
     assert mse < 0.01
 
 
@@ -165,6 +169,38 @@ def test_train_uno_group_model_ignores_neuraloperator_state_metadata():
         mse = torch.mean((model(currents) - targets) ** 2).item()
     assert fit["implementation"] == "neuralop.models.UNO"
     assert mse < 0.01
+
+
+def test_train_uno_groups_with_rungs_retains_one_continuous_trajectory():
+    currents = torch.zeros(4, 1, 1, 4)
+    targets = torch.ones_like(currents)
+    key = ("burgers1d", 1, 4, 1)
+
+    _, fit, rung_models = train_uno_groups_with_rungs(
+        {key: (currents, targets)},
+        validation_rungs=[1, 2],
+        hidden_channels=2,
+        fourier_modes=2,
+        n_layers=2,
+        lifting_channels=2,
+        projection_channels=2,
+        channel_mlp_skip="linear",
+        identity_scaling=False,
+        residual=False,
+        epochs=2,
+        learning_rate=0.1,
+        weight_decay=0.0,
+        batch_size=2,
+        seed=3,
+        device="cpu",
+        uno_cls=TinyUNO,
+    )
+
+    epoch1 = rung_models[1][key].uno.net.bias.detach()
+    epoch2 = rung_models[2][key].uno.net.bias.detach()
+    assert not torch.equal(epoch1, epoch2)
+    assert fit["optimizer_steps"] == 4
+    assert fit["examples_seen"] == 8
 
 
 def test_external_neuraloperator_uno_dry_run_writes_contract_summary(tmp_path):
@@ -296,3 +332,60 @@ def test_allow_repeat_test_is_explicit_in_command_record(tmp_path):
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
     assert "--allow-repeat-test" in summary["extra"]["command"]
+
+
+def test_rung_run_selects_common_validation_epoch_and_hashes_every_checkpoint(
+    tmp_path, monkeypatch
+):
+    key = ("burgers1d", 1, 4, 1)
+
+    def model_at(epoch):
+        model = nn.Conv2d(1, 1, 1)
+        with torch.no_grad():
+            model.weight.fill_(epoch)
+        return model
+
+    def fake_train(*args, **kwargs):
+        fit = {
+            "groups": {str(key): {"optimizer_steps": 12, "examples_seen": 24}},
+            "group_count": 1,
+            "train_frames": 4,
+            "optimizer_steps": 12,
+            "examples_seen": 24,
+        }
+        return {key: model_at(6)}, fit, {3: {key: model_at(3)}, 6: {key: model_at(6)}}
+
+    def fake_evaluate(cfg, models, **kwargs):
+        epoch = int(next(iter(models.values())).weight.flatten()[0].item())
+        return {"decoded_rollout_nrmse": {3: 0.5, 6: 0.7}[epoch]}
+
+    monkeypatch.setattr(uno_runner, "load_neuraloperator_uno_class", lambda: TinyUNO)
+    monkeypatch.setattr(
+        uno_runner.fno_runner,
+        "collect_training_pairs",
+        lambda *args, **kwargs: {key: (torch.zeros(1), torch.zeros(1))},
+    )
+    monkeypatch.setattr(uno_runner, "train_uno_groups_with_rungs", fake_train)
+    monkeypatch.setattr(uno_runner.fno_runner, "evaluate_external_fno_baseline", fake_evaluate)
+    args = build_parser().parse_args(
+        [
+            "--name",
+            "rung_run",
+            "--output-root",
+            str(tmp_path),
+            "--tasks",
+            "burgers1d",
+            "--epochs",
+            "6",
+            "--validation-rungs",
+            "3",
+            "6",
+        ]
+    )
+
+    summary = json.loads(run_baseline(args).read_text(encoding="utf-8"))
+
+    assert summary["recipe_adequacy"]["selected_epoch"] == 3
+    assert set(summary["checkpoints"]["rungs"]) == {"3", "6"}
+    assert summary["checkpoints"]["selected"] == summary["checkpoints"]["rungs"]["3"]
+    assert summary["compute"]["total_parameter_count"] > 0
