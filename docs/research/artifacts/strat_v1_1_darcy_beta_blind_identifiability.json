@@ -1,0 +1,296 @@
+{
+  "access": {
+    "held_out_measurements": 0,
+    "heldout_reads": 0,
+    "read_roles": [
+      "valid"
+    ],
+    "split": "valid"
+  },
+  "artifact_id": "strat-v1-darcy-beta-blind-identifiability-d0",
+  "artifact_sha256": "dc28eac9a974c25658c1fedacd842e4ac4b696db7a66c03db18fa71ab8861645",
+  "beta_blind_oracle": {
+    "max_corrected_regime_spread": 1.99076428424662,
+    "pooled_global_scale_nrmse": 0.8690245710731431,
+    "reconstructed_global_scale_nrmse": 0.8690245710731433,
+    "regimes": [
+      {
+        "beta": 0.01,
+        "element_count": 212992,
+        "group_count": 13,
+        "oracle_global_scale_nrmse": 0.49413789834360144,
+        "spread_ratio_to_pooled_nrmse": 0.5686121138478274
+      },
+      {
+        "beta": 0.1,
+        "element_count": 212992,
+        "group_count": 13,
+        "oracle_global_scale_nrmse": 0.49213296164207854,
+        "spread_ratio_to_pooled_nrmse": 0.5663050022099516
+      },
+      {
+        "beta": 1.0,
+        "element_count": 212992,
+        "group_count": 13,
+        "oracle_global_scale_nrmse": 0.47209555274216897,
+        "spread_ratio_to_pooled_nrmse": 0.5432476462192393
+      },
+      {
+        "beta": 10.0,
+        "element_count": 212992,
+        "group_count": 13,
+        "oracle_global_scale_nrmse": 0.27165667490364576,
+        "spread_ratio_to_pooled_nrmse": 0.31259953279362596
+      },
+      {
+        "beta": 100.0,
+        "element_count": 212992,
+        "group_count": 13,
+        "oracle_global_scale_nrmse": 1.7300230782251518,
+        "spread_ratio_to_pooled_nrmse": 1.99076428424662
+      }
+    ]
+  },
+  "bindings": {
+    "selection": {
+      "algorithm": "sha256-protocol-seed-provenance-v1",
+      "protocol": "strat-v1",
+      "seed": 0
+    },
+    "selection_sha256": "54aee5e59b8b55a3627b40e8ba1d75655895836abc2d95532414efccbfee590e",
+    "training_lock_path": "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+    "training_lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+    "validation_object_id": "darcy2d-valid",
+    "validation_object_path": "data/pdebench_darcy_runtime/darcy2d_val.h5",
+    "validation_object_sha256": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595"
+  },
+  "coverage": {
+    "betas": [
+      0.01,
+      0.1,
+      1.0,
+      10.0,
+      100.0
+    ],
+    "equal_complete_group_coverage": true,
+    "group_count": 13,
+    "groups_per_beta": {
+      "0.01": 13,
+      "0.1": 13,
+      "1": 13,
+      "10": 13,
+      "100": 13
+    },
+    "rows": 65
+  },
+  "numeric_contract": {
+    "epsilon": 1e-08,
+    "normalization": "global validation target RMS",
+    "oracle": "per-source_sample_index mean target across five betas"
+  },
+  "provenance_groups": [
+    {
+      "coefficient_input_sha256": "110c85d6e738f2a03431854856271aeba0bd7d3b0f04e63adfea11bd803f9302",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 445
+    },
+    {
+      "coefficient_input_sha256": "9fedfc1479e20aa77e503767c54db06f819404a18c1b7e1be2ca1c83fd462274",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 8015
+    },
+    {
+      "coefficient_input_sha256": "22a2b2ddf143fa73dec89207327c157f476b591d917a4b97c72851595d5cc147",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 790
+    },
+    {
+      "coefficient_input_sha256": "93fdf46825d371f69efd702c97a2095dfb5d29680a96ff4f54900e1d7f5b05db",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 986
+    },
+    {
+      "coefficient_input_sha256": "d91062d1412bea75b47ce764b68d2bf6cfaffc6085d8e8a4c171d1689738ebe3",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 9939
+    },
+    {
+      "coefficient_input_sha256": "6666114f9244f684085c602ce97f74563108f060c43022ea9b398aa5cc9a724d",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 5264
+    },
+    {
+      "coefficient_input_sha256": "e7ee8cfb364cde5348872e802939723f3bf337010b9a7f1ff903f83b011b4be6",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 2513
+    },
+    {
+      "coefficient_input_sha256": "211e2ba3731713d5863a66801fb9525c3372db4169798b0d79d39d8b5da1fd43",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 3555
+    },
+    {
+      "coefficient_input_sha256": "3ef7b9949388d57d176a65ddc8fd6789e28fa99c7c954b2343b354ce6770a8a4",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 6969
+    },
+    {
+      "coefficient_input_sha256": "5fa9dbe06f6ba206f7711c74888003f22eac6ea60bdd8deb2773d27ac2d5453c",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 7013
+    },
+    {
+      "coefficient_input_sha256": "c6b572afbace2bbad5499dfb5a59cf1f8bf2080e1ccb6a41d41062381907babc",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 1942
+    },
+    {
+      "coefficient_input_sha256": "ea0c4d1a68ecfb02d82c358f4f95e644f5025b360e819f39a57730686b53f148",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 5173
+    },
+    {
+      "coefficient_input_sha256": "e26e35c2ce34c6ac109934e6e09fbb09bbca1958087d2dcd73fd5edf0439ac57",
+      "source_file_ids_by_beta": [
+        133217,
+        133218,
+        133219,
+        133220,
+        133221
+      ],
+      "source_sample_index": 4200
+    }
+  ],
+  "schema_version": 1,
+  "status": "complete_validation_only",
+  "target_separation": {
+    "definition": "pairwise target RMS difference normalized by global validation target RMS",
+    "maximum_global_scale_nrmse": 2.2241609761485144,
+    "mean_global_scale_nrmse": 0.9337596548515228,
+    "minimum_global_scale_nrmse": 0.0020049368107574257,
+    "pairs": [
+      {
+        "global_scale_nrmse": 0.0020049368107574257,
+        "left_beta": 0.01,
+        "right_beta": 0.1
+      },
+      {
+        "global_scale_nrmse": 0.02204234600739425,
+        "left_beta": 0.01,
+        "right_beta": 1.0
+      },
+      {
+        "global_scale_nrmse": 0.2224812484916938,
+        "left_beta": 0.01,
+        "right_beta": 10.0
+      },
+      {
+        "global_scale_nrmse": 2.2241609761485144,
+        "left_beta": 0.01,
+        "right_beta": 100.0
+      },
+      {
+        "global_scale_nrmse": 0.02003740931565371,
+        "left_beta": 0.1,
+        "right_beta": 1.0
+      },
+      {
+        "global_scale_nrmse": 0.22047631182949312,
+        "left_beta": 0.1,
+        "right_beta": 10.0
+      },
+      {
+        "global_scale_nrmse": 2.2221560394571047,
+        "left_beta": 0.1,
+        "right_beta": 100.0
+      },
+      {
+        "global_scale_nrmse": 0.20043890353297447,
+        "left_beta": 1.0,
+        "right_beta": 10.0
+      },
+      {
+        "global_scale_nrmse": 2.2021186306372957,
+        "left_beta": 1.0,
+        "right_beta": 100.0
+      },
+      {
+        "global_scale_nrmse": 2.001679746284347,
+        "left_beta": 10.0,
+        "right_beta": 100.0
+      }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "all_gates_passed": false,
+  "arms": {
+    "K": {
+      "compute": {
+        "cuda_device_name": "NVIDIA GeForce RTX 4090",
+        "device": "cuda",
+        "duration_sec": 3.9662559032440186,
+        "examples_seen": 6240,
+        "optimizer_steps": 792,
+        "peak_cuda_memory_bytes": 586011648,
+        "total_parameter_count": 151025,
+        "trainable_parameter_count": 151025
+      },
+      "maximum_corrected_spread_ratio": 2.1704768089993096,
+      "plateau_epoch": null,
+      "primary_value": 0.18947497984876743,
+      "selected_epoch": 24
+    },
+    "U": {
+      "compute": {
+        "cuda_device_name": "NVIDIA GeForce RTX 4090",
+        "device": "cuda",
+        "duration_sec": 5.035588026046753,
+        "examples_seen": 6240,
+        "optimizer_steps": 792,
+        "peak_cuda_memory_bytes": 576155648,
+        "total_parameter_count": 150961,
+        "trainable_parameter_count": 150961
+      },
+      "maximum_corrected_spread_ratio": 1.9393497480661144,
+      "plateau_epoch": 24,
+      "primary_value": 0.8768063023361379,
+      "selected_epoch": 24
+    }
+  },
+  "artifact_id": "strat-v1.1-darcy-fno-conditioning-ablation-result",
+  "artifact_sha256": "2520c938b115752afea925cab80ec42fdf9d33fb163a9db6894076c3c10c400d",
+  "effect": {
+    "conditioned_counterfactual_relative_prediction_rms": 0.9996822068991464,
+    "conditioned_primary_relative_improvement": 0.783903264217039,
+    "shuffled_beta_primary_value": 1.358415393250068,
+    "shuffled_beta_relative_degradation": 6.169365550714451
+  },
+  "gate_checks": {
+    "conditioned_beta_sensitivity": true,
+    "conditioned_primary_improvement": true,
+    "conditioned_regime_spread": false,
+    "plateau_by_cap": false,
+    "shuffled_beta_degradation": true
+  },
+  "heldout_reads": 0,
+  "interpretation": "conditioning_mechanism_not_yet_validated",
+  "plan_sha256": "fe62c967f1afea7ab065dbb2df224f04e8a28089e5f0bbab806ec11e8780c711",
+  "schema_version": 1,
+  "source_summary": {
+    "artifact_sha256": "a2a9c9d93972637094a043a51e4d7eefc162770aae631e112d63a31c74a91eff",
+    "file_sha256": "d410a3338d907493ac7baa19865ccb9cca7bab7d16c73ed7d84badc7d879847e",
+    "path": "reports/research/darcy_fno_conditioning_ablation/summary.json"
+  },
+  "status": "complete_validation_only"
+}
