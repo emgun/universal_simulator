@@ -1,0 +1,160 @@
+{
+  "bindings": {
+    "d0_diagnostic": {
+      "artifact_sha256": "dc28eac9a974c25658c1fedacd842e4ac4b696db7a66c03db18fa71ab8861645",
+      "file_sha256": "87672dbf3c4e438c3754d5d5f8d7edbfc22017fe95c91d5cc76ad312baeb8592",
+      "path": "docs/research/artifacts/strat_v1_1_darcy_beta_blind_identifiability.json"
+    },
+    "materializer": {
+      "file_sha256": "0199f15665df26a976ed2ca6ebbedf3f53848646ab438e7c8ef0e41bd93c6d57",
+      "path": "scripts/materialize_darcy_fno_conditioning_ablation.py"
+    },
+    "runner": {
+      "file_sha256": "a570280ca18cf267284331e5cdb3e9bde39961285895bec2f0e79163e9da3687",
+      "path": "scripts/run_darcy_fno_conditioning_ablation.py"
+    },
+    "source": {
+      "files": {
+        "scripts/run_darcy_fno_conditioning_ablation.py": "a570280ca18cf267284331e5cdb3e9bde39961285895bec2f0e79163e9da3687",
+        "scripts/run_external_neuraloperator_fno_baseline.py": "c8a903722a6369f09410eaea4afb3d2e5082fd3f5ea32efb322e2b5dbc27816d",
+        "scripts/run_physical_conv_baseline.py": "3da3932a7c9ea36864dd8928f61dea98b4515bad9ec82b8b14879335c1d5055e",
+        "src/ups/__init__.py": "714a735509791245a69d91aa2873e566c4f9ef9753c9664991427300dd8c0d40",
+        "src/ups/active/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/baselines/models.py": "7ef2d13f0bcc6a3d0e7b8e8b27ac48d77253064fc165a41739cb432983e8938e",
+        "src/ups/core/__init__.py": "e0c92ad1257d1a262a5cb0c1a2b1e12a5681c351f5ad586f39a5d1786b3bfe56",
+        "src/ups/core/blocks_pdet.py": "1ea42e4882d452178aabb4d1c59ec6caead7a3b05748b7a74448f6a630553685",
+        "src/ups/core/conditioning.py": "c6ef0bccdea78ef43a54b2ba11a94dd25ecb73fdf3d99ed11bc395461c3bfefc",
+        "src/ups/core/latent_state.py": "925d334ece5594b3e1601f83a12e300a2c23d5e550c7708ecef882eaf9eff354",
+        "src/ups/core/shifted_window.py": "a204b92c07df6e8c217c9d695bb4cc737ae20017818165ae17b45b53025f1327",
+        "src/ups/data/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/data/baseline_runtime.py": "e482421ebc71f8cbd60c047bcf74c4c56edf89aa1ea2d4bafe195e9d9e50facf",
+        "src/ups/data/cli.py": "bf737b92e7d6abfb2088de1fa2cc24071da5dedf1b8016d6870ae9f0f987eb75",
+        "src/ups/data/convert_pdebench.py": "9fc621bb5eb9834056b4763fee392cd876a31e7d6405b9197b019276f918c207",
+        "src/ups/data/datasets.py": "568a219662d475751f78f1586eb2ff339cbca632bc9c428dfec310e27ba82c36",
+        "src/ups/data/hf_inventory.py": "2aac79dcaadfa9fc35044f60e255fcd7ef284af103f814f071649b872192576f",
+        "src/ups/data/latent_pairs.py": "e5b8fd46cc64965e8d0e5fe4c1549b6aac03c872f59e9cd24c3430a0a1cf1203",
+        "src/ups/data/manifests.py": "40bec07fd343d300eec66d79fafef0fc9fac334c52d7c1fa6e091b4d5d11edeb",
+        "src/ups/data/normalization.py": "fd5b4b9d09b841e92daeabbc5d6fa89a7c40d407ad98835b378e9e6b409ff413",
+        "src/ups/data/pdebench.py": "bcad9219eaaaa0f1069885c3dd851e5faf19262bd0c89c1cd152ba82bda3c708",
+        "src/ups/data/schemas.py": "7774994890982e6fe645ec93587683f95b9e15fef8ff3720a5a737784bd93915",
+        "src/ups/data/staging.py": "8947d1c551eabe3ce50dde81e4e651e87f3a1db0c2f74dc803ce34479dfc848e",
+        "src/ups/data/trajectory.py": "a529fa596064ec84bcec9283045fc7f31768e98542d292d414f0b66198db8749",
+        "src/ups/data/transports.py": "3546015e438247793ce25054bb8c047bf7eef91e2649a861613b467a8e4f7eb0",
+        "src/ups/data/well.py": "6f85bf7de5610749e5b53c5220709246db3d623599967d9caa27128b56b337dd",
+        "src/ups/discovery/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/discovery/nondim.py": "0e56bbadb201a7ab5c2183ed399f117df24102726168247fc11f0d4699785a9d",
+        "src/ups/eval/__init__.py": "64c8288677f31648abc9e24928e8ad24721d18a7f94764c464d0dbaddc90a31d",
+        "src/ups/eval/calibration.py": "5a404a5686234dfc34fef4483f3666c1a9122eddb123bf78451e8fc06fc90978",
+        "src/ups/eval/demo_plots.py": "7ab4e6b53ec314b79f853363ca18ccd46e5c7d22041d68e35ed312b5264eb880",
+        "src/ups/eval/demo_scorecard.py": "34320ec025ac8c362f856807031b53135200fbf4913be662ff527ec8cdb703fb",
+        "src/ups/eval/gates.py": "8b3b3194a0f078ae4837635405fddd0b92cc02511fc744750b91807e3733b9a2",
+        "src/ups/eval/metrics.py": "b004662104ecc34ff8e8d87e8bd042609cb12570f7c1ab8a16865428af54a305",
+        "src/ups/eval/pdebench_runner.py": "024dc10a1ebdab704e4b7e9fe91883c1b2f274df4f590b204f372d62479f960f",
+        "src/ups/eval/persistence_baselines.py": "65e302d1dd07626a33bd3846ad4c016a285ae3fcb98b9b4497a38940b5a5775f",
+        "src/ups/eval/promotion.py": "89f84d871aa9a78b527c43e36be068bac4c09cc462ecdd3309843b657080bd70",
+        "src/ups/eval/regime_metrics.py": "623fb620ae0a23406af084d659ad1e7e84cc99ef9acd9c26dbdc1ba1efd5dae4",
+        "src/ups/eval/reports.py": "6efc6544fd5c46a0d332f7b917c4f1af5ab091759529b28143c174b4e9e5eecc",
+        "src/ups/eval/reward_models.py": "d810ef0e073f5ecceab74d1658618b063ed7d431f1b5fb1f2cb689dbe28147d3",
+        "src/ups/inference/__init__.py": "078a99250faafaad7ffca224728dc56a521c8b56bf5a70d3419360c0f845b455",
+        "src/ups/inference/control_safe.py": "04f73a571630742dd22c1e2849fbbf11402945f3b28a2f6fe15f1ef140418fd7",
+        "src/ups/inference/da_latent.py": "0a2769013af1f0dcd2959e170d0becf168bf36f75738c7d3bf61851f1498e4d1",
+        "src/ups/inference/rollout_transient.py": "4aee62b59530e0fd964f0f31edc9568d6804c45ec5875c33514cd06de6dfc2f7",
+        "src/ups/inference/rollout_ttc.py": "06d24804ce9cb44afb946387df93138fc3328162a7399f21690cf745178642b1",
+        "src/ups/io/__init__.py": "9a6f0f33bc023214d5a7c39880d3bfd697a1856542675f14b90d030deb110df9",
+        "src/ups/io/decoder_anypoint.py": "dd782e86c0da2b7ac60096fc35ab686c7aed4fa417b54869364808bc256ada2a",
+        "src/ups/io/enc_grid.py": "5fc6f22acb1cd697d76268d56333df3bc51bcb1e305685a0388407e8f58311ec",
+        "src/ups/io/enc_mesh_particle.py": "ef4c93295af014cee3f4fdacf1518d9cc082f724b81988a35e20821f1b286f3a",
+        "src/ups/logging/__init__.py": "e72ea862ce42482d84e53f455b7fe8b077746b5afb6bcaa90a0cd7b6ccbd76c4",
+        "src/ups/logging/utils.py": "1ab0548bcea09abb20814a41d4d571ce9edf55df011e7b172d39746cb14ad91a",
+        "src/ups/models/__init__.py": "eff57e7d446a6b0b53a12a9b311228913718772d5d5c2f8e88325a342ceaddf0",
+        "src/ups/models/diffusion_residual.py": "5ba31d6136fc75091c661e1d80d202a14850988bdb30a92ac5289eb86dbc1bc8",
+        "src/ups/models/latent_operator.py": "a30726165e7e7f3d32c41cf72f05bc017fd32ed020da945583854c8ac27375e8",
+        "src/ups/models/multiphysics_factor_graph.py": "36c74131bc1fb4061b300049db8663bedc1366c140cb3b495057717ee4cfc4d7",
+        "src/ups/models/particles_contacts.py": "d873cabc31ebf22a9ef750889d6d1adf960ee1fec9efe94257bc83ea0fdcfcaa",
+        "src/ups/models/physics_guards.py": "b548d906f031e71a24bbd49cf76efab5e2fc6a0a16c5efced4d27c12c315a6a0",
+        "src/ups/models/steady_prior.py": "f50b009db16146b79adc8a871d18fb4e36c2258a6df0cbe7388db04887591205",
+        "src/ups/models/transport_head.py": "f71eb311403bd5441757778c974275ce98ba7c0bb0274ea7409d28566bda2009",
+        "src/ups/training/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/training/consistency_distill.py": "789c15099a41513cd7e22d991551303228b71e4ce52e7b6e2bf8a1be9bd9821e",
+        "src/ups/training/loop_train.py": "91fa69ba21ae928977fb207c6d1f6be9d441b91c754caa7add2c901d8fc37115",
+        "src/ups/training/losses.py": "d683fca14828611b63f3232f1c6a8728cac519901698d89a8f781b6fc17869d2",
+        "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
+        "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
+      },
+      "implementation_commit": "17f1305d720324af492039e1205bffde94fd3fae"
+    },
+    "training_lock": {
+      "darcy_objects": {
+        "darcy2d-train": "47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+        "darcy2d-valid": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595"
+      },
+      "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
+      "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+      "path": "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json"
+    }
+  },
+  "command": [
+    "python",
+    "scripts/run_darcy_fno_conditioning_ablation.py",
+    "--training-lock",
+    "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+    "--data-root",
+    "reports/research/darcy_conditioning_scratch/data",
+    "--output-dir",
+    "reports/research/darcy_fno_conditioning_ablation",
+    "--hidden-channels",
+    "16",
+    "--fourier-modes",
+    "16",
+    "--n-layers",
+    "4",
+    "--learning-rate",
+    "0.001",
+    "--weight-decay",
+    "0.0001",
+    "--batch-size",
+    "8",
+    "--device",
+    "cuda"
+  ],
+  "command_sha256": "28f5d9c46d174e85b3b3372214c5a38a8d5810e7cdf245d38d653f4c91f71dc5",
+  "dependencies": {
+    "neuraloperator": "2.0.0"
+  },
+  "design": {
+    "K": "coefficient plus train-normalized log10(beta) constant channel plus presence channel",
+    "U": "coefficient only",
+    "arms": [
+      "U",
+      "K"
+    ],
+    "epoch_rungs": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "same_data_order_optimizer_updates_and_selection_rule": true,
+    "seed": 17,
+    "single_continuous_trajectory_per_arm": true
+  },
+  "gates": {
+    "conditioned_counterfactual_relative_prediction_rms_minimum_exclusive": 1e-06,
+    "conditioned_max_corrected_regime_spread_maximum": 1.5,
+    "conditioned_primary_relative_improvement_minimum": 0.1,
+    "finite_all_primary_and_regime_metrics": true,
+    "plateau": {
+      "best_so_far_relative_improvement_threshold": 0.01,
+      "consecutive_transitions_required": 2,
+      "must_occur_by_epoch": 24
+    },
+    "shuffled_beta_primary_relative_degradation_minimum": 0.05
+  },
+  "heldout_access": "forbidden",
+  "measurement_lock_access": "forbidden",
+  "mode": "validation_only",
+  "plan_id": "strat-v1.1-darcy-fno-conditioning-ablation-d1",
+  "plan_sha256": "fe62c967f1afea7ab065dbb2df224f04e8a28089e5f0bbab806ec11e8780c711",
+  "question": "Does explicit beta conditioning remove the Darcy identifiability ceiling under a matched FNO recipe?",
+  "schema_version": 1
+}
