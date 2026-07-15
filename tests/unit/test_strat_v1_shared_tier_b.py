@@ -12,6 +12,7 @@ import yaml
 from scripts import materialize_strat_v1_shared_tier_b as materialize
 from scripts import plan_strat_v1_shared_tier_b as planner
 from scripts import run_strat_v1_shared_tier_b as runner
+from scripts import train as train_script
 from ups.data.manifests import canonical_sha256
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -103,6 +104,13 @@ def test_d5_config_freezes_schema_training_contract_and_stages() -> None:
     assert payload["training"]["sample_balanced_operator_loss"] is True
     assert payload["training"]["canonical_steady_operator_mapping"] is True
     assert payload["training"]["lambda_semigroup"] == 0.0
+    assert payload["training"]["batch_size"] == 16
+    assert {
+        name: payload["stages"][name]["batch_size"]
+        for name in ("decoder", "operator_decoded", "joint_codec_operator")
+    } == {"decoder": 2, "operator_decoded": 2, "joint_codec_operator": 2}
+    assert train_script._stage_batch_size(payload, "operator") == 16
+    assert train_script._stage_batch_size(payload, "decoder") == 2
     assert payload["evaluation"]["strict_stratified_metrics"] is True
     assert {
         name: payload["stages"][name]["epochs"]
@@ -117,6 +125,8 @@ def test_d5_config_freezes_schema_training_contract_and_stages() -> None:
         (("training", "sample_balanced_operator_loss"), False, "sample-balanced"),
         (("training", "canonical_steady_operator_mapping"), False, "canonical steady"),
         (("training", "lambda_semigroup"), 0.1, "semigroup"),
+        (("training", "batch_size"), 8, "latent-operator batch size"),
+        (("stages", "decoder", "batch_size"), 4, "decoded-stage batch sizes"),
     ],
 )
 def test_d5_config_checker_fails_closed(
@@ -132,6 +142,14 @@ def test_d5_config_checker_fails_closed(
 
     with pytest.raises(ValueError, match=match):
         planner._checked_config(candidate)
+
+
+def test_stage_batch_size_rejects_nonpositive_override() -> None:
+    with pytest.raises(ValueError, match="stages.decoder.batch_size must be positive"):
+        train_script._stage_batch_size(
+            {"training": {"batch_size": 16}, "stages": {"decoder": {"batch_size": 0}}},
+            "decoder",
+        )
 
 
 def test_runner_plan_checker_accepts_only_untampered_validation_plan(tmp_path: Path) -> None:

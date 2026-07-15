@@ -859,6 +859,18 @@ def _stage_epochs(cfg: dict, stage: str) -> int:
         return 0
 
 
+def _stage_batch_size(cfg: dict, stage: str) -> int:
+    """Read a positive per-stage batch size, falling back to the training default."""
+    value = int(
+        cfg.get("stages", {})
+        .get(stage, {})
+        .get("batch_size", cfg.get("training", {}).get("batch_size", 16))
+    )
+    if value <= 0:
+        raise ValueError(f"stages.{stage}.batch_size must be positive")
+    return value
+
+
 def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     train_cfg = cfg.get("training", {})
     lam_semigroup = float(train_cfg.get("lambda_semigroup", 0.0) or 0.0)
@@ -1090,7 +1102,7 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     is_multitask = isinstance(cfg.get("data", {}).get("task"), (list, tuple))
     loader = DataLoader(
         dataset,
-        batch_size=cfg.get("training", {}).get("batch_size", 16),
+        batch_size=_stage_batch_size(cfg, "decoder"),
         shuffle=True,
         collate_fn=_raw_collate if is_multitask else None,
     )
@@ -1253,7 +1265,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
     is_multitask = isinstance(cfg.get("data", {}).get("task"), (list, tuple))
     loader = DataLoader(
         dataset,
-        batch_size=cfg.get("training", {}).get("batch_size", 16),
+        batch_size=_stage_batch_size(cfg, "operator_decoded"),
         shuffle=True,
         collate_fn=_raw_collate if is_multitask else None,
     )
@@ -1550,7 +1562,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
     is_multitask = isinstance(cfg.get("data", {}).get("task"), (list, tuple))
     loader = DataLoader(
         dataset,
-        batch_size=cfg.get("training", {}).get("batch_size", 16),
+        batch_size=_stage_batch_size(cfg, "joint_codec_operator"),
         shuffle=True,
         collate_fn=_raw_collate if is_multitask else None,
     )

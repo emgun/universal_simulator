@@ -147,6 +147,12 @@ def test_remote_pipeline_has_immutable_readback_purge_and_success_marker() -> No
     assert "remote_digest=$(rclone cat" in remote
     assert '"$remote_digest" = "$digest"' in remote
     assert "rclone purge" in remote
+    assert "RUN_LOG=${RUN_LOG:-reports/research/strat_v1_shared_tier_b.remote.log}" in remote
+    assert '2>&1 | tee "$RUN_LOG"' in remote
+    assert (
+        'rclone copyto "$RUN_LOG" ' '"UPSB2:${B2_BUCKET}/${temporary_prefix}/remote.log" || true'
+    ) in remote
+    assert '"$RESULT" "$RUN_LOG"' in remote
     assert remote.index("remote_digest=$(rclone cat") < remote.index("rclone purge")
     assert remote.index("rclone purge") < remote.index("Published immutable D5 artifact:")
     assert "measurement.lock" not in remote

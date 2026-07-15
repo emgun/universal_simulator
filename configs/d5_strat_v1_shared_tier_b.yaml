@@ -54,18 +54,21 @@ stages:
       weight_decay: 0.0
   decoder:
     epochs: 6
+    batch_size: 2
     optimizer:
       name: adamw
       lr: 1.0e-3
       weight_decay: 0.0
   operator_decoded:
     epochs: 6
+    batch_size: 2
     optimizer:
       name: adamw
       lr: 1.0e-3
       weight_decay: 0.0
   joint_codec_operator:
     epochs: 4
+    batch_size: 2
     rollout_steps: 2
     lambda_rollout: 0.5
     lambda_reconstruction: 0.25

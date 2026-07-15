@@ -97,6 +97,19 @@ def _checked_config(path: Path) -> dict[str, Any]:
         raise ValueError("D5 must use canonical steady-operator mappings")
     if float(training.get("lambda_semigroup", 0.0)) != 0.0:
         raise ValueError("D5 semigroup loss must remain disabled")
+    if int(training.get("batch_size", 0)) != 16:
+        raise ValueError("D5 latent-operator batch size must remain 16")
+    stages = payload.get("stages", {})
+    expected_stage_batch_sizes = {
+        "decoder": 2,
+        "operator_decoded": 2,
+        "joint_codec_operator": 2,
+    }
+    observed_stage_batch_sizes = {
+        stage: stages.get(stage, {}).get("batch_size") for stage in expected_stage_batch_sizes
+    }
+    if observed_stage_batch_sizes != expected_stage_batch_sizes:
+        raise ValueError("D5 decoded-stage batch sizes must remain 2")
     return payload
 
 
@@ -176,6 +189,12 @@ def main() -> None:
             ],
             "architecture": "native_ups_tier_b",
             "stage_epochs": {"operator": 12, "decoder": 6, "operator_decoded": 6, "joint": 4},
+            "stage_batch_sizes": {
+                "operator": 16,
+                "decoder": 2,
+                "operator_decoded": 2,
+                "joint": 2,
+            },
             "conditioning_schema": {"task_vocab": list(TASKS), "param_vocab": ["beta", "nu"]},
             "temporal_rollout_horizons": [1, 4, 16],
             "steady_semantics": "one_coefficient_to_solution_application",
