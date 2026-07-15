@@ -112,8 +112,8 @@ def make_operator(cfg: dict[str, Any]) -> LatentOperator:
         data_cfg = cfg.get("data", {})
         task_cfg = data_cfg.get("task")
         task_names = [task_cfg] if isinstance(task_cfg, str) else [str(task) for task in task_cfg]
-        task_vocab = tuple(task_names) if len(task_names) > 1 else None
         parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
+        task_vocab = parameter_contract.task_vocab
         param_vocab = parameter_contract.param_vocab
         bc_vocab = tuple(data_cfg.get("bc_keys", ()))
         auto_sources: dict[str, int] = {}

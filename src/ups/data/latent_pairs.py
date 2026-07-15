@@ -901,7 +901,7 @@ def build_latent_pair_loader(
         )
         if isinstance(tasks, (list, tuple)):
             datasets: List[Dataset] = []
-            task_vocab = tuple(str(task_name) for task_name in tasks)
+            task_vocab = parameter_contract.task_vocab
             for task_name in tasks:
                 ds_cfg = {
                     **data_cfg,
@@ -977,7 +977,11 @@ def build_latent_pair_loader(
                 else cache_root
             )
             extras = (
-                pdebench_conditioning_extras(task_name=str(tasks), grid_shape=grid_shape)
+                pdebench_conditioning_extras(
+                    task_name=str(tasks),
+                    grid_shape=grid_shape,
+                    task_vocab=parameter_contract.task_vocab,
+                )
                 if auto_conditioning and isinstance(tasks, str)
                 else None
             )

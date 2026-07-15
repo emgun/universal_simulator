@@ -1,0 +1,85 @@
+include: a4_strat_v1_baselines
+
+# D5 freezes one universal conditioner schema across the shared arm and all
+# single-task controls. Arm selection may change data.task, but never these
+# input dimensions or train-bound transforms.
+data:
+  conditioning_schema:
+    task_vocab: [advection1d, burgers1d, darcy2d]
+    param_vocab: [beta, nu]
+
+latent:
+  dim: 64
+  tokens: 64
+
+decoder:
+  hidden_dim: 128
+  num_layers: 1
+  num_heads: 4
+  mlp_hidden_dim: 128
+
+operator:
+  conditioning:
+    sources: null
+    hidden_dim: 128
+  pdet:
+    input_dim: 64
+    hidden_dim: 128
+    depths: [2, 2, 2]
+    group_size: 8
+    num_heads: 4
+
+training:
+  batch_size: 16
+  patience: 3
+  auto_conditioning: true
+  sample_balanced_operator_loss: true
+  canonical_steady_operator_mapping: true
+  lambda_semigroup: 0.0
+  amp: false
+  compile: false
+  num_workers: 0
+  pin_memory: false
+
+evaluation:
+  strict_stratified_metrics: true
+  report_all_horizon_metrics: true
+
+stages:
+  operator:
+    epochs: 12
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.0
+  decoder:
+    epochs: 6
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.0
+  operator_decoded:
+    epochs: 6
+    optimizer:
+      name: adamw
+      lr: 1.0e-3
+      weight_decay: 0.0
+  joint_codec_operator:
+    epochs: 4
+    rollout_steps: 2
+    lambda_rollout: 0.5
+    lambda_reconstruction: 0.25
+    optimizer:
+      name: adamw
+      lr: 7.5e-4
+      weight_decay: 0.0
+  diff_residual:
+    epochs: 0
+  consistency_distill:
+    epochs: 0
+  steady_prior:
+    epochs: 0
+
+logging:
+  wandb:
+    enabled: false

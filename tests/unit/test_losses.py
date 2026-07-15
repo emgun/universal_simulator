@@ -2,9 +2,11 @@ import pytest
 import torch
 
 from scripts.train import (
+    _canonical_raw_supervision,
     _decoded_field_loss,
     _decoded_rollout_training_loss,
     _decoded_rollout_training_window,
+    _source_sample_balanced_loss,
     _task_loss_weight,
     _transport_shift_consistency_loss,
 )
@@ -192,6 +194,72 @@ def test_decoded_rollout_training_window_rejects_unknown_strategy():
             torch.arange(4).view(1, 4, 1),
             rollout_steps=2,
             stage_cfg={"rollout_start_strategy": "middle"},
+        )
+
+
+def test_canonical_raw_supervision_maps_darcy_coefficient_to_solution_once():
+    coefficients = torch.zeros(2, 1, 1, 4, 4)
+    solutions = torch.ones(2, 1, 1, 4, 4)
+
+    supervision, is_steady = _canonical_raw_supervision(
+        coefficients,
+        solutions,
+        task_name="darcy2d",
+        enabled=True,
+    )
+
+    assert is_steady is True
+    assert supervision.shape == (2, 2, 1, 4, 4)
+    assert torch.equal(supervision[:, :1], coefficients)
+    assert torch.equal(supervision[:, 1:], solutions)
+
+
+def test_canonical_raw_supervision_preserves_temporal_and_legacy_inputs():
+    trajectory = torch.arange(6, dtype=torch.float32).view(1, 3, 1, 2)
+
+    temporal, temporal_is_steady = _canonical_raw_supervision(
+        trajectory,
+        trajectory.clone(),
+        task_name="advection1d",
+        enabled=True,
+    )
+    legacy, legacy_is_steady = _canonical_raw_supervision(
+        trajectory[:, :1],
+        torch.ones_like(trajectory[:, :1]),
+        task_name="darcy2d",
+        enabled=False,
+    )
+
+    assert temporal_is_steady is False
+    assert torch.equal(temporal, trajectory)
+    assert legacy_is_steady is False
+    assert torch.equal(legacy, trajectory[:, :1])
+
+
+def test_source_sample_balanced_loss_does_not_overweight_long_trajectories():
+    # Sample one has three unit-error transitions; sample two has one transition
+    # with error 3. Equal-source weighting is (1 + 9) / 2 = 5, rather than the
+    # flattened transition mean (1 + 1 + 1 + 9) / 4 = 3.
+    prediction = torch.tensor([[1.0], [1.0], [1.0], [3.0]])
+    target = torch.zeros_like(prediction)
+
+    loss = _source_sample_balanced_loss(
+        prediction,
+        target,
+        torch.tensor([4, 2]),
+        torch.nn.functional.mse_loss,
+    )
+
+    assert loss == torch.tensor(5.0)
+
+
+def test_source_sample_balanced_loss_rejects_inconsistent_grouping():
+    with pytest.raises(ValueError, match="transition counts"):
+        _source_sample_balanced_loss(
+            torch.zeros(3, 1),
+            torch.zeros(3, 1),
+            torch.tensor([2, 2]),
+            torch.nn.functional.mse_loss,
         )
 
 

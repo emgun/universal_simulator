@@ -7,7 +7,7 @@ import argparse
 import copy
 import random
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +48,7 @@ from ups.data.latent_pairs import (
     unpack_batch,
 )
 from ups.data.parameter_conditioning import resolve_parameter_conditioning
-from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset
+from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
 from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
@@ -192,6 +192,64 @@ def _decoded_rollout_training_window(
 
     end = start + max_steps + 1
     return fields[:, start:end], start
+
+
+def _canonical_raw_supervision(
+    fields: torch.Tensor,
+    targets: torch.Tensor | None,
+    *,
+    task_name: str | None,
+    enabled: bool,
+) -> tuple[torch.Tensor, bool]:
+    """Return the physical supervision sequence for a raw PDEBench sample.
+
+    D5 treats a steady operator sample as one declared coefficient-to-solution
+    application.  It does not duplicate the coefficient or reinterpret the
+    solution as a time-series frame.  The boolean tells callers to use the
+    non-temporal (zero-dt) operator application contract.
+
+    The behavior is opt-in so historical experiment configs remain unchanged.
+    """
+
+    if not enabled or task_name is None:
+        return fields, False
+    if get_pdebench_spec(task_name).mapping_kind != "steady_operator":
+        return fields, False
+    if targets is None:
+        raise ValueError(f"{task_name} steady operator training requires explicit targets")
+    if fields.ndim < 2 or targets.ndim != fields.ndim:
+        raise ValueError("Steady operator fields and targets must have matching batched ranks")
+    if fields.shape[0] != targets.shape[0] or fields.shape[2:] != targets.shape[2:]:
+        raise ValueError("Steady operator fields and targets must have matching sample shapes")
+    if fields.shape[1] != 1 or targets.shape[1] != 1:
+        raise ValueError(
+            "Steady operator training requires exactly one coefficient and one solution per sample"
+        )
+    return torch.cat([fields, targets], dim=1), True
+
+
+def _source_sample_balanced_loss(
+    prediction: torch.Tensor,
+    target: torch.Tensor,
+    sequence_lengths: torch.Tensor,
+    loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+) -> torch.Tensor:
+    """Average a flattened transition loss equally over source samples."""
+
+    if prediction.shape != target.shape:
+        raise ValueError("Prediction and target shapes must match for sample-balanced loss")
+    lengths = torch.as_tensor(sequence_lengths, dtype=torch.long).reshape(-1) - 1
+    if lengths.numel() == 0 or torch.any(lengths <= 0):
+        raise ValueError("Sequence lengths must describe at least one transition per sample")
+    if int(lengths.sum().item()) != int(prediction.shape[0]):
+        raise ValueError("Sequence transition counts do not match the flattened prediction batch")
+    losses = []
+    offset = 0
+    for count in lengths.tolist():
+        end = offset + int(count)
+        losses.append(loss_fn(prediction[offset:end], target[offset:end]))
+        offset = end
+    return torch.stack(losses).mean()
 
 
 def load_config(path: str) -> dict:
@@ -363,11 +421,11 @@ def _pdebench_codec_context(cfg: dict) -> tuple[list[dict[str, Any]], int, str]:
 
 def _auto_conditioning_sources(cfg: dict[str, Any]) -> dict[str, int]:
     specs, _, _ = _pdebench_codec_context(cfg)
-    task_vocab = tuple(str(spec["task"]) for spec in specs) if len(specs) > 1 else None
     data_cfg = cfg.get("data", {})
     parameter_contract = resolve_parameter_conditioning(
         data_cfg, task_names=tuple(str(spec["task"]) for spec in specs)
     )
+    task_vocab = parameter_contract.task_vocab
     param_vocab = parameter_contract.param_vocab
     bc_vocab = tuple(data_cfg.get("bc_keys", ()))
     sources: dict[str, int] = {}
@@ -556,9 +614,9 @@ def _grid_structured_conditioning(
     resolved_task = (
         task_name if task_name is not None else (task if isinstance(task, str) else None)
     )
-    task_vocab = tuple(str(name) for name in task) if isinstance(task, (list, tuple)) else None
     task_names = (task,) if isinstance(task, str) else tuple(str(name) for name in task)
     parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
+    task_vocab = parameter_contract.task_vocab
     extras = pdebench_conditioning_extras(
         task_name=resolved_task, grid_shape=grid_shape, task_vocab=task_vocab
     )
@@ -804,6 +862,7 @@ def _stage_epochs(cfg: dict, stage: str) -> int:
 def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
     train_cfg = cfg.get("training", {})
     lam_semigroup = float(train_cfg.get("lambda_semigroup", 0.0) or 0.0)
+    sample_balanced = bool(train_cfg.get("sample_balanced_operator_loss", False))
     loader_cfg = cfg
     export_encoder = None
     checkpoint_dir = ensure_checkpoint_dir(cfg)
@@ -812,7 +871,9 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         _materialize_encoder(
             export_encoder, cfg, torch.device("cuda" if torch.cuda.is_available() else "cpu")
         )
-    if lam_semigroup > 0.0 and not bool(train_cfg.get("preserve_sequences", False)):
+    if (lam_semigroup > 0.0 or sample_balanced) and not bool(
+        train_cfg.get("preserve_sequences", False)
+    ):
         loader_cfg = copy.deepcopy(cfg)
         loader_cfg.setdefault("training", {})["preserve_sequences"] = True
     loader = dataset_loader(loader_cfg, encoder_override=export_encoder)
@@ -862,14 +923,39 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
             try:
                 with _autocast(device, use_amp):
                     next_state = operator(state, dt_tensor)
-                    base = F.mse_loss(next_state.z, target)
+                    sequence_lengths = batch.get("seq_lens") if isinstance(batch, dict) else None
+                    if sample_balanced:
+                        if sequence_lengths is None:
+                            raise ValueError(
+                                "sample_balanced_operator_loss requires sequence lengths"
+                            )
+                        base = _source_sample_balanced_loss(
+                            next_state.z, target, sequence_lengths, F.mse_loss
+                        )
+                    else:
+                        base = F.mse_loss(next_state.z, target)
                     extra = 0.0
                     if lam_spec > 0.0:
-                        extra = extra + lam_spec * _spectral_energy_loss(
-                            next_state.z, target, dim=1
+                        spectral = (
+                            _source_sample_balanced_loss(
+                                next_state.z,
+                                target,
+                                sequence_lengths,
+                                lambda pred, truth: _spectral_energy_loss(pred, truth, dim=1),
+                            )
+                            if sample_balanced
+                            else _spectral_energy_loss(next_state.z, target, dim=1)
                         )
+                        extra = extra + lam_spec * spectral
                     if lam_rel > 0.0:
-                        extra = extra + lam_rel * _nrmse(next_state.z, target)
+                        relative = (
+                            _source_sample_balanced_loss(
+                                next_state.z, target, sequence_lengths, _nrmse
+                            )
+                            if sample_balanced
+                            else _nrmse(next_state.z, target)
+                        )
+                        extra = extra + lam_rel * relative
                     if lam_semigroup > 0.0:
                         extra = extra + lam_semigroup * _semigroup_loss_from_batch(
                             operator, batch, device, dt_tensor
@@ -1138,6 +1224,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
             raise FileNotFoundError(f"Decoded operator fine-tuning requires checkpoint: {required}")
 
     stage_cfg = cfg.get("stages", {}).get("operator_decoded", {})
+    canonical_steady = bool(cfg.get("training", {}).get("canonical_steady_operator_mapping", False))
     epochs = int(stage_cfg.get("epochs", 0) or 0)
     if epochs <= 0:
         print("Skipping operator_decoded stage (epochs<=0)")
@@ -1196,9 +1283,16 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                 sample_losses = []
                 for sample in batch:
                     fields = sample["fields"].float().unsqueeze(0)
+                    task_name = sample.get("task_name")
+                    raw_targets = sample.get("targets")
+                    fields, steady_mapping = _canonical_raw_supervision(
+                        fields,
+                        raw_targets.float().unsqueeze(0) if raw_targets is not None else None,
+                        task_name=task_name,
+                        enabled=canonical_steady,
+                    )
                     if fields.shape[1] < 2:
                         continue
-                    task_name = sample.get("task_name")
                     params = sample.get("params")
                     bc = sample.get("bc")
                     grid_shape = infer_grid_shape(sample["fields"].float())
@@ -1218,7 +1312,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                     targets = _flatten_field_batch(rollout_fields, grid_shape).to(device)
                     state = LatentState(
                         z=latent,
-                        t=torch.tensor(0.0, device=device),
+                        t=None if steady_mapping else torch.tensor(0.0, device=device),
                         cond=_grid_structured_conditioning(
                             cfg,
                             grid_shape=grid_shape,
@@ -1244,7 +1338,9 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                             step=rollout_start + step - 1,
                         )
                         state = LatentState(z=state.z, t=state.t, cond=cond)
-                        state = operator(state, dt_tensor)
+                        state = operator(
+                            state, torch.zeros_like(dt_tensor) if steady_mapping else dt_tensor
+                        )
                         decoded = decoder(coords_batch, state.z, conditioning={})
                         step_loss = _decoded_field_loss(
                             decoded[field_name],
@@ -1284,9 +1380,16 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
             fields = batch["fields"].float()
             params = batch.get("params")
             bc = batch.get("bc")
+            task_name = _task_name_from_batch(batch)
+            raw_targets = batch.get("targets")
+            fields, steady_mapping = _canonical_raw_supervision(
+                fields,
+                raw_targets.float() if raw_targets is not None else None,
+                task_name=task_name,
+                enabled=canonical_steady,
+            )
             if fields.shape[1] < 2:
                 continue
-            task_name = _task_name_from_batch(batch)
             grid_shape = infer_grid_shape(fields[0])
             coords = make_grid_coords(grid_shape, device)
             rollout_fields, rollout_start = _decoded_rollout_training_window(
@@ -1304,7 +1407,7 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
             targets = _flatten_field_batch(rollout_fields, grid_shape).to(device)
             state = LatentState(
                 z=latent,
-                t=torch.tensor(0.0, device=device),
+                t=None if steady_mapping else torch.tensor(0.0, device=device),
                 cond=_grid_structured_conditioning(
                     cfg,
                     grid_shape=grid_shape,
@@ -1331,7 +1434,9 @@ def train_operator_decoded(cfg: dict, shared_run=None, global_step: int = 0) -> 
                     step=rollout_start + step - 1,
                 )
                 state = LatentState(z=state.z, t=state.t, cond=cond)
-                state = operator(state, dt_tensor)
+                state = operator(
+                    state, torch.zeros_like(dt_tensor) if steady_mapping else dt_tensor
+                )
                 decoded = decoder(coords_batch, state.z, conditioning={})
                 step_loss = _decoded_field_loss(
                     decoded[field_name],
@@ -1419,6 +1524,7 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
             )
 
     stage_cfg = cfg.get("stages", {}).get("joint_codec_operator", {})
+    canonical_steady = bool(cfg.get("training", {}).get("canonical_steady_operator_mapping", False))
     epochs = int(stage_cfg.get("epochs", 0) or 0)
     if epochs <= 0:
         print("Skipping joint_codec_operator stage (epochs<=0)")
@@ -1485,6 +1591,13 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                 for sample in batch:
                     fields = sample["fields"].float().unsqueeze(0)
                     task_name = sample.get("task_name")
+                    raw_targets = sample.get("targets")
+                    fields, steady_mapping = _canonical_raw_supervision(
+                        fields,
+                        raw_targets.float().unsqueeze(0) if raw_targets is not None else None,
+                        task_name=task_name,
+                        enabled=canonical_steady,
+                    )
                     params = sample.get("params")
                     bc = sample.get("bc")
                     grid_shape = infer_grid_shape(sample["fields"].float())
@@ -1521,7 +1634,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                 )
 
                             state = LatentState(
-                                z=latent0, t=torch.tensor(0.0, device=device), cond=structured_cond
+                                z=latent0,
+                                t=None if steady_mapping else torch.tensor(0.0, device=device),
+                                cond=structured_cond,
                             )
                             decoded_losses = []
                             for step in range(1, max_steps + 1):
@@ -1536,7 +1651,10 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                                     step=rollout_start + step - 1,
                                 )
                                 state = LatentState(z=state.z, t=state.t, cond=cond)
-                                state = operator(state, dt_tensor)
+                                state = operator(
+                                    state,
+                                    torch.zeros_like(dt_tensor) if steady_mapping else dt_tensor,
+                                )
                                 decoded = decoder(coords_batch, state.z, conditioning={})
                                 step_loss = _decoded_field_loss(
                                     decoded[field_name],
@@ -1604,6 +1722,13 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
 
             fields = batch["fields"].float()
             task_name = _task_name_from_batch(batch)
+            raw_targets = batch.get("targets")
+            fields, steady_mapping = _canonical_raw_supervision(
+                fields,
+                raw_targets.float() if raw_targets is not None else None,
+                task_name=task_name,
+                enabled=canonical_steady,
+            )
             params = batch.get("params")
             bc = batch.get("bc")
             grid_shape = infer_grid_shape(fields[0])
@@ -1639,7 +1764,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         )
 
                     state = LatentState(
-                        z=latent0, t=torch.tensor(0.0, device=device), cond=structured_cond
+                        z=latent0,
+                        t=None if steady_mapping else torch.tensor(0.0, device=device),
+                        cond=structured_cond,
                     )
                     decoded_losses = []
                     for step in range(1, max_steps + 1):
@@ -1654,7 +1781,9 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                             step=rollout_start + step - 1,
                         )
                         state = LatentState(z=state.z, t=state.t, cond=cond)
-                        state = operator(state, dt_tensor)
+                        state = operator(
+                            state, torch.zeros_like(dt_tensor) if steady_mapping else dt_tensor
+                        )
                         decoded = decoder(coords_batch, state.z, conditioning={})
                         step_loss = _decoded_field_loss(
                             decoded[field_name],

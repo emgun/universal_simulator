@@ -111,6 +111,72 @@ def test_dataset_loader_multitask_auto_conditioning(tmp_path):
     assert torch.allclose(cond["task_family"].sum(dim=-1), torch.ones(z0.shape[0]))
 
 
+def test_dataset_loader_fixed_schema_matches_shared_and_single_task_arms(tmp_path):
+    task_params = {
+        "advection1d": ("beta", 0.4),
+        "burgers1d": ("nu", 0.01),
+        "darcy2d": ("beta", 10.0),
+    }
+    for task_name, (param_key, param_value) in task_params.items():
+        with h5py.File(tmp_path / f"{task_name}_train.h5", "w") as handle:
+            if task_name == "darcy2d":
+                handle.create_dataset("data", data=torch.randn(2, 1, 4, 4, 1).numpy())
+                handle.create_dataset("targets", data=torch.randn(2, 1, 4, 4, 1).numpy())
+            else:
+                handle.create_dataset("data", data=torch.randn(2, 3, 4).numpy())
+            handle.create_dataset(
+                param_key,
+                data=torch.full((2, 1), param_value, dtype=torch.float32).numpy(),
+            )
+
+    data_cfg = {
+        "task": list(task_params),
+        "split": "train",
+        "root": str(tmp_path),
+        "patch_size": 1,
+        "conditioning_schema": {
+            "task_vocab": list(task_params),
+            "param_vocab": ["beta", "nu"],
+        },
+        "task_param_keys": {
+            "advection1d": ["beta"],
+            "burgers1d": ["nu"],
+            "darcy2d": ["beta"],
+        },
+    }
+    base_cfg = {
+        "training": {
+            "batch_size": 6,
+            "dt": 0.1,
+            "auto_conditioning": True,
+            "num_workers": 0,
+        },
+        "latent": {"dim": 8, "tokens": 4},
+    }
+
+    shared_batch = next(iter(train_script.dataset_loader({**base_cfg, "data": data_cfg})))
+    _, _, shared_cond = unpack_batch(shared_batch)
+    specialist_batch = next(
+        iter(train_script.dataset_loader({**base_cfg, "data": {**data_cfg, "task": "darcy2d"}}))
+    )
+    _, _, specialist_cond = unpack_batch(specialist_batch)
+
+    assert shared_cond["task_id"].shape[1] == specialist_cond["task_id"].shape[1] == 3
+    assert shared_cond["param_presence"].shape[1] == specialist_cond["param_presence"].shape[1] == 2
+    expected_task_id = torch.tensor([0.0, 0.0, 1.0])
+    expected_presence = torch.tensor([1.0, 0.0])
+    assert torch.all(specialist_cond["task_id"] == expected_task_id)
+    assert torch.all(specialist_cond["param_presence"] == expected_presence)
+
+    shared_darcy = shared_cond["task_id"][:, 2] == 1.0
+    assert shared_darcy.any()
+    assert torch.all(shared_cond["task_id"][shared_darcy] == expected_task_id)
+    assert torch.all(shared_cond["param_presence"][shared_darcy] == expected_presence)
+    shared_burgers = shared_cond["task_id"][:, 1] == 1.0
+    assert shared_burgers.any()
+    assert torch.all(shared_cond["param_presence"][shared_burgers] == torch.tensor([0.0, 1.0]))
+
+
 def test_dataset_loader_reads_configured_pdebench_param_and_bc_keys(tmp_path):
     data = torch.randn(2, 3, 4, dtype=torch.float32)
     beta = torch.full((2, 1), 0.25, dtype=torch.float32)

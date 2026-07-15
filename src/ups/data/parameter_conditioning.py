@@ -31,6 +31,7 @@ class ParameterTransform:
 @dataclass(frozen=True)
 class ParameterConditioningContract:
     task_names: tuple[str, ...]
+    task_vocab: tuple[str, ...]
     task_param_keys: Mapping[str, tuple[str, ...]]
     task_roots: Mapping[str, str]
     param_vocab: tuple[str, ...]
@@ -128,14 +129,48 @@ def resolve_parameter_conditioning(
     if not tasks or any(not task for task in tasks) or len(set(tasks)) != len(tasks):
         raise ValueError("Resolved task names must be non-empty and unique")
 
+    raw_schema = data_cfg.get("conditioning_schema")
+    if raw_schema is None:
+        task_vocab = tasks
+        explicit_param_vocab: tuple[str, ...] | None = None
+    else:
+        if not isinstance(raw_schema, Mapping):
+            raise ValueError("data.conditioning_schema must be a mapping")
+        unknown_schema_fields = set(raw_schema) - {"task_vocab", "param_vocab"}
+        if unknown_schema_fields:
+            raise ValueError(
+                "data.conditioning_schema contains unknown fields: "
+                f"{sorted(unknown_schema_fields)}"
+            )
+        if "task_vocab" not in raw_schema or "param_vocab" not in raw_schema:
+            raise ValueError(
+                "data.conditioning_schema requires explicit task_vocab and param_vocab"
+            )
+        task_vocab = _string_tuple(
+            raw_schema.get("task_vocab"),
+            setting="data.conditioning_schema.task_vocab",
+        )
+        explicit_param_vocab = _string_tuple(
+            raw_schema.get("param_vocab"),
+            setting="data.conditioning_schema.param_vocab",
+        )
+        if not task_vocab:
+            raise ValueError("data.conditioning_schema.task_vocab must not be empty")
+        missing_tasks = sorted(set(tasks) - set(task_vocab))
+        if missing_tasks:
+            raise ValueError(
+                "Selected tasks are not covered by data.conditioning_schema.task_vocab: "
+                f"{missing_tasks}"
+            )
+
     default_keys = _string_tuple(data_cfg.get("param_keys"), setting="data.param_keys")
     raw_task_keys = _task_mapping(data_cfg.get("task_param_keys"), setting="data.task_param_keys")
-    unknown_tasks = set(raw_task_keys) - set(tasks)
+    unknown_tasks = set(raw_task_keys) - set(task_vocab)
     if unknown_tasks:
         raise ValueError(
             f"data.task_param_keys contains unknown task entries: {sorted(unknown_tasks)}"
         )
-    if raw_task_keys and set(raw_task_keys) != set(tasks):
+    if raw_task_keys and not set(tasks).issubset(raw_task_keys):
         missing = sorted(set(tasks) - set(raw_task_keys))
         raise ValueError(f"data.task_param_keys is missing selected tasks: {missing}")
     task_param_keys = {
@@ -144,7 +179,7 @@ def resolve_parameter_conditioning(
     }
 
     raw_roots = _task_mapping(data_cfg.get("task_roots"), setting="data.task_roots")
-    unknown_root_tasks = set(raw_roots) - set(tasks)
+    unknown_root_tasks = set(raw_roots) - set(task_vocab)
     if unknown_root_tasks:
         raise ValueError(
             f"data.task_roots contains unknown task entries: {sorted(unknown_root_tasks)}"
@@ -153,17 +188,26 @@ def resolve_parameter_conditioning(
     if any(not root for root in task_roots.values()):
         raise ValueError("data.task_roots values must be non-empty paths")
 
-    all_keys = (
+    selected_keys = (
         default_keys
         if not task_param_keys
         else tuple(key for task in tasks for key in task_param_keys[task])
     )
-    param_vocab = tuple(sorted(set(all_keys)))
+    if explicit_param_vocab is None:
+        param_vocab = tuple(sorted(set(selected_keys)))
+    else:
+        param_vocab = explicit_param_vocab
+        uncovered_keys = sorted(set(selected_keys) - set(param_vocab))
+        if uncovered_keys:
+            raise ValueError(
+                "Selected parameter keys are not covered by "
+                f"data.conditioning_schema.param_vocab: {uncovered_keys}"
+            )
 
     raw_transforms_by_task = _task_mapping(
         data_cfg.get("parameter_transforms"), setting="data.parameter_transforms"
     )
-    unknown_transform_tasks = set(raw_transforms_by_task) - set(tasks)
+    unknown_transform_tasks = set(raw_transforms_by_task) - set(task_vocab)
     if unknown_transform_tasks:
         raise ValueError(
             "data.parameter_transforms contains unknown task entries: "
@@ -189,6 +233,7 @@ def resolve_parameter_conditioning(
     _validate_transform_source_bindings(data_cfg, task_transforms)
     return ParameterConditioningContract(
         task_names=tasks,
+        task_vocab=task_vocab,
         task_param_keys=task_param_keys,
         task_roots=task_roots,
         param_vocab=param_vocab,

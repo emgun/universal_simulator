@@ -36,6 +36,7 @@ def test_resolver_builds_sorted_union_and_task_specific_contract() -> None:
     )
 
     assert contract.param_vocab == ("beta", "nu")
+    assert contract.task_vocab == ("advection1d", "burgers1d")
     assert contract.param_keys_for("burgers1d") == ("nu",)
     assert contract.root_for("advection1d") == "shared"
     assert contract.root_for("burgers1d") == "burgers"
@@ -55,11 +56,83 @@ def test_resolver_preserves_legacy_param_keys_and_raw_values() -> None:
         {"task": "burgers1d", "root": "legacy", "param_keys": ["nu"]}
     )
     assert contract.param_vocab == ("nu",)
+    assert contract.task_vocab == ("burgers1d",)
     assert contract.param_keys_for("burgers1d") == ("nu",)
     cond = prepare_conditioning(
         {"nu": torch.tensor(0.25)}, None, 1, param_vocab=contract.param_vocab
     )
     assert cond["param_nu"].item() == pytest.approx(0.25)
+
+
+def test_explicit_conditioning_schema_is_fixed_across_selected_task_subsets() -> None:
+    data_cfg = {
+        "task": ["advection1d", "burgers1d", "darcy2d"],
+        "conditioning_schema": {
+            "task_vocab": ["advection1d", "burgers1d", "darcy2d"],
+            "param_vocab": ["nu", "beta", "forcing"],
+        },
+        "task_param_keys": {
+            "advection1d": ["beta"],
+            "burgers1d": ["nu"],
+            "darcy2d": ["beta"],
+        },
+    }
+
+    shared = resolve_parameter_conditioning(data_cfg)
+    specialist = resolve_parameter_conditioning(data_cfg, task_names=("darcy2d",))
+
+    assert shared.task_names == ("advection1d", "burgers1d", "darcy2d")
+    assert specialist.task_names == ("darcy2d",)
+    assert (
+        shared.task_vocab
+        == specialist.task_vocab
+        == (
+            "advection1d",
+            "burgers1d",
+            "darcy2d",
+        )
+    )
+    assert shared.param_vocab == specialist.param_vocab == ("nu", "beta", "forcing")
+    assert specialist.param_keys_for("darcy2d") == ("beta",)
+
+
+@pytest.mark.parametrize(
+    "config,task_names,match",
+    [
+        (
+            {
+                "task": ["a"],
+                "conditioning_schema": {"task_vocab": ["b"], "param_vocab": ["beta"]},
+                "task_param_keys": {"b": ["beta"]},
+            },
+            None,
+            "Selected tasks are not covered",
+        ),
+        (
+            {
+                "task": ["a", "b"],
+                "conditioning_schema": {"task_vocab": ["a", "b"], "param_vocab": ["nu"]},
+                "task_param_keys": {"a": ["beta"], "b": ["nu"]},
+            },
+            ("a",),
+            "Selected parameter keys are not covered",
+        ),
+        (
+            {
+                "task": ["a"],
+                "conditioning_schema": {"task_vocab": ["a"]},
+                "task_param_keys": {"a": ["beta"]},
+            },
+            None,
+            "requires explicit task_vocab and param_vocab",
+        ),
+    ],
+)
+def test_explicit_conditioning_schema_fails_closed_on_missing_coverage(
+    config: dict, task_names: tuple[str, ...] | None, match: str
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        resolve_parameter_conditioning(config, task_names=task_names)
 
 
 @pytest.mark.parametrize(
