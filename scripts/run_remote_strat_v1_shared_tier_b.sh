@@ -14,6 +14,20 @@ ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-shared-tier-b}
 RESERVE_BYTES=${RESERVE_BYTES:-8589934592}
 DRY_RUN=${DRY_RUN:-1}
 
+# The tracked Vast bootstrap forwards script_args as positional tokens. Accept
+# only the two launch-time overrides this frozen workflow declares; reject
+# everything else so a typo cannot silently fall back to dry-run behavior.
+for override in "$@"; do
+  case "$override" in
+    DRY_RUN=0|DRY_RUN=1) DRY_RUN=${override#DRY_RUN=} ;;
+    ARTIFACT_PREFIX=*) ARTIFACT_PREFIX=${override#ARTIFACT_PREFIX=} ;;
+    *) echo "Unsupported D5 remote override: $override" >&2; exit 2 ;;
+  esac
+done
+case "$ARTIFACT_PREFIX" in
+  ""|/*|*..*) echo "ARTIFACT_PREFIX must be a nonempty relative B2 prefix" >&2; exit 2 ;;
+esac
+
 if [ "$DRY_RUN" = 1 ]; then
   echo "$PYTHON -m ups.data.cli stage --lock $TRAINING_LOCK --cache $CACHE --run-dir $DATA_ROOT"
   echo "$PYTHON scripts/run_strat_v1_shared_tier_b.py --training-lock $TRAINING_LOCK --data-root $DATA_ROOT --config $CONFIG --output-dir $OUTPUT_DIR --plan-path $PLAN --plan-sha256 <from-plan> --device cuda"

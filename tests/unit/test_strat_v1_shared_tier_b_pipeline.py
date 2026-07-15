@@ -107,6 +107,35 @@ def test_remote_dry_run_is_non_mutating_and_validation_only(tmp_path: Path) -> N
     assert not (tmp_path / "output").exists()
 
 
+def test_remote_positional_dry_run_override_reaches_real_preflight(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    for key in ("B2_KEY_ID", "B2_APP_KEY", "B2_BUCKET", "B2_S3_ENDPOINT", "B2_S3_REGION"):
+        env.pop(key, None)
+    env.update(
+        {
+            "DRY_RUN": "1",
+            "CACHE": str(tmp_path / "cache"),
+            "DATA_ROOT": str(tmp_path / "data"),
+            "OUTPUT_DIR": str(tmp_path / "output"),
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(REMOTE), "DRY_RUN=0", "ARTIFACT_PREFIX=test-prefix"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "Set B2_KEY_ID" in result.stderr
+    assert "ups.data.cli stage" not in result.stdout
+    assert not (tmp_path / "cache").exists()
+    assert not (tmp_path / "data").exists()
+    assert not (tmp_path / "output").exists()
+
+
 def test_remote_pipeline_has_immutable_readback_purge_and_success_marker() -> None:
     remote = REMOTE.read_text(encoding="utf-8")
     assert 'heldout_access") != "forbidden"' in remote
