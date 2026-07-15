@@ -66,7 +66,7 @@ if rclone lsf "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" --files-only --rec
   resume_arg=(--resume)
 fi
 
-$PYTHON -m pip install -e .
+$PYTHON -m pip install -e . --no-deps
 $PYTHON -m ups.data.cli plan --lock "$TRAINING_LOCK" --cache "$CACHE" --reserve-bytes "$RESERVE_BYTES"
 $PYTHON -m ups.data.cli stage --lock "$TRAINING_LOCK" --cache "$CACHE" --run-dir "$DATA_ROOT" --reserve-bytes "$RESERVE_BYTES" --report "$STAGE_REPORT"
 $PYTHON -m ups.data.cli verify --lock "$TRAINING_LOCK" --cache "$CACHE"

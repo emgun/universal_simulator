@@ -138,6 +138,8 @@ def test_remote_positional_dry_run_override_reaches_real_preflight(tmp_path: Pat
 
 def test_remote_pipeline_has_immutable_readback_purge_and_success_marker() -> None:
     remote = REMOTE.read_text(encoding="utf-8")
+    assert "$PYTHON -m pip install -e . --no-deps" in remote
+    assert "$PYTHON -m pip install -e .\n" not in remote
     assert 'heldout_access") != "forbidden"' in remote
     assert 'measurement_lock_access") != "forbidden"' in remote
     assert 'temporary_prefix="${ARTIFACT_PREFIX%/}/resumable/${plan_sha}"' in remote
