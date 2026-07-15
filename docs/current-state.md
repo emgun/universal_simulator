@@ -194,6 +194,14 @@ not plateau. Causal beta diagnostics remained strong and no held-out data was
 read. The remaining imbalance is not solved by equal regime counts or a simple
 worst-regime penalty; do not continue FNO objective or sampling variants.
 
+The D4 conditioned-UNO architecture comparison is negative and closes the
+nearby single-task specialist branch. At epoch 384, UNO reached primary NRMSE
+`0.141998`, beta-100 global-scale NRMSE `0.315154`, and corrected spread
+`2.219424`, all worse than the frozen D3 conditioned-FNO control (`0.116942`,
+`0.257621`, and `2.202992`). It did not plateau. Shuffled-beta degradation
+(`8.4713x`) and counterfactual sensitivity confirm causal parameter use, so the
+failure is not an ignored-conditioning artifact. No held-out data was read.
+
 The complete 15.3 MiB run bundle is immutable at B2 SHA-256
 `bc917695cdec16a517995036576933628a8d9a3136ad2f1fb1bffaaa2e5b78b7`.
 Compact plan, stage, and selection evidence is committed under
@@ -239,15 +247,14 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 1. Keep parameter value/presence universal in specialist and shared candidate
    contracts; D1 and D2 confirm causal parameter use.
-2. Pre-register one validation-only, parameter-conditioned steady-operator
-   architecture comparison with materially different multiscale capacity.
-   Use the strongest direct conditioned FNO as the matched control; do not run
-   more FNO head, objective, or sampling variants.
-3. Only after a specialist clears the
-   gate, repair Poseidon and `tier_b` conditioning/evaluation
-   contracts and measure shared-versus-single-task interference, low-data transfer, regime
-   handling, and consolidation economics. Select exactly one specialist and
-   one shared candidate before drafting any held-out sequence.
+2. Close the Darcy specialist search at D4: neither the strongest conditioned
+   FNO nor conditioned UNO clears the regime-spread gate. Do not add seeds,
+   extend epochs, or open held-out access for either recipe.
+3. Repair Poseidon and `tier_b` conditioning/evaluation contracts, then run a
+   validation-only shared-versus-single-task measurement of interference,
+   low-data transfer, regime handling, and consolidation economics. Require a
+   shared candidate to beat the frozen specialist evidence before drafting any
+   held-out sequence.
 
 ## Reopen Triggers
 

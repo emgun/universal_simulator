@@ -1,0 +1,45 @@
+{
+  "all_gates_passed": false,
+  "arms": {
+    "U-conditioned": {
+      "beta100_global_scale_nrmse": 0.31515374424500986,
+      "maximum_corrected_spread_ratio": 2.2194240892766217,
+      "plateau_epoch": null,
+      "primary_value": 0.14199798306583583,
+      "selected_epoch": 384
+    }
+  },
+  "artifact_id": "strat-v1-darcy-conditioned-uno-d4-result",
+  "artifact_sha256": "353cdcff26ce14310d9d59ce28e32bbf3b2659e824c6d266a26f6c682e098622",
+  "effect": {
+    "candidate_counterfactual_relative_prediction_rms": 0.9988687527155637,
+    "candidate_primary_improvement_vs_d3_control": -0.21426349242570913,
+    "candidate_shuffled_beta_relative_degradation": 8.471266583518162
+  },
+  "gate_checks": {
+    "candidate_beta100_better_than_d3_control": false,
+    "candidate_beta_sensitivity": true,
+    "candidate_plateau_by_cap": false,
+    "candidate_primary_better_than_d3_control": false,
+    "candidate_regime_spread": false,
+    "candidate_shuffled_beta_degradation": true,
+    "heldout_zero": true
+  },
+  "heldout_reads": 0,
+  "historical_baseline": {
+    "beta100_global_scale_nrmse": 0.25762147974587746,
+    "maximum_corrected_spread_ratio": 2.2029915564017024,
+    "plateau_epoch": 384,
+    "primary_value": 0.11694165553982801,
+    "selected_epoch": 384
+  },
+  "interpretation": "conditioned_uno_not_validated",
+  "plan_sha256": "6d988f77706c1f7ab342c398dde7a17509dd19090d8e505d5af01f02f3ccf27c",
+  "schema_version": 2,
+  "source_summary": {
+    "artifact_sha256": "593aa78d90a1ad658386fc9544387cb9eee32bc51f0e4013858f8cda12866152",
+    "file_sha256": "fb679cefdb6a4cae81a817e40e43092acdff5d1403843aa1f02741af3277a135",
+    "path": "reports/research/darcy_conditioned_uno_ablation/summary.json"
+  },
+  "status": "complete_validation_only"
+}
