@@ -3,6 +3,7 @@ from __future__ import annotations
 """PDEBench evaluation helpers."""
 
 import math
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -21,6 +22,7 @@ from ups.data.latent_pairs import (
 from ups.data.parameter_conditioning import resolve_parameter_conditioning
 from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
 from ups.eval.metrics import mae, mse, nrmse, relative_rrmse, spectral_energy_error
+from ups.eval.regime_metrics import aligned_element_count, global_scale_regime_nrmse
 from ups.eval.reports import MetricReport
 from ups.eval.reward_models import RewardModel
 from ups.inference.rollout_ttc import TTCConfig, ttc_rollout
@@ -143,6 +145,237 @@ def _aggregate_chunk_metrics(
         "rrmse": nrmse_val,
         "spectral_energy_error": spectral_total / len(pred_chunks),
     }
+
+
+@dataclass(frozen=True)
+class DecodedMetricChunk:
+    """One decoded prediction/target contribution to the strict PDEBench metrics.
+
+    Temporal chunks identify their one-indexed rollout ``horizon``. Steady
+    operators use ``horizon=None`` because coefficient-to-solution evaluation
+    is one operator application, not a synthetic time step.
+    """
+
+    task: str
+    prediction: torch.Tensor
+    target: torch.Tensor
+    regime: float | str
+    horizon: int | None = None
+
+
+def _strict_nrmse(
+    predictions: Sequence[torch.Tensor],
+    targets: Sequence[torch.Tensor],
+    *,
+    eps: float = 1e-8,
+) -> float:
+    """Accumulate NRMSE in float64 using the frozen strat-v1.1 convention."""
+
+    if len(predictions) != len(targets) or not predictions:
+        raise ValueError("predictions and targets must be non-empty and aligned")
+    error_sum_sq = 0.0
+    target_sum_sq = 0.0
+    element_count = 0
+    for prediction, target in zip(predictions, targets, strict=True):
+        prediction_tensor = torch.as_tensor(prediction).to(dtype=torch.float64)
+        target_tensor = torch.as_tensor(target).to(dtype=torch.float64)
+        if prediction_tensor.shape != target_tensor.shape:
+            raise ValueError("prediction and target shapes must match")
+        if prediction_tensor.numel() == 0:
+            raise ValueError("prediction and target chunks must not be empty")
+        if not bool(torch.isfinite(prediction_tensor).all()) or not bool(
+            torch.isfinite(target_tensor).all()
+        ):
+            raise ValueError("prediction and target chunks must contain only finite values")
+        error_sum_sq += float((prediction_tensor - target_tensor).pow(2).sum().item())
+        target_sum_sq += float(target_tensor.pow(2).sum().item())
+        element_count += int(target_tensor.numel())
+    return math.sqrt((error_sum_sq / element_count) / (target_sum_sq / element_count + float(eps)))
+
+
+def _strict_regime_label(value: float | str) -> str:
+    if isinstance(value, str):
+        label = value
+    else:
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise ValueError("regime values must be finite scalars")
+        label = format(numeric, ".6g")
+    if not label:
+        raise ValueError("regime labels must not be empty")
+    return label
+
+
+def _strict_regime_slug(label: str) -> str:
+    slug = label.lower().replace("-", "neg").replace("+", "pos").replace(".", "p")
+    slug = re.sub(r"[^a-z0-9]+", "_", slug).strip("_")
+    if not slug:
+        raise ValueError(f"Unable to form a metric-safe regime label from {label!r}")
+    return slug
+
+
+def _strict_sample_regime(
+    params: Mapping[str, Any] | None, *, task: str, parameter_key: str
+) -> float:
+    if not params or parameter_key not in params:
+        raise ValueError(f"strict stratified evaluation requires {task} parameter {parameter_key}")
+    values = torch.as_tensor(params[parameter_key], dtype=torch.float64).reshape(-1)
+    if values.numel() == 0 or not bool(torch.isfinite(values).all()):
+        raise ValueError(f"strict stratified evaluation requires finite {task} regimes")
+    first = values[0]
+    if not bool(torch.allclose(values, first.expand_as(values), rtol=0.0, atol=1e-12)):
+        raise ValueError(f"strict stratified evaluation requires one regime per {task} sample")
+    return float(first.item())
+
+
+def aggregate_stratified_decoded_metrics(
+    chunks: Sequence[DecodedMetricChunk],
+    *,
+    eps: float = 1e-8,
+) -> dict[str, float]:
+    """Aggregate strict shared-model evidence without changing legacy evaluators.
+
+    The returned ``decoded_rollout_nrmse`` remains available as the historical
+    top-level key, but under this strict helper it is explicitly the equal-task
+    macro primary. Steady tasks additionally receive an unambiguous
+    ``decoded_solution_nrmse`` key while retaining the old rollout alias for
+    downstream compatibility.
+    """
+
+    if not chunks:
+        raise ValueError("decoded metric chunks must not be empty")
+    task_predictions: dict[str, list[torch.Tensor]] = {}
+    task_targets: dict[str, list[torch.Tensor]] = {}
+    horizon_predictions: dict[str, dict[int, list[torch.Tensor]]] = {}
+    horizon_targets: dict[str, dict[int, list[torch.Tensor]]] = {}
+    regime_predictions: dict[str, dict[str, list[torch.Tensor]]] = {}
+    regime_targets: dict[str, dict[str, list[torch.Tensor]]] = {}
+    all_predictions: list[torch.Tensor] = []
+    all_targets: list[torch.Tensor] = []
+
+    for chunk in chunks:
+        task = str(chunk.task)
+        spec = get_pdebench_spec(task)
+        if spec.mapping_kind == "steady_operator":
+            if chunk.horizon is not None:
+                raise ValueError(
+                    f"steady task {task} must use horizon=None; it is not a temporal rollout"
+                )
+        elif chunk.horizon is None or int(chunk.horizon) <= 0:
+            raise ValueError(f"temporal task {task} requires a positive rollout horizon")
+        prediction = torch.as_tensor(chunk.prediction)
+        target = torch.as_tensor(chunk.target)
+        # Validate shape and finiteness before grouping, including one-chunk calls.
+        _strict_nrmse([prediction], [target], eps=eps)
+        regime_label = _strict_regime_label(chunk.regime)
+
+        all_predictions.append(prediction)
+        all_targets.append(target)
+        task_predictions.setdefault(task, []).append(prediction)
+        task_targets.setdefault(task, []).append(target)
+        regime_predictions.setdefault(task, {}).setdefault(regime_label, []).append(prediction)
+        regime_targets.setdefault(task, {}).setdefault(regime_label, []).append(target)
+        if chunk.horizon is not None:
+            horizon = int(chunk.horizon)
+            horizon_predictions.setdefault(task, {}).setdefault(horizon, []).append(prediction)
+            horizon_targets.setdefault(task, {}).setdefault(horizon, []).append(target)
+
+    metrics: dict[str, float] = {
+        "micro_decoded_rollout_nrmse": _strict_nrmse(all_predictions, all_targets, eps=eps)
+    }
+    primary_values: list[float] = []
+    temporal_horizon_values: dict[int, list[float]] = {}
+    for task in sorted(task_predictions):
+        spec = get_pdebench_spec(task)
+        primary = _strict_nrmse(task_predictions[task], task_targets[task], eps=eps)
+        primary_values.append(primary)
+        metrics[f"task_{task}_decoded_rollout_nrmse"] = primary
+        if spec.mapping_kind == "steady_operator":
+            metrics[f"task_{task}_decoded_solution_nrmse"] = primary
+        for horizon in sorted(horizon_predictions.get(task, {})):
+            value = _strict_nrmse(
+                horizon_predictions[task][horizon], horizon_targets[task][horizon], eps=eps
+            )
+            metrics[f"task_{task}_decoded_h{horizon}_nrmse"] = value
+            temporal_horizon_values.setdefault(horizon, []).append(value)
+
+        primary_suffix = (
+            "decoded_solution_nrmse"
+            if spec.mapping_kind == "steady_operator"
+            else "decoded_rollout_nrmse"
+        )
+        seen_slugs: set[str] = set()
+        task_spreads: list[float] = []
+        for regime_label in sorted(regime_predictions[task]):
+            slug = _strict_regime_slug(regime_label)
+            if slug in seen_slugs:
+                raise ValueError(f"{task} regime labels collide after metric slugging")
+            seen_slugs.add(slug)
+            predictions = regime_predictions[task][regime_label]
+            targets = regime_targets[task][regime_label]
+            raw = _strict_nrmse(predictions, targets, eps=eps)
+            corrected = global_scale_regime_nrmse(predictions, targets, task_targets[task], eps=eps)
+            element_count = aligned_element_count(predictions, targets)
+            spread = corrected / primary if primary > 0.0 else math.inf
+            task_spreads.append(spread)
+            prefix = f"task_{task}_regime_{slug}_"
+            metrics[prefix + primary_suffix] = raw
+            metrics[prefix + primary_suffix.replace("_nrmse", "_global_scale_nrmse")] = corrected
+            metrics[prefix + primary_suffix.replace("_nrmse", "_element_count")] = float(
+                element_count
+            )
+            metrics[prefix + "spread_ratio_to_task_primary"] = spread
+        metrics[f"task_{task}_maximum_corrected_regime_spread_ratio"] = max(task_spreads)
+
+    macro = sum(primary_values) / len(primary_values)
+    metrics["macro_primary_nrmse"] = macro
+    metrics["decoded_rollout_nrmse"] = macro
+    for horizon, values in sorted(temporal_horizon_values.items()):
+        metrics[f"temporal_macro_decoded_h{horizon}_nrmse"] = sum(values) / len(values)
+    return metrics
+
+
+def conditioning_perturbation_metrics(
+    reference_predictions: Sequence[torch.Tensor],
+    perturbed_predictions: Sequence[torch.Tensor],
+    *,
+    targets: Sequence[torch.Tensor] | None = None,
+    prefix: str = "conditioning_perturbation",
+    eps: float = 1e-8,
+) -> dict[str, float]:
+    """Summarize a shuffle or counterfactual without coupling to model inference."""
+
+    if len(reference_predictions) != len(perturbed_predictions) or not reference_predictions:
+        raise ValueError("reference and perturbed predictions must be non-empty and aligned")
+    delta_sum_sq = 0.0
+    reference_sum_sq = 0.0
+    element_count = 0
+    for reference, perturbed in zip(reference_predictions, perturbed_predictions, strict=True):
+        reference_tensor = torch.as_tensor(reference).to(dtype=torch.float64)
+        perturbed_tensor = torch.as_tensor(perturbed).to(dtype=torch.float64)
+        if reference_tensor.shape != perturbed_tensor.shape:
+            raise ValueError("reference and perturbed prediction shapes must match")
+        if not bool(torch.isfinite(reference_tensor).all()) or not bool(
+            torch.isfinite(perturbed_tensor).all()
+        ):
+            raise ValueError("conditioning perturbation predictions must be finite")
+        delta_sum_sq += float((perturbed_tensor - reference_tensor).pow(2).sum().item())
+        reference_sum_sq += float(reference_tensor.pow(2).sum().item())
+        element_count += int(reference_tensor.numel())
+    result = {
+        f"{prefix}_relative_prediction_rms_delta": math.sqrt(
+            (delta_sum_sq / element_count) / (reference_sum_sq / element_count + float(eps))
+        )
+    }
+    if targets is not None:
+        reference_nrmse = _strict_nrmse(reference_predictions, targets, eps=eps)
+        perturbed_nrmse = _strict_nrmse(perturbed_predictions, targets, eps=eps)
+        result[f"{prefix}_reference_nrmse"] = reference_nrmse
+        result[f"{prefix}_nrmse"] = perturbed_nrmse
+        result[f"{prefix}_nrmse_degradation_ratio"] = (
+            perturbed_nrmse / reference_nrmse if reference_nrmse > 0.0 else math.inf
+        )
+    return result
 
 
 def _nonnegative_alpha(value: Any, *, setting: str) -> float:
@@ -1027,9 +1260,16 @@ def evaluate_decoded_operator(
     parameter_contract = resolve_parameter_conditioning(data_cfg, task_names=task_names)
     task_roots = dict(parameter_contract.task_roots)
     preview_sample_count = max(int(preview_sample_count), 0)
+    strict_stratified_metrics = bool(eval_cfg.get("strict_stratified_metrics", False))
+    conditioning_parameter_index_shift = int(
+        eval_cfg.get("conditioning_parameter_index_shift", 0) or 0
+    )
+    if conditioning_parameter_index_shift < 0:
+        raise ValueError("evaluation.conditioning_parameter_index_shift must be nonnegative")
 
     total_pred = []
     total_target = []
+    strict_chunks: list[DecodedMetricChunk] = []
     preview_records: list[dict[str, Any]] = []
     alpha_stats: dict[str, list[float]] = {}
     shift_stats: dict[str, list[float]] = {}
@@ -1091,7 +1331,9 @@ def evaluate_decoded_operator(
             base_cond: dict[str, torch.Tensor] = {}
             if bool(cfg.get("training", {}).get("auto_conditioning", False)):
                 extras = pdebench_conditioning_extras(
-                    task_name=task_name, grid_shape=grid_shape, task_vocab=task_names
+                    task_name=task_name,
+                    grid_shape=grid_shape,
+                    task_vocab=parameter_contract.task_vocab,
                 )
                 base_cond = {key: value.to(device) for key, value in extras.items()}
             param_vocab = parameter_contract.param_vocab
@@ -1110,6 +1352,26 @@ def evaluate_decoded_operator(
                     fields = torch.cat([fields, solution], dim=0)
                 params = sample.get("params")
                 bc = sample.get("bc")
+                regime_value: float | None = None
+                if strict_stratified_metrics:
+                    parameter_keys = parameter_contract.param_keys_for(task_name)
+                    if len(parameter_keys) != 1:
+                        raise ValueError(
+                            f"strict stratified evaluation requires one regime key for {task_name}"
+                        )
+                    regime_value = _strict_sample_regime(
+                        params, task=task_name, parameter_key=parameter_keys[0]
+                    )
+                if conditioning_parameter_index_shift:
+                    conditioning_sample = dataset[
+                        (idx + conditioning_parameter_index_shift) % len(dataset)
+                    ]
+                    shifted_params = conditioning_sample.get("params")
+                    if not shifted_params or set(shifted_params) != set(params or {}):
+                        raise ValueError(
+                            "parameter-shift diagnostics require an aligned parameter schema"
+                        )
+                    params = shifted_params
                 collect_preview = len(preview_records) < preview_sample_count
                 preview_prediction_frames: list[torch.Tensor] = []
                 preview_target_frames: list[torch.Tensor] = []
@@ -1426,6 +1688,21 @@ def evaluate_decoded_operator(
                     target_field = _flatten_field_step(fields[step + 1], grid_shape).cpu()
                     total_pred.append(pred_field)
                     total_target.append(target_field)
+                    if strict_stratified_metrics:
+                        strict_chunks.append(
+                            DecodedMetricChunk(
+                                task=task_name,
+                                prediction=pred_field,
+                                target=target_field,
+                                regime=float(regime_value),
+                                horizon=(
+                                    None
+                                    if get_pdebench_spec(task_name).mapping_kind
+                                    == "steady_operator"
+                                    else horizon
+                                ),
+                            )
+                        )
                     if collect_preview:
                         preview_prediction_frames.append(
                             _unflatten_preview_field(pred_field, grid_shape)
@@ -1547,6 +1824,8 @@ def evaluate_decoded_operator(
                 )
                 metrics[f"family_{family_name}_decoded_h{horizon}_nrmse"] = horizon_stats["nrmse"]
                 metrics[f"family_{family_name}_decoded_h{horizon}_rrmse"] = horizon_stats["rrmse"]
+    if strict_stratified_metrics:
+        metrics.update(aggregate_stratified_decoded_metrics(strict_chunks))
     _add_alpha_stats(metrics, alpha_stats)
     _add_alpha_stats(metrics, shift_stats)
     task_extra: str | list[str] = task_names[0] if len(task_names) == 1 else task_names
@@ -1575,6 +1854,8 @@ def evaluate_decoded_operator(
         ),
         "model_side_transport_head_metrics": transport_head_counts,
         "report_all_horizon_metrics": report_all_horizon_metrics,
+        "strict_stratified_metrics": strict_stratified_metrics,
+        "conditioning_parameter_index_shift": conditioning_parameter_index_shift,
         "skip_missing_tasks": skip_missing_tasks,
         "skipped_missing_tasks": skipped_missing_tasks,
         "task_roots": task_roots,

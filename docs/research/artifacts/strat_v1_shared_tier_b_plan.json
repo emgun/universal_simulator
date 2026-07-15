@@ -1,0 +1,181 @@
+{
+  "bindings": {
+    "config": {
+      "file_sha256": "67ffb752d02100a42830676edf57b15ebbd12dd877a3e4f7c37ac39080ab6a38",
+      "path": "configs/d5_strat_v1_shared_tier_b.yaml"
+    },
+    "source": {
+      "files": {
+        "configs/d5_strat_v1_shared_tier_b.yaml": "67ffb752d02100a42830676edf57b15ebbd12dd877a3e4f7c37ac39080ab6a38",
+        "scripts/evaluate.py": "604d7693b713ea8720e98317ac8f9c39236fb42bb665ede3833398ca42cab998",
+        "scripts/launch_strat_v1_shared_tier_b_vast.sh": "9c02d07925141bcb573bb86ef0e7c6238efa7f3eb914dd40c6db432f624d6da0",
+        "scripts/materialize_strat_v1_shared_tier_b.py": "270e17865d565673c9d9b42350ddc1a022c51b375e02cf16920998117431d664",
+        "scripts/plan_strat_v1_shared_tier_b.py": "44f083568bdd93c8ebee432a0122c925b2eb1e2b05bb6b8453d38b05e8262ec5",
+        "scripts/run_light_experiment.py": "500bc05bf3eb7d02e5b2ce3508ccb22b115772ac71c09c2071088a49ec9e1717",
+        "scripts/run_remote_strat_v1_shared_tier_b.sh": "414bf45cb55c6ab1136976615ec06e1f9fc450d73f3a24be70ce61dc9d448008",
+        "scripts/run_strat_v1_shared_tier_b.py": "9e2f5557edeef06721a895a4508978a7ccfae70c363626edb1d852f949640bfa",
+        "scripts/train.py": "64ba103e744c0bd138c1831e96c11c0f4f3e22d3097a7d7fdd90044516b299b8",
+        "scripts/vast_launch.py": "f4230b7eaa4a1ecf3af259ed20b04a8269845acc2a6b02055b4e75db4fffef64",
+        "scripts/vast_remote_bootstrap.sh": "2ed36b713ff5de1aac7b07dd241e639c8e19b5a78095d598f4f6559cee9d8ad3",
+        "scripts/vast_watchdog.py": "80e37c557fd50b3e432a09edd73711c75c5cc95263a5c7db41db124035910a77",
+        "src/ups/__init__.py": "714a735509791245a69d91aa2873e566c4f9ef9753c9664991427300dd8c0d40",
+        "src/ups/active/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/baselines/models.py": "7ef2d13f0bcc6a3d0e7b8e8b27ac48d77253064fc165a41739cb432983e8938e",
+        "src/ups/core/__init__.py": "e0c92ad1257d1a262a5cb0c1a2b1e12a5681c351f5ad586f39a5d1786b3bfe56",
+        "src/ups/core/blocks_pdet.py": "1ea42e4882d452178aabb4d1c59ec6caead7a3b05748b7a74448f6a630553685",
+        "src/ups/core/conditioning.py": "c6ef0bccdea78ef43a54b2ba11a94dd25ecb73fdf3d99ed11bc395461c3bfefc",
+        "src/ups/core/latent_state.py": "925d334ece5594b3e1601f83a12e300a2c23d5e550c7708ecef882eaf9eff354",
+        "src/ups/core/shifted_window.py": "a204b92c07df6e8c217c9d695bb4cc737ae20017818165ae17b45b53025f1327",
+        "src/ups/data/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/data/baseline_runtime.py": "e482421ebc71f8cbd60c047bcf74c4c56edf89aa1ea2d4bafe195e9d9e50facf",
+        "src/ups/data/cli.py": "bf737b92e7d6abfb2088de1fa2cc24071da5dedf1b8016d6870ae9f0f987eb75",
+        "src/ups/data/convert_pdebench.py": "9fc621bb5eb9834056b4763fee392cd876a31e7d6405b9197b019276f918c207",
+        "src/ups/data/datasets.py": "568a219662d475751f78f1586eb2ff339cbca632bc9c428dfec310e27ba82c36",
+        "src/ups/data/hf_inventory.py": "2aac79dcaadfa9fc35044f60e255fcd7ef284af103f814f071649b872192576f",
+        "src/ups/data/latent_pairs.py": "2952defe6fdb149f00688ce247b95ce4295a71e80fd08d5df7b8b5a1ce07d315",
+        "src/ups/data/manifests.py": "40bec07fd343d300eec66d79fafef0fc9fac334c52d7c1fa6e091b4d5d11edeb",
+        "src/ups/data/normalization.py": "fd5b4b9d09b841e92daeabbc5d6fa89a7c40d407ad98835b378e9e6b409ff413",
+        "src/ups/data/parameter_conditioning.py": "7d04a2423ff235c4b5c26fbc7965502c0f7de3dc29a7c5961249cd40c818622e",
+        "src/ups/data/pdebench.py": "bcad9219eaaaa0f1069885c3dd851e5faf19262bd0c89c1cd152ba82bda3c708",
+        "src/ups/data/schemas.py": "7774994890982e6fe645ec93587683f95b9e15fef8ff3720a5a737784bd93915",
+        "src/ups/data/staging.py": "8947d1c551eabe3ce50dde81e4e651e87f3a1db0c2f74dc803ce34479dfc848e",
+        "src/ups/data/trajectory.py": "a529fa596064ec84bcec9283045fc7f31768e98542d292d414f0b66198db8749",
+        "src/ups/data/transports.py": "3546015e438247793ce25054bb8c047bf7eef91e2649a861613b467a8e4f7eb0",
+        "src/ups/data/well.py": "6f85bf7de5610749e5b53c5220709246db3d623599967d9caa27128b56b337dd",
+        "src/ups/discovery/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/discovery/nondim.py": "0e56bbadb201a7ab5c2183ed399f117df24102726168247fc11f0d4699785a9d",
+        "src/ups/eval/__init__.py": "64c8288677f31648abc9e24928e8ad24721d18a7f94764c464d0dbaddc90a31d",
+        "src/ups/eval/calibration.py": "5a404a5686234dfc34fef4483f3666c1a9122eddb123bf78451e8fc06fc90978",
+        "src/ups/eval/demo_plots.py": "7ab4e6b53ec314b79f853363ca18ccd46e5c7d22041d68e35ed312b5264eb880",
+        "src/ups/eval/demo_scorecard.py": "34320ec025ac8c362f856807031b53135200fbf4913be662ff527ec8cdb703fb",
+        "src/ups/eval/gates.py": "8b3b3194a0f078ae4837635405fddd0b92cc02511fc744750b91807e3733b9a2",
+        "src/ups/eval/metrics.py": "b004662104ecc34ff8e8d87e8bd042609cb12570f7c1ab8a16865428af54a305",
+        "src/ups/eval/pdebench_runner.py": "8eb84cb3b847975adb0629905d6703c0b3a7e17424f04cf1683874bda5b6f7b1",
+        "src/ups/eval/persistence_baselines.py": "65e302d1dd07626a33bd3846ad4c016a285ae3fcb98b9b4497a38940b5a5775f",
+        "src/ups/eval/promotion.py": "89f84d871aa9a78b527c43e36be068bac4c09cc462ecdd3309843b657080bd70",
+        "src/ups/eval/regime_metrics.py": "623fb620ae0a23406af084d659ad1e7e84cc99ef9acd9c26dbdc1ba1efd5dae4",
+        "src/ups/eval/reports.py": "6efc6544fd5c46a0d332f7b917c4f1af5ab091759529b28143c174b4e9e5eecc",
+        "src/ups/eval/reward_models.py": "d810ef0e073f5ecceab74d1658618b063ed7d431f1b5fb1f2cb689dbe28147d3",
+        "src/ups/inference/__init__.py": "078a99250faafaad7ffca224728dc56a521c8b56bf5a70d3419360c0f845b455",
+        "src/ups/inference/control_safe.py": "04f73a571630742dd22c1e2849fbbf11402945f3b28a2f6fe15f1ef140418fd7",
+        "src/ups/inference/da_latent.py": "0a2769013af1f0dcd2959e170d0becf168bf36f75738c7d3bf61851f1498e4d1",
+        "src/ups/inference/rollout_transient.py": "4aee62b59530e0fd964f0f31edc9568d6804c45ec5875c33514cd06de6dfc2f7",
+        "src/ups/inference/rollout_ttc.py": "06d24804ce9cb44afb946387df93138fc3328162a7399f21690cf745178642b1",
+        "src/ups/io/__init__.py": "9a6f0f33bc023214d5a7c39880d3bfd697a1856542675f14b90d030deb110df9",
+        "src/ups/io/decoder_anypoint.py": "dd782e86c0da2b7ac60096fc35ab686c7aed4fa417b54869364808bc256ada2a",
+        "src/ups/io/enc_grid.py": "5fc6f22acb1cd697d76268d56333df3bc51bcb1e305685a0388407e8f58311ec",
+        "src/ups/io/enc_mesh_particle.py": "ef4c93295af014cee3f4fdacf1518d9cc082f724b81988a35e20821f1b286f3a",
+        "src/ups/logging/__init__.py": "e72ea862ce42482d84e53f455b7fe8b077746b5afb6bcaa90a0cd7b6ccbd76c4",
+        "src/ups/logging/utils.py": "1ab0548bcea09abb20814a41d4d571ce9edf55df011e7b172d39746cb14ad91a",
+        "src/ups/models/__init__.py": "eff57e7d446a6b0b53a12a9b311228913718772d5d5c2f8e88325a342ceaddf0",
+        "src/ups/models/diffusion_residual.py": "5ba31d6136fc75091c661e1d80d202a14850988bdb30a92ac5289eb86dbc1bc8",
+        "src/ups/models/latent_operator.py": "a30726165e7e7f3d32c41cf72f05bc017fd32ed020da945583854c8ac27375e8",
+        "src/ups/models/multiphysics_factor_graph.py": "36c74131bc1fb4061b300049db8663bedc1366c140cb3b495057717ee4cfc4d7",
+        "src/ups/models/particles_contacts.py": "d873cabc31ebf22a9ef750889d6d1adf960ee1fec9efe94257bc83ea0fdcfcaa",
+        "src/ups/models/physics_guards.py": "b548d906f031e71a24bbd49cf76efab5e2fc6a0a16c5efced4d27c12c315a6a0",
+        "src/ups/models/steady_prior.py": "f50b009db16146b79adc8a871d18fb4e36c2258a6df0cbe7388db04887591205",
+        "src/ups/models/transport_head.py": "f71eb311403bd5441757778c974275ce98ba7c0bb0274ea7409d28566bda2009",
+        "src/ups/training/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/training/consistency_distill.py": "789c15099a41513cd7e22d991551303228b71e4ce52e7b6e2bf8a1be9bd9821e",
+        "src/ups/training/loop_train.py": "91fa69ba21ae928977fb207c6d1f6be9d441b91c754caa7add2c901d8fc37115",
+        "src/ups/training/losses.py": "d683fca14828611b63f3232f1c6a8728cac519901698d89a8f781b6fc17869d2",
+        "src/ups/training/resumable_checkpoint.py": "97580c0b37195fec2ec1fafdb78c7078597e5de0b2e39255c69ef7f95a8c33b7",
+        "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
+        "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
+      },
+      "implementation_commit": "7f43d6e6b66ad8f7c05b79bfaa48d4514a85eb3a"
+    },
+    "training_lock": {
+      "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
+      "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+      "objects": {
+        "advection1d-train": "aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
+        "advection1d-valid": "0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+        "burgers1d-train": "9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",
+        "burgers1d-valid": "496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+        "darcy2d-train": "47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+        "darcy2d-valid": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595"
+      },
+      "path": "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json"
+    }
+  },
+  "command": [
+    "python",
+    "scripts/run_strat_v1_shared_tier_b.py",
+    "--training-lock",
+    "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+    "--data-root",
+    "reports/research/strat_v1_shared_tier_b_scratch/data",
+    "--config",
+    "configs/d5_strat_v1_shared_tier_b.yaml",
+    "--output-dir",
+    "reports/research/strat_v1_shared_tier_b",
+    "--plan-path",
+    "docs/research/artifacts/strat_v1_shared_tier_b_plan.json",
+    "--plan-sha256",
+    "__PLAN_SHA256__",
+    "--device",
+    "cuda"
+  ],
+  "command_sha256": "4dca048bb90ca17caf3bd9b77572091304a8c28a1071a1e07279e24bb8d9a617",
+  "design": {
+    "architecture": "native_ups_tier_b",
+    "arms": [
+      "specialist-advection1d",
+      "specialist-burgers1d",
+      "specialist-darcy2d",
+      "shared"
+    ],
+    "conditioning_schema": {
+      "param_vocab": [
+        "beta",
+        "nu"
+      ],
+      "task_vocab": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ]
+    },
+    "objective_weighting": "equal_source_sample_weight",
+    "seed": 17,
+    "stage_epochs": {
+      "decoder": 6,
+      "joint": 4,
+      "operator": 12,
+      "operator_decoded": 6
+    },
+    "steady_semantics": "one_coefficient_to_solution_application",
+    "tasks": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "temporal_rollout_horizons": [
+      1,
+      4,
+      16
+    ]
+  },
+  "gates": {
+    "darcy_primary_maximum": 0.14032998664779361,
+    "heldout_reads": 0,
+    "maximum_corrected_regime_spread": 1.5,
+    "persistence_maximum_by_task": {
+      "advection1d": 0.673296470301147,
+      "burgers1d": 0.6400475744644419,
+      "darcy2d": 0.9721143218273548
+    },
+    "shared_checkpoint_bytes_less_than_specialist_ensemble": true,
+    "shared_macro_ratio_to_specialist_oracle_maximum": 1.05,
+    "shared_per_task_ratio_to_specialist_maximum": 1.1,
+    "shuffled_parameter_nrmse_degradation_minimum": 0.05
+  },
+  "heldout_access": "forbidden",
+  "measurement_lock_access": "forbidden",
+  "mode": "validation_only",
+  "plan_id": "strat-v1-shared-tier-b-d5",
+  "plan_sha256": "12933eb82386749b4479ac9f46dcf9e058ea19f3b73336e7d967de521277bac3",
+  "question": "Can one conditioned tier-b model match three architecture-matched specialists?",
+  "schema_version": 1
+}
