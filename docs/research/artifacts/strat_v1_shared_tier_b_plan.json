@@ -1,20 +1,20 @@
 {
   "bindings": {
     "config": {
-      "file_sha256": "67ffb752d02100a42830676edf57b15ebbd12dd877a3e4f7c37ac39080ab6a38",
+      "file_sha256": "0fbca360f6277a89b4e011947959b5b6a3e5043ddaa63c74daf96a0041d7183c",
       "path": "configs/d5_strat_v1_shared_tier_b.yaml"
     },
     "source": {
       "files": {
-        "configs/d5_strat_v1_shared_tier_b.yaml": "67ffb752d02100a42830676edf57b15ebbd12dd877a3e4f7c37ac39080ab6a38",
+        "configs/d5_strat_v1_shared_tier_b.yaml": "0fbca360f6277a89b4e011947959b5b6a3e5043ddaa63c74daf96a0041d7183c",
         "scripts/evaluate.py": "604d7693b713ea8720e98317ac8f9c39236fb42bb665ede3833398ca42cab998",
         "scripts/launch_strat_v1_shared_tier_b_vast.sh": "9c02d07925141bcb573bb86ef0e7c6238efa7f3eb914dd40c6db432f624d6da0",
         "scripts/materialize_strat_v1_shared_tier_b.py": "270e17865d565673c9d9b42350ddc1a022c51b375e02cf16920998117431d664",
-        "scripts/plan_strat_v1_shared_tier_b.py": "44f083568bdd93c8ebee432a0122c925b2eb1e2b05bb6b8453d38b05e8262ec5",
+        "scripts/plan_strat_v1_shared_tier_b.py": "236e8a48d94b98d408c7bb77436f2eb16ffba65698509689aaef1b8809f5a7eb",
         "scripts/run_light_experiment.py": "500bc05bf3eb7d02e5b2ce3508ccb22b115772ac71c09c2071088a49ec9e1717",
-        "scripts/run_remote_strat_v1_shared_tier_b.sh": "55ba1570d891fbde4a026e66c47745abe2949ad4ca9b2e1363bf3c2de3111288",
+        "scripts/run_remote_strat_v1_shared_tier_b.sh": "e895152287ec02d789ce530e1c8a9dae467a2d64b4288feef4a77f0fcda25ec8",
         "scripts/run_strat_v1_shared_tier_b.py": "9e2f5557edeef06721a895a4508978a7ccfae70c363626edb1d852f949640bfa",
-        "scripts/train.py": "64ba103e744c0bd138c1831e96c11c0f4f3e22d3097a7d7fdd90044516b299b8",
+        "scripts/train.py": "b7c1f755e889bdd1bf76a43c66b31b5cf4674a4dbea960d6d66e35e7dc47aef3",
         "scripts/vast_launch.py": "525417f07ec7a357d8c4db985edcabf363932bd790fe49058c1e8200f83f66ea",
         "scripts/vast_remote_bootstrap.sh": "560da4a637ceb4e03c08a9b32fead33064166f6408eb13dad9927080642703bf",
         "scripts/vast_watchdog.py": "45500af4830998f712770674c3d6b826cf7d024079ad031f4484c20aa2210cf5",
@@ -83,7 +83,7 @@
         "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
         "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
       },
-      "implementation_commit": "d3f46204958f7ce97467d948642939b88dca8d1a"
+      "implementation_commit": "98d342e7c6eb6b835d0481bb30813162a517326c"
     },
     "training_lock": {
       "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
@@ -139,6 +139,12 @@
     },
     "objective_weighting": "equal_source_sample_weight",
     "seed": 17,
+    "stage_batch_sizes": {
+      "decoder": 2,
+      "joint": 2,
+      "operator": 16,
+      "operator_decoded": 2
+    },
     "stage_epochs": {
       "decoder": 6,
       "joint": 4,
@@ -175,7 +181,7 @@
   "measurement_lock_access": "forbidden",
   "mode": "validation_only",
   "plan_id": "strat-v1-shared-tier-b-d5",
-  "plan_sha256": "2a58cf6e61618def7813761332c4d02054c719fdb1b426284f4115c3ecdf8b25",
+  "plan_sha256": "31debb6ae62e4a5e27bf11f48c1fb8e03f2c7849658a07ded02c613e10fbd046",
   "question": "Can one conditioned tier-b model match three architecture-matched specialists?",
   "schema_version": 1
 }

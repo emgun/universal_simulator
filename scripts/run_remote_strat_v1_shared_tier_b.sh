@@ -9,6 +9,7 @@ CACHE=${CACHE:-reports/research/strat_v1_shared_tier_b_scratch/cache}
 DATA_ROOT=${DATA_ROOT:-reports/research/strat_v1_shared_tier_b_scratch/data}
 STAGE_REPORT=${STAGE_REPORT:-reports/research/strat_v1_shared_tier_b_stage.json}
 OUTPUT_DIR=${OUTPUT_DIR:-reports/research/strat_v1_shared_tier_b}
+RUN_LOG=${RUN_LOG:-reports/research/strat_v1_shared_tier_b.remote.log}
 RESULT=${RESULT:-reports/research/strat_v1_shared_tier_b_result.json}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-shared-tier-b}
 RESERVE_BYTES=${RESERVE_BYTES:-8589934592}
@@ -50,9 +51,15 @@ temporary_prefix="${ARTIFACT_PREFIX%/}/resumable/${plan_sha}"
 success=0
 preserve_resume() {
   status=$?
-  if [ "$success" -ne 1 ] && [ -d "$OUTPUT_DIR" ]; then
-    rclone sync "$OUTPUT_DIR" "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" || true
-    echo "Preserved resumable D5 arms: b2://${B2_BUCKET}/${temporary_prefix}/output" >&2
+  if [ "$success" -ne 1 ]; then
+    if [ -d "$OUTPUT_DIR" ]; then
+      rclone sync "$OUTPUT_DIR" "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" || true
+      echo "Preserved resumable D5 arms: b2://${B2_BUCKET}/${temporary_prefix}/output" >&2
+    fi
+    if [ -f "$RUN_LOG" ]; then
+      rclone copyto "$RUN_LOG" "UPSB2:${B2_BUCKET}/${temporary_prefix}/remote.log" || true
+      echo "Preserved D5 remote log: b2://${B2_BUCKET}/${temporary_prefix}/remote.log" >&2
+    fi
   fi
   exit "$status"
 }
@@ -82,17 +89,18 @@ for relative,expected in p["bindings"]["source"]["files"].items():
     if hashlib.sha256(pathlib.Path(relative).read_bytes()).hexdigest() != expected: raise SystemExit(f"source binding mismatch: {relative}")
 PY
 
+mkdir -p "$(dirname "$RUN_LOG")"
 $PYTHON scripts/run_strat_v1_shared_tier_b.py \
   --training-lock "$TRAINING_LOCK" --data-root "$DATA_ROOT" --config "$CONFIG" \
   --output-dir "$OUTPUT_DIR" --plan-path "$PLAN" --plan-sha256 "$plan_sha" \
-  --device cuda "${resume_arg[@]}"
+  --device cuda "${resume_arg[@]}" 2>&1 | tee "$RUN_LOG"
 $PYTHON scripts/materialize_strat_v1_shared_tier_b.py \
   --plan "$PLAN" --summary "$OUTPUT_DIR/summary.json" --output "$RESULT"
 
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 archive_name="strat_v1_shared_tier_b_${stamp}.tar.gz"
 archive_path="/tmp/${archive_name}"
-tar -czf "$archive_path" "$PLAN" "$CONFIG" "$STAGE_REPORT" "$OUTPUT_DIR" "$RESULT"
+tar -czf "$archive_path" "$PLAN" "$CONFIG" "$STAGE_REPORT" "$OUTPUT_DIR" "$RESULT" "$RUN_LOG"
 digest=$(sha256sum "$archive_path" | awk '{print $1}')
 remote_key="${ARTIFACT_PREFIX%/}/immutable/sha256/${digest}/${archive_name}"
 rclone copyto "$archive_path" "UPSB2:${B2_BUCKET}/${remote_key}"

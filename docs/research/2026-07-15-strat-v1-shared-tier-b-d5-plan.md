@@ -55,6 +55,12 @@ Every arm uses one frozen universal input schema even when only one task is sele
 - equation signature, resolution, and spatial dimensionality;
 - identical `tier_b` latent/operator/decoder sizes.
 
+The latent-operator stage uses batch size `16`. Decoder, decoded-operator, and
+joint stages use batch size `2` because each source sample expands into as many
+as 201 decoded frames; the smaller decoded-stage batch bounds peak memory
+without changing examples, optimizer recipes, or the matched exposure between
+the shared and specialist arms.
+
 The training objective averages transitions within each source sample before averaging
 samples, preventing temporal trajectories from outweighing one-shot Darcy mappings.
 Steady samples are exactly coefficient-to-solution mappings and receive no invented
