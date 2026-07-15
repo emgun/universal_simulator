@@ -7,11 +7,15 @@ import argparse
 import json
 import os
 import secrets
+import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from ups.data.manifests import load_data_lock
 

@@ -7,8 +7,12 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.d5_presigned_io import checked_manifest
 from scripts.generate_b2_presigned_bundle import _load_literal_env, _setting
