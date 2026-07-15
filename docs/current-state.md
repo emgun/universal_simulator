@@ -184,6 +184,16 @@ optimization imbalance. No held-out data was read. The exact result and repair
 provenance are committed under
 `docs/research/artifacts/strat_v1_darcy_fno_affine_head_ablation_*.json`.
 
+The D3 regime-balanced-objective follow-up is also negative and closes the
+nearby FNO loss/sampling branch. With deterministic regime-complete batches,
+the mean-loss control reached primary NRMSE `0.116942`, beta-100 global-scale
+NRMSE `0.257621`, spread `2.202992`, and plateaued at epoch 384. The matched
+`0.5 mean + 0.5 worst-regime` candidate worsened primary NRMSE to `0.123019`
+and beta-100 NRMSE to `0.270654`, barely changed spread to `2.200100`, and did
+not plateau. Causal beta diagnostics remained strong and no held-out data was
+read. The remaining imbalance is not solved by equal regime counts or a simple
+worst-regime penalty; do not continue FNO objective or sampling variants.
+
 The complete 15.3 MiB run bundle is immutable at B2 SHA-256
 `bc917695cdec16a517995036576933628a8d9a3136ad2f1fb1bffaaa2e5b78b7`.
 Compact plan, stage, and selection evidence is committed under
@@ -229,11 +239,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 1. Keep parameter value/presence universal in specialist and shared candidate
    contracts; D1 and D2 confirm causal parameter use.
-2. Pre-register one validation-only regime-balanced objective or sampling
-   ablation that explicitly targets beta-100 error and requires plateau by cap.
-   Do not extend the rejected affine-head family unchanged.
-3. If balancing still misses the spread gate, test one stronger steady-operator
-   architecture before any held-out access. Only after a specialist clears the
+2. Pre-register one validation-only, parameter-conditioned steady-operator
+   architecture comparison with materially different multiscale capacity.
+   Use the strongest direct conditioned FNO as the matched control; do not run
+   more FNO head, objective, or sampling variants.
+3. Only after a specialist clears the
    gate, repair Poseidon and `tier_b` conditioning/evaluation
    contracts and measure shared-versus-single-task interference, low-data transfer, regime
    handling, and consolidation economics. Select exactly one specialist and

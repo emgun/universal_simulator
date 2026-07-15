@@ -1,0 +1,46 @@
+{
+  "all_gates_passed": false,
+  "arms": {
+    "B-minimax": {
+      "beta100_global_scale_nrmse": 0.2706539139312041,
+      "maximum_corrected_spread_ratio": 2.200099886332185,
+      "plateau_epoch": null,
+      "primary_value": 0.1230189209192746,
+      "selected_epoch": 384
+    },
+    "R-mean": {
+      "beta100_global_scale_nrmse": 0.25762147974587746,
+      "maximum_corrected_spread_ratio": 2.2029915564017024,
+      "plateau_epoch": 384,
+      "primary_value": 0.11694165553982801,
+      "selected_epoch": 384
+    }
+  },
+  "artifact_id": "strat-v1-darcy-fno-regime-balanced-objective-d3-result",
+  "artifact_sha256": "25d29a00d69233acfd2e05789f4dd6bd5488a8011cc584a7a11ba8d384d1ee1a",
+  "effect": {
+    "candidate_counterfactual_relative_prediction_rms": 0.9985636385951515,
+    "candidate_primary_improvement_vs_control": -0.05196835423094213,
+    "candidate_shuffled_beta_relative_degradation": 9.922351624289874
+  },
+  "gate_checks": {
+    "candidate_beta100_better_than_control": false,
+    "candidate_beta_sensitivity": true,
+    "candidate_plateau_by_cap": false,
+    "candidate_primary_below_frozen_d2_control": false,
+    "candidate_primary_better_than_control": false,
+    "candidate_regime_spread": false,
+    "candidate_shuffled_beta_degradation": true,
+    "heldout_zero": true
+  },
+  "heldout_reads": 0,
+  "interpretation": "regime_balanced_objective_not_validated",
+  "plan_sha256": "fa20a2644b7bfd926ef2e994bfb2a039e94b1b26adf121499673f6d73cfd2238",
+  "schema_version": 2,
+  "source_summary": {
+    "artifact_sha256": "9d873c6f78afc6c1e480d9def03d227491e57a28bee56f0ff3f9f6ce19716c64",
+    "file_sha256": "fcc26f7029eb5eff9c273f0ab7f80e2926fcc8f4794ec352d2740635fc870d15",
+    "path": "reports/research/darcy_fno_regime_balanced_objective/summary.json"
+  },
+  "status": "complete_validation_only"
+}
