@@ -178,6 +178,68 @@ def test_b2_transfer_uses_fixed_remote_and_atomically_replaces_partial(tmp_path,
     assert "process-app-key" not in " ".join(calls[0][0])
 
 
+def test_b2_presigned_override_uses_https_without_credentials_or_url_in_report(
+    tmp_path, monkeypatch
+):
+    uri = "b2://ups-datasets/objects/sha256/abc123"
+    signed_url = "https://objects.example.invalid/object?signature=secret"
+    bundle = tmp_path / "presigned.json"
+    bundle.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "objects": [{"object_id": "object", "uri": uri, "get_url": signed_url}],
+            }
+        )
+    )
+    monkeypatch.setenv("UPS_B2_PRESIGNED_URLS_FILE", str(bundle))
+    monkeypatch.delenv("B2_KEY_ID", raising=False)
+    monkeypatch.delenv("B2_APP_KEY", raising=False)
+    observed = []
+
+    def fake_http(url, destination, **_kwargs):
+        observed.append(url)
+        destination.write_bytes(b"signed bytes")
+        return len(b"signed bytes")
+
+    monkeypatch.setattr("ups.data.transports.download_http_resumable", fake_http)
+    monkeypatch.setattr(
+        "ups.data.transports.subprocess.run",
+        lambda *_args, **_kwargs: pytest.fail("rclone must not run for a presigned override"),
+    )
+
+    destination = tmp_path / "object.partial"
+    transferred = transfer_to_partial(uri, destination)
+
+    assert transferred == len(b"signed bytes")
+    assert destination.read_bytes() == b"signed bytes"
+    assert observed == [signed_url]
+
+
+def test_b2_presigned_override_fails_closed_and_redacts_signed_url(tmp_path, monkeypatch):
+    uri = "b2://ups-datasets/object.h5"
+    signed_url = "https://objects.example.invalid/object?signature=secret"
+    bundle = tmp_path / "presigned.json"
+    bundle.write_text(json.dumps({"schema_version": 1, "urls": {uri: signed_url}}))
+    monkeypatch.setenv("UPS_B2_PRESIGNED_URLS_FILE", str(bundle))
+
+    def fail_http(url, *_args, **_kwargs):
+        raise TransportError(f"network failure for {url}")
+
+    monkeypatch.setattr("ups.data.transports.download_http_resumable", fail_http)
+    with pytest.raises(TransportError) as error:
+        transfer_to_partial(uri, tmp_path / "object.partial")
+
+    assert signed_url not in str(error.value)
+    assert "signature=secret" not in str(error.value)
+
+    missing = tmp_path / "missing.json"
+    missing.write_text(json.dumps({"schema_version": 1, "urls": {}}))
+    monkeypatch.setenv("UPS_B2_PRESIGNED_URLS_FILE", str(missing))
+    with pytest.raises(TransportError, match="does not authorize"):
+        transfer_to_partial(uri, tmp_path / "other.partial")
+
+
 def test_b2_failure_preserves_existing_partial_and_hides_process_output(tmp_path, monkeypatch):
     destination = tmp_path / "object.partial"
     destination.write_bytes(b"keep me")
