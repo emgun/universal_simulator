@@ -114,6 +114,52 @@ def test_build_neuraloperator_uno_model_adapts_1d_grid_to_repo_grid_shape():
     assert model.uno.channel_mlp_skip == "linear"
 
 
+def test_build_neuraloperator_uno_model_supports_darcy_three_to_one_shape():
+    model = build_neuraloperator_uno_model(
+        in_channels=3,
+        out_channels=1,
+        grid_shape=(128, 128),
+        hidden_channels=16,
+        fourier_modes=16,
+        n_layers=4,
+        lifting_channels=32,
+        projection_channels=32,
+        channel_mlp_skip="linear",
+        identity_scaling=False,
+        residual=False,
+        uno_cls=TinyUNO,
+    )
+
+    prediction = model(torch.randn(2, 3, 128, 128))
+
+    assert prediction.shape == (2, 1, 128, 128)
+    assert model.uno.uno_n_modes == [[16, 16]] * 4
+    assert model.uno.uno_scalings == [
+        [1.0, 1.0],
+        [0.5, 0.5],
+        [1.0, 1.0],
+        [2.0, 2.0],
+    ]
+
+
+def test_build_neuraloperator_uno_model_rejects_residual_channel_mismatch():
+    with pytest.raises(ValueError, match="residual UNO"):
+        build_neuraloperator_uno_model(
+            in_channels=3,
+            out_channels=1,
+            grid_shape=(8, 8),
+            hidden_channels=4,
+            fourier_modes=4,
+            n_layers=2,
+            lifting_channels=8,
+            projection_channels=8,
+            channel_mlp_skip="linear",
+            identity_scaling=False,
+            residual=True,
+            uno_cls=TinyUNO,
+        )
+
+
 def test_train_uno_group_model_can_learn_simple_residual_with_fake_uno():
     generator = torch.Generator().manual_seed(13)
     currents = torch.randn(16, 1, 1, 8, generator=generator)

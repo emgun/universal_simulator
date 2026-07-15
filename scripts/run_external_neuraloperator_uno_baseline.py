@@ -124,7 +124,9 @@ def uno_scalings_for_grid(
 
 def build_neuraloperator_uno_model(
     *,
-    channels: int,
+    channels: int | None = None,
+    in_channels: int | None = None,
+    out_channels: int | None = None,
     grid_shape: tuple[int, int],
     hidden_channels: int,
     fourier_modes: int,
@@ -136,6 +138,14 @@ def build_neuraloperator_uno_model(
     residual: bool,
     uno_cls: type[nn.Module] | None = None,
 ) -> nn.Module:
+    if channels is not None:
+        if in_channels is not None or out_channels is not None:
+            raise ValueError("channels cannot be combined with explicit input/output channels")
+        in_channels = out_channels = int(channels)
+    if in_channels is None or out_channels is None:
+        raise ValueError("channels or both in_channels and out_channels are required")
+    if residual and int(in_channels) != int(out_channels):
+        raise ValueError("residual UNO requires equal input and output channels")
     uno_cls = uno_cls or load_neuraloperator_uno_class()
     modes = uno_modes_for_grid(grid_shape, fourier_modes)
     scalings = uno_scalings_for_grid(
@@ -144,8 +154,8 @@ def build_neuraloperator_uno_model(
         identity_scaling=identity_scaling,
     )
     kwargs = {
-        "in_channels": int(channels),
-        "out_channels": int(channels),
+        "in_channels": int(in_channels),
+        "out_channels": int(out_channels),
         "hidden_channels": int(hidden_channels),
         "lifting_channels": int(lifting_channels),
         "projection_channels": int(projection_channels),
