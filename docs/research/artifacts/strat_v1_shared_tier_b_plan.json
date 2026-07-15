@@ -9,8 +9,8 @@
         "configs/d5_strat_v1_shared_tier_b.yaml": "0fbca360f6277a89b4e011947959b5b6a3e5043ddaa63c74daf96a0041d7183c",
         "scripts/d5_presigned_io.py": "8df06078179ed4286e479b3a51c67c541485c3689efecd4d3e4418de1df5a58f",
         "scripts/evaluate.py": "604d7693b713ea8720e98317ac8f9c39236fb42bb665ede3833398ca42cab998",
-        "scripts/finalize_d5_presigned_transfer.py": "75f92d461e3c1ba4f9a1437cdc4b083b284b18c089d203555bc626ff14247517",
-        "scripts/generate_b2_presigned_bundle.py": "3a7fa42bf6d6f84eb3b37a9b3f0ae909a42c08dda97d501395c8e865fa3d73ba",
+        "scripts/finalize_d5_presigned_transfer.py": "30bf49cf9efa81be08b1fa9c31a96f09838130287a48104f5fdd3b74388d7c57",
+        "scripts/generate_b2_presigned_bundle.py": "f093f4d7b30b0049f48a3896a1d27da34bbed2717b5e774c732a82364a591dba",
         "scripts/launch_strat_v1_shared_tier_b_vast.sh": "622f375fb398c72ab821bea90ca4376673e2c259525fb06a252e18a7a0ab3027",
         "scripts/materialize_strat_v1_shared_tier_b.py": "270e17865d565673c9d9b42350ddc1a022c51b375e02cf16920998117431d664",
         "scripts/plan_strat_v1_shared_tier_b.py": "30f41d3fdc6024d7482b8ffd4cbf2405adb88693083ca2f0a1849b35bc6164b9",
@@ -86,7 +86,7 @@
         "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
         "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
       },
-      "implementation_commit": "d8c20242d8f4b16d0aee168a85df881a7fdbc755"
+      "implementation_commit": "252fce1096df442fb07a9aeb8464d0dbad870f78"
     },
     "training_lock": {
       "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
@@ -184,7 +184,7 @@
   "measurement_lock_access": "forbidden",
   "mode": "validation_only",
   "plan_id": "strat-v1-shared-tier-b-d5",
-  "plan_sha256": "11c0fc1e667676342bc3ae9ff66086a31fcffc0dc23ec505aba5cb4a44ac800d",
+  "plan_sha256": "eb81a2d70b25c73c899df8196c04d8d0fa6aae1615184ec8dd1ff5a05c2b2220",
   "question": "Can one conditioned tier-b model match three architecture-matched specialists?",
   "schema_version": 1
 }
