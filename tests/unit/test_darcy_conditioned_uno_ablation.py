@@ -9,6 +9,20 @@ from torch import nn
 from scripts import run_darcy_conditioned_uno_ablation as d4
 
 
+def test_uno_runtime_uses_warning_only_for_unsupported_cuda_kernels(monkeypatch):
+    calls: list[tuple[bool, bool]] = []
+    monkeypatch.setattr(d4.d2, "configure_deterministic_runtime", lambda: None)
+    monkeypatch.setattr(
+        d4.torch,
+        "use_deterministic_algorithms",
+        lambda enabled, *, warn_only=False: calls.append((enabled, warn_only)),
+    )
+
+    d4.configure_deterministic_runtime()
+
+    assert calls == [(True, True)]
+
+
 class TinyUNO(nn.Module):
     def __init__(self, *, in_channels: int, out_channels: int, **_: object) -> None:
         super().__init__()

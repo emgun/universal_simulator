@@ -45,6 +45,19 @@ BATCH_SIZE = d3.BATCH_SIZE
 DEFAULT_LOCK = d3.DEFAULT_LOCK
 
 
+def configure_deterministic_runtime() -> None:
+    """Keep the D2 determinism lock, tolerating unsupported UNO interpolation kernels.
+
+    NeuralOperator UNO uses bicubic interpolation whose CUDA backward kernel is not
+    deterministic in the pinned Torch runtime.  Warning-only mode preserves fixed
+    seeds, deterministic cuDNN, and deterministic alternatives where available
+    without making that upstream kernel incompatibility fatal.
+    """
+
+    d2.configure_deterministic_runtime()
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
 def build_model(
     *,
     grid_shape: tuple[int, int],
@@ -283,7 +296,7 @@ def run(args: argparse.Namespace, *, uno_cls: type[nn.Module] | None = None) -> 
     if args.resume and (output / "summary.json").exists():
         raise FileExistsError("refusing to resume completed D4 output")
     plan_fingerprint = d2._resolve_plan_fingerprint(args)
-    d2.configure_deterministic_runtime()
+    configure_deterministic_runtime()
     runtime = load_strat_v1_baseline_runtime(
         args.training_lock,
         args.data_root,
