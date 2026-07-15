@@ -231,6 +231,7 @@ def ensure_onstart(
     remote_script: str,
     script_args: str | None,
     skip_prefetch: bool,
+    skip_rclone_install: bool,
     git_ref: str | None,
     workdir: str,
     repo_url: str,
@@ -264,6 +265,7 @@ def ensure_onstart(
             f"export UPS_REMOTE_SCRIPT={shlex.quote(remote_script)}",
             f"export UPS_SCRIPT_ARGS_B64={shlex.quote(script_args_b64)}",
             f"export UPS_SKIP_PREFETCH={'1' if skip_prefetch else '0'}",
+            f"export UPS_SKIP_RCLONE_INSTALL={'1' if skip_rclone_install else '0'}",
             f"export UPS_AUTO_SHUTDOWN={'1' if auto_shutdown else '0'}",
             f"export UPS_INSTALL_MODE={shlex.quote(install_mode)}",
             f"export UPS_MAX_RUNTIME_SECONDS={int(max_runtime_minutes * 60) if max_runtime_minutes else 0}",
@@ -513,6 +515,7 @@ def cmd_launch(args: argparse.Namespace) -> None:
         args.remote_script,
         args.script_args,
         args.skip_prefetch,
+        args.skip_rclone_install,
         args.git_ref,
         args.workdir,
         repo_url,
@@ -791,6 +794,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-launch-preflight",
         action="store_true",
         help="Skip DNS preflight before a paid Vast launch/create request",
+    )
+    p_launch.add_argument(
+        "--skip-rclone-install",
+        action="store_true",
+        help="Skip bootstrap rclone installation when the remote workflow uses signed HTTPS I/O",
     )
     p_launch.add_argument(
         "--b2-key-id",

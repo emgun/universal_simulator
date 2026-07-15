@@ -7,16 +7,19 @@
     "source": {
       "files": {
         "configs/d5_strat_v1_shared_tier_b.yaml": "0fbca360f6277a89b4e011947959b5b6a3e5043ddaa63c74daf96a0041d7183c",
+        "scripts/d5_presigned_io.py": "8df06078179ed4286e479b3a51c67c541485c3689efecd4d3e4418de1df5a58f",
         "scripts/evaluate.py": "604d7693b713ea8720e98317ac8f9c39236fb42bb665ede3833398ca42cab998",
-        "scripts/launch_strat_v1_shared_tier_b_vast.sh": "9c02d07925141bcb573bb86ef0e7c6238efa7f3eb914dd40c6db432f624d6da0",
+        "scripts/finalize_d5_presigned_transfer.py": "75f92d461e3c1ba4f9a1437cdc4b083b284b18c089d203555bc626ff14247517",
+        "scripts/generate_b2_presigned_bundle.py": "3a7fa42bf6d6f84eb3b37a9b3f0ae909a42c08dda97d501395c8e865fa3d73ba",
+        "scripts/launch_strat_v1_shared_tier_b_vast.sh": "622f375fb398c72ab821bea90ca4376673e2c259525fb06a252e18a7a0ab3027",
         "scripts/materialize_strat_v1_shared_tier_b.py": "270e17865d565673c9d9b42350ddc1a022c51b375e02cf16920998117431d664",
-        "scripts/plan_strat_v1_shared_tier_b.py": "236e8a48d94b98d408c7bb77436f2eb16ffba65698509689aaef1b8809f5a7eb",
+        "scripts/plan_strat_v1_shared_tier_b.py": "30f41d3fdc6024d7482b8ffd4cbf2405adb88693083ca2f0a1849b35bc6164b9",
         "scripts/run_light_experiment.py": "500bc05bf3eb7d02e5b2ce3508ccb22b115772ac71c09c2071088a49ec9e1717",
-        "scripts/run_remote_strat_v1_shared_tier_b.sh": "e895152287ec02d789ce530e1c8a9dae467a2d64b4288feef4a77f0fcda25ec8",
+        "scripts/run_remote_strat_v1_shared_tier_b.sh": "89a38150cb33dfcd461c64fee94441f1e0f4b1d593b78109be00c2fc05c8c0dc",
         "scripts/run_strat_v1_shared_tier_b.py": "9e2f5557edeef06721a895a4508978a7ccfae70c363626edb1d852f949640bfa",
         "scripts/train.py": "b7c1f755e889bdd1bf76a43c66b31b5cf4674a4dbea960d6d66e35e7dc47aef3",
-        "scripts/vast_launch.py": "525417f07ec7a357d8c4db985edcabf363932bd790fe49058c1e8200f83f66ea",
-        "scripts/vast_remote_bootstrap.sh": "560da4a637ceb4e03c08a9b32fead33064166f6408eb13dad9927080642703bf",
+        "scripts/vast_launch.py": "4b199736672a850adf9e64b17596f8bfb92fe32dc23fe504e92a898e5ebb2659",
+        "scripts/vast_remote_bootstrap.sh": "8a5d6497d7512a40fc701c9ba88ef93cec4817b5f84bb6a4b934a3268befe05d",
         "scripts/vast_watchdog.py": "45500af4830998f712770674c3d6b826cf7d024079ad031f4484c20aa2210cf5",
         "src/ups/__init__.py": "714a735509791245a69d91aa2873e566c4f9ef9753c9664991427300dd8c0d40",
         "src/ups/active/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
@@ -40,7 +43,7 @@
         "src/ups/data/schemas.py": "7774994890982e6fe645ec93587683f95b9e15fef8ff3720a5a737784bd93915",
         "src/ups/data/staging.py": "8947d1c551eabe3ce50dde81e4e651e87f3a1db0c2f74dc803ce34479dfc848e",
         "src/ups/data/trajectory.py": "a529fa596064ec84bcec9283045fc7f31768e98542d292d414f0b66198db8749",
-        "src/ups/data/transports.py": "3546015e438247793ce25054bb8c047bf7eef91e2649a861613b467a8e4f7eb0",
+        "src/ups/data/transports.py": "9d348f0ed6cf911ab695c2813257a5077b571c6109346d67bc22ed2c9a69f38e",
         "src/ups/data/well.py": "6f85bf7de5610749e5b53c5220709246db3d623599967d9caa27128b56b337dd",
         "src/ups/discovery/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
         "src/ups/discovery/nondim.py": "0e56bbadb201a7ab5c2183ed399f117df24102726168247fc11f0d4699785a9d",
@@ -83,7 +86,7 @@
         "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
         "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
       },
-      "implementation_commit": "98d342e7c6eb6b835d0481bb30813162a517326c"
+      "implementation_commit": "d8c20242d8f4b16d0aee168a85df881a7fdbc755"
     },
     "training_lock": {
       "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
@@ -181,7 +184,7 @@
   "measurement_lock_access": "forbidden",
   "mode": "validation_only",
   "plan_id": "strat-v1-shared-tier-b-d5",
-  "plan_sha256": "31debb6ae62e4a5e27bf11f48c1fb8e03f2c7849658a07ded02c613e10fbd046",
+  "plan_sha256": "11c0fc1e667676342bc3ae9ff66086a31fcffc0dc23ec505aba5cb4a44ac800d",
   "question": "Can one conditioned tier-b model match three architecture-matched specialists?",
   "schema_version": 1
 }

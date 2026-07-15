@@ -61,6 +61,14 @@ as 201 decoded frames; the smaller decoded-stage batch bounds peak memory
 without changing examples, optimizer recipes, or the matched exposure between
 the shared and specialist arms.
 
+Remote execution receives no reusable B2 credentials. The trusted local
+launcher issues time-bounded, object-scoped HTTPS capabilities for exactly the
+six lock-bound train/validation objects and fixed run-specific upload slots.
+The normal content-addressed stager still verifies declared sizes and SHA-256
+identities. A successful ingress archive is streamed and hash-verified locally,
+copied into the immutable digest namespace, read back and verified again, then
+its temporary transfer objects are removed.
+
 The training objective averages transitions within each source sample before averaging
 samples, preventing temporal trajectories from outweighing one-shot Darcy mappings.
 Steady samples are exactly coefficient-to-solution mappings and receive no invented

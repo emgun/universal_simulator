@@ -6,6 +6,7 @@ set -euo pipefail
 : "${UPS_WORKDIR:=/workspace}"
 : "${UPS_REMOTE_SCRIPT:?UPS_REMOTE_SCRIPT is required}"
 : "${UPS_SKIP_PREFETCH:=1}"
+: "${UPS_SKIP_RCLONE_INSTALL:=0}"
 : "${UPS_AUTO_SHUTDOWN:=0}"
 : "${UPS_INSTALL_MODE:=experiment}"
 : "${UPS_SCRIPT_ARGS_B64:=}"
@@ -66,13 +67,13 @@ if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v rclone >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+if [ "$UPS_SKIP_RCLONE_INSTALL" != "1" ] && ! command -v rclone >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
   if ! (apt-get update -qq && apt-get install -y -qq rclone); then
     echo "apt rclone install failed; trying the bounded upstream archive fallback" >&2
   fi
 fi
 
-if ! command -v rclone >/dev/null 2>&1; then
+if [ "$UPS_SKIP_RCLONE_INSTALL" != "1" ] && ! command -v rclone >/dev/null 2>&1; then
   "$PYTHON_BIN" - <<'PY'
 from pathlib import Path
 import shutil

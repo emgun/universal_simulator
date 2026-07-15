@@ -59,6 +59,9 @@ def test_planner_covers_transitive_sources_and_only_training_objects() -> None:
         "scripts/materialize_strat_v1_shared_tier_b.py",
         "scripts/run_remote_strat_v1_shared_tier_b.sh",
         "scripts/launch_strat_v1_shared_tier_b_vast.sh",
+        "scripts/d5_presigned_io.py",
+        "scripts/generate_b2_presigned_bundle.py",
+        "scripts/finalize_d5_presigned_transfer.py",
         "scripts/run_light_experiment.py",
         "scripts/train.py",
         "scripts/evaluate.py",
@@ -129,32 +132,32 @@ def test_remote_positional_dry_run_override_reaches_real_preflight(tmp_path: Pat
     )
 
     assert result.returncode != 0
-    assert "Set B2_KEY_ID" in result.stderr
+    assert "Set TRANSFER_MANIFEST_URL_B64" in result.stderr
     assert "ups.data.cli stage" not in result.stdout
     assert not (tmp_path / "cache").exists()
     assert not (tmp_path / "data").exists()
     assert not (tmp_path / "output").exists()
 
 
-def test_remote_pipeline_has_immutable_readback_purge_and_success_marker() -> None:
+def test_remote_pipeline_uses_only_sealed_presigned_transfer_slots() -> None:
     remote = REMOTE.read_text(encoding="utf-8")
     assert "$PYTHON -m pip install -e . --no-deps" in remote
     assert "$PYTHON -m pip install -e .\n" not in remote
     assert 'heldout_access") != "forbidden"' in remote
     assert 'measurement_lock_access") != "forbidden"' in remote
-    assert 'temporary_prefix="${ARTIFACT_PREFIX%/}/resumable/${plan_sha}"' in remote
-    assert 'remote_key="${ARTIFACT_PREFIX%/}/immutable/sha256/${digest}/${archive_name}"' in remote
-    assert "remote_digest=$(rclone cat" in remote
-    assert '"$remote_digest" = "$digest"' in remote
-    assert "rclone purge" in remote
+    assert "scripts/d5_presigned_io.py fetch-manifest" in remote
+    assert "scripts/d5_presigned_io.py fetch-resume" in remote
+    assert "scripts/d5_presigned_io.py preserve" in remote
+    assert "scripts/d5_presigned_io.py publish" in remote
+    assert "UPS_B2_PRESIGNED_URLS_FILE" in remote
+    assert "B2_KEY_ID" not in remote
+    assert "B2_APP_KEY" not in remote
+    assert "RCLONE_CONFIG" not in remote
+    assert "rclone " not in remote
     assert "RUN_LOG=${RUN_LOG:-reports/research/strat_v1_shared_tier_b.remote.log}" in remote
     assert '2>&1 | tee "$RUN_LOG"' in remote
-    assert (
-        'rclone copyto "$RUN_LOG" ' '"UPSB2:${B2_BUCKET}/${temporary_prefix}/remote.log" || true'
-    ) in remote
     assert '"$RESULT" "$RUN_LOG"' in remote
-    assert remote.index("remote_digest=$(rclone cat") < remote.index("rclone purge")
-    assert remote.index("rclone purge") < remote.index("Published immutable D5 artifact:")
+    assert "trusted local finalization is required" in remote
     assert "measurement.lock" not in remote
     assert "_test.h5" not in remote
 
@@ -190,9 +193,10 @@ def test_vast_dry_run_is_managed_bounded_and_auto_shutdown(tmp_path: Path) -> No
     assert "--managed" in args
     assert "--auto-shutdown" in args
     assert "--skip-prefetch" in args
+    assert "--skip-rclone-install" in args
     assert args[args.index("--num-gpus") + 1] == "1"
     assert args[args.index("--max-runtime-minutes") + 1] == "600"
-    assert args[args.index("--success-marker") + 1] == "Published immutable D5 artifact:"
+    assert args[args.index("--success-marker") + 1] == "Uploaded verified D5 ingress artifact:"
     assert args[args.index("--launch-retries") + 1] == "0"
     assert not any("b2-key" in arg or "b2-app" in arg for arg in args)
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Small, dependency-free transports used by the verified data stager."""
 
+import json
 import os
 import re
 import subprocess
@@ -30,6 +31,7 @@ _B2_ENV_KEYS = frozenset(
         "B2_S3_REGION",
     }
 )
+_B2_PRESIGNED_URLS_FILE_ENV = "UPS_B2_PRESIGNED_URLS_FILE"
 
 
 def _local_path(uri: str) -> Path | None:
@@ -232,6 +234,42 @@ def download_b2(uri: str, destination: Path) -> int:
     """
 
     remote_path = _b2_remote_path(uri)
+    presigned_file = os.environ.get(_B2_PRESIGNED_URLS_FILE_ENV)
+    if presigned_file:
+        try:
+            payload = json.loads(Path(presigned_file).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise TransportError("Unable to load the B2 presigned URL bundle") from exc
+        if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+            raise TransportError("B2 presigned URL bundle must use schema_version 1")
+        urls = payload.get("urls")
+        if urls is None and isinstance(payload.get("objects"), list):
+            urls = {
+                item.get("uri"): item.get("get_url")
+                for item in payload["objects"]
+                if isinstance(item, dict)
+            }
+        if not isinstance(urls, dict) or uri not in urls:
+            raise TransportError("B2 presigned URL bundle does not authorize the requested object")
+        signed_url = urls[uri]
+        if not isinstance(signed_url, str):
+            raise TransportError("B2 presigned URL bundle contains an invalid URL")
+        parsed_url = urllib.parse.urlparse(signed_url)
+        if (
+            parsed_url.scheme != "https"
+            or not parsed_url.netloc
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.fragment
+            or not parsed_url.query
+        ):
+            raise TransportError("B2 presigned URL bundle contains an invalid HTTPS URL")
+        try:
+            return download_http_resumable(signed_url, destination)
+        except TransportError as exc:
+            # A signed URL is a temporary bearer credential. Never propagate it
+            # through exception text, staging reports, or remote logs.
+            raise TransportError("Unable to download the presigned B2 object") from exc
     bucket = remote_path.removeprefix("UPSB2:").split("/", 1)[0]
     rclone_env = _rclone_b2_env(bucket)
     destination.parent.mkdir(parents=True, exist_ok=True)

@@ -11,6 +11,8 @@ MAX_RUNTIME_MINUTES=${MAX_RUNTIME_MINUTES:-600}
 OFFER_ID=${OFFER_ID:-}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_strat_v1_shared_tier_b.sh}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-shared-tier-b}
+TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_shared_tier_b_plan.json}
 
 read_env_key() {
   local file="$1" key="$2" line val
@@ -61,12 +63,39 @@ print(r.get("id") or r.get("ask_contract_id"), price)' "$MAX_DPH" "$OFFER_ID" <<
   echo "Cost preflight selected verified Vast offer $OFFER_ID at \$$price/hr."
 fi
 
-args=(python scripts/vast_launch.py launch --gpu "$GPU" --num-gpus 1 --disk "$DISK_GB" --git-ref "$GIT_REF" --workdir /workspace --remote-script "$REMOTE_SCRIPT" --skip-prefetch --install-mode experiment --bootstrap-mode tracked-script --script-args "DRY_RUN=0 ARTIFACT_PREFIX=$ARTIFACT_PREFIX" --auto-shutdown --managed --max-runtime-minutes "$MAX_RUNTIME_MINUTES" --success-marker "Published immutable D5 artifact:" --launch-retries 0)
+TRANSFER_MANIFEST=.vast/d5-transfer-${GIT_REF:0:12}-$$.json
+TRANSFER_URL_RECEIPT=.vast/d5-transfer-url-${GIT_REF:0:12}-$$.json
+VAST_RECEIPT=.vast/receipts/d5-${GIT_REF:0:12}-$$.json
+finalization_complete=$DRY_RUN
+cleanup_transfer_files() {
+  if [ "$finalization_complete" -eq 1 ]; then
+    rm -f "$TRANSFER_MANIFEST" "$TRANSFER_URL_RECEIPT"
+  else
+    echo "Retained private D5 transfer receipts for recovery: $TRANSFER_MANIFEST $TRANSFER_URL_RECEIPT" >&2
+  fi
+}
+trap cleanup_transfer_files EXIT
+transfer_token=DRY_RUN_CAPABILITY
+if [ "$DRY_RUN" -eq 0 ]; then
+  python scripts/generate_b2_presigned_bundle.py \
+    --lock "$TRAINING_LOCK" --plan "$PLAN" --artifact-prefix "$ARTIFACT_PREFIX" \
+    --max-runtime-minutes "$MAX_RUNTIME_MINUTES" --env-file "$ENV_FILE" \
+    --output "$TRANSFER_MANIFEST" --upload-control --url-output "$TRANSFER_URL_RECEIPT"
+  transfer_token=$(python - "$TRANSFER_URL_RECEIPT" <<'PY'
+import base64,json,sys
+url=json.load(open(sys.argv[1],encoding="utf-8"))["TRANSFER_MANIFEST_URL"]
+print(base64.urlsafe_b64encode(url.encode("utf-8")).decode("ascii").rstrip("="))
+PY
+)
+fi
+
+args=(python scripts/vast_launch.py launch --gpu "$GPU" --num-gpus 1 --disk "$DISK_GB" --git-ref "$GIT_REF" --workdir /workspace --remote-script "$REMOTE_SCRIPT" --skip-prefetch --skip-rclone-install --install-mode experiment --bootstrap-mode tracked-script --script-args "DRY_RUN=0 ARTIFACT_PREFIX=$ARTIFACT_PREFIX TRANSFER_MANIFEST_URL_B64=$transfer_token" --auto-shutdown --managed --max-runtime-minutes "$MAX_RUNTIME_MINUTES" --success-marker "Uploaded verified D5 ingress artifact:" --receipt "$VAST_RECEIPT" --launch-retries 0)
 [ -n "$OFFER_ID" ] && args+=(--offer-id "$OFFER_ID") || args+=(--order dph_total --limit 10)
 [ "$DRY_RUN" -eq 1 ] && args+=(--dry-run)
-[ -n "${B2_KEY_ID:-}" ] && args+=(--b2-key-id "$B2_KEY_ID")
-[ -n "${B2_APP_KEY:-}" ] && args+=(--b2-app-key "$B2_APP_KEY")
-[ -n "${B2_BUCKET:-}" ] && args+=(--b2-bucket "$B2_BUCKET")
-[ -n "${B2_S3_ENDPOINT:-}" ] && args+=(--b2-s3-endpoint "$B2_S3_ENDPOINT")
-[ -n "${B2_S3_REGION:-}" ] && args+=(--b2-s3-region "$B2_S3_REGION")
-"${args[@]}"
+env -u B2_KEY_ID -u B2_ACCOUNT_ID -u B2_APP_KEY -u B2_APPLICATION_KEY \
+  -u B2_BUCKET -u B2_BUCKET_NAME -u B2_S3_ENDPOINT -u B2_S3_REGION "${args[@]}"
+if [ "$DRY_RUN" -eq 0 ]; then
+  python scripts/finalize_d5_presigned_transfer.py \
+    --manifest "$TRANSFER_MANIFEST" --env-file "$ENV_FILE" --receipt "$VAST_RECEIPT"
+  finalization_complete=1
+fi

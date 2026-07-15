@@ -10,6 +10,8 @@ DATA_ROOT=${DATA_ROOT:-reports/research/strat_v1_shared_tier_b_scratch/data}
 STAGE_REPORT=${STAGE_REPORT:-reports/research/strat_v1_shared_tier_b_stage.json}
 OUTPUT_DIR=${OUTPUT_DIR:-reports/research/strat_v1_shared_tier_b}
 RUN_LOG=${RUN_LOG:-reports/research/strat_v1_shared_tier_b.remote.log}
+TRANSFER_MANIFEST=${TRANSFER_MANIFEST:-/tmp/d5_transfer_manifest.json}
+TRANSFER_MANIFEST_URL_B64=${TRANSFER_MANIFEST_URL_B64:-}
 RESULT=${RESULT:-reports/research/strat_v1_shared_tier_b_result.json}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-shared-tier-b}
 RESERVE_BYTES=${RESERVE_BYTES:-8589934592}
@@ -22,6 +24,7 @@ for override in "$@"; do
   case "$override" in
     DRY_RUN=0|DRY_RUN=1) DRY_RUN=${override#DRY_RUN=} ;;
     ARTIFACT_PREFIX=*) ARTIFACT_PREFIX=${override#ARTIFACT_PREFIX=} ;;
+    TRANSFER_MANIFEST_URL_B64=*) TRANSFER_MANIFEST_URL_B64=${override#TRANSFER_MANIFEST_URL_B64=} ;;
     *) echo "Unsupported D5 remote override: $override" >&2; exit 2 ;;
   esac
 done
@@ -36,41 +39,49 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
-: "${B2_KEY_ID:?Set B2_KEY_ID}"
-: "${B2_APP_KEY:?Set B2_APP_KEY}"
-: "${B2_BUCKET:?Set B2_BUCKET}"
-command -v rclone >/dev/null || { echo "rclone is required" >&2; exit 1; }
-export RCLONE_CONFIG_UPSB2_TYPE=s3 RCLONE_CONFIG_UPSB2_PROVIDER=Other
-export RCLONE_CONFIG_UPSB2_ACCESS_KEY_ID="$B2_KEY_ID"
-export RCLONE_CONFIG_UPSB2_SECRET_ACCESS_KEY="$B2_APP_KEY"
-[ -n "${B2_S3_ENDPOINT:-}" ] && export RCLONE_CONFIG_UPSB2_ENDPOINT="$B2_S3_ENDPOINT"
-[ -n "${B2_S3_REGION:-}" ] && export RCLONE_CONFIG_UPSB2_REGION="$B2_S3_REGION"
+: "${TRANSFER_MANIFEST_URL_B64:?Set TRANSFER_MANIFEST_URL_B64 to the short-lived D5 control capability}"
+TRANSFER_MANIFEST_URL=$($PYTHON - "$TRANSFER_MANIFEST_URL_B64" <<'PY'
+import base64,sys
+value=sys.argv[1]
+value += "=" * (-len(value) % 4)
+print(base64.urlsafe_b64decode(value).decode("utf-8"))
+PY
+)
+$PYTHON scripts/d5_presigned_io.py fetch-manifest \
+  --url "$TRANSFER_MANIFEST_URL" --output "$TRANSFER_MANIFEST"
+unset TRANSFER_MANIFEST_URL TRANSFER_MANIFEST_URL_B64
+export UPS_B2_PRESIGNED_URLS_FILE="$TRANSFER_MANIFEST"
 
 plan_sha=$($PYTHON -c 'import json,sys; print(json.load(open(sys.argv[1]))["plan_sha256"])' "$PLAN")
-temporary_prefix="${ARTIFACT_PREFIX%/}/resumable/${plan_sha}"
+$PYTHON - "$TRANSFER_MANIFEST" "$plan_sha" "$ARTIFACT_PREFIX" <<'PY'
+import json,sys
+p=json.load(open(sys.argv[1],encoding="utf-8"))
+if p.get("plan_sha256") != sys.argv[2]: raise SystemExit("transfer manifest plan mismatch")
+if p.get("artifact_prefix", "").rstrip("/") != sys.argv[3].rstrip("/"): raise SystemExit("transfer manifest artifact prefix mismatch")
+PY
 success=0
 preserve_resume() {
   status=$?
   if [ "$success" -ne 1 ]; then
-    if [ -d "$OUTPUT_DIR" ]; then
-      rclone sync "$OUTPUT_DIR" "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" || true
-      echo "Preserved resumable D5 arms: b2://${B2_BUCKET}/${temporary_prefix}/output" >&2
-    fi
-    if [ -f "$RUN_LOG" ]; then
-      rclone copyto "$RUN_LOG" "UPSB2:${B2_BUCKET}/${temporary_prefix}/remote.log" || true
-      echo "Preserved D5 remote log: b2://${B2_BUCKET}/${temporary_prefix}/remote.log" >&2
-    fi
+    $PYTHON scripts/d5_presigned_io.py preserve \
+      --manifest "$TRANSFER_MANIFEST" --output-dir "$OUTPUT_DIR" --run-log "$RUN_LOG" || true
+    echo "Attempted credential-free preservation of the sealed D5 resume/log slots." >&2
   fi
   exit "$status"
 }
 trap preserve_resume EXIT
 
 resume_arg=()
-if rclone lsf "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" --files-only --recursive 2>/dev/null | grep -q .; then
-  mkdir -p "$OUTPUT_DIR"
-  rclone sync "UPSB2:${B2_BUCKET}/${temporary_prefix}/output" "$OUTPUT_DIR"
-  test -f "$OUTPUT_DIR/run_identity.json"
+set +e
+$PYTHON scripts/d5_presigned_io.py fetch-resume \
+  --manifest "$TRANSFER_MANIFEST" --output-dir "$OUTPUT_DIR"
+resume_status=$?
+set -e
+if [ "$resume_status" -eq 0 ]; then
   resume_arg=(--resume)
+elif [ "$resume_status" -ne 3 ]; then
+  echo "D5 resume capability failed closed." >&2
+  exit "$resume_status"
 fi
 
 $PYTHON -m pip install -e . --no-deps
@@ -102,11 +113,8 @@ archive_name="strat_v1_shared_tier_b_${stamp}.tar.gz"
 archive_path="/tmp/${archive_name}"
 tar -czf "$archive_path" "$PLAN" "$CONFIG" "$STAGE_REPORT" "$OUTPUT_DIR" "$RESULT" "$RUN_LOG"
 digest=$(sha256sum "$archive_path" | awk '{print $1}')
-remote_key="${ARTIFACT_PREFIX%/}/immutable/sha256/${digest}/${archive_name}"
-rclone copyto "$archive_path" "UPSB2:${B2_BUCKET}/${remote_key}"
-remote_digest=$(rclone cat "UPSB2:${B2_BUCKET}/${remote_key}" | sha256sum | awk '{print $1}')
-[ "$remote_digest" = "$digest" ] || { echo "Immutable D5 artifact read-back mismatch" >&2; exit 1; }
-rclone purge "UPSB2:${B2_BUCKET}/${temporary_prefix}" >/dev/null 2>&1 || true
+$PYTHON scripts/d5_presigned_io.py publish \
+  --manifest "$TRANSFER_MANIFEST" --archive "$archive_path"
 success=1
 trap - EXIT
-echo "Published immutable D5 artifact: b2://${B2_BUCKET}/${remote_key}"
+echo "D5 ingress upload complete; trusted local finalization is required. sha256=${digest}"
