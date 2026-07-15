@@ -54,8 +54,9 @@ def test_vast_launch_dry_run_redacts_secret_values():
     assert "B2_APP_KEY=<redacted>" in proc.stdout
     assert "WANDB_API_KEY=<redacted>" in proc.stdout
     assert "-o dph_total --limit 5" in proc.stdout
-    assert "apt-get" not in proc.stdout
+    assert "apt-get install -y -qq rclone" in proc.stdout
     assert "rclone-current-linux-amd64.zip" in proc.stdout
+    assert "timeout=60" in proc.stdout
     assert "codeload.github.com" in proc.stdout
 
 
@@ -165,6 +166,17 @@ def test_tracked_bootstrap_has_non_systemd_shutdown_fallback():
     assert source.count("stop_container") >= 3
     assert "UPS_MAX_RUNTIME_SECONDS" in source
     assert "REMOTE_MAX_RUNTIME_REACHED" in source
+
+
+def test_tracked_bootstrap_prefers_apt_and_bounds_archive_fallback():
+    source = Path("scripts/vast_remote_bootstrap.sh").read_text(encoding="utf-8")
+
+    apt_install = "apt-get install -y -qq rclone"
+    archive = "rclone-current-linux-amd64.zip"
+    assert apt_install in source
+    assert archive in source
+    assert source.index(apt_install) < source.index(archive)
+    assert "urlopen(url, timeout=60)" in source
 
 
 def test_run_can_display_redacted_command_without_changing_executed_command(monkeypatch, capsys):

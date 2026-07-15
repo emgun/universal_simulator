@@ -62,13 +62,17 @@ def destroy(instance_id: int, *, attempts: int | None = None) -> bool:
 
 
 def instance_exists(instance_id: int) -> bool:
-    result = vast(["show", "instance", str(instance_id), "--raw"])
-    combined = f"{result.stdout}\n{result.stderr}".lower()
-    if result.returncode == 0:
+    # The singular CLI endpoint currently raises an internal TypeError for a
+    # destroyed instance. Query the collection instead and fail safe on API or
+    # JSON errors so a transient control-plane failure never stops monitoring.
+    result = vast(["show", "instances", "--raw"])
+    if result.returncode != 0:
         return True
-    return not any(
-        marker in combined for marker in ("not found", "no such instance", "does not exist")
-    )
+    try:
+        rows = json.loads(result.stdout or "[]")
+        return any(int(row.get("id", -1)) == instance_id for row in rows)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return True
 
 
 def remote_logs(instance_id: int) -> str:

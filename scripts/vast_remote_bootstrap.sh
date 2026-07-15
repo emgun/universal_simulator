@@ -66,6 +66,12 @@ if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v rclone >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+  if ! (apt-get update -qq && apt-get install -y -qq rclone); then
+    echo "apt rclone install failed; trying the bounded upstream archive fallback" >&2
+  fi
+fi
+
 if ! command -v rclone >/dev/null 2>&1; then
   "$PYTHON_BIN" - <<'PY'
 from pathlib import Path
@@ -79,7 +85,8 @@ url = "https://downloads.rclone.org/rclone-current-linux-amd64.zip"
 with tempfile.TemporaryDirectory() as tmp:
     tmp_path = Path(tmp)
     archive = tmp_path / "rclone.zip"
-    urllib.request.urlretrieve(url, archive)
+    with urllib.request.urlopen(url, timeout=60) as response, archive.open("wb") as sink:
+        shutil.copyfileobj(response, sink)
     with zipfile.ZipFile(archive) as zf:
         zf.extractall(tmp_path)
     rclone = next(tmp_path.glob("rclone-*-linux-amd64/rclone"))

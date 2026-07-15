@@ -100,3 +100,26 @@ def test_destroy_retries_until_reconciled(monkeypatch):
     monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
     assert module.destroy(42)
     assert len(calls) == 4
+
+
+def test_instance_exists_uses_collection_and_detects_absence(monkeypatch):
+    module = load_module()
+    calls = []
+
+    def fake_vast(args):
+        calls.append(args)
+        return SimpleNamespace(returncode=0, stdout='[{"id": 7}]', stderr="")
+
+    monkeypatch.setattr(module, "vast", fake_vast)
+    assert module.instance_exists(42) is False
+    assert calls == [["show", "instances", "--raw"]]
+
+
+def test_instance_exists_fails_safe_on_control_plane_errors(monkeypatch):
+    module = load_module()
+    monkeypatch.setattr(
+        module,
+        "vast",
+        lambda _args: SimpleNamespace(returncode=1, stdout="", stderr="temporary outage"),
+    )
+    assert module.instance_exists(42) is True
