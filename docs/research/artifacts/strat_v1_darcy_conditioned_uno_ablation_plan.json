@@ -17,7 +17,7 @@
         "scripts/launch_darcy_conditioned_uno_ablation_vast.sh": "e011553a01f1a1e4ac38809dbe119661f47dfe8b087b1e600cf73903dcc57253",
         "scripts/materialize_darcy_conditioned_uno_ablation.py": "042c462da7ca0fe3c17d3a9bdb99841700b13b9ad352231887347ce66b73d9d2",
         "scripts/plan_darcy_conditioned_uno_ablation.py": "04a51f8bd8a882ccebd92a928b5dbde759b49e0523424b709d1ec242b743f552",
-        "scripts/run_darcy_conditioned_uno_ablation.py": "6f0ae37a63a7506bc398296263c42d809a58087e39e9cf6abc80313d80a9507d",
+        "scripts/run_darcy_conditioned_uno_ablation.py": "c9a45e125507c72159a2b7b06f53c14936063fd189318202753b9c1745ea0776",
         "scripts/run_darcy_fno_affine_head_ablation.py": "fb7cf854ad44e75440597e7c7e3945c3b2f08e4a3876b405ebc8cdc64209637c",
         "scripts/run_darcy_fno_conditioning_ablation.py": "55d2c637211ae520c388bc6cafb1a4acd9b0123dec45fa1dbdc2c39e89d3c358",
         "scripts/run_darcy_fno_regime_balanced_objective.py": "899a44ebac7a9067b180b438ce00a324f4d953b3c0a209dbbe97803577ec104d",
@@ -92,7 +92,7 @@
         "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
         "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
       },
-      "implementation_commit": "a516cc2557351a0d356aa0904df69e6cc31df063"
+      "implementation_commit": "265f5e113e831caaed6ff4e17c812b7188494735"
     },
     "training_lock": {
       "darcy_objects": {
@@ -192,7 +192,7 @@
   "measurement_lock_access": "forbidden",
   "mode": "validation_only",
   "plan_id": "strat-v1-darcy-conditioned-uno-d4",
-  "plan_sha256": "65da611cc9e5cbc772f436ac3af89ae02ad34ab97f47279cfdcb2c03ded780e5",
+  "plan_sha256": "6d988f77706c1f7ab342c398dde7a17509dd19090d8e505d5af01f02f3ccf27c",
   "question": "Does parameter-conditioned UNO remove the residual Darcy regime imbalance?",
   "schema_version": 2
 }
