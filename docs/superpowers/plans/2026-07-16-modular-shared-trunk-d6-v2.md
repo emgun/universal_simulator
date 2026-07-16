@@ -2,7 +2,9 @@
 
 Date: 2026-07-16
 
-Status: replacement protocol pending executable preregistration; no D6 run has occurred
+Status: frozen replacement protocol; executable plan self-hash
+`f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d`;
+no D6 run has occurred
 
 ## Supersession
 

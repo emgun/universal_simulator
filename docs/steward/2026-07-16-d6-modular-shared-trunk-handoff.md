@@ -2,6 +2,28 @@
 
 Date: 2026-07-16
 
+## Protocol-integrity update
+
+Independent pre-merge review stopped the original D6 plan before execution.
+The original plan self-hash
+`ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8`
+is abandoned and must never be launched. No D6 run occurred under it.
+
+The replacement D6 v2 contract is
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v2.md`. Its
+implementation commit is `d6d6cdc9e36cc035df55e192e84c40c3d4e8420f` and
+its executable plan is
+`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json`, with
+self-hash
+`f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d`.
+It binds 84 source/runtime files and the same six train/validation objects.
+
+The repair makes adapter placement exact, independently recomputes the
+parameter-shuffle degradation, cryptographically binds the stage report, and
+persists self-hashed per-arm resource evidence across resume. The integrated
+focused suite now passes 82 tests. PR #127 exists but must be updated with the
+v2 commits and rerun CI before merge.
+
 Use this document to resume D6 in a fresh Codex thread. Start by inspecting
 live Git, GitHub, Vast, and artifact state; do not assume this snapshot is
 still current.
@@ -23,19 +45,18 @@ longer training, relaxed gates, more datasets, or a replacement run.
 - Canonical repository: `/Users/emerygunselman/Code/universal_simulator`
 - Active worktree at handoff:
   `/Users/emerygunselman/.codex/worktrees/e4d2/universal_simulator`
-- Branch: `codex/modular-shared-trunk`
+- PR branch: `codex/modular-shared-trunk`
 - Remote branch: `origin/codex/modular-shared-trunk`
 - Base at branch creation: `ebe3d6701fae17f936e0a5ea0db0f87c28ee6196`
-- Implementation commit:
-  `f95b0040c0cc400c8605b6ba2ae20a80c620ffae`
+- Replacement implementation commit:
+  `d6d6cdc9e36cc035df55e192e84c40c3d4e8420f`
 - Preregistration commit:
   `52275acc46c74550b05a881b69ad11563ba3c2b5`
 - Worktree was clean and fully pushed at handoff.
 
-No pull request had been submitted, merged, or launched at handoff. A Safari
-tab was prepared on GitHub's compare page, but the create action was not
-submitted. The local `gh` account was configured but its token was invalid;
-either use the authenticated Safari session or re-authenticate `gh`.
+PR #127 is open. The original head passed CI, but review stopped it before
+merge. Update the PR with D6 v2 and require a fresh green CI run. No D6 run has
+been launched.
 
 Before acting, run:
 
@@ -56,8 +77,10 @@ operator:
 - tasks: `advection1d`, `burgers1d`, `darcy2d`;
 - one bottleneck-16 input adapter and one bottleneck-16 output adapter per task;
 - dense routing through the existing one-hot `task_id` condition;
-- zero-initialized output projections, preserving the initial D5 operator
-  function;
+- input adapters after time/AdaLN conditioning and immediately before the PDE
+  Transformer; output adapters after shared output normalization and before the
+  outer state residual;
+- zero-initialized output projections, preserving the initial D5 operator function;
 - unchanged shared grid encoder, AnyPoint decoder, conditioning schema, and
   PDE-Transformer trunk.
 
@@ -90,12 +113,12 @@ The complete rationale and gates are in
 ## Frozen plan and data boundary
 
 Executable plan:
-`docs/research/artifacts/strat_v1_modular_shared_trunk_plan.json`
+`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json`
 
 - Plan SHA-256:
-  `ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8`
+  `f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d`
 - Bound implementation commit:
-  `f95b0040c0cc400c8605b6ba2ae20a80c620ffae`
+  `d6d6cdc9e36cc035df55e192e84c40c3d4e8420f`
 - Bound source/runtime files: 84
 - Seed: 17
 - Mode: validation only
@@ -146,7 +169,7 @@ fail the run rather than skip a batch or sample.
 
 ## Verification already completed
 
-The focused integrated suite passed 80 tests:
+The focused integrated suite passed 82 tests:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 pytest -q \
@@ -173,7 +196,7 @@ failure. Let Linux CI provide the authoritative broader result.
 2. Check for an existing PR.
 3. If absent, open a ready PR from `codex/modular-shared-trunk` to `main`.
 4. Include the architecture, frozen validation-only boundary, signed Vast/B2
-   path, 80-test result, and plan SHA in the PR body.
+   path, 82-test result, and plan SHA in the PR body.
 5. Monitor every required CI check. Diagnose and fix real failures; do not
    weaken tests or experiment boundaries.
 6. Merge only when green.

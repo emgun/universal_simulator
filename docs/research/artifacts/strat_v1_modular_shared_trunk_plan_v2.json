@@ -1,0 +1,271 @@
+{
+  "bindings": {
+    "config": {
+      "file_sha256": "149aab48d3eef4c138bea603a39d157b188ec5c34455c93a708a2e719403718a",
+      "path": "configs/d6_strat_v1_modular_shared_trunk.yaml"
+    },
+    "frozen_d5": {
+      "plan_sha256": "5e44e12eb387eec037ac8b7200e7577f9f4d6f806a056b7516342702c9bd7bfd",
+      "result_artifact_sha256": "737c08903ca4f45bdc992e5abb53ebe39fe948ea2feac375469bf901c9e9d762"
+    },
+    "source": {
+      "files": {
+        "configs/a4_strat_v1_baselines.yaml": "a43c753eda18b6fa98223d5442b16cff19556cece1fcaf8aeb362950942f78f8",
+        "configs/d5_strat_v1_shared_tier_b.yaml": "0fbca360f6277a89b4e011947959b5b6a3e5043ddaa63c74daf96a0041d7183c",
+        "configs/d6_strat_v1_modular_shared_trunk.yaml": "149aab48d3eef4c138bea603a39d157b188ec5c34455c93a708a2e719403718a",
+        "configs/defaults.yaml": "971368a716a2b45fe5173abf409eccb6e5621e2f8ad45d3178cbb8ec2bd480a5",
+        "configs/train_multitask_heterogeneous_light_best.yaml": "11b5dc0664fc9d5f7d55d680f2e439f37101f5996f5967b05594426e03c40695",
+        "scripts/d5_presigned_io.py": "8df06078179ed4286e479b3a51c67c541485c3689efecd4d3e4418de1df5a58f",
+        "scripts/evaluate.py": "5cf89691a05fefacfeeea065811eab5d02a692b1658b24404b957c3524f3349f",
+        "scripts/finalize_d5_presigned_transfer.py": "4415b1520e3e67c60ee2a55a19bd0ccaf8529b604227619c00f66dee2a659099",
+        "scripts/generate_b2_presigned_bundle.py": "f093f4d7b30b0049f48a3896a1d27da34bbed2717b5e774c732a82364a591dba",
+        "scripts/launch_strat_v1_modular_shared_trunk_vast.sh": "602e1edece8b63308791a979e5da5ed5c1715c9d59adfb9e23907ec21b9804b7",
+        "scripts/materialize_strat_v1_modular_shared_trunk.py": "08ba3ff89066509582ceb2ee2bdbb93b1e4a992eda40a458ea2e1bff791a4b28",
+        "scripts/plan_strat_v1_modular_shared_trunk.py": "6edbd9c976e02f7907d3c8c5b7acffddbdc4b207fec5740238ba9a6b20486f45",
+        "scripts/run_light_experiment.py": "ce92a4d449f8c523c812254076be59961a33d2a9142f79dcd5e6e0d10ed327ca",
+        "scripts/run_remote_strat_v1_modular_shared_trunk.sh": "3c8435c9de58856d7744ca815fe065e1508bc5a52dec1a6a421df55e74da199c",
+        "scripts/run_strat_v1_modular_shared_trunk.py": "12af2b59bcbc221749c885e16a90d6b10322542d5865d525f3fdbdb8d23fb1ff",
+        "scripts/train.py": "9dda2d906547dded4e44ffeee0a669814200d51e5625d1e0736be09816d19a06",
+        "scripts/vast_launch.py": "4b199736672a850adf9e64b17596f8bfb92fe32dc23fe504e92a898e5ebb2659",
+        "scripts/vast_remote_bootstrap.sh": "8a5d6497d7512a40fc701c9ba88ef93cec4817b5f84bb6a4b934a3268befe05d",
+        "scripts/vast_watchdog.py": "45500af4830998f712770674c3d6b826cf7d024079ad031f4484c20aa2210cf5",
+        "src/ups/__init__.py": "714a735509791245a69d91aa2873e566c4f9ef9753c9664991427300dd8c0d40",
+        "src/ups/active/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/baselines/models.py": "7ef2d13f0bcc6a3d0e7b8e8b27ac48d77253064fc165a41739cb432983e8938e",
+        "src/ups/core/__init__.py": "e0c92ad1257d1a262a5cb0c1a2b1e12a5681c351f5ad586f39a5d1786b3bfe56",
+        "src/ups/core/blocks_pdet.py": "1ea42e4882d452178aabb4d1c59ec6caead7a3b05748b7a74448f6a630553685",
+        "src/ups/core/conditioning.py": "c6ef0bccdea78ef43a54b2ba11a94dd25ecb73fdf3d99ed11bc395461c3bfefc",
+        "src/ups/core/latent_state.py": "925d334ece5594b3e1601f83a12e300a2c23d5e550c7708ecef882eaf9eff354",
+        "src/ups/core/shifted_window.py": "a204b92c07df6e8c217c9d695bb4cc737ae20017818165ae17b45b53025f1327",
+        "src/ups/data/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/data/baseline_runtime.py": "e482421ebc71f8cbd60c047bcf74c4c56edf89aa1ea2d4bafe195e9d9e50facf",
+        "src/ups/data/cli.py": "bf737b92e7d6abfb2088de1fa2cc24071da5dedf1b8016d6870ae9f0f987eb75",
+        "src/ups/data/convert_pdebench.py": "9fc621bb5eb9834056b4763fee392cd876a31e7d6405b9197b019276f918c207",
+        "src/ups/data/datasets.py": "568a219662d475751f78f1586eb2ff339cbca632bc9c428dfec310e27ba82c36",
+        "src/ups/data/hf_inventory.py": "2aac79dcaadfa9fc35044f60e255fcd7ef284af103f814f071649b872192576f",
+        "src/ups/data/latent_pairs.py": "2952defe6fdb149f00688ce247b95ce4295a71e80fd08d5df7b8b5a1ce07d315",
+        "src/ups/data/manifests.py": "40bec07fd343d300eec66d79fafef0fc9fac334c52d7c1fa6e091b4d5d11edeb",
+        "src/ups/data/normalization.py": "fd5b4b9d09b841e92daeabbc5d6fa89a7c40d407ad98835b378e9e6b409ff413",
+        "src/ups/data/parameter_conditioning.py": "7d04a2423ff235c4b5c26fbc7965502c0f7de3dc29a7c5961249cd40c818622e",
+        "src/ups/data/pdebench.py": "bcad9219eaaaa0f1069885c3dd851e5faf19262bd0c89c1cd152ba82bda3c708",
+        "src/ups/data/schemas.py": "7774994890982e6fe645ec93587683f95b9e15fef8ff3720a5a737784bd93915",
+        "src/ups/data/staging.py": "8947d1c551eabe3ce50dde81e4e651e87f3a1db0c2f74dc803ce34479dfc848e",
+        "src/ups/data/trajectory.py": "a529fa596064ec84bcec9283045fc7f31768e98542d292d414f0b66198db8749",
+        "src/ups/data/transports.py": "9d348f0ed6cf911ab695c2813257a5077b571c6109346d67bc22ed2c9a69f38e",
+        "src/ups/data/well.py": "6f85bf7de5610749e5b53c5220709246db3d623599967d9caa27128b56b337dd",
+        "src/ups/discovery/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/discovery/nondim.py": "0e56bbadb201a7ab5c2183ed399f117df24102726168247fc11f0d4699785a9d",
+        "src/ups/eval/__init__.py": "64c8288677f31648abc9e24928e8ad24721d18a7f94764c464d0dbaddc90a31d",
+        "src/ups/eval/calibration.py": "5a404a5686234dfc34fef4483f3666c1a9122eddb123bf78451e8fc06fc90978",
+        "src/ups/eval/demo_plots.py": "7ab4e6b53ec314b79f853363ca18ccd46e5c7d22041d68e35ed312b5264eb880",
+        "src/ups/eval/demo_scorecard.py": "34320ec025ac8c362f856807031b53135200fbf4913be662ff527ec8cdb703fb",
+        "src/ups/eval/gates.py": "8b3b3194a0f078ae4837635405fddd0b92cc02511fc744750b91807e3733b9a2",
+        "src/ups/eval/metrics.py": "b004662104ecc34ff8e8d87e8bd042609cb12570f7c1ab8a16865428af54a305",
+        "src/ups/eval/pdebench_runner.py": "8eb84cb3b847975adb0629905d6703c0b3a7e17424f04cf1683874bda5b6f7b1",
+        "src/ups/eval/persistence_baselines.py": "65e302d1dd07626a33bd3846ad4c016a285ae3fcb98b9b4497a38940b5a5775f",
+        "src/ups/eval/promotion.py": "89f84d871aa9a78b527c43e36be068bac4c09cc462ecdd3309843b657080bd70",
+        "src/ups/eval/regime_metrics.py": "623fb620ae0a23406af084d659ad1e7e84cc99ef9acd9c26dbdc1ba1efd5dae4",
+        "src/ups/eval/reports.py": "6efc6544fd5c46a0d332f7b917c4f1af5ab091759529b28143c174b4e9e5eecc",
+        "src/ups/eval/reward_models.py": "d810ef0e073f5ecceab74d1658618b063ed7d431f1b5fb1f2cb689dbe28147d3",
+        "src/ups/inference/__init__.py": "078a99250faafaad7ffca224728dc56a521c8b56bf5a70d3419360c0f845b455",
+        "src/ups/inference/control_safe.py": "04f73a571630742dd22c1e2849fbbf11402945f3b28a2f6fe15f1ef140418fd7",
+        "src/ups/inference/da_latent.py": "0a2769013af1f0dcd2959e170d0becf168bf36f75738c7d3bf61851f1498e4d1",
+        "src/ups/inference/rollout_transient.py": "4aee62b59530e0fd964f0f31edc9568d6804c45ec5875c33514cd06de6dfc2f7",
+        "src/ups/inference/rollout_ttc.py": "06d24804ce9cb44afb946387df93138fc3328162a7399f21690cf745178642b1",
+        "src/ups/io/__init__.py": "59aa871722acdacfbfa31aa8086d4eb6a79d09dba67243d9c21880d813f9707b",
+        "src/ups/io/decoder_anypoint.py": "dd782e86c0da2b7ac60096fc35ab686c7aed4fa417b54869364808bc256ada2a",
+        "src/ups/io/enc_grid.py": "9aa84602dd9922e33339d9201183bdb5f36754a42c2014bd508bf31b5a8ce965",
+        "src/ups/io/enc_mesh_particle.py": "2a6468ecbb29a9ce71705008d74ebeeebbe8adba2b720f97eaee8f8b56d9d04a",
+        "src/ups/io/token_pool.py": "3e777ee9fce58bcea880f2020fe91e4da2707f2b7bf9f1bf5a9dbab5ce1ece08",
+        "src/ups/logging/__init__.py": "e72ea862ce42482d84e53f455b7fe8b077746b5afb6bcaa90a0cd7b6ccbd76c4",
+        "src/ups/logging/utils.py": "1ab0548bcea09abb20814a41d4d571ce9edf55df011e7b172d39746cb14ad91a",
+        "src/ups/models/__init__.py": "eff57e7d446a6b0b53a12a9b311228913718772d5d5c2f8e88325a342ceaddf0",
+        "src/ups/models/diffusion_residual.py": "5ba31d6136fc75091c661e1d80d202a14850988bdb30a92ac5289eb86dbc1bc8",
+        "src/ups/models/latent_operator.py": "be3b9ede026acc5f26624d5590a084bae50d68e94758432ef28c439197451e0b",
+        "src/ups/models/multiphysics_factor_graph.py": "36c74131bc1fb4061b300049db8663bedc1366c140cb3b495057717ee4cfc4d7",
+        "src/ups/models/particles_contacts.py": "d873cabc31ebf22a9ef750889d6d1adf960ee1fec9efe94257bc83ea0fdcfcaa",
+        "src/ups/models/physics_guards.py": "b548d906f031e71a24bbd49cf76efab5e2fc6a0a16c5efced4d27c12c315a6a0",
+        "src/ups/models/steady_prior.py": "f50b009db16146b79adc8a871d18fb4e36c2258a6df0cbe7388db04887591205",
+        "src/ups/models/transport_head.py": "f71eb311403bd5441757778c974275ce98ba7c0bb0274ea7409d28566bda2009",
+        "src/ups/training/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/ups/training/consistency_distill.py": "789c15099a41513cd7e22d991551303228b71e4ce52e7b6e2bf8a1be9bd9821e",
+        "src/ups/training/loop_train.py": "91fa69ba21ae928977fb207c6d1f6be9d441b91c754caa7add2c901d8fc37115",
+        "src/ups/training/losses.py": "d683fca14828611b63f3232f1c6a8728cac519901698d89a8f781b6fc17869d2",
+        "src/ups/training/resumable_checkpoint.py": "97580c0b37195fec2ec1fafdb78c7078597e5de0b2e39255c69ef7f95a8c33b7",
+        "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
+        "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
+      },
+      "implementation_commit": "d6d6cdc9e36cc035df55e192e84c40c3d4e8420f"
+    },
+    "training_lock": {
+      "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
+      "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+      "objects": {
+        "advection1d-train": "aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
+        "advection1d-valid": "0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+        "burgers1d-train": "9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",
+        "burgers1d-valid": "496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+        "darcy2d-train": "47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+        "darcy2d-valid": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595"
+      },
+      "path": "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json"
+    }
+  },
+  "command": [
+    "python",
+    "scripts/run_strat_v1_modular_shared_trunk.py",
+    "--training-lock",
+    "docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+    "--data-root",
+    "reports/research/strat_v1_modular_shared_trunk_scratch/data",
+    "--config",
+    "configs/d6_strat_v1_modular_shared_trunk.yaml",
+    "--output-dir",
+    "reports/research/strat_v1_modular_shared_trunk",
+    "--plan-path",
+    "docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json",
+    "--plan-sha256",
+    "__PLAN_SHA256__",
+    "--stage-report",
+    "reports/research/strat_v1_modular_shared_trunk_stage.json",
+    "--device",
+    "cuda"
+  ],
+  "command_sha256": "4e449c4c83c9d0d01d2ac316b8565e77b8ff019e3af27e2c95ca0afc342b22e5",
+  "design": {
+    "adapter_bottleneck_dim": 16,
+    "adapter_inventory_by_arm": {
+      "ablation-advection1d": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ],
+      "ablation-burgers1d": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ],
+      "ablation-darcy2d": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ],
+      "joint-modular": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ]
+    },
+    "adapter_placement": {
+      "input": "after_time_and_conditioning_immediately_before_pde_transformer",
+      "output": "after_shared_output_norm_before_outer_state_residual"
+    },
+    "adapter_type": "residual_bottleneck",
+    "architecture": "modular_adapters_shared_native_ups_tier_b_trunk",
+    "arms": [
+      "joint-modular",
+      "ablation-advection1d",
+      "ablation-burgers1d",
+      "ablation-darcy2d"
+    ],
+    "conditioning_schema": {
+      "param_vocab": [
+        "beta",
+        "nu"
+      ],
+      "task_vocab": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ]
+    },
+    "objective_weighting": "equal_source_sample_weight",
+    "seed": 17,
+    "stage_batch_sizes": {
+      "decoder": 2,
+      "joint": 2,
+      "operator": 16,
+      "operator_decoded": 2
+    },
+    "stage_epochs": {
+      "decoder": 6,
+      "joint": 4,
+      "operator": 12,
+      "operator_decoded": 6
+    },
+    "steady_semantics": "one_coefficient_to_solution_application",
+    "tasks": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ],
+    "tasks_by_arm": {
+      "ablation-advection1d": [
+        "advection1d"
+      ],
+      "ablation-burgers1d": [
+        "burgers1d"
+      ],
+      "ablation-darcy2d": [
+        "darcy2d"
+      ],
+      "joint-modular": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ]
+    },
+    "temporal_rollout_horizons": [
+      1,
+      4,
+      16
+    ],
+    "update_parity": {
+      "comparison": "joint_task_to_matching_ablation",
+      "dimensions": [
+        "source_examples",
+        "scheduled_compute_units"
+      ],
+      "efficiency_reporting": "total_scheduled_optimizer_updates_by_arm",
+      "required": true
+    }
+  },
+  "execution_authorization": "validation_only_runner_bound",
+  "frozen_references": {
+    "d5_specialist_by_task": {
+      "advection1d": 0.5323334224663255,
+      "burgers1d": 0.5746504950528585,
+      "darcy2d": 0.9614428185307234
+    },
+    "d5_specialist_ensemble_checkpoint_bytes": 67752971,
+    "d5_specialist_macro_primary_nrmse": 0.6894755786833024
+  },
+  "gates": {
+    "u1": {
+      "darcy_primary_maximum": 0.14032998664779361,
+      "heldout_reads": 0,
+      "joint_checkpoint_bytes_less_than_frozen_d5_ensemble": true,
+      "joint_initialized_tensor_elements_less_than_matched_ablation_ensemble": true,
+      "joint_macro_ratio_to_frozen_d5_specialist_maximum": 1.1,
+      "joint_per_task_ratio_to_frozen_d5_specialist_maximum": 1.2,
+      "maximum_corrected_regime_spread": 1.5,
+      "persistence_maximum_by_task": {
+        "advection1d": 0.673296470301147,
+        "burgers1d": 0.6400475744644419,
+        "darcy2d": 0.9721143218273548
+      },
+      "shuffled_parameter_nrmse_degradation_minimum": 0.05
+    },
+    "u2": {
+      "joint_macro_ratio_to_matched_ablation_macro_maximum": 1.05,
+      "joint_per_task_ratio_to_matched_ablation_maximum": 1.1,
+      "update_parity_required": true
+    }
+  },
+  "heldout_access": "forbidden",
+  "measurement_lock_access": "forbidden",
+  "mode": "validation_only",
+  "plan_id": "strat-v1-modular-shared-trunk-d6-v2",
+  "plan_sha256": "f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d",
+  "schema_version": 1
+}
