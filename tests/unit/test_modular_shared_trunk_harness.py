@@ -148,10 +148,16 @@ def test_plan_checker_requires_exact_four_arm_validation_contract(tmp_path: Path
 
 
 def test_stage_report_rejects_duplicate_ids_and_wrong_roles(tmp_path: Path) -> None:
-    objects = {"advection1d-train": "1" * 64, "advection1d-valid": "2" * 64}
-    plan = {"bindings": {"training_lock": {"objects": objects}}}
+    reduced = {"advection1d-train": "1" * 64, "advection1d-valid": "2" * 64}
+    reduced_plan = {"bindings": {"training_lock": {"objects": reduced}}}
     runtime = SimpleNamespace(lock=SimpleNamespace(lock_sha256="lock"))
     path = tmp_path / "stage.json"
+    path.write_text(json.dumps(_stage_report("lock", reduced)), encoding="utf-8")
+    with pytest.raises(ValueError, match="exact frozen six-object"):
+        runner._checked_stage_report(path, reduced_plan, runtime)
+
+    objects = runner.FROZEN_STAGE_OBJECTS
+    plan = {"bindings": {"training_lock": {"objects": objects}}}
 
     duplicate = _stage_report("lock", objects)
     duplicate["objects"].append(copy.deepcopy(duplicate["objects"][0]))
@@ -162,7 +168,7 @@ def test_stage_report_rejects_duplicate_ids_and_wrong_roles(tmp_path: Path) -> N
         runner._checked_stage_report(path, plan, runtime)
 
     wrong_role = _stage_report("lock", objects)
-    wrong_role["objects"][1]["role"] = "train"
+    next(item for item in wrong_role["objects"] if item["id"].endswith("-valid"))["role"] = "train"
     wrong_role["artifact_sha256"] = runner._unsigned_hash(wrong_role, "artifact_sha256")
     path.write_text(json.dumps(wrong_role), encoding="utf-8")
     with pytest.raises(ValueError, match="role differs"):
@@ -315,8 +321,7 @@ def test_full_local_harness_runs_four_arms_and_joint_parameter_shuffle(
     source.write_text("VALUE = 1\n", encoding="utf-8")
 
     plan = _plan()
-    objects = {f"{task}-train": f"{index:064x}" for index, task in enumerate(TASKS, 1)}
-    objects.update({f"{task}-valid": f"{index:064x}" for index, task in enumerate(TASKS, 4)})
+    objects = runner.FROZEN_STAGE_OBJECTS
     plan["bindings"] = {
         "training_lock": {
             "lock_sha256": "frozen-lock",

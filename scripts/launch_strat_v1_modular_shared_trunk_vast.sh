@@ -12,7 +12,7 @@ OFFER_ID=${OFFER_ID:-}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_strat_v1_modular_shared_trunk.sh}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-modular-shared-trunk}
 TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
-PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v3.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v4.json}
 
 read_env_key() {
   local file="$1" key="$2" line val
@@ -55,10 +55,11 @@ computed=hashlib.sha256(json.dumps(unsigned,sort_keys=True,separators=(",",":"))
 retired={
   "ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8",
   "f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d",
+  "017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e",
 }
 if recorded != computed: raise SystemExit("D6 plan self hash does not match")
 if recorded in retired: raise SystemExit("refusing retired D6 plan")
-if p.get("plan_id") != "strat-v1-modular-shared-trunk-d6-v3": raise SystemExit("refusing superseded D6 plan identity")
+if p.get("plan_id") != "strat-v1-modular-shared-trunk-d6-v4": raise SystemExit("refusing superseded D6 plan identity")
 if p.get("mode") != "validation_only" or p.get("heldout_access") != "forbidden" or p.get("measurement_lock_access") != "forbidden": raise SystemExit("refusing non-validation D6 plan")
 print(p["bindings"]["source"]["implementation_commit"])
 PY

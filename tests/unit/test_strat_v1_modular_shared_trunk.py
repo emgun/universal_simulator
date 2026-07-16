@@ -19,12 +19,7 @@ ARMS = (
     "ablation-burgers1d",
     "ablation-darcy2d",
 )
-OBJECTS = {
-    f"{task}-{role}": f"{index:064x}"
-    for index, (task, role) in enumerate(
-        ((task, role) for task in TASKS for role in ("train", "valid")), start=1
-    )
-}
+OBJECTS = materialize.FROZEN_STAGE_OBJECTS
 
 
 def _self_hash(payload: dict, key: str) -> dict:
@@ -351,12 +346,23 @@ def test_materializer_requires_exact_stage_report_binding() -> None:
         materialize.build_result(_plan(), _summary(), stage)
 
     stage = _stage_report()
-    stage["objects"][1]["role"] = "train"
+    next(item for item in stage["objects"] if item["id"].endswith("-valid"))["role"] = "train"
     stage["artifact_sha256"] = canonical_sha256(
         {key: value for key, value in stage.items() if key != "artifact_sha256"}
     )
     with pytest.raises(ValueError, match="role differs"):
         materialize.build_result(_plan(), _summary(), stage)
+
+    reduced_plan = _plan()
+    reduced_plan["bindings"]["training_lock"]["objects"] = dict(list(OBJECTS.items())[:2])
+    reduced_plan["plan_sha256"] = canonical_sha256(
+        {key: value for key, value in reduced_plan.items() if key != "plan_sha256"}
+    )
+    reduced_summary = _summary()
+    reduced_summary["plan_sha256"] = reduced_plan["plan_sha256"]
+    _rehash(reduced_summary)
+    with pytest.raises(ValueError, match="exact frozen six-object"):
+        materialize.build_result(reduced_plan, reduced_summary, _stage_report())
 
 
 def test_optimizer_updates_are_efficiency_not_parity() -> None:

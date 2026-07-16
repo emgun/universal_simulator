@@ -41,7 +41,15 @@ ARM_NAMES = tuple(name for name, _ in ARMS)
 ARM_TASKS = {name: tasks for name, tasks in ARMS}
 STAGES = ("operator", "decoder", "operator_decoded", "joint_codec_operator")
 VALIDATION_SPLITS = {"val", "valid", "validation"}
-EXPECTED_PLAN_ID = "strat-v1-modular-shared-trunk-d6-v3"
+EXPECTED_PLAN_ID = "strat-v1-modular-shared-trunk-d6-v4"
+FROZEN_STAGE_OBJECTS = {
+    "advection1d-train": "aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
+    "burgers1d-train": "9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",
+    "darcy2d-train": "47945f27fa1f56f856733d3bc1aa1b0b5f498669a73cdb7352940292d71d09fe",
+    "advection1d-valid": "0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+    "burgers1d-valid": "496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+    "darcy2d-valid": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -61,8 +69,10 @@ def _checked_stage_report(path: Path, plan: dict[str, Any], runtime: Any) -> dic
     if report.get("lock_sha256") != runtime.lock.lock_sha256:
         raise ValueError("D6 stage report lock differs from the sealed runtime")
     expected = plan.get("bindings", {}).get("training_lock", {}).get("objects", {})
+    if expected != FROZEN_STAGE_OBJECTS:
+        raise ValueError("D6 plan does not bind the exact frozen six-object inventory")
     objects = report.get("objects")
-    if not isinstance(objects, list) or len(objects) != len(expected):
+    if not isinstance(objects, list) or len(objects) != 6:
         raise ValueError("D6 stage report must contain exactly the frozen six objects")
     if int(report.get("object_count", -1)) != len(objects):
         raise ValueError("D6 stage report object count differs from its object list")
