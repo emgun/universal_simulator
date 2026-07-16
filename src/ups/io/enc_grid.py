@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
-from torch.nn import functional as F
+
+from .token_pool import adaptive_token_avg_pool1d
 
 
 @dataclass
@@ -193,11 +194,7 @@ class GridEncoder(nn.Module):
         return torch.cat([sin_feat, cos_feat], dim=1)
 
     def _adaptive_token_pool(self, tokens: torch.Tensor, target_len: int) -> torch.Tensor:
-        if tokens.shape[1] == target_len:
-            return tokens
-        tokens_t = tokens.transpose(1, 2)
-        pooled = F.adaptive_avg_pool1d(tokens_t, target_len)
-        return pooled.transpose(1, 2)
+        return adaptive_token_avg_pool1d(tokens, target_len)
 
     @staticmethod
     def _infer_grid_shape(meta: Mapping[str, object] | None) -> tuple[int, int]:
