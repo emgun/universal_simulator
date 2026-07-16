@@ -2,9 +2,10 @@
 
 Date: 2026-07-16
 
-Status: frozen final replacement protocol; executable plan self-hash
-`017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e`;
-no D6 run has occurred
+Status: superseded before execution by D6 v4 after final independent review;
+executable plan self-hash
+`017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e`
+must never be launched; no D6 run occurred
 
 ## Supersession
 

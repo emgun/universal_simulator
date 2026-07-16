@@ -9,21 +9,21 @@ The original plan self-hash
 `ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8`
 is abandoned and must never be launched. No D6 run occurred under it.
 
-The final replacement D6 v3 contract is
-`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v3.md`. Its
-implementation commit is `e72767206f4c0b9838c25177d4bf6d0cb08bfacb` and
+The executable replacement D6 v4 contract is
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v4.md`. Its
+implementation commit is `4a003fa1952a0995574052c5bc5e1e5d8e119815` and
 its executable plan is
-`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v3.json`, with
+`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v4.json`, with
 self-hash
-`017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e`.
+`88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487`.
 It binds 84 source/runtime files and the same six train/validation objects.
 
 The repairs make adapter placement exact, independently recompute the
 parameter-shuffle degradation, cryptographically binds the stage report, and
-persist self-hashed per-arm resource evidence across resume. V3 additionally
-requires exactly six unique stage objects with exact roles/checksum algorithms
-and rejects retired plan identities before provider access. PR #127 exists but
-must be updated with v3 and rerun CI before merge.
+persist self-hashed per-arm resource evidence across resume. V4 independently
+requires the canonical six-object map as well as exact list length, uniqueness,
+roles, and checksum algorithms; it rejects all retired plan identities before
+provider access. PR #127 must be updated with v4 and rerun CI before merge.
 
 Use this document to resume D6 in a fresh Codex thread. Start by inspecting
 live Git, GitHub, Vast, and artifact state; do not assume this snapshot is
@@ -49,12 +49,12 @@ longer training, relaxed gates, more datasets, or a replacement run.
 - PR branch: `codex/modular-shared-trunk`
 - Remote branch: `origin/codex/modular-shared-trunk`
 - Base at branch creation: `ebe3d6701fae17f936e0a5ea0db0f87c28ee6196`
-- Final replacement implementation commit:
-  `e72767206f4c0b9838c25177d4bf6d0cb08bfacb`
+- Executable replacement implementation commit:
+  `4a003fa1952a0995574052c5bc5e1e5d8e119815`
 - Worktree was clean and fully pushed at handoff.
 
 PR #127 is open. The original head passed CI, but review stopped it before
-merge. Update the PR with D6 v3 and require a fresh green CI run. No D6 run has
+merge. Update the PR with D6 v4 and require a fresh green CI run. No D6 run has
 been launched.
 
 Before acting, run:
@@ -107,17 +107,17 @@ Important files:
 - `scripts/launch_strat_v1_modular_shared_trunk_vast.sh`
 
 The final rationale and gates are in
-`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v3.md`.
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v4.md`.
 
 ## Frozen plan and data boundary
 
 Executable plan:
-`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v3.json`
+`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v4.json`
 
 - Plan SHA-256:
-  `017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e`
+  `88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487`
 - Bound implementation commit:
-  `e72767206f4c0b9838c25177d4bf6d0cb08bfacb`
+  `4a003fa1952a0995574052c5bc5e1e5d8e119815`
 - Bound source/runtime files: 84
 - Seed: 17
 - Mode: validation only
