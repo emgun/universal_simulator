@@ -1,0 +1,49 @@
+{
+  "all_gates_passed": false,
+  "artifact_id": "strat-v1-shared-tier-b-d5-result",
+  "artifact_sha256": "737c08903ca4f45bdc992e5abb53ebe39fe948ea2feac375469bf901c9e9d762",
+  "gate_checks": {
+    "heldout_zero": true,
+    "shared_beats_persistence_each_task": false,
+    "shared_consolidates_checkpoint_bytes": true,
+    "shared_darcy_specialist_wall": false,
+    "shared_macro_interference": false,
+    "shared_parameter_use": false,
+    "shared_per_task_interference": false,
+    "shared_regime_spread": false
+  },
+  "heldout_reads": 0,
+  "interpretation": "shared_tier_b_not_validated",
+  "metrics": {
+    "shared_by_task": {
+      "advection1d": 0.96006659181799,
+      "burgers1d": 0.9935368827750775,
+      "darcy2d": 0.43809305238236823
+    },
+    "shared_checkpoint_bytes": 23688828,
+    "shared_macro_primary_nrmse": 0.7972321756584786,
+    "shared_macro_ratio_to_specialist_oracle": 1.1562877646528973,
+    "shared_maximum_corrected_regime_spread_by_task": {
+      "advection1d": 1.008253637761324,
+      "burgers1d": 1.0905624944547099,
+      "darcy2d": 2.1930575950579327
+    },
+    "shared_to_specialist_ratio_by_task": {
+      "advection1d": 1.8035061322468855,
+      "burgers1d": 1.7289411413170162,
+      "darcy2d": 0.4556620986070309
+    },
+    "shuffled_parameter_relative_nrmse_degradation": 0.044947339797793306,
+    "specialist_by_task": {
+      "advection1d": 0.5323334224663255,
+      "burgers1d": 0.5746504950528585,
+      "darcy2d": 0.9614428185307234
+    },
+    "specialist_ensemble_checkpoint_bytes": 67752971,
+    "specialist_oracle_macro_primary_nrmse": 0.6894755786833024
+  },
+  "plan_sha256": "5e44e12eb387eec037ac8b7200e7577f9f4d6f806a056b7516342702c9bd7bfd",
+  "schema_version": 1,
+  "source_summary_artifact_sha256": "15a90072fcd2225ffc85421869e47e2a4162029d33eccf1c0b80f089a627bbc8",
+  "status": "complete_validation_only"
+}

@@ -151,6 +151,15 @@ Run in parallel after V0:
 Every candidate must emit per-task, corrected per-regime, parameter-use,
 compute, and artifact-identity evidence. Choose no winner on macro NRMSE alone.
 
+**2026-07-15 update:** the one allowed native `tier_b` retrial is complete and
+negative. It failed U1, per-task persistence, Darcy regime spread, and the
+parameter-use gate; only zero held-out access and checkpoint consolidation
+passed. Close this monolithic architecture at the frozen scale. Poseidon parity
+remains secondary until its exact Darcy target and autoregressive contracts are
+matched. The next primary hypothesis is one modular shared trunk with
+family/task-specific codecs or lightweight experts, evaluated under the same
+D5 controls and U1/U2 gates.
+
 ### Phase V3 — test whether sharing creates value
 
 For the best shared candidate only:
@@ -210,10 +219,13 @@ principal breadth claim is the k-shot adaptation curve, not a task-count total.
 3. ~~Diagnose Darcy beta-blind identifiability and pre-register one matched
    coefficient-only versus beta-conditioned FNO ablation.~~ Completed
    2026-07-14; D1 confirmed conditioning but did not pass spread/plateau gates.
-4. Add one lock-bound shared candidate configuration whose conditioning
-   sources explicitly include parameter values and presence masks.
-5. Add dedicated validation plans for `tier_b` and Poseidon A/B; do not reuse
-   legacy `light-v1` launchers.
-6. Add a shared-versus-ablated transfer/value scorecard for U2–U5.
+4. ~~Add one lock-bound shared candidate configuration whose conditioning
+   sources explicitly include parameter values and presence masks.~~ Completed
+   in D5.
+5. ~~Add and execute the one allowed dedicated native `tier_b` validation
+   plan.~~ Completed 2026-07-15; negative U1 result, no D5b or held-out access.
+6. Pre-register one modular shared-trunk candidate with family/task-specific
+   codecs or lightweight experts and a matched U2 ablation. Do not proceed to
+   U3/U4 unless it passes U1.
 7. Implement the final measurement runner only after a specialist and shared
    candidate have passed their validation gates.
