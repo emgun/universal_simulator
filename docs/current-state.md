@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-14
+Updated: 2026-07-15
 
 ## Project
 
@@ -209,6 +209,23 @@ Compact plan, stage, and selection evidence is committed under
 receipt and exact object key are in
 `docs/research/2026-07-14-strat-v1-1-reference-recipe-adequacy-result.md`.
 
+## `strat-v1.1` Shared `tier_b` D5
+
+The one allowed validation-only native `tier_b` retrial completed on Vast and
+is negative. The shared candidate's macro NRMSE was `0.797232` versus the
+frozen specialist oracle's `0.689476`, a `1.1563x` ratio that fails the
+preregistered `<=1.05` U1 gate. It regressed Advection and Burgers, improved
+Darcy relative to its weak frozen specialist, but still failed Darcy corrected
+regime spread at `2.1931 > 1.5`. Shuffled conditioning degraded macro NRMSE by
+only `4.4947%`, just below the required `5%` parameter-use signal.
+
+The checkpoint consolidated `67,752,971` specialist bytes into `23,688,828`
+bytes, about a 65% reduction, and held-out reads remained exactly zero. Those
+two passing gates do not offset the failed accuracy, per-task, regime, and
+conditioning gates. Close the native monolithic `tier_b` branch at this scale;
+do not run D5b, extra seeds, relaxed thresholds, U3/U4, or held-out measurement.
+See `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -245,16 +262,16 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 
 ## Active Work and Next Move
 
-1. Keep parameter value/presence universal in specialist and shared candidate
-   contracts; D1 and D2 confirm causal parameter use.
-2. Close the Darcy specialist search at D4: neither the strongest conditioned
-   FNO nor conditioned UNO clears the regime-spread gate. Do not add seeds,
-   extend epochs, or open held-out access for either recipe.
-3. Repair Poseidon and `tier_b` conditioning/evaluation contracts, then run a
-   validation-only shared-versus-single-task measurement of interference,
-   low-data transfer, regime handling, and consolidation economics. Require a
-   shared candidate to beat the frozen specialist evidence before drafting any
-   held-out sequence.
+1. Keep parameter value/presence universal in every candidate contract; D1-D5
+   show that an available conditioning channel is necessary but not sufficient.
+2. Close both the Darcy specialist search at D4 and the native monolithic
+   `tier_b` branch at D5. Do not add seeds, extend epochs, relax gates, or open
+   held-out access for either branch.
+3. Pre-register one modular shared candidate: family/task-specific input and
+   output codecs or lightweight experts around a shared conditioned operator
+   trunk. Reuse the frozen D5 seed, exposure, controls, and U1/U2 gates. If it
+   fails U1, narrow the product to a unified interface over family-specific
+   models rather than broadening to more datasets.
 
 ## Reopen Triggers
 
@@ -272,5 +289,6 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-13-strat-v1-darcy-root.md`
 - `docs/research/2026-07-13-strat-v1-burgers-root.md`
 - `docs/research/2026-07-13-strat-v1-contract.md`
+- `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`
 - `docs/research/2026-07-11-beta-head-heldout-result.md`
 - `docs/claim_evidence/universal_sota_roadmap.md`
