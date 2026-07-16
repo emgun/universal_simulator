@@ -224,8 +224,11 @@ principal breadth claim is the k-shot adaptation curve, not a task-count total.
    in D5.
 5. ~~Add and execute the one allowed dedicated native `tier_b` validation
    plan.~~ Completed 2026-07-15; negative U1 result, no D5b or held-out access.
-6. Pre-register one modular shared-trunk candidate with family/task-specific
-   codecs or lightweight experts and a matched U2 ablation. Do not proceed to
-   U3/U4 unless it passes U1.
+6. ~~Pre-register and implement one modular shared-trunk candidate with
+   lightweight task experts and matched U2 ablations.~~ Implemented locally
+   2026-07-16 as D6 with paired bottleneck-16 task adapters, one unchanged
+   shared conditioned trunk, identical four-arm module inventories, and
+   fail-closed scheduled-exposure parity. Commit and source-bind it before the
+   single validation run. Do not proceed to U3/U4 unless U1 and U2 pass.
 7. Implement the final measurement runner only after a specialist and shared
    candidate have passed their validation gates.

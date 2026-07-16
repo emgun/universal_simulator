@@ -46,6 +46,7 @@ docs/research/artifacts/strat_v1_burgers_remote/*
 !docs/research/artifacts/strat_v1_shared_tier_b_plan.json
 !docs/research/artifacts/strat_v1_shared_tier_b_stage.json
 !docs/research/artifacts/strat_v1_shared_tier_b_result.json
+!docs/research/artifacts/strat_v1_modular_shared_trunk_plan.json
 checkpoints/
 .vast/
 remote_artifacts/

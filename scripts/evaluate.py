@@ -38,7 +38,7 @@ from ups.inference.rollout_ttc import TTCConfig, build_reward_model_from_config
 from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
-from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
+from ups.models.latent_operator import LatentOperator, LatentOperatorConfig, RoutedAdapterConfig
 from ups.utils.monitoring import init_monitoring_session
 
 # Use spawn to allow CUDA in DataLoader workers during evaluation
@@ -153,11 +153,35 @@ def make_operator(cfg: dict[str, Any]) -> LatentOperator:
             sources=auto_sources,
         )
 
+    routed_adapters = None
+    adapter_cfg = cfg.get("operator", {}).get("routed_adapters", {})
+    if bool(adapter_cfg.get("enabled", False)):
+        route_vocab = tuple(str(item) for item in adapter_cfg.get("route_vocab", ()))
+        task_vocab = tuple(
+            str(item)
+            for item in cfg.get("data", {}).get("conditioning_schema", {}).get("task_vocab", ())
+        )
+        if not task_vocab or route_vocab != task_vocab:
+            raise ValueError(
+                "Routed adapter vocabulary must exactly match data.conditioning_schema.task_vocab"
+            )
+        if float(cfg.get("training", {}).get("lambda_semigroup", 0.0) or 0.0) != 0.0:
+            raise ValueError("Routed adapters require lambda_semigroup=0")
+        routed_adapters = RoutedAdapterConfig(
+            num_experts=len(route_vocab),
+            bottleneck_dim=int(adapter_cfg.get("bottleneck_dim", 16)),
+            route_source=str(adapter_cfg.get("route_source", "task_id")),
+            input_enabled=bool(adapter_cfg.get("input_enabled", True)),
+            output_enabled=bool(adapter_cfg.get("output_enabled", True)),
+            zero_init=bool(adapter_cfg.get("zero_init", True)),
+        )
+
     config = LatentOperatorConfig(
         latent_dim=dim,
         pdet=PDETransformerConfig(**pdet_cfg),
         conditioning=conditioning,
         time_embed_dim=dim,
+        routed_adapters=routed_adapters,
     )
     return LatentOperator(config)
 

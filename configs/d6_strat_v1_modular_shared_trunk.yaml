@@ -1,0 +1,46 @@
+include: d5_strat_v1_shared_tier_b
+
+operator:
+  routed_adapters:
+    enabled: true
+    route_source: task_id
+    route_vocab: [advection1d, burgers1d, darcy2d]
+    bottleneck_dim: 16
+    input_enabled: true
+    output_enabled: true
+    zero_init: true
+
+# Keep the U2 exposure schedule independent of arm-specific loss curves.
+training:
+  patience: null
+  fail_on_oom: true
+
+# D6 changes only module ownership around the frozen D5 operator trunk. Every
+# arm instantiates the complete adapter inventory so parameter inventory cannot
+# become an unregistered difference between the joint and ablation arms.
+modular_shared_trunk:
+  trunk: native_ups_tier_b
+  adapter_type: residual_bottleneck
+  adapter_bottleneck_dim: 16
+  adapter_inventory: [advection1d, burgers1d, darcy2d]
+  task_specific_operator_blocks: false
+  arms:
+    joint-modular:
+      tasks: [advection1d, burgers1d, darcy2d]
+      adapter_inventory: [advection1d, burgers1d, darcy2d]
+    ablation-advection1d:
+      tasks: [advection1d]
+      adapter_inventory: [advection1d, burgers1d, darcy2d]
+    ablation-burgers1d:
+      tasks: [burgers1d]
+      adapter_inventory: [advection1d, burgers1d, darcy2d]
+    ablation-darcy2d:
+      tasks: [darcy2d]
+      adapter_inventory: [advection1d, burgers1d, darcy2d]
+
+update_parity:
+  required: true
+  comparison: joint_task_to_matching_ablation
+  dimensions: [source_examples, scheduled_compute_units]
+  efficiency_reporting: total_scheduled_optimizer_updates_by_arm
+  fail_closed_on_missing_or_mismatch: true
