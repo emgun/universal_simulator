@@ -132,17 +132,68 @@ def _checked_resource_evidence(summary: dict[str, Any], arms: dict[str, Any]) ->
         )
         if training_log.get("present") is not True or records <= 0 or reported_time <= 0.0:
             raise ValueError(f"D6 arm {arm} lacks positive training-log evidence")
+        attempt = arms[arm].get("attempt_evidence", {})
+        _checked_self_hash(attempt, "artifact_sha256")
+        if attempt.get("summary_file_sha256") != arms[arm].get("summary_file_sha256"):
+            raise ValueError(f"D6 arm {arm} attempt evidence summary binding differs")
+        resource_record = arms[arm].get("resources", {})
+        if attempt.get("wall_time_sec_observed_by_orchestrator") != resource_record.get(
+            "wall_time_sec_observed_by_orchestrator"
+        ) or attempt.get("child_process_family_max_rss_kib_high_watermark") != resource_record.get(
+            "child_process_family_max_rss_kib_high_watermark"
+        ):
+            raise ValueError(f"D6 arm {arm} attempt resource evidence differs from the summary")
         checked_arms[arm] = {
             "checkpoint_bytes": checkpoint_bytes,
             "initialized_tensor_elements": initialized,
             "adapter_tensor_elements": adapter,
             "training_log_records": records,
             "training_log_reported_epoch_time_sec": reported_time,
+            "runner_wall_time_sec": _finite(
+                arms[arm].get("resources", {}).get("wall_time_sec_observed_by_orchestrator"),
+                name=f"{arm} runner wall time",
+            ),
+            "child_process_family_max_rss_kib_high_watermark": int(
+                arms[arm]
+                .get("resources", {})
+                .get("child_process_family_max_rss_kib_high_watermark", 0)
+            ),
         }
+        if (
+            checked_arms[arm]["runner_wall_time_sec"] <= 0.0
+            or checked_arms[arm]["child_process_family_max_rss_kib_high_watermark"] <= 0
+        ):
+            raise ValueError(f"D6 arm {arm} lacks positive runner wall-time or RSS evidence")
     return {"run_duration_sec": duration, "arms": checked_arms}
 
 
-def build_result(plan: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
+def _checked_stage_report(
+    plan: dict[str, Any], summary: dict[str, Any], stage_report: dict[str, Any]
+) -> str:
+    _checked_self_hash(stage_report, "artifact_sha256")
+    if stage_report.get("status") != "complete":
+        raise ValueError("D6 stage report is not complete")
+    binding = plan.get("bindings", {}).get("training_lock", {})
+    if stage_report.get("lock_sha256") != binding.get("lock_sha256"):
+        raise ValueError("D6 stage report training lock differs from the plan")
+    expected = binding.get("objects", {})
+    observed = {
+        str(item.get("id")): item.get("checksum", {}).get("value")
+        for item in stage_report.get("objects", [])
+    }
+    if observed != expected or int(stage_report.get("object_count", -1)) != len(expected):
+        raise ValueError("D6 stage report objects differ from the plan")
+    if any(str(item.get("role")) == "test" for item in stage_report.get("objects", [])):
+        raise PermissionError("D6 stage report contains held-out data")
+    digest = str(stage_report["artifact_sha256"])
+    if summary.get("stage_report_artifact_sha256") != digest:
+        raise ValueError("D6 summary is not bound to the supplied stage report")
+    return digest
+
+
+def build_result(
+    plan: dict[str, Any], summary: dict[str, Any], stage_report: dict[str, Any]
+) -> dict[str, Any]:
     _checked_self_hash(plan, "plan_sha256")
     _checked_self_hash(summary, "artifact_sha256")
     if summary.get("plan_sha256") != plan["plan_sha256"]:
@@ -154,6 +205,7 @@ def build_result(plan: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any
         raise ValueError("D6 summary training lock differs from the plan binding")
     if summary.get("config_sha256") != bindings.get("config", {}).get("file_sha256"):
         raise ValueError("D6 summary config differs from the plan binding")
+    stage_report_sha256 = _checked_stage_report(plan, summary, stage_report)
     heldout = summary.get("heldout_evidence")
     if heldout != {
         "requested_roles": ["train", "valid"],
@@ -189,11 +241,25 @@ def build_result(plan: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any
         )
         for task in TASKS
     }
-    degradation = _finite(
-        summary.get("conditioning_diagnostics", {}).get("relative_nrmse_degradation"),
-        name="shuffled parameter degradation",
+    diagnostics = summary.get("conditioning_diagnostics", {})
+    diagnostic_reference = _finite(
+        diagnostics.get("reference_macro_primary_nrmse"), name="shuffle reference macro"
+    )
+    diagnostic_shuffled = _finite(
+        diagnostics.get("shuffled_macro_primary_nrmse"), name="shuffled parameter macro"
+    )
+    if not math.isclose(diagnostic_reference, joint_macro, rel_tol=1e-12, abs_tol=1e-12):
+        raise ValueError("D6 shuffle reference differs from the joint metric")
+    if diagnostic_reference <= 0.0:
+        raise ValueError("D6 shuffle reference must be positive")
+    degradation = diagnostic_shuffled / diagnostic_reference - 1.0
+    supplied_degradation = _finite(
+        diagnostics.get("relative_nrmse_degradation"),
+        name="reported shuffled parameter degradation",
         signed=True,
     )
+    if not math.isclose(degradation, supplied_degradation, rel_tol=1e-12, abs_tol=1e-12):
+        raise ValueError("D6 reported shuffled degradation is internally inconsistent")
     joint_bytes = int(arms["joint-modular"]["checkpoints"]["total_checkpoint_bytes"])
     joint_tensor_elements = resources["arms"]["joint-modular"]["initialized_tensor_elements"]
     ablation_tensor_elements = sum(
@@ -247,6 +313,7 @@ def build_result(plan: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any
         "status": "complete_validation_only",
         "plan_sha256": plan["plan_sha256"],
         "source_summary_artifact_sha256": summary["artifact_sha256"],
+        "source_stage_report_artifact_sha256": stage_report_sha256,
         "heldout_reads": 0,
         "metrics": {
             "joint_macro_primary_nrmse": joint_macro,
@@ -280,11 +347,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--stage-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     result = build_result(
         json.loads(args.plan.read_text(encoding="utf-8")),
         json.loads(args.summary.read_text(encoding="utf-8")),
+        json.loads(args.stage_report.read_text(encoding="utf-8")),
     )
     if args.output.exists():
         raise FileExistsError(f"refusing to overwrite D6 result: {args.output}")

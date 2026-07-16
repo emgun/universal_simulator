@@ -51,6 +51,63 @@ def _unsigned_hash(payload: dict[str, Any], hash_key: str) -> str:
     return canonical_sha256({key: value for key, value in payload.items() if key != hash_key})
 
 
+def _checked_stage_report(path: Path, plan: dict[str, Any], runtime: Any) -> dict[str, Any]:
+    report = json.loads(path.read_text(encoding="utf-8"))
+    if report.get("artifact_sha256") != _unsigned_hash(report, "artifact_sha256"):
+        raise ValueError("D6 stage report self hash does not match")
+    if report.get("status") != "complete":
+        raise ValueError("D6 stage report is not complete")
+    if report.get("lock_sha256") != runtime.lock.lock_sha256:
+        raise ValueError("D6 stage report lock differs from the sealed runtime")
+    expected = plan.get("bindings", {}).get("training_lock", {}).get("objects", {})
+    observed = {
+        str(item.get("id")): item.get("checksum", {}).get("value")
+        for item in report.get("objects", [])
+    }
+    if observed != expected or int(report.get("object_count", -1)) != len(expected):
+        raise ValueError("D6 stage report objects differ from the frozen plan")
+    if any(str(item.get("role")) == "test" for item in report.get("objects", [])):
+        raise PermissionError("D6 stage report contains a held-out object")
+    return report
+
+
+def _attempt_evidence_path(run_dir: Path) -> Path:
+    return run_dir / "d6_attempt_evidence.json"
+
+
+def _write_attempt_evidence(
+    path: Path, *, summary_path: Path, wall_time_sec: float, child_max_rss_kib: int
+) -> dict[str, Any]:
+    evidence = {
+        "schema_version": 1,
+        "summary_file_sha256": _sha256(summary_path),
+        "wall_time_sec_observed_by_orchestrator": wall_time_sec,
+        "child_process_family_max_rss_kib_high_watermark": child_max_rss_kib,
+        "rss_scope": (
+            "cumulative RUSAGE_CHILDREN process-family high-water mark; "
+            "not attributable to this arm alone"
+        ),
+    }
+    evidence["artifact_sha256"] = canonical_sha256(evidence)
+    path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return evidence
+
+
+def _load_attempt_evidence(path: Path, *, summary_path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise ValueError("D6 resumable arm lacks persisted attempt resource evidence")
+    evidence = json.loads(path.read_text(encoding="utf-8"))
+    if evidence.get("artifact_sha256") != _unsigned_hash(evidence, "artifact_sha256"):
+        raise ValueError("D6 attempt resource evidence self hash does not match")
+    if evidence.get("summary_file_sha256") != _sha256(summary_path):
+        raise ValueError("D6 attempt resource evidence summary binding differs")
+    wall = float(evidence.get("wall_time_sec_observed_by_orchestrator", 0.0))
+    rss = int(evidence.get("child_process_family_max_rss_kib_high_watermark", 0))
+    if not math.isfinite(wall) or wall <= 0.0 or rss <= 0:
+        raise ValueError("D6 attempt resource evidence must contain positive wall time and RSS")
+    return evidence
+
+
 def _plan_arm_names(plan: dict[str, Any]) -> tuple[str, ...]:
     raw = plan.get("design", {}).get("arms")
     if not isinstance(raw, list):
@@ -527,6 +584,7 @@ def run(args: argparse.Namespace) -> Path:
     ):
         raise PermissionError("D6 refuses any training lock with held-out objects")
     _verify_plan_bindings(plan, args, runtime)
+    stage_report = _checked_stage_report(Path(args.stage_report), plan, runtime)
     base = load_config_with_includes(args.config)
     _validate_base_config(base)
 
@@ -561,8 +619,7 @@ def run(args: argparse.Namespace) -> Path:
         eval_path.write_text(yaml.safe_dump(eval_cfg, sort_keys=False), encoding="utf-8")
         summary_path = arms_root / arm / "summary.json"
         resumed = summary_path.exists()
-        wall_time_sec = 0.0
-        child_max_rss_kib = 0
+        attempt_path = _attempt_evidence_path(arms_root / arm)
         if not resumed:
             command = [
                 sys.executable,
@@ -584,6 +641,16 @@ def run(args: argparse.Namespace) -> Path:
             for stage in STAGES:
                 command.extend(("--stage", stage))
             wall_time_sec, child_max_rss_kib = _run_arm_command(command)
+            attempt = _write_attempt_evidence(
+                attempt_path,
+                summary_path=summary_path,
+                wall_time_sec=wall_time_sec,
+                child_max_rss_kib=child_max_rss_kib,
+            )
+        else:
+            attempt = _load_attempt_evidence(attempt_path, summary_path=summary_path)
+            wall_time_sec = float(attempt["wall_time_sec_observed_by_orchestrator"])
+            child_max_rss_kib = int(attempt["child_process_family_max_rss_kib_high_watermark"])
         summary = _validate_arm_summary(summary_path, tasks)
         run_dir = arms_root / arm
         arm_record = {
@@ -603,6 +670,7 @@ def run(args: argparse.Namespace) -> Path:
                 child_max_rss_kib=child_max_rss_kib,
             ),
             "resumed": resumed,
+            "attempt_evidence": attempt,
         }
         _ensure_update_exposure(record=arm_record, base=base, runtime=runtime, tasks=tasks)
         arm_records[arm] = arm_record
@@ -661,6 +729,7 @@ def run(args: argparse.Namespace) -> Path:
         "plan_sha256": plan["plan_sha256"],
         "training_lock_sha256": runtime.lock.lock_sha256,
         "config_sha256": _sha256(Path(args.config)),
+        "stage_report_artifact_sha256": stage_report["artifact_sha256"],
         "heldout_reads": 0,
         "heldout_evidence": {
             "requested_roles": sorted(runtime.lock.requested_roles),
@@ -687,6 +756,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--plan-path", required=True)
     parser.add_argument("--plan-sha256", required=True)
+    parser.add_argument("--stage-report", required=True)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--resume", action="store_true")
     return parser

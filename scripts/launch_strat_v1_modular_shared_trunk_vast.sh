@@ -12,7 +12,7 @@ OFFER_ID=${OFFER_ID:-}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_strat_v1_modular_shared_trunk.sh}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-modular-shared-trunk}
 TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
-PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json}
 
 read_env_key() {
   local file="$1" key="$2" line val

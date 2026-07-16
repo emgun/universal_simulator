@@ -156,9 +156,6 @@ class LatentOperator(nn.Module):
                 raise ValueError(
                     f"Routed adapters require condition source {self.adapter_route_source!r}"
                 )
-        if self.input_adapters is not None:
-            assert route is not None
-            z = z + self.input_adapters(z, route)
         if not torch.is_tensor(dt):
             dt = torch.tensor(dt, device=z.device, dtype=z.dtype)
         else:
@@ -170,6 +167,9 @@ class LatentOperator(nn.Module):
         z = z + time_feat
         if self.conditioner is not None:
             z = self.apply_conditioning(z, state.cond)
+        if self.input_adapters is not None:
+            assert route is not None
+            z = z + self.input_adapters(z, route)
         residual = self.core(z)
         residual = self.output_norm(residual)
         if self.output_adapters is not None:

@@ -43,6 +43,26 @@ def _plan() -> dict:
     )
 
 
+def _stage_report(lock_sha256: str, objects: dict[str, str]) -> dict:
+    return _self_hash(
+        {
+            "schema_version": 1,
+            "status": "complete",
+            "lock_sha256": lock_sha256,
+            "object_count": len(objects),
+            "objects": [
+                {
+                    "id": object_id,
+                    "role": "valid" if object_id.endswith("-valid") else "train",
+                    "checksum": {"algorithm": "sha256", "value": digest},
+                }
+                for object_id, digest in objects.items()
+            ],
+        },
+        "artifact_sha256",
+    )
+
+
 def _metrics(tasks: tuple[str, ...], primary: float = 0.1) -> dict[str, float]:
     result = {"macro_primary_nrmse": primary}
     for task in tasks:
@@ -266,10 +286,13 @@ def test_full_local_harness_runs_four_arms_and_joint_parameter_shuffle(
     source.write_text("VALUE = 1\n", encoding="utf-8")
 
     plan = _plan()
+    objects = {f"{task}-train": f"{index:064x}" for index, task in enumerate(TASKS, 1)}
+    objects.update({f"{task}-valid": f"{index:064x}" for index, task in enumerate(TASKS, 4)})
     plan["bindings"] = {
         "training_lock": {
             "lock_sha256": "frozen-lock",
             "file_sha256": runner._sha256(lock),
+            "objects": objects,
         },
         "config": {"file_sha256": runner._sha256(config)},
         "source": {
@@ -280,6 +303,8 @@ def test_full_local_harness_runs_four_arms_and_joint_parameter_shuffle(
     plan["plan_sha256"] = runner._unsigned_hash(plan, "plan_sha256")
     plan_path = repo / "plan.json"
     plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    stage_path = repo / "stage.json"
+    stage_path.write_text(json.dumps(_stage_report("frozen-lock", objects)), encoding="utf-8")
 
     class Runtime:
         lock = SimpleNamespace(
@@ -362,6 +387,7 @@ def test_full_local_harness_runs_four_arms_and_joint_parameter_shuffle(
         output_dir=str(output),
         plan_path=str(plan_path),
         plan_sha256=plan["plan_sha256"],
+        stage_report=str(stage_path),
         device="cpu",
         resume=False,
     )

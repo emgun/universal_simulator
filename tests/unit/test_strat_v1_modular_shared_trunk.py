@@ -19,6 +19,12 @@ ARMS = (
     "ablation-burgers1d",
     "ablation-darcy2d",
 )
+OBJECTS = {
+    f"{task}-{role}": f"{index:064x}"
+    for index, (task, role) in enumerate(
+        ((task, role) for task in TASKS for role in ("train", "valid")), start=1
+    )
+}
 
 
 def _self_hash(payload: dict, key: str) -> dict:
@@ -36,7 +42,7 @@ def _plan() -> dict:
             "heldout_access": "forbidden",
             "measurement_lock_access": "forbidden",
             "bindings": {
-                "training_lock": {"lock_sha256": "training-lock"},
+                "training_lock": {"lock_sha256": "training-lock", "objects": OBJECTS},
                 "config": {"file_sha256": "config-file"},
             },
             "design": {
@@ -80,12 +86,50 @@ def _metrics(tasks: tuple[str, ...], primary: float = 0.1) -> dict:
     return metrics
 
 
+def _stage_report() -> dict:
+    return _self_hash(
+        {
+            "schema_version": 1,
+            "status": "complete",
+            "lock_sha256": "training-lock",
+            "object_count": len(OBJECTS),
+            "objects": [
+                {
+                    "id": object_id,
+                    "role": object_id.rsplit("-", 1)[1],
+                    "checksum": {"algorithm": "sha256", "value": digest},
+                }
+                for object_id, digest in OBJECTS.items()
+            ],
+        },
+        "artifact_sha256",
+    )
+
+
+def _attempt(summary_sha: str, wall: float, rss: int) -> dict:
+    return _self_hash(
+        {
+            "schema_version": 1,
+            "summary_file_sha256": summary_sha,
+            "wall_time_sec_observed_by_orchestrator": wall,
+            "child_process_family_max_rss_kib_high_watermark": rss,
+            "rss_scope": (
+                "cumulative RUSAGE_CHILDREN process-family high-water mark; "
+                "not attributable to this arm alone"
+            ),
+        },
+        "artifact_sha256",
+    )
+
+
 def _summary(*, joint: float = 0.1, ablation: float = 0.1) -> dict:
     arms = {
         "joint-modular": {
             "tasks": list(TASKS),
             "adapter_inventory": list(TASKS),
             "adapter_bottleneck_dim": 16,
+            "summary_file_sha256": "joint-summary",
+            "attempt_evidence": _attempt("joint-summary", 2.5, 2048),
             "metrics": _metrics(TASKS, joint),
             "checkpoints": {
                 "total_checkpoint_bytes": 500,
@@ -93,11 +137,13 @@ def _summary(*, joint: float = 0.1, ablation: float = 0.1) -> dict:
                 "total_adapter_tensor_elements": 60,
             },
             "resources": {
+                "wall_time_sec_observed_by_orchestrator": 2.5,
+                "child_process_family_max_rss_kib_high_watermark": 2048,
                 "training_log": {
                     "present": True,
                     "records": 10,
                     "reported_epoch_time_sec": 2.0,
-                }
+                },
             },
         }
     }
@@ -106,6 +152,8 @@ def _summary(*, joint: float = 0.1, ablation: float = 0.1) -> dict:
             "tasks": [task],
             "adapter_inventory": list(TASKS),
             "adapter_bottleneck_dim": 16,
+            "summary_file_sha256": f"{task}-summary",
+            "attempt_evidence": _attempt(f"{task}-summary", 1.5, 1024),
             "metrics": _metrics((task,), ablation),
             "checkpoints": {
                 "total_checkpoint_bytes": 500,
@@ -113,11 +161,13 @@ def _summary(*, joint: float = 0.1, ablation: float = 0.1) -> dict:
                 "total_adapter_tensor_elements": 30,
             },
             "resources": {
+                "wall_time_sec_observed_by_orchestrator": 1.5,
+                "child_process_family_max_rss_kib_high_watermark": 1024,
                 "training_log": {
                     "present": True,
                     "records": 10,
                     "reported_epoch_time_sec": 1.0,
-                }
+                },
             },
         }
     exposure = {
@@ -135,6 +185,7 @@ def _summary(*, joint: float = 0.1, ablation: float = 0.1) -> dict:
             "plan_sha256": _plan()["plan_sha256"],
             "training_lock_sha256": "training-lock",
             "config_sha256": "config-file",
+            "stage_report_artifact_sha256": _stage_report()["artifact_sha256"],
             "heldout_reads": 0,
             "heldout_evidence": {
                 "requested_roles": ["train", "valid"],
@@ -154,7 +205,11 @@ def _summary(*, joint: float = 0.1, ablation: float = 0.1) -> dict:
                     "ablation-darcy2d": 10,
                 },
             },
-            "conditioning_diagnostics": {"relative_nrmse_degradation": 0.10},
+            "conditioning_diagnostics": {
+                "reference_macro_primary_nrmse": joint,
+                "shuffled_macro_primary_nrmse": joint * 1.10,
+                "relative_nrmse_degradation": 0.10,
+            },
         },
         "artifact_sha256",
     )
@@ -218,7 +273,7 @@ def test_planner_binds_complete_runtime_and_remote_surface() -> None:
 
 
 def test_materializer_passes_separate_u1_and_u2() -> None:
-    result = materialize.build_result(_plan(), _summary())
+    result = materialize.build_result(_plan(), _summary(), _stage_report())
 
     assert result["u1_passed"] is True
     assert result["u2_passed"] is True
@@ -233,12 +288,16 @@ def test_materializer_passes_separate_u1_and_u2() -> None:
 
 
 def test_materializer_reports_u1_and_u2_independently() -> None:
-    u1_failure = materialize.build_result(_plan(), _summary(joint=0.15, ablation=0.15))
+    u1_failure = materialize.build_result(
+        _plan(), _summary(joint=0.15, ablation=0.15), _stage_report()
+    )
     assert u1_failure["u1_passed"] is False
     assert u1_failure["u2_passed"] is True
     assert u1_failure["interpretation"] == "u1_failed"
 
-    u2_failure = materialize.build_result(_plan(), _summary(joint=0.1, ablation=0.08))
+    u2_failure = materialize.build_result(
+        _plan(), _summary(joint=0.1, ablation=0.08), _stage_report()
+    )
     assert u2_failure["u1_passed"] is True
     assert u2_failure["u2_passed"] is False
     assert u2_failure["interpretation"] == "u2_negative_transfer"
@@ -250,7 +309,38 @@ def test_materializer_fails_closed_on_update_mismatch() -> None:
     _rehash(summary)
 
     with pytest.raises(ValueError, match="update parity mismatch"):
-        materialize.build_result(_plan(), summary)
+        materialize.build_result(_plan(), summary, _stage_report())
+
+
+def test_materializer_recomputes_shuffle_degradation() -> None:
+    summary = _summary()
+    summary["conditioning_diagnostics"]["relative_nrmse_degradation"] = 0.50
+    _rehash(summary)
+    with pytest.raises(ValueError, match="internally inconsistent"):
+        materialize.build_result(_plan(), summary, _stage_report())
+
+    summary = _summary()
+    summary["conditioning_diagnostics"]["reference_macro_primary_nrmse"] = 0.2
+    _rehash(summary)
+    with pytest.raises(ValueError, match="reference differs"):
+        materialize.build_result(_plan(), summary, _stage_report())
+
+
+def test_materializer_requires_exact_stage_report_binding() -> None:
+    stage = _stage_report()
+    stage["objects"][0]["checksum"]["value"] = "f" * 64
+    stage["artifact_sha256"] = canonical_sha256(
+        {key: value for key, value in stage.items() if key != "artifact_sha256"}
+    )
+    with pytest.raises(ValueError, match="objects differ"):
+        materialize.build_result(_plan(), _summary(), stage)
+
+    stage = _stage_report()
+    summary = _summary()
+    summary["stage_report_artifact_sha256"] = "0" * 64
+    _rehash(summary)
+    with pytest.raises(ValueError, match="not bound"):
+        materialize.build_result(_plan(), summary, stage)
 
 
 def test_optimizer_updates_are_efficiency_not_parity() -> None:
@@ -258,7 +348,7 @@ def test_optimizer_updates_are_efficiency_not_parity() -> None:
     summary["update_parity"]["total_scheduled_optimizer_updates_by_arm"]["joint-modular"] = 21
     _rehash(summary)
 
-    result = materialize.build_result(_plan(), summary)
+    result = materialize.build_result(_plan(), summary, _stage_report())
 
     efficiency = result["update_parity"]["optimizer_update_efficiency"]
     assert efficiency["joint_total"] == 21
@@ -294,7 +384,7 @@ def test_materializer_requires_positive_resource_evidence(mutation, match: str) 
     _rehash(summary)
 
     with pytest.raises(ValueError, match=match):
-        materialize.build_result(_plan(), summary)
+        materialize.build_result(_plan(), summary, _stage_report())
 
 
 def test_initialized_tensor_consolidation_is_a_gate() -> None:
@@ -302,7 +392,7 @@ def test_initialized_tensor_consolidation_is_a_gate() -> None:
     summary["arms"]["joint-modular"]["checkpoints"]["total_initialized_tensor_elements"] = 1_000
     _rehash(summary)
 
-    result = materialize.build_result(_plan(), summary)
+    result = materialize.build_result(_plan(), summary, _stage_report())
 
     assert result["u1_checks"]["initialized_tensor_consolidation"] is False
     assert result["u1_passed"] is False
@@ -313,13 +403,13 @@ def test_materializer_rejects_incomplete_adapter_inventory_and_heldout() -> None
     summary["arms"]["ablation-advection1d"]["adapter_inventory"] = ["advection1d"]
     _rehash(summary)
     with pytest.raises(ValueError, match="full three-task adapter inventory"):
-        materialize.build_result(_plan(), summary)
+        materialize.build_result(_plan(), summary, _stage_report())
 
     summary = _summary()
     summary["heldout_reads"] = 1
     _rehash(summary)
     with pytest.raises(PermissionError, match="validation-only"):
-        materialize.build_result(_plan(), summary)
+        materialize.build_result(_plan(), summary, _stage_report())
 
 
 @pytest.mark.parametrize(
@@ -339,4 +429,4 @@ def test_materializer_rechecks_boundaries_independently(mutation, match: str) ->
     _rehash(summary)
 
     with pytest.raises((ValueError, PermissionError), match=match):
-        materialize.build_result(_plan(), summary)
+        materialize.build_result(_plan(), summary, _stage_report())

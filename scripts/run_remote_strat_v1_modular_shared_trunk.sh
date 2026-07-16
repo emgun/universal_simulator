@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PYTHON=${PYTHON:-python}
-PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json}
 CONFIG=${CONFIG:-configs/d6_strat_v1_modular_shared_trunk.yaml}
 TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
 CACHE=${CACHE:-reports/research/strat_v1_modular_shared_trunk_scratch/cache}
@@ -31,8 +31,8 @@ esac
 
 if [ "$DRY_RUN" = 1 ]; then
   echo "$PYTHON -m ups.data.cli stage --lock $TRAINING_LOCK --cache $CACHE --run-dir $DATA_ROOT"
-  echo "$PYTHON scripts/run_strat_v1_modular_shared_trunk.py --training-lock $TRAINING_LOCK --data-root $DATA_ROOT --config $CONFIG --output-dir $OUTPUT_DIR --plan-path $PLAN --plan-sha256 <from-plan> --device cuda"
-  echo "$PYTHON scripts/materialize_strat_v1_modular_shared_trunk.py --plan $PLAN --summary $OUTPUT_DIR/summary.json --output $RESULT"
+  echo "$PYTHON scripts/run_strat_v1_modular_shared_trunk.py --training-lock $TRAINING_LOCK --data-root $DATA_ROOT --config $CONFIG --output-dir $OUTPUT_DIR --plan-path $PLAN --plan-sha256 <from-plan> --stage-report $STAGE_REPORT --device cuda"
+  echo "$PYTHON scripts/materialize_strat_v1_modular_shared_trunk.py --plan $PLAN --summary $OUTPUT_DIR/summary.json --stage-report $STAGE_REPORT --output $RESULT"
   exit 0
 fi
 
@@ -85,6 +85,14 @@ $PYTHON -m pip install -e . --no-deps
 $PYTHON -m ups.data.cli plan --lock "$TRAINING_LOCK" --cache "$CACHE" --reserve-bytes "$RESERVE_BYTES"
 $PYTHON -m ups.data.cli stage --lock "$TRAINING_LOCK" --cache "$CACHE" --run-dir "$DATA_ROOT" --reserve-bytes "$RESERVE_BYTES" --report "$STAGE_REPORT"
 $PYTHON -m ups.data.cli verify --lock "$TRAINING_LOCK" --cache "$CACHE"
+$PYTHON - "$STAGE_REPORT" <<'PY'
+import json,sys
+from ups.data.manifests import canonical_sha256
+path=sys.argv[1]
+report=json.load(open(path,encoding="utf-8"))
+report["artifact_sha256"]=canonical_sha256(report)
+open(path,"w",encoding="utf-8").write(json.dumps(report,indent=2,sort_keys=True)+"\n")
+PY
 
 $PYTHON - "$PLAN" <<'PY'
 import hashlib,json,pathlib,subprocess,sys
@@ -101,9 +109,10 @@ mkdir -p "$(dirname "$RUN_LOG")"
 $PYTHON scripts/run_strat_v1_modular_shared_trunk.py \
   --training-lock "$TRAINING_LOCK" --data-root "$DATA_ROOT" --config "$CONFIG" \
   --output-dir "$OUTPUT_DIR" --plan-path "$PLAN" --plan-sha256 "$plan_sha" \
-  --device cuda "${resume_arg[@]}" 2>&1 | tee "$RUN_LOG"
+  --stage-report "$STAGE_REPORT" --device cuda "${resume_arg[@]}" 2>&1 | tee "$RUN_LOG"
 $PYTHON scripts/materialize_strat_v1_modular_shared_trunk.py \
-  --plan "$PLAN" --summary "$OUTPUT_DIR/summary.json" --output "$RESULT"
+  --plan "$PLAN" --summary "$OUTPUT_DIR/summary.json" \
+  --stage-report "$STAGE_REPORT" --output "$RESULT"
 
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 archive_name="strat_v1_modular_shared_trunk_${stamp}.tar.gz"

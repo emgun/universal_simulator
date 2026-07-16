@@ -199,12 +199,14 @@ def build_plan(
         str(output_plan),
         "--plan-sha256",
         "__PLAN_SHA256__",
+        "--stage-report",
+        "reports/research/strat_v1_modular_shared_trunk_stage.json",
         "--device",
         device,
     ]
     plan: dict[str, Any] = {
         "schema_version": 1,
-        "plan_id": "strat-v1-modular-shared-trunk-d6",
+        "plan_id": "strat-v1-modular-shared-trunk-d6-v2",
         "mode": "validation_only",
         "heldout_access": "forbidden",
         "measurement_lock_access": "forbidden",
@@ -231,6 +233,10 @@ def build_plan(
             "architecture": "modular_adapters_shared_native_ups_tier_b_trunk",
             "adapter_type": "residual_bottleneck",
             "adapter_bottleneck_dim": 16,
+            "adapter_placement": {
+                "input": "after_time_and_conditioning_immediately_before_pde_transformer",
+                "output": "after_shared_output_norm_before_outer_state_residual",
+            },
             "adapter_inventory_by_arm": {arm: list(TASKS) for arm in ARMS},
             "stage_epochs": {"operator": 12, "decoder": 6, "operator_decoded": 6, "joint": 4},
             "stage_batch_sizes": {"operator": 16, "decoder": 2, "operator_decoded": 2, "joint": 2},
