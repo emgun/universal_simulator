@@ -342,6 +342,22 @@ def test_materializer_requires_exact_stage_report_binding() -> None:
     with pytest.raises(ValueError, match="not bound"):
         materialize.build_result(_plan(), summary, stage)
 
+    stage = _stage_report()
+    stage["objects"].append(copy.deepcopy(stage["objects"][0]))
+    stage["artifact_sha256"] = canonical_sha256(
+        {key: value for key, value in stage.items() if key != "artifact_sha256"}
+    )
+    with pytest.raises(ValueError, match="exactly"):
+        materialize.build_result(_plan(), _summary(), stage)
+
+    stage = _stage_report()
+    stage["objects"][1]["role"] = "train"
+    stage["artifact_sha256"] = canonical_sha256(
+        {key: value for key, value in stage.items() if key != "artifact_sha256"}
+    )
+    with pytest.raises(ValueError, match="role differs"):
+        materialize.build_result(_plan(), _summary(), stage)
+
 
 def test_optimizer_updates_are_efficiency_not_parity() -> None:
     summary = _summary()

@@ -177,14 +177,25 @@ def _checked_stage_report(
     if stage_report.get("lock_sha256") != binding.get("lock_sha256"):
         raise ValueError("D6 stage report training lock differs from the plan")
     expected = binding.get("objects", {})
-    observed = {
-        str(item.get("id")): item.get("checksum", {}).get("value")
-        for item in stage_report.get("objects", [])
-    }
-    if observed != expected or int(stage_report.get("object_count", -1)) != len(expected):
+    objects = stage_report.get("objects")
+    if not isinstance(objects, list) or len(objects) != len(expected):
+        raise ValueError("D6 stage report must contain exactly the frozen six objects")
+    if int(stage_report.get("object_count", -1)) != len(objects):
+        raise ValueError("D6 stage report object count differs from its object list")
+    observed: dict[str, str] = {}
+    for item in objects:
+        object_id = str(item.get("id"))
+        if object_id in observed:
+            raise ValueError("D6 stage report contains duplicate object identities")
+        expected_role = "train" if object_id.endswith("-train") else "valid"
+        checksum = item.get("checksum", {})
+        if item.get("role") != expected_role:
+            raise ValueError(f"D6 stage report role differs for {object_id}")
+        if checksum.get("algorithm") != "sha256":
+            raise ValueError(f"D6 stage report checksum algorithm differs for {object_id}")
+        observed[object_id] = checksum.get("value")
+    if observed != expected:
         raise ValueError("D6 stage report objects differ from the plan")
-    if any(str(item.get("role")) == "test" for item in stage_report.get("objects", [])):
-        raise PermissionError("D6 stage report contains held-out data")
     digest = str(stage_report["artifact_sha256"])
     if summary.get("stage_report_artifact_sha256") != digest:
         raise ValueError("D6 summary is not bound to the supplied stage report")

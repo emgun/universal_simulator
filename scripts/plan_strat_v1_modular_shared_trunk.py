@@ -206,7 +206,7 @@ def build_plan(
     ]
     plan: dict[str, Any] = {
         "schema_version": 1,
-        "plan_id": "strat-v1-modular-shared-trunk-d6-v2",
+        "plan_id": "strat-v1-modular-shared-trunk-d6-v3",
         "mode": "validation_only",
         "heldout_access": "forbidden",
         "measurement_lock_access": "forbidden",

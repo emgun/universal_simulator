@@ -27,7 +27,7 @@ def _plan() -> dict:
     return _self_hash(
         {
             "schema_version": 1,
-            "plan_id": "strat-v1-modular-shared-trunk-d6",
+            "plan_id": runner.EXPECTED_PLAN_ID,
             "mode": "validation_only",
             "heldout_access": "forbidden",
             "measurement_lock_access": "forbidden",
@@ -138,6 +138,35 @@ def test_plan_checker_requires_exact_four_arm_validation_contract(tmp_path: Path
     path.write_text(json.dumps(plan), encoding="utf-8")
     with pytest.raises(PermissionError, match="measurement-lock"):
         runner._checked_plan(path)
+
+    plan = _plan()
+    plan["plan_id"] = "strat-v1-modular-shared-trunk-d6"
+    plan["plan_sha256"] = runner._unsigned_hash(plan, "plan_sha256")
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    with pytest.raises(PermissionError, match="superseded"):
+        runner._checked_plan(path)
+
+
+def test_stage_report_rejects_duplicate_ids_and_wrong_roles(tmp_path: Path) -> None:
+    objects = {"advection1d-train": "1" * 64, "advection1d-valid": "2" * 64}
+    plan = {"bindings": {"training_lock": {"objects": objects}}}
+    runtime = SimpleNamespace(lock=SimpleNamespace(lock_sha256="lock"))
+    path = tmp_path / "stage.json"
+
+    duplicate = _stage_report("lock", objects)
+    duplicate["objects"].append(copy.deepcopy(duplicate["objects"][0]))
+    duplicate["object_count"] = len(objects)
+    duplicate["artifact_sha256"] = runner._unsigned_hash(duplicate, "artifact_sha256")
+    path.write_text(json.dumps(duplicate), encoding="utf-8")
+    with pytest.raises(ValueError, match="exactly"):
+        runner._checked_stage_report(path, plan, runtime)
+
+    wrong_role = _stage_report("lock", objects)
+    wrong_role["objects"][1]["role"] = "train"
+    wrong_role["artifact_sha256"] = runner._unsigned_hash(wrong_role, "artifact_sha256")
+    path.write_text(json.dumps(wrong_role), encoding="utf-8")
+    with pytest.raises(ValueError, match="role differs"):
+        runner._checked_stage_report(path, plan, runtime)
 
 
 def test_config_and_arm_builder_preserve_identical_modular_schema() -> None:

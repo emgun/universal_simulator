@@ -102,7 +102,9 @@ def test_d6_vast_dry_run_is_managed_bounded_and_credential_free(tmp_path: Path) 
             "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
             "ARGS_LOG": str(args_log),
             "DRY_RUN": "1",
-            "GIT_REF": "a" * 40,
+            "GIT_REF": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+            ).strip(),
             "ENV_FILE": str(tmp_path / "absent.env"),
         }
     )

@@ -41,6 +41,7 @@ ARM_NAMES = tuple(name for name, _ in ARMS)
 ARM_TASKS = {name: tasks for name, tasks in ARMS}
 STAGES = ("operator", "decoder", "operator_decoded", "joint_codec_operator")
 VALIDATION_SPLITS = {"val", "valid", "validation"}
+EXPECTED_PLAN_ID = "strat-v1-modular-shared-trunk-d6-v3"
 
 
 def _sha256(path: Path) -> str:
@@ -60,14 +61,25 @@ def _checked_stage_report(path: Path, plan: dict[str, Any], runtime: Any) -> dic
     if report.get("lock_sha256") != runtime.lock.lock_sha256:
         raise ValueError("D6 stage report lock differs from the sealed runtime")
     expected = plan.get("bindings", {}).get("training_lock", {}).get("objects", {})
-    observed = {
-        str(item.get("id")): item.get("checksum", {}).get("value")
-        for item in report.get("objects", [])
-    }
-    if observed != expected or int(report.get("object_count", -1)) != len(expected):
+    objects = report.get("objects")
+    if not isinstance(objects, list) or len(objects) != len(expected):
+        raise ValueError("D6 stage report must contain exactly the frozen six objects")
+    if int(report.get("object_count", -1)) != len(objects):
+        raise ValueError("D6 stage report object count differs from its object list")
+    observed: dict[str, str] = {}
+    for item in objects:
+        object_id = str(item.get("id"))
+        if object_id in observed:
+            raise ValueError("D6 stage report contains duplicate object identities")
+        expected_role = "train" if object_id.endswith("-train") else "valid"
+        checksum = item.get("checksum", {})
+        if item.get("role") != expected_role:
+            raise ValueError(f"D6 stage report role differs for {object_id}")
+        if checksum.get("algorithm") != "sha256":
+            raise ValueError(f"D6 stage report checksum algorithm differs for {object_id}")
+        observed[object_id] = checksum.get("value")
+    if observed != expected:
         raise ValueError("D6 stage report objects differ from the frozen plan")
-    if any(str(item.get("role")) == "test" for item in report.get("objects", [])):
-        raise PermissionError("D6 stage report contains a held-out object")
     return report
 
 
@@ -133,6 +145,8 @@ def _checked_plan(path: Path) -> dict[str, Any]:
         raise PermissionError("D6 held-out access must be forbidden")
     if payload.get("measurement_lock_access") != "forbidden":
         raise PermissionError("D6 measurement-lock access must be forbidden")
+    if payload.get("plan_id") != EXPECTED_PLAN_ID:
+        raise PermissionError("D6 refuses any superseded executable plan identity")
     if _plan_arm_names(payload) != ARM_NAMES:
         raise ValueError(f"D6 plan arm mismatch; expected {list(ARM_NAMES)}")
     design = payload.get("design", {})

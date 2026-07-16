@@ -12,7 +12,7 @@ OFFER_ID=${OFFER_ID:-}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_strat_v1_modular_shared_trunk.sh}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-modular-shared-trunk}
 TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
-PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v3.json}
 
 read_env_key() {
   local file="$1" key="$2" line val
@@ -45,10 +45,29 @@ price=float(sys.argv[1]); minutes=float(sys.argv[2])
 if price <= 0 or price > .45: raise SystemExit("MAX_DPH must be in (0, 0.45]")
 if price * minutes / 60 > 4.50 + 1e-12: raise SystemExit("maximum run cost exceeds $4.50")
 PY
+implementation_commit=$(python - "$PLAN" <<'PY'
+import hashlib,json,sys
+path=sys.argv[1]
+p=json.load(open(path,encoding="utf-8"))
+recorded=p.get("plan_sha256")
+unsigned={k:v for k,v in p.items() if k != "plan_sha256"}
+computed=hashlib.sha256(json.dumps(unsigned,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+retired={
+  "ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8",
+  "f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d",
+}
+if recorded != computed: raise SystemExit("D6 plan self hash does not match")
+if recorded in retired: raise SystemExit("refusing retired D6 plan")
+if p.get("plan_id") != "strat-v1-modular-shared-trunk-d6-v3": raise SystemExit("refusing superseded D6 plan identity")
+if p.get("mode") != "validation_only" or p.get("heldout_access") != "forbidden" or p.get("measurement_lock_access") != "forbidden": raise SystemExit("refusing non-validation D6 plan")
+print(p["bindings"]["source"]["implementation_commit"])
+PY
+)
+git cat-file -e "${GIT_REF}^{commit}"
+git merge-base --is-ancestor "$implementation_commit" "$GIT_REF" || { echo "GIT_REF must descend from the D6 implementation commit" >&2; exit 2; }
 
 if [ "$DRY_RUN" -eq 0 ]; then
   [ -n "${B2_KEY_ID:-}" ] && [ -n "${B2_APP_KEY:-}" ] && [ -n "${B2_BUCKET:-}" ] || { echo "Missing B2 credentials" >&2; exit 2; }
-  git cat-file -e "${GIT_REF}^{commit}"
   git fetch origin --quiet
   git ls-remote origin | awk -v commit="$GIT_REF" '$1 == commit {found=1} END {exit !found}' || { echo "GIT_REF must be the exact commit of a pushed ref" >&2; exit 2; }
   offers=$(vastai search offers "gpu_name=${GPU} num_gpus=1 rentable=true verified=true disk_space>=${DISK_GB} dph_total<=${MAX_DPH}" -o dph_total --limit 200 --raw)
