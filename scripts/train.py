@@ -52,7 +52,7 @@ from ups.data.pdebench import PDEBenchConfig, PDEBenchDataset, get_pdebench_spec
 from ups.io.decoder_anypoint import AnyPointDecoder, AnyPointDecoderConfig
 from ups.io.enc_grid import GridEncoder, GridEncoderConfig
 from ups.models.diffusion_residual import DiffusionResidual, DiffusionResidualConfig
-from ups.models.latent_operator import LatentOperator, LatentOperatorConfig
+from ups.models.latent_operator import LatentOperator, LatentOperatorConfig, RoutedAdapterConfig
 from ups.models.steady_prior import SteadyPrior, SteadyPriorConfig
 from ups.training.losses import semigroup_consistency_loss
 from ups.utils.monitoring import MonitoringSession, init_monitoring_session
@@ -587,11 +587,35 @@ def make_operator(cfg: dict) -> LatentOperator:
             sources=auto_sources,
         )
 
+    routed_adapters = None
+    adapter_cfg = cfg.get("operator", {}).get("routed_adapters", {})
+    if bool(adapter_cfg.get("enabled", False)):
+        route_vocab = tuple(str(item) for item in adapter_cfg.get("route_vocab", ()))
+        task_vocab = tuple(
+            str(item)
+            for item in cfg.get("data", {}).get("conditioning_schema", {}).get("task_vocab", ())
+        )
+        if not task_vocab or route_vocab != task_vocab:
+            raise ValueError(
+                "Routed adapter vocabulary must exactly match data.conditioning_schema.task_vocab"
+            )
+        if float(cfg.get("training", {}).get("lambda_semigroup", 0.0) or 0.0) != 0.0:
+            raise ValueError("Routed adapters require lambda_semigroup=0")
+        routed_adapters = RoutedAdapterConfig(
+            num_experts=len(route_vocab),
+            bottleneck_dim=int(adapter_cfg.get("bottleneck_dim", 16)),
+            route_source=str(adapter_cfg.get("route_source", "task_id")),
+            input_enabled=bool(adapter_cfg.get("input_enabled", True)),
+            output_enabled=bool(adapter_cfg.get("output_enabled", True)),
+            zero_init=bool(adapter_cfg.get("zero_init", True)),
+        )
+
     config = LatentOperatorConfig(
         latent_dim=dim,
         pdet=PDETransformerConfig(**pdet_cfg),
         conditioning=conditioning,
         time_embed_dim=dim,
+        routed_adapters=routed_adapters,
     )
     return LatentOperator(config)
 
@@ -977,6 +1001,8 @@ def train_operator(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
+                    if bool(cfg.get("training", {}).get("fail_on_oom", False)):
+                        raise
                     print("Warning: OOM encountered in operator step, skipping batch")
                     continue
                 raise
@@ -1701,6 +1727,8 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                         if "out of memory" in str(e).lower():
                             if torch.cuda.is_available():
                                 torch.cuda.empty_cache()
+                            if bool(cfg.get("training", {}).get("fail_on_oom", False)):
+                                raise
                             print(
                                 "Warning: OOM encountered in joint codec/operator step, skipping sample"
                             )
@@ -1830,6 +1858,8 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
                 if "out of memory" in str(e).lower():
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
+                    if bool(cfg.get("training", {}).get("fail_on_oom", False)):
+                        raise
                     print("Warning: OOM encountered in joint codec/operator step, skipping batch")
                     continue
                 raise

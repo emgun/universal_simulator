@@ -267,11 +267,14 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 2. Close both the Darcy specialist search at D4 and the native monolithic
    `tier_b` branch at D5. Do not add seeds, extend epochs, relax gates, or open
    held-out access for either branch.
-3. Pre-register one modular shared candidate: family/task-specific input and
-   output codecs or lightweight experts around a shared conditioned operator
-   trunk. Reuse the frozen D5 seed, exposure, controls, and U1/U2 gates. If it
-   fails U1, narrow the product to a unified interface over family-specific
-   models rather than broadening to more datasets.
+3. The D6 modular shared-trunk implementation and validation-only protocol are
+   locally complete. It adds paired bottleneck-16 task adapters around the
+   shared conditioned operator core, with the existing encoder/decoder still
+   shared. Four architecture-matched arms separate U1 from U2 and fail closed
+   on scheduled-exposure mismatch. Commit and hash-bind the implementation,
+   then execute its single seed-17 validation run. If it fails U1, narrow the
+   product to a unified interface over family-specific models rather than
+   broadening to more datasets.
 
 ## Reopen Triggers
 
@@ -290,5 +293,6 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-13-strat-v1-burgers-root.md`
 - `docs/research/2026-07-13-strat-v1-contract.md`
 - `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`
+- `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`
 - `docs/research/2026-07-11-beta-head-heldout-result.md`
 - `docs/claim_evidence/universal_sota_roadmap.md`
