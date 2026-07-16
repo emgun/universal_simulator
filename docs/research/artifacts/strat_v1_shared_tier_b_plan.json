@@ -16,7 +16,7 @@
         "scripts/plan_strat_v1_shared_tier_b.py": "30f41d3fdc6024d7482b8ffd4cbf2405adb88693083ca2f0a1849b35bc6164b9",
         "scripts/run_light_experiment.py": "ce92a4d449f8c523c812254076be59961a33d2a9142f79dcd5e6e0d10ed327ca",
         "scripts/run_remote_strat_v1_shared_tier_b.sh": "89a38150cb33dfcd461c64fee94441f1e0f4b1d593b78109be00c2fc05c8c0dc",
-        "scripts/run_strat_v1_shared_tier_b.py": "9e2f5557edeef06721a895a4508978a7ccfae70c363626edb1d852f949640bfa",
+        "scripts/run_strat_v1_shared_tier_b.py": "4e4074e5863cf26fcdede82ad095095d2efd0bad46a52b1e0871a27bb3a0a130",
         "scripts/train.py": "b7c1f755e889bdd1bf76a43c66b31b5cf4674a4dbea960d6d66e35e7dc47aef3",
         "scripts/vast_launch.py": "4b199736672a850adf9e64b17596f8bfb92fe32dc23fe504e92a898e5ebb2659",
         "scripts/vast_remote_bootstrap.sh": "8a5d6497d7512a40fc701c9ba88ef93cec4817b5f84bb6a4b934a3268befe05d",
@@ -86,7 +86,7 @@
         "src/ups/utils/config_loader.py": "b49f9437d4334e3285352496ee8b58c3b6a74a827ea26f57851cf6f0cc886e01",
         "src/ups/utils/monitoring.py": "d613bdaa00067824324dcf9dcd646d0a6706a91197ebf5050ca0012a6aa267d4"
       },
-      "implementation_commit": "46bf26cb3d2f7b0d9484e8dcf94ad87b55cf46ff"
+      "implementation_commit": "cb5bbd9d9773404809e75af8a4afa5204de48464"
     },
     "training_lock": {
       "file_sha256": "b889a1ef8fe35318a6ea4b63d886faf11d8b68816df50db8d5633091843d3b18",
@@ -184,7 +184,7 @@
   "measurement_lock_access": "forbidden",
   "mode": "validation_only",
   "plan_id": "strat-v1-shared-tier-b-d5",
-  "plan_sha256": "5377165064e640522f58388b7ddcd40fb1385f82ded8568ae40b0d150fccce90",
+  "plan_sha256": "ac226f2a2893a93211922edf7cea6c5357702762198a0cdbd053e17aacb9e57c",
   "question": "Can one conditioned tier-b model match three architecture-matched specialists?",
   "schema_version": 1
 }

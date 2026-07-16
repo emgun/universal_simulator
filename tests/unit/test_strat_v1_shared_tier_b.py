@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import torch
 import yaml
 
 from scripts import materialize_strat_v1_shared_tier_b as materialize
@@ -243,6 +244,55 @@ def test_runner_summary_checker_requires_validation_stratification(tmp_path: Pat
     path.write_text(json.dumps(summary), encoding="utf-8")
     with pytest.raises(ValueError, match="lacks strict metrics"):
         runner._validate_arm_summary(path, TASKS)
+
+
+def test_checkpoint_evidence_records_initialized_and_lazy_tensors(tmp_path: Path) -> None:
+    checkpoints = tmp_path / "checkpoints"
+    checkpoints.mkdir()
+    torch.save(
+        {
+            "weight": torch.ones(2, 3),
+            "step": torch.tensor(7),
+            "metadata": "ignored",
+        },
+        checkpoints / "initialized.pt",
+    )
+    torch.save(torch.nn.LazyLinear(4).state_dict(), checkpoints / "lazy.pt")
+    torch.save(
+        {"running": torch.nn.parameter.UninitializedBuffer()},
+        checkpoints / "lazy_buffer.pt",
+    )
+
+    evidence = runner._checkpoint_evidence(checkpoints)
+
+    initialized = evidence["files"]["initialized.pt"]
+    assert initialized["tensor_elements"] == 7
+    assert initialized["initialized_tensor_elements"] == 7
+    assert initialized["uninitialized_tensor_count"] == 0
+    assert initialized["uninitialized_tensor_keys"] == []
+    lazy = evidence["files"]["lazy.pt"]
+    assert lazy["initialized_tensor_elements"] == 0
+    assert lazy["uninitialized_tensor_count"] == 2
+    assert lazy["uninitialized_tensor_keys"] == ["weight", "bias"]
+    lazy_buffer = evidence["files"]["lazy_buffer.pt"]
+    assert lazy_buffer["initialized_tensor_elements"] == 0
+    assert lazy_buffer["uninitialized_tensor_count"] == 1
+    assert lazy_buffer["uninitialized_tensor_keys"] == ["running"]
+    assert evidence["total_checkpoint_tensor_elements"] == 7
+    assert evidence["total_initialized_tensor_elements"] == 7
+    assert evidence["total_uninitialized_tensor_count"] == 3
+
+
+def test_checkpoint_evidence_fails_closed_without_checkpoints(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="produced no checkpoints"):
+        runner._checkpoint_evidence(tmp_path)
+
+
+def test_checkpoint_evidence_fails_closed_on_non_state_checkpoint(tmp_path: Path) -> None:
+    torch.save([torch.ones(1)], tmp_path / "model.pt")
+
+    with pytest.raises(TypeError, match="not a state dictionary"):
+        runner._checkpoint_evidence(tmp_path)
 
 
 def test_materializer_passes_complete_synthetic_evidence() -> None:
