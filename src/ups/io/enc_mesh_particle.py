@@ -7,6 +7,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .token_pool import adaptive_token_avg_pool1d
+
 
 @dataclass
 class MeshParticleEncoderConfig:
@@ -165,8 +167,4 @@ class MeshParticleEncoder(nn.Module):
         return tokens
 
     def _perceiver_pool(self, tokens: torch.Tensor, target_len: int) -> torch.Tensor:
-        if tokens.shape[1] == target_len:
-            return tokens
-        tokens_t = tokens.transpose(1, 2)
-        pooled = F.adaptive_avg_pool1d(tokens_t, target_len)
-        return pooled.transpose(1, 2)
+        return adaptive_token_avg_pool1d(tokens, target_len)
