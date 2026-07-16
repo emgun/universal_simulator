@@ -14,6 +14,7 @@ from typing import Any
 
 import torch
 import yaml
+from torch.nn.parameter import UninitializedBuffer, UninitializedParameter
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -93,25 +94,45 @@ def _arm_config(base: dict[str, Any], runtime: Any, tasks: tuple[str, ...], spli
 def _checkpoint_evidence(directory: Path) -> dict[str, Any]:
     records: dict[str, Any] = {}
     total_bytes = 0
-    total_elements = 0
+    total_initialized_elements = 0
+    total_uninitialized_tensors = 0
     for path in sorted(directory.glob("*.pt")):
         state = torch.load(path, map_location="cpu", weights_only=False)
-        tensors = state.values() if isinstance(state, dict) else ()
-        elements = sum(int(value.numel()) for value in tensors if torch.is_tensor(value))
-        total_elements += elements
+        if not isinstance(state, dict):
+            raise TypeError(f"D5 checkpoint is not a state dictionary: {path}")
+        initialized_elements = 0
+        uninitialized_keys: list[str] = []
+        saw_tensor = False
+        for key, value in state.items():
+            if not torch.is_tensor(value):
+                continue
+            saw_tensor = True
+            if isinstance(value, (UninitializedParameter, UninitializedBuffer)):
+                uninitialized_keys.append(str(key))
+                continue
+            initialized_elements += int(value.numel())
+        if not saw_tensor:
+            raise ValueError(f"D5 checkpoint contains no tensor state: {path}")
+        total_initialized_elements += initialized_elements
+        total_uninitialized_tensors += len(uninitialized_keys)
         total_bytes += path.stat().st_size
         records[path.name] = {
             "path": str(path),
             "sha256": _sha256(path),
             "size_bytes": path.stat().st_size,
-            "tensor_elements": elements,
+            "tensor_elements": initialized_elements,
+            "initialized_tensor_elements": initialized_elements,
+            "uninitialized_tensor_count": len(uninitialized_keys),
+            "uninitialized_tensor_keys": uninitialized_keys,
         }
     if not records:
         raise FileNotFoundError(f"D5 arm produced no checkpoints in {directory}")
     return {
         "files": records,
         "total_checkpoint_bytes": total_bytes,
-        "total_checkpoint_tensor_elements": total_elements,
+        "total_checkpoint_tensor_elements": total_initialized_elements,
+        "total_initialized_tensor_elements": total_initialized_elements,
+        "total_uninitialized_tensor_count": total_uninitialized_tensors,
     }
 
 
