@@ -219,6 +219,15 @@ def test_run_light_experiment_preserves_model_side_transport_head_summary_extra(
                 "task_darcy2d_decoded_rollout_nrmse": 0.18,
             },
             extra={
+                "split": "val",
+                "strict_stratified_metrics": True,
+                "report_all_horizon_metrics": True,
+                "task": ["advection1d", "burgers1d", "darcy2d"],
+                "task_roots": {
+                    "advection1d": "/data/advection",
+                    "burgers1d": "/data/burgers",
+                    "darcy2d": "/data/darcy",
+                },
                 "model_side_transport_head": {
                     "enabled": True,
                     "tasks": ["advection1d"],
@@ -256,6 +265,16 @@ def test_run_light_experiment_preserves_model_side_transport_head_summary_extra(
     )
 
     extra = summary["extra"]
+    assert extra["split"] == "val"
+    assert extra["strict_stratified_metrics"] is True
+    assert extra["report_all_horizon_metrics"] is True
+    assert extra["task"] == ["advection1d", "burgers1d", "darcy2d"]
+    assert extra["task_roots"]["darcy2d"] == "/data/darcy"
+    assert extra["decoded_split"] == "val"
+    assert extra["decoded_strict_stratified_metrics"] is True
+    assert extra["decoded_report_all_horizon_metrics"] is True
+    assert extra["decoded_task"] == ["advection1d", "burgers1d", "darcy2d"]
+    assert extra["decoded_task_roots"]["advection1d"] == "/data/advection"
     assert extra["model_side_transport_head"]["enabled"] is True
     assert extra["model_side_transport_head_metrics"]["beta_missing_count"] == 0
     assert extra["decoded_model_side_transport_head"]["enabled"] is True

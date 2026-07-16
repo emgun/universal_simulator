@@ -51,6 +51,14 @@ MODEL_SIDE_TRANSPORT_HEAD_EXTRA_KEYS = (
     "model_side_transport_head",
     "model_side_transport_head_metrics",
 )
+DECODED_CANONICAL_EXTRA_KEYS = (
+    "split",
+    "strict_stratified_metrics",
+    "report_all_horizon_metrics",
+    "task",
+    "task_roots",
+    *MODEL_SIDE_TRANSPORT_HEAD_EXTRA_KEYS,
+)
 
 
 def _operator_checkpoint_names_for_stages(stages: Sequence[str]) -> tuple[str, ...]:
@@ -484,7 +492,7 @@ def _evaluate_once(
             report.extra = {}
         if decoded_report.extra:
             report.extra.update({f"decoded_{k}": v for k, v in decoded_report.extra.items()})
-            for key in MODEL_SIDE_TRANSPORT_HEAD_EXTRA_KEYS:
+            for key in DECODED_CANONICAL_EXTRA_KEYS:
                 if key in decoded_report.extra:
                     report.extra[key] = decoded_report.extra[key]
 
