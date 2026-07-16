@@ -9,20 +9,21 @@ The original plan self-hash
 `ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8`
 is abandoned and must never be launched. No D6 run occurred under it.
 
-The replacement D6 v2 contract is
-`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v2.md`. Its
-implementation commit is `d6d6cdc9e36cc035df55e192e84c40c3d4e8420f` and
+The final replacement D6 v3 contract is
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v3.md`. Its
+implementation commit is `e72767206f4c0b9838c25177d4bf6d0cb08bfacb` and
 its executable plan is
-`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json`, with
+`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v3.json`, with
 self-hash
-`f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d`.
+`017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e`.
 It binds 84 source/runtime files and the same six train/validation objects.
 
-The repair makes adapter placement exact, independently recomputes the
+The repairs make adapter placement exact, independently recompute the
 parameter-shuffle degradation, cryptographically binds the stage report, and
-persists self-hashed per-arm resource evidence across resume. The integrated
-focused suite now passes 82 tests. PR #127 exists but must be updated with the
-v2 commits and rerun CI before merge.
+persist self-hashed per-arm resource evidence across resume. V3 additionally
+requires exactly six unique stage objects with exact roles/checksum algorithms
+and rejects retired plan identities before provider access. PR #127 exists but
+must be updated with v3 and rerun CI before merge.
 
 Use this document to resume D6 in a fresh Codex thread. Start by inspecting
 live Git, GitHub, Vast, and artifact state; do not assume this snapshot is
@@ -44,18 +45,16 @@ longer training, relaxed gates, more datasets, or a replacement run.
 
 - Canonical repository: `/Users/emerygunselman/Code/universal_simulator`
 - Active worktree at handoff:
-  `/Users/emerygunselman/.codex/worktrees/e4d2/universal_simulator`
+  `/Users/emerygunselman/.codex/worktrees/e5a4/universal_simulator`
 - PR branch: `codex/modular-shared-trunk`
 - Remote branch: `origin/codex/modular-shared-trunk`
 - Base at branch creation: `ebe3d6701fae17f936e0a5ea0db0f87c28ee6196`
-- Replacement implementation commit:
-  `d6d6cdc9e36cc035df55e192e84c40c3d4e8420f`
-- Preregistration commit:
-  `52275acc46c74550b05a881b69ad11563ba3c2b5`
+- Final replacement implementation commit:
+  `e72767206f4c0b9838c25177d4bf6d0cb08bfacb`
 - Worktree was clean and fully pushed at handoff.
 
 PR #127 is open. The original head passed CI, but review stopped it before
-merge. Update the PR with D6 v2 and require a fresh green CI run. No D6 run has
+merge. Update the PR with D6 v3 and require a fresh green CI run. No D6 run has
 been launched.
 
 Before acting, run:
@@ -107,18 +106,18 @@ Important files:
 - `scripts/run_remote_strat_v1_modular_shared_trunk.sh`
 - `scripts/launch_strat_v1_modular_shared_trunk_vast.sh`
 
-The complete rationale and gates are in
-`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`.
+The final rationale and gates are in
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v3.md`.
 
 ## Frozen plan and data boundary
 
 Executable plan:
-`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v2.json`
+`docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v3.json`
 
 - Plan SHA-256:
-  `f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d`
+  `017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e`
 - Bound implementation commit:
-  `d6d6cdc9e36cc035df55e192e84c40c3d4e8420f`
+  `e72767206f4c0b9838c25177d4bf6d0cb08bfacb`
 - Bound source/runtime files: 84
 - Seed: 17
 - Mode: validation only

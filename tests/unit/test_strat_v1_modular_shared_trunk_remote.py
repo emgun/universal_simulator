@@ -5,6 +5,7 @@ import json
 import os
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 from scripts import finalize_d5_presigned_transfer as finalizer
@@ -92,7 +93,14 @@ def test_d6_vast_dry_run_is_managed_bounded_and_credential_free(tmp_path: Path) 
     fake_bin.mkdir()
     args_log = tmp_path / "args.log"
     fake_python = fake_bin / "python"
-    fake_python.write_text('#!/usr/bin/env bash\nprintf \'%s\\n\' "$@" > "$ARGS_LOG"\n')
+    fake_python.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [ "$1" = "scripts/vast_launch.py" ]; then\n'
+        '  printf \'%s\\n\' "$@" > "$ARGS_LOG"\n'
+        "else\n"
+        f'  exec "{sys.executable}" "$@"\n'
+        "fi\n"
+    )
     fake_python.chmod(fake_python.stat().st_mode | stat.S_IXUSR)
     env = os.environ.copy()
     for key in ("B2_KEY_ID", "B2_APP_KEY", "B2_BUCKET", "B2_S3_ENDPOINT", "B2_S3_REGION"):
