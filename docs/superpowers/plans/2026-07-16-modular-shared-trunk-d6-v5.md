@@ -3,7 +3,7 @@
 Date: 2026-07-16
 
 Status: frozen executable recovery protocol; plan self-hash
-`69c9a99c7a728fa76d31c672fd0ade812a5cfc47842c1fc7d5805909462f880e`
+`9cfb954d18fe69cc70b57d717fa40b1eab8f9462f415f42b2cc8aa3d4c24a8d9`
 
 ## Why v5 exists
 
@@ -29,11 +29,11 @@ Executable plan:
 `docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v5.json`
 
 - plan SHA-256:
-  `69c9a99c7a728fa76d31c672fd0ade812a5cfc47842c1fc7d5805909462f880e`
+  `9cfb954d18fe69cc70b57d717fa40b1eab8f9462f415f42b2cc8aa3d4c24a8d9`
 - command SHA-256:
   `21bdc324fbe3f6d450e61eb24c44fd6687874ad754c1590266179bdf21d4009d`
-- implementation commit: `0637362dd1fed4b28e7d7990cb1138e956a1be94`
-- bound source/runtime files: 84
+- implementation commit: `accd969ead081165a567ce318315e324f1a5faa4`
+- bound source/runtime files: 85
 - authorized recovery provider allocations: 1
 
 ## Operational repair
@@ -49,6 +49,11 @@ access if that receipt already exists. A failed create request that produced no
 instance and no receipt may be retried; one successful provider allocation
 consumes the recovery allowance.
 
+Offer selection projects the instantiated GPU plus requested 96 GB disk price,
+rather than trusting the search row's lower default-disk total. Both the
+projected hourly price and its 600-minute maximum must fit the frozen
+`$0.45/hour` and `$4.50` caps before provider creation.
+
 ## Interpretation
 
 Only a verified stage report plus the sealed four-arm result can score U1/U2.
@@ -56,4 +61,3 @@ A second pre-bootstrap infrastructure failure leaves D6 unresolved and closes
 this recovery authorization. A completed model run is interpreted exactly
 under the frozen v4 scientific gates; it cannot be retried, extended, or
 replaced.
-

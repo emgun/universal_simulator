@@ -16,7 +16,7 @@ handoff preserves the pre-execution contract and historical resume state.
 
 Executable recovery plan:
 `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`, self-hash
-`69c9a99c7a728fa76d31c672fd0ade812a5cfc47842c1fc7d5805909462f880e`.
+`9cfb954d18fe69cc70b57d717fa40b1eab8f9462f415f42b2cc8aa3d4c24a8d9`.
 
 ## Protocol-integrity update
 
