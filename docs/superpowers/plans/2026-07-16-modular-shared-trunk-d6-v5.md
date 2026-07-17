@@ -3,7 +3,7 @@
 Date: 2026-07-16
 
 Status: frozen executable recovery protocol; plan self-hash
-`9cfb954d18fe69cc70b57d717fa40b1eab8f9462f415f42b2cc8aa3d4c24a8d9`
+`e05db0d5bbf04bd9ca603225a1aa8a2529390b579a642bcd4a7d84f519cb1709`
 
 ## Why v5 exists
 
@@ -29,10 +29,10 @@ Executable plan:
 `docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v5.json`
 
 - plan SHA-256:
-  `9cfb954d18fe69cc70b57d717fa40b1eab8f9462f415f42b2cc8aa3d4c24a8d9`
+  `e05db0d5bbf04bd9ca603225a1aa8a2529390b579a642bcd4a7d84f519cb1709`
 - command SHA-256:
   `21bdc324fbe3f6d450e61eb24c44fd6687874ad754c1590266179bdf21d4009d`
-- implementation commit: `accd969ead081165a567ce318315e324f1a5faa4`
+- implementation commit: `ee80e89ecde584eaf6c2182d8b764d45b8372bf4`
 - bound source/runtime files: 85
 - authorized recovery provider allocations: 1
 
