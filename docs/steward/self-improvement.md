@@ -129,3 +129,12 @@ not claim evidence.
 - Preserve pre-joint checkpoints under distinct immutable names before a joint
   stage overwrites compatibility paths. File-name variants with identical
   tensor values do not provide a before/after causal comparison.
+- Audit named reference architectures at the mechanism level before treating
+  repo labels as implementation evidence. Here, "supernode" and
+  "Perceiver-style" concealed storage-order chunk averaging and adaptive
+  pooling, while the UPT reference uses geometry selection, transformer
+  processing, and learned cross-attention queries.
+- Prefer one shared point-set encoder over independently trained modality
+  adapters when the north star is a canonical physical latent basis. If
+  modality adapters become necessary later, require paired cross-decoding and
+  explicit alignment rather than assuming equal tensor shape is enough.
