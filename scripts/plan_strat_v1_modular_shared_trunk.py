@@ -69,6 +69,7 @@ SOURCE_FILES = (
     "scripts/materialize_strat_v1_modular_shared_trunk.py",
     "scripts/run_remote_strat_v1_modular_shared_trunk.sh",
     "scripts/launch_strat_v1_modular_shared_trunk_vast.sh",
+    "scripts/select_vast_offer.py",
     "scripts/d5_presigned_io.py",
     "scripts/generate_b2_presigned_bundle.py",
     "scripts/finalize_d5_presigned_transfer.py",

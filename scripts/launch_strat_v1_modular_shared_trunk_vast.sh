@@ -89,15 +89,12 @@ if [ "$DRY_RUN" -eq 0 ]; then
   git fetch origin --quiet
   git ls-remote origin | awk -v commit="$GIT_REF" '$1 == commit {found=1} END {exit !found}' || { echo "GIT_REF must be the exact commit of a pushed ref" >&2; exit 2; }
   offers=$(vastai search offers "gpu_name=${GPU} num_gpus=1 rentable=true verified=true disk_space>=${DISK_GB} dph_total<=${MAX_DPH}" -o dph_total --limit 200 --raw)
-  resolved=$(python -c 'import json,sys
-rows=json.load(sys.stdin); requested=sys.argv[2]
-if requested: rows=[r for r in rows if str(r.get("id") or r.get("ask_contract_id")) == requested]
-if not rows: raise SystemExit("no verified bounded offer")
-r=rows[0]; price=float(r["dph_total"]); cap=float(sys.argv[1])
-if price > cap: raise SystemExit("offer exceeds cap")
-print(r.get("id") or r.get("ask_contract_id"), price)' "$MAX_DPH" "$OFFER_ID" <<<"$offers")
+  resolved=$(python scripts/select_vast_offer.py \
+    --disk-gb "$DISK_GB" --max-dph "$MAX_DPH" \
+    --max-runtime-minutes "$MAX_RUNTIME_MINUTES" --max-total-cost 4.50 \
+    --offer-id "$OFFER_ID" <<<"$offers")
   read -r OFFER_ID price <<<"$resolved"
-  echo "Cost preflight selected verified Vast offer $OFFER_ID at \$$price/hr."
+  echo "Cost preflight selected verified Vast offer $OFFER_ID at projected GPU+disk \$$price/hr."
 fi
 
 TRANSFER_MANIFEST=.vast/d6-transfer-${GIT_REF:0:12}-$$.json
