@@ -1,0 +1,115 @@
+{
+  "architecture_facts": {
+    "decoder_stage": {
+      "encoder_is_optimizer_owned": false,
+      "encoder_role": "loaded, evaluated, and frozen",
+      "epochs": 6
+    },
+    "equal_output_shape_is_alignment_evidence": false,
+    "joint_codec_operator_stage": {
+      "encoder_is_optimizer_owned": true,
+      "epochs": 4,
+      "lambda_reconstruction": 0.25,
+      "lambda_rollout": 0.5,
+      "rollout_steps": 2
+    },
+    "missing_universal_modalities": [
+      "mesh",
+      "particle"
+    ],
+    "observed_modalities": [
+      "grid"
+    ],
+    "operator_stage": {
+      "encoder_is_optimizer_owned": false,
+      "encoder_role": "materialized fixed feature map used to build latent training pairs",
+      "epochs": 12
+    },
+    "separate_encoder_implementations": [
+      "GridEncoder",
+      "MeshParticleEncoder"
+    ],
+    "shared_encoder_parameters_across_modalities": false,
+    "task_router": {
+      "enabled": true,
+      "location": "operator",
+      "route_source": "task_id",
+      "route_vocab": [
+        "advection1d",
+        "burgers1d",
+        "darcy2d"
+      ]
+    }
+  },
+  "classification": {
+    "codec_vs_dynamics_causality": "unresolved",
+    "common_latent_space_claim": "not_tested",
+    "end_to_end_shared_candidate": "negative",
+    "family_router_authorized": false,
+    "reason": "The run used one grid encoder path and did not measure codec-only quality or paired cross-discretization alignment. Its joint-versus-ablation gap can arise in the encoder, decoder, latent operator, or their joint optimization.",
+    "universal_encoder_claim": "not_tested"
+  },
+  "config": {
+    "data_kind": "grid",
+    "latent_shape": {
+      "dim": 64,
+      "tokens": 64
+    },
+    "path": "configs/d6_strat_v1_modular_shared_trunk.yaml",
+    "sha256": "149aab48d3eef4c138bea603a39d157b188ec5c34455c93a708a2e719403718a",
+    "tasks": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ]
+  },
+  "next_gate": {
+    "heldout_access_allowed": false,
+    "minimum_evidence": [
+      "codec-only reconstruction by task and representation",
+      "latent effective rank, covariance, scale, and task leakage",
+      "paired grid-mesh-particle alignment for the same physical states",
+      "cross-encoding/cross-decoding and resolution invariance",
+      "only then a frozen shared-operator versus codec ablation"
+    ],
+    "name": "universal_latent_encoder_audit",
+    "provider_required": false
+  },
+  "required_measurements": {
+    "codec_only_reconstruction_by_task": {
+      "reason": "the experiment reports decoded rollouts, not decode(encode(x)) by task",
+      "status": "unmeasured"
+    },
+    "cross_encoding_and_cross_decoding": {
+      "reason": "the experiment has no cross-modality encode/decode matrix",
+      "status": "unmeasured"
+    },
+    "cross_task_latent_geometry": {
+      "reason": "no effective-rank, covariance, scale, or task-probe artifact is registered",
+      "status": "unmeasured"
+    },
+    "paired_cross_discretization_alignment": {
+      "reason": "no physical state is paired across grid, mesh, or particle discretizations",
+      "status": "unmeasured"
+    },
+    "resolution_or_sampling_invariance": {
+      "reason": "the experiment does not resample the same state at multiple resolutions",
+      "status": "unmeasured"
+    }
+  },
+  "schema_version": "ups.universal-latent-contract-audit.v1",
+  "source_bindings": {
+    "grid_encoder": {
+      "path": "src/ups/io/enc_grid.py",
+      "sha256": "9aa84602dd9922e33339d9201183bdb5f36754a42c2014bd508bf31b5a8ce965"
+    },
+    "mesh_particle_encoder": {
+      "path": "src/ups/io/enc_mesh_particle.py",
+      "sha256": "2a6468ecbb29a9ce71705008d74ebeeebbe8adba2b720f97eaee8f8b56d9d04a"
+    },
+    "training_pipeline": {
+      "path": "scripts/train.py",
+      "sha256": "9dda2d906547dded4e44ffeee0a669814200d51e5625d1e0736be09816d19a06"
+    }
+  }
+}

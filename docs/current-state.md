@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-16
+Updated: 2026-07-17
 
 ## Project
 
@@ -239,9 +239,19 @@ Checkpoint and initialized-tensor consolidation passed, as did exact update
 parity, but these do not offset failed accuracy, negative-transfer, regime, and
 parameter-use gates. Held-out reads were exactly zero. The immutable archive
 SHA-256 is `3e58f7fea593f46e05389c9260a13ac33f60eca44e157cdb06234a9c1eaf9bcc`,
-and Vast reports zero active instances. Close the shared neural-trunk branch at
-this scale and move to a unified product interface over family-specific
-models. See `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`.
+and Vast reports zero active instances.
+
+The 2026-07-17 encoder-contract audit narrows what D6 establishes. D6 is a
+negative end-to-end **grid** candidate, not an isolated test of a universal
+latent operator and not a grid/mesh/particle representation test. The
+12-epoch operator stage used a materialized encoder outside its optimizer, the
+6-epoch decoder stage froze that encoder, and only the final 4-epoch joint
+stage optimized codec and dynamics together. No codec-only, latent-geometry,
+paired-discretization, cross-decoding, or resampling-invariance metric was
+recorded. Codec-versus-dynamics causality is therefore unresolved and hidden
+family routing is paused. See
+`docs/research/2026-07-17-universal-latent-encoder-audit-plan.md` and
+`docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`.
 
 ## Latest Model Evidence
 
@@ -284,10 +294,14 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 2. Close both the Darcy specialist search at D4 and the native monolithic
    `tier_b` branch at D5. Do not add seeds, extend epochs, relax gates, or open
    held-out access for either branch.
-3. D6 failed U1 and U2. Do not add seeds, extend training, relax gates, run
-   U3/U4, or open held-out access. Design one unified simulator interface with
-   family-specific model routing beneath it; keep data, parameter, provenance,
-   metric, and artifact contracts shared.
+3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
+   gates, run U3/U4, or open held-out access. Do not infer an operator-only
+   failure or add family routing from that result.
+4. Run E1 codec-only diagnostics on the exact locked `strat-v1` validation
+   shards and immutable D6 joint/matched checkpoints. The older local
+   `pdebench.oct2025_backup` shards are protocol-mismatched and are not a valid
+   substitute. Then preregister the smallest paired grid/mesh benchmark needed
+   to test whether the encoders create one physical latent space.
 
 ## Reopen Triggers
 
@@ -308,6 +322,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`
 - `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`
 - `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`
+- `docs/research/2026-07-17-universal-latent-encoder-audit-plan.md`
+- `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`
 - `docs/research/2026-07-11-beta-head-heldout-result.md`
