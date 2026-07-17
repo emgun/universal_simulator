@@ -234,12 +234,15 @@ protocol review and green CI. The original v1-v3 plans are retired; only plan
 SHA-256 `88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487`
 is executable.
 
-The single authorized Vast launch did not reach bootstrap, staging, or model
+The v4 Vast launch did not reach bootstrap, staging, or model
 execution. Contract `45126713` remained in provider `loading` state for about
 15 minutes with zero CPU/GPU activity and a provider DNS failure, then was
 destroyed to stop billing. No D6 artifact exists, U1/U2 remain unmeasured,
 held-out reads remain zero, and the event must not be interpreted as a model
-result. See `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`.
+result. The hash-bound v5 recovery keeps the exact scientific contract and
+authorizes one new provider allocation with a 15-minute tracked-bootstrap
+deadline. See `docs/research/2026-07-16-d6-vast-infrastructure-failure.md` and
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`.
 
 ## Latest Model Evidence
 
@@ -282,11 +285,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 2. Close both the Darcy specialist search at D4 and the native monolithic
    `tier_b` branch at D5. Do not add seeds, extend epochs, relax gates, or open
    held-out access for either branch.
-3. D6 is implemented, merged, and hash-bound, but its single provider launch
-   failed before bootstrap. U1 and U2 remain scientifically unresolved. Do not
-   launch a replacement under the frozen one-run contract or infer a model
-   outcome. A future measurement requires explicit new authorization and a
-   separately reviewed recovery contract with a bounded startup timeout.
+3. D6 is implemented and its v5 infrastructure-recovery contract is frozen.
+   Execute its one authorized provider allocation. The scientific design is
+   unchanged; score U1/U2 only if tracked bootstrap, sealed staging, all four
+   arms, materialization, publication, and teardown complete. Do not rerun a
+   completed model attempt or a second pre-bootstrap provider failure.
 
 ## Reopen Triggers
 
@@ -306,6 +309,7 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-13-strat-v1-contract.md`
 - `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`
 - `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`
+- `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`
 - `docs/research/2026-07-11-beta-head-heldout-result.md`
 - `docs/claim_evidence/universal_sota_roadmap.md`

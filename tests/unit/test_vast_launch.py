@@ -431,6 +431,7 @@ def test_start_managed_watchdog_writes_secret_free_receipt_and_detaches(tmp_path
         offer_id="88",
         args=Namespace(
             max_runtime_minutes=10.0,
+            startup_timeout_minutes=2.0,
             receipt=str(tmp_path / "receipt.json"),
             image="image:tag",
             git_ref="a" * 40,
@@ -443,6 +444,8 @@ def test_start_managed_watchdog_writes_secret_free_receipt_and_detaches(tmp_path
     assert "must-not-appear" not in receipt_text
     assert '"instance_id": 77' in receipt_text
     assert '"watchdog_pid": 321' in receipt_text
+    assert '"startup_timeout_minutes": 2.0' in receipt_text
+    assert '"bootstrap_started": false' in receipt_text
     assert process.wait() == 0
     assert popen_calls[0][1]["start_new_session"] is False
     assert popen_calls[0][1]["stdin"] is subprocess.DEVNULL

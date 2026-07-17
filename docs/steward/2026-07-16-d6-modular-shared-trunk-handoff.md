@@ -7,10 +7,16 @@ Date: 2026-07-16
 PR #127 merged at `e3484810fe2ef4eba728acfc2a83b91fd70732b7` after
 green CI. The single authorized D6 Vast launch then failed in provider
 `loading` before bootstrap, staging, or model execution and was destroyed to
-stop billing. U1/U2 remain unmeasured; no replacement launch is authorized.
+stop billing. U1/U2 remain unmeasured. V4 cannot be relaunched; the separately
+reviewed v5 recovery contract authorizes one provider allocation because no
+scientific attempt was consumed.
 See `docs/research/2026-07-16-d6-vast-infrastructure-failure.md` for the exact
 receipt, timeline, cost, and data-boundary record. The remainder of this
 handoff preserves the pre-execution contract and historical resume state.
+
+Executable recovery plan:
+`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`, self-hash
+`9cfb954d18fe69cc70b57d717fa40b1eab8f9462f415f42b2cc8aa3d4c24a8d9`.
 
 ## Protocol-integrity update
 

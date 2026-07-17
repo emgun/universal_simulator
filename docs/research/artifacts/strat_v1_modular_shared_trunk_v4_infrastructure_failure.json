@@ -1,0 +1,20 @@
+{
+  "bootstrap_started": false,
+  "destroyed": true,
+  "heldout_reads": 0,
+  "measurement_lock_accessed": false,
+  "prior_git_ref": "e3484810fe2ef4eba728acfc2a83b91fd70732b7",
+  "prior_plan_sha256": "88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487",
+  "prior_receipt_sha256": "8311a3567d06e6ae423ac6ef2c8b18bfbefb15f1c821105a2e2012c9707b3c4b",
+  "prior_result_artifact_exists": false,
+  "prior_stage_report_exists": false,
+  "prior_vast_contract": 45126713,
+  "provider_phase": "loading_before_tracked_bootstrap",
+  "receipt_started_at": "2026-07-16T23:56:24.845500+00:00",
+  "receipt_status": "instance_absent",
+  "receipt_terminal_reason": "instance no longer exists",
+  "receipt_updated_at": "2026-07-17T00:12:21.752098+00:00",
+  "schema_version": 1,
+  "scientific_attempt_consumed": false,
+  "test_objects_issued": 0
+}

@@ -13,6 +13,10 @@ set -euo pipefail
 : "${UPS_EXIT_SENTINEL:=$UPS_WORKDIR/.ups_remote_bootstrap_exit_status}"
 : "${UPS_MAX_RUNTIME_SECONDS:=0}"
 
+# The local managed watchdog uses this marker to distinguish a provider that
+# never started the tracked bootstrap from a remote experiment failure.
+echo "REMOTE_BOOTSTRAP_STARTED=1"
+
 stop_container() {
   sync || true
   if command -v poweroff >/dev/null 2>&1 && poweroff; then

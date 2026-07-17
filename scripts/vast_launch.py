@@ -109,6 +109,16 @@ def start_managed_watchdog(
 ) -> tuple[Path, subprocess.Popen[bytes]]:
     if args.max_runtime_minutes is None or args.max_runtime_minutes <= 0:
         raise ValueError("--managed requires a positive --max-runtime-minutes")
+    configured_startup_timeout = getattr(args, "startup_timeout_minutes", None)
+    startup_timeout_minutes = float(
+        configured_startup_timeout
+        if configured_startup_timeout is not None
+        else min(15.0, args.max_runtime_minutes / 2.0)
+    )
+    if startup_timeout_minutes <= 0:
+        raise ValueError("--managed requires a positive --startup-timeout-minutes")
+    if startup_timeout_minutes >= args.max_runtime_minutes:
+        raise ValueError("startup timeout must be shorter than maximum runtime")
     now = time.time()
     receipt = (
         Path(args.receipt).expanduser().resolve()
@@ -128,6 +138,9 @@ def start_managed_watchdog(
             "started_unix": now,
             "deadline_unix": now + args.max_runtime_minutes * 60.0,
             "max_runtime_minutes": args.max_runtime_minutes,
+            "startup_deadline_unix": now + startup_timeout_minutes * 60.0,
+            "startup_timeout_minutes": startup_timeout_minutes,
+            "bootstrap_started": False,
             "success_marker": args.success_marker,
             "status": "launch_succeeded_watchdog_pending",
             "destroyed": False,
@@ -502,6 +515,16 @@ def cmd_launch(args: argparse.Namespace) -> None:
         raise SystemExit("--managed requires a positive --max-runtime-minutes")
     if args.managed and not args.auto_shutdown:
         raise SystemExit("--managed requires --auto-shutdown for a remote exit sentinel")
+    if args.managed and (
+        args.startup_timeout_minutes is not None and args.startup_timeout_minutes <= 0
+    ):
+        raise SystemExit("--managed requires a positive --startup-timeout-minutes")
+    if (
+        args.managed
+        and args.startup_timeout_minutes is not None
+        and args.startup_timeout_minutes >= args.max_runtime_minutes
+    ):
+        raise SystemExit("startup timeout must be shorter than maximum runtime")
     if args.managed and args.launch_retries:
         raise SystemExit(
             "--managed forbids create retries because paid instance creation is not idempotent"
@@ -733,6 +756,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-runtime-minutes",
         type=float,
         help="Hard paid-runtime cap; required with --managed",
+    )
+    p_launch.add_argument(
+        "--startup-timeout-minutes",
+        type=float,
+        default=None,
+        help="Destroy a managed instance if tracked bootstrap has not started by this deadline",
     )
     p_launch.add_argument(
         "--success-marker",

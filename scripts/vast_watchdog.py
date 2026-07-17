@@ -61,18 +61,22 @@ def destroy(instance_id: int, *, attempts: int | None = None) -> bool:
     return False
 
 
-def instance_exists(instance_id: int) -> bool:
+def instance_state(instance_id: int) -> dict[str, Any] | None:
     # The singular CLI endpoint currently raises an internal TypeError for a
     # destroyed instance. Query the collection instead and fail safe on API or
     # JSON errors so a transient control-plane failure never stops monitoring.
     result = vast(["show", "instances", "--raw"])
     if result.returncode != 0:
-        return True
+        return {}
     try:
         rows = json.loads(result.stdout or "[]")
-        return any(int(row.get("id", -1)) == instance_id for row in rows)
+        return next((row for row in rows if int(row.get("id", -1)) == instance_id), None)
     except (TypeError, ValueError, json.JSONDecodeError):
-        return True
+        return {}
+
+
+def instance_exists(instance_id: int) -> bool:
+    return instance_state(instance_id) is not None
 
 
 def remote_logs(instance_id: int) -> str:
@@ -105,7 +109,9 @@ def monitor(
     payload = json.loads(receipt.read_text())
     instance_id = int(payload["instance_id"])
     deadline = float(payload["deadline_unix"])
+    startup_deadline = float(payload.get("startup_deadline_unix", deadline))
     success_marker = str(payload["success_marker"])
+    bootstrap_started = bool(payload.get("bootstrap_started", False))
     stop_reason: list[str] = []
 
     def request_stop(signum: int, _frame: object) -> None:
@@ -124,14 +130,39 @@ def monitor(
                 status, reason = "timed_out", "maximum paid runtime reached"
                 break
             logs = remote_logs(instance_id)
+            if not bootstrap_started and "REMOTE_BOOTSTRAP_STARTED=1" in logs:
+                bootstrap_started = True
+                update_receipt(
+                    receipt,
+                    bootstrap_started=True,
+                    bootstrap_started_at=utc_now(),
+                )
             terminal = terminal_reason(logs, success_marker)
             if terminal is not None:
                 status, reason = terminal
                 break
-            if not instance_exists(instance_id):
-                status, reason = "instance_absent", "instance no longer exists"
+            state = instance_state(instance_id)
+            if state is None:
+                status = "instance_absent" if bootstrap_started else "startup_failed"
+                reason = (
+                    "instance no longer exists"
+                    if bootstrap_started
+                    else "instance disappeared before tracked bootstrap"
+                )
                 update_receipt(receipt, status=status, terminal_reason=reason, destroyed=True)
                 return 0
+            if not bootstrap_started and clock() >= startup_deadline:
+                status, reason = (
+                    "startup_failed",
+                    "tracked bootstrap did not start before startup deadline",
+                )
+                if state:
+                    update_receipt(
+                        receipt,
+                        last_instance_status=state.get("actual_status"),
+                        last_instance_status_message=state.get("status_msg"),
+                    )
+                break
             sleeper(max(1.0, poll_seconds))
 
         update_receipt(receipt, status="destroying", terminal_reason=reason)

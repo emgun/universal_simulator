@@ -2,9 +2,10 @@
 
 Date: 2026-07-16
 
-Status: frozen executable protocol; plan self-hash
+Status: retired after a pre-bootstrap provider failure; plan self-hash
 `88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487`;
-no D6 run has occurred
+no D6 model run occurred; superseded only by the v5 infrastructure-recovery
+contract
 
 D6 v4 inherits the exact scientific question, adapter architecture, seed 17,
 training schedule, arms, metrics, U1/U2 thresholds, cost cap, stop rules, and

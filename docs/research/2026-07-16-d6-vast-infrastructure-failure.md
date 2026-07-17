@@ -12,7 +12,9 @@ billing. The managed receipt then reconciled the instance as absent with
 `destroyed: true`.
 
 This is an infrastructure failure, not a D6 model result. U1 and U2 remain
-unmeasured. No replacement launch is authorized by the frozen D6 contract.
+unmeasured. V4 itself authorizes no replacement launch; the separately
+hash-bound v5 recovery contract may perform exactly one provider allocation
+because no scientific attempt was consumed.
 
 ## Frozen identity
 
@@ -54,8 +56,9 @@ receipt. They must not be committed.
 
 - Do not score D6, U1, or U2 from this attempt.
 - Do not treat the provider failure as evidence for or against modular sharing.
-- Do not launch a replacement under the frozen one-run contract.
-- Any future D6 measurement requires an explicit new authorization and a
-  separately reviewed recovery contract, including a bounded startup timeout
-  so an inert provider allocation cannot consume the full runtime ceiling.
-
+- Do not relaunch v4.
+- V5 is the separately reviewed recovery contract. It preserves the complete
+  scientific design and adds a bounded startup timeout plus one-provider-launch
+  guard. If that recovery reaches model execution, it consumes the single D6
+  scientific attempt; if it fails before bootstrap again, D6 remains unresolved
+  and the recovery allowance is closed.
