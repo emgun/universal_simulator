@@ -54,6 +54,10 @@ D5_SPECIALIST_CHECKPOINT_BYTES = 67_752_971
 D5_PLAN_SHA256 = "5e44e12eb387eec037ac8b7200e7577f9f4d6f806a056b7516342702c9bd7bfd"
 D5_RESULT_SHA256 = "737c08903ca4f45bdc992e5abb53ebe39fe948ea2feac375469bf901c9e9d762"
 D3_DARCY = 0.11694165553982801
+RECOVERY_EVIDENCE = (
+    REPO_ROOT
+    / "docs/research/artifacts/strat_v1_modular_shared_trunk_v4_infrastructure_failure.json"
+)
 SOURCE_FILES = (
     "configs/d6_strat_v1_modular_shared_trunk.yaml",
     "configs/d5_strat_v1_shared_tier_b.yaml",
@@ -184,6 +188,22 @@ def build_plan(
     if observed != OBJECTS:
         raise ValueError("D6 training object identities differ from the frozen contract")
     _checked_config(config)
+    recovery_evidence = json.loads(RECOVERY_EVIDENCE.read_text(encoding="utf-8"))
+    expected_recovery = {
+        "prior_plan_sha256": "88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487",
+        "prior_vast_contract": 45126713,
+        "bootstrap_started": False,
+        "prior_stage_report_exists": False,
+        "prior_result_artifact_exists": False,
+        "heldout_reads": 0,
+        "measurement_lock_accessed": False,
+        "test_objects_issued": 0,
+        "scientific_attempt_consumed": False,
+        "destroyed": True,
+    }
+    for key, value in expected_recovery.items():
+        if recovery_evidence.get(key) != value:
+            raise ValueError(f"D6 recovery evidence differs at {key}")
     command = [
         "python",
         "scripts/run_strat_v1_modular_shared_trunk.py",
@@ -232,6 +252,10 @@ def build_plan(
                 "objects": OBJECTS,
             },
             "config": {"path": str(config), "file_sha256": file_sha256(config)},
+            "recovery_evidence": {
+                "path": str(RECOVERY_EVIDENCE.relative_to(REPO_ROOT)),
+                "file_sha256": file_sha256(RECOVERY_EVIDENCE),
+            },
             "frozen_d5": {
                 "plan_sha256": D5_PLAN_SHA256,
                 "result_artifact_sha256": D5_RESULT_SHA256,
