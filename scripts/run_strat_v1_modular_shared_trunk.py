@@ -41,7 +41,7 @@ ARM_NAMES = tuple(name for name, _ in ARMS)
 ARM_TASKS = {name: tasks for name, tasks in ARMS}
 STAGES = ("operator", "decoder", "operator_decoded", "joint_codec_operator")
 VALIDATION_SPLITS = {"val", "valid", "validation"}
-EXPECTED_PLAN_ID = "strat-v1-modular-shared-trunk-d6-v4"
+EXPECTED_PLAN_ID = "strat-v1-modular-shared-trunk-d6-v5"
 FROZEN_STAGE_OBJECTS = {
     "advection1d-train": "aeaf3cc539f60e481b7028f4ec6293acd0c72e67612f20e4a17360239e47891d",
     "burgers1d-train": "9b7ae18e229641e2b75962673ca7699ff75fd2a51df4178ce2771d0c4ee4fd82",

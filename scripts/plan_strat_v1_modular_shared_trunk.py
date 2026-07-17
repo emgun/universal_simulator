@@ -206,11 +206,23 @@ def build_plan(
     ]
     plan: dict[str, Any] = {
         "schema_version": 1,
-        "plan_id": "strat-v1-modular-shared-trunk-d6-v4",
+        "plan_id": "strat-v1-modular-shared-trunk-d6-v5",
         "mode": "validation_only",
         "heldout_access": "forbidden",
         "measurement_lock_access": "forbidden",
-        "execution_authorization": "validation_only_runner_bound",
+        "execution_authorization": "validation_only_infrastructure_recovery",
+        "recovery": {
+            "prior_plan_sha256": "88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487",
+            "prior_vast_contract": 45126713,
+            "prior_phase": "provider_loading_before_tracked_bootstrap",
+            "prior_bootstrap_started": False,
+            "prior_stage_report_exists": False,
+            "prior_result_artifact_exists": False,
+            "prior_heldout_reads": 0,
+            "scientific_attempt_consumed": False,
+            "authorized_recovery_provider_launches": 1,
+            "startup_timeout_minutes": 15,
+        },
         "bindings": {
             "source": {"implementation_commit": resolved, "files": source_manifest(resolved)},
             "training_lock": {

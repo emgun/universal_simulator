@@ -8,11 +8,12 @@ GPU=${GPU:-RTX_4090}
 DISK_GB=${DISK_GB:-96}
 MAX_DPH=${MAX_DPH:-0.45}
 MAX_RUNTIME_MINUTES=${MAX_RUNTIME_MINUTES:-600}
+STARTUP_TIMEOUT_MINUTES=${STARTUP_TIMEOUT_MINUTES:-15}
 OFFER_ID=${OFFER_ID:-}
 REMOTE_SCRIPT=${REMOTE_SCRIPT:-scripts/run_remote_strat_v1_modular_shared_trunk.sh}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-remote-runs/strat-v1-modular-shared-trunk}
 TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
-PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v4.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v5.json}
 
 read_env_key() {
   local file="$1" key="$2" line val
@@ -39,6 +40,7 @@ fi
 case "$DRY_RUN" in 0|1) ;; *) echo "DRY_RUN must be 0 or 1" >&2; exit 2 ;; esac
 [[ "$GIT_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "GIT_REF must be a full lowercase commit" >&2; exit 2; }
 [ "$MAX_RUNTIME_MINUTES" -gt 0 ] && [ "$MAX_RUNTIME_MINUTES" -le 600 ] || { echo "MAX_RUNTIME_MINUTES must be in 1..600" >&2; exit 2; }
+[ "$STARTUP_TIMEOUT_MINUTES" -gt 0 ] && [ "$STARTUP_TIMEOUT_MINUTES" -lt "$MAX_RUNTIME_MINUTES" ] || { echo "STARTUP_TIMEOUT_MINUTES must be positive and below MAX_RUNTIME_MINUTES" >&2; exit 2; }
 python - "$MAX_DPH" "$MAX_RUNTIME_MINUTES" <<'PY'
 import sys
 price=float(sys.argv[1]); minutes=float(sys.argv[2])
@@ -56,11 +58,17 @@ retired={
   "ec36aead4c537267fae78c71de8d14156fba253899f90ec72fe867dd6bce80e8",
   "f00f2031be4138954cffc21fe5793aeeb0edbf9197b11e6290534e176897267d",
   "017af9eab7c60250d0825f91eea83f25a212e49c09368e96a3037e889f70290e",
+  "88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487",
 }
 if recorded != computed: raise SystemExit("D6 plan self hash does not match")
 if recorded in retired: raise SystemExit("refusing retired D6 plan")
-if p.get("plan_id") != "strat-v1-modular-shared-trunk-d6-v4": raise SystemExit("refusing superseded D6 plan identity")
+if p.get("plan_id") != "strat-v1-modular-shared-trunk-d6-v5": raise SystemExit("refusing superseded D6 plan identity")
 if p.get("mode") != "validation_only" or p.get("heldout_access") != "forbidden" or p.get("measurement_lock_access") != "forbidden": raise SystemExit("refusing non-validation D6 plan")
+recovery=p.get("recovery", {})
+if recovery.get("prior_vast_contract") != 45126713: raise SystemExit("refusing unbound D6 recovery history")
+if recovery.get("scientific_attempt_consumed") is not False: raise SystemExit("refusing consumed D6 scientific attempt")
+if recovery.get("authorized_recovery_provider_launches") != 1: raise SystemExit("refusing unbounded D6 recovery")
+if recovery.get("startup_timeout_minutes") != 15: raise SystemExit("refusing altered D6 startup timeout")
 print(p["bindings"]["source"]["implementation_commit"])
 PY
 )
@@ -85,7 +93,8 @@ fi
 
 TRANSFER_MANIFEST=.vast/d6-transfer-${GIT_REF:0:12}-$$.json
 TRANSFER_URL_RECEIPT=.vast/d6-transfer-url-${GIT_REF:0:12}-$$.json
-VAST_RECEIPT=.vast/receipts/d6-${GIT_REF:0:12}-$$.json
+VAST_RECEIPT=${VAST_RECEIPT:-.vast/receipts/d6-v5-recovery.json}
+[ "$DRY_RUN" -eq 1 ] || [ ! -e "$VAST_RECEIPT" ] || { echo "refusing a second D6 v5 recovery provider launch: $VAST_RECEIPT already exists" >&2; exit 2; }
 finalization_complete=$DRY_RUN
 cleanup_transfer_files() {
   if [ "$finalization_complete" -eq 1 ]; then
@@ -109,7 +118,7 @@ PY
 )
 fi
 
-args=(python scripts/vast_launch.py launch --gpu "$GPU" --num-gpus 1 --disk "$DISK_GB" --git-ref "$GIT_REF" --workdir /workspace --remote-script "$REMOTE_SCRIPT" --skip-prefetch --skip-rclone-install --install-mode experiment --bootstrap-mode tracked-script --script-args "DRY_RUN=0 ARTIFACT_PREFIX=$ARTIFACT_PREFIX TRANSFER_MANIFEST_URL_B64=$transfer_token" --auto-shutdown --managed --max-runtime-minutes "$MAX_RUNTIME_MINUTES" --success-marker "Uploaded verified D6 ingress artifact:" --receipt "$VAST_RECEIPT" --launch-retries 0)
+args=(python scripts/vast_launch.py launch --gpu "$GPU" --num-gpus 1 --disk "$DISK_GB" --git-ref "$GIT_REF" --workdir /workspace --remote-script "$REMOTE_SCRIPT" --skip-prefetch --skip-rclone-install --install-mode experiment --bootstrap-mode tracked-script --script-args "DRY_RUN=0 ARTIFACT_PREFIX=$ARTIFACT_PREFIX TRANSFER_MANIFEST_URL_B64=$transfer_token" --auto-shutdown --managed --max-runtime-minutes "$MAX_RUNTIME_MINUTES" --startup-timeout-minutes "$STARTUP_TIMEOUT_MINUTES" --success-marker "Uploaded verified D6 ingress artifact:" --receipt "$VAST_RECEIPT" --launch-retries 0)
 [ -n "$OFFER_ID" ] && args+=(--offer-id "$OFFER_ID") || args+=(--order dph_total --limit 10)
 [ "$DRY_RUN" -eq 1 ] && args+=(--dry-run)
 env -u B2_KEY_ID -u B2_ACCOUNT_ID -u B2_APP_KEY -u B2_APPLICATION_KEY \

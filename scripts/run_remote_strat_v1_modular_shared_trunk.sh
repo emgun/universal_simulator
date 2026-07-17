@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PYTHON=${PYTHON:-python}
-PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v4.json}
+PLAN=${PLAN:-docs/research/artifacts/strat_v1_modular_shared_trunk_plan_v5.json}
 CONFIG=${CONFIG:-configs/d6_strat_v1_modular_shared_trunk.yaml}
 TRAINING_LOCK=${TRAINING_LOCK:-docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json}
 CACHE=${CACHE:-reports/research/strat_v1_modular_shared_trunk_scratch/cache}

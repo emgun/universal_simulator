@@ -131,6 +131,7 @@ def test_d6_vast_dry_run_is_managed_bounded_and_credential_free(tmp_path: Path) 
     )
     assert args[args.index("--success-marker") + 1] == "Uploaded verified D6 ingress artifact:"
     assert args[args.index("--launch-retries") + 1] == "0"
+    assert args[args.index("--startup-timeout-minutes") + 1] == "15"
     assert not any("b2-key" in arg or "b2-app" in arg for arg in args)
 
 
