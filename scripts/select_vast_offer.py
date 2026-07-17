@@ -63,7 +63,7 @@ def main() -> None:
     parser.add_argument("--offer-id", default="")
     args = parser.parse_args()
     rows = json.load(sys.stdin)
-    price, offer_id = select_offer(
+    offer_id, price = select_offer(
         rows,
         disk_gb=args.disk_gb,
         max_dph=args.max_dph,
