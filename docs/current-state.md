@@ -263,6 +263,17 @@ the coefficient but not the solution. Joint/matched latent CKA is above
 bases rather than an interchangeable common space. The result is
 `docs/research/2026-07-17-universal-latent-encoder-e1-result.md`.
 
+The UPT lineage audit now identifies the deeper implementation gap. UPT uses
+one point-set encoder with geometry-aware supernodes, transformer processing,
+and learned Perceiver queries. UPS instead had separate grid and mesh paths;
+the mesh path used storage-order chunk means and adaptive average pooling, not
+the referenced hierarchy. An opt-in canonical point-set encoder plus paired
+latent/cross-decoding metrics is implemented and locally verified. This is E2
+mechanics evidence only: no codec training or scientific paired benchmark has
+run, so the canonical latent basis remains `not_qualified`. See
+`docs/research/2026-07-17-universal-latent-backbone-lineage.md` and
+`docs/research/2026-07-17-canonical-latent-codec-qualification-contract.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -307,11 +318,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1 is complete and shows codec negative transfer. Qualify and freeze a
-   canonical codec with direct coefficient, solution, and temporal-state
-   reconstruction before another operator run. Then preregister the smallest
-   paired grid/mesh benchmark needed to test whether encoders create one
-   cross-decodable physical latent space.
+4. E1 is complete and shows codec negative transfer. E2 encoder and metric
+   mechanics are implemented but untrained. Wire the one point-set encoder and
+   decoder into codec-only training, materialize the frozen paired analytic
+   grid/mesh benchmark, and pass the preregistered qualification contract before
+   another operator run.
 
 ## Reopen Triggers
 
@@ -334,6 +345,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`
 - `docs/research/2026-07-17-universal-latent-encoder-audit-plan.md`
 - `docs/research/2026-07-17-universal-latent-encoder-e1-result.md`
+- `docs/research/2026-07-17-universal-latent-backbone-lineage.md`
+- `docs/research/2026-07-17-canonical-latent-codec-qualification-contract.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

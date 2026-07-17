@@ -78,6 +78,16 @@ and decoder bases.
 
 ### E2 — paired discretization benchmark
 
+The original UPT lineage and the live UPS divergence are now documented in
+`docs/research/2026-07-17-universal-latent-backbone-lineage.md`. UPS previously
+had separate grid and mesh/particle paths; the mesh path's storage-order chunk
+pooling and adaptive average reduction were not the geometry-aware supernode +
+transformer + learned-query Perceiver encoder described by UPT.
+
+The opt-in canonical point-set encoder and qualification metrics are now
+implemented, but no scientific E2 run has occurred. The preregistered gate is
+`docs/research/2026-07-17-canonical-latent-codec-qualification-contract.md`.
+
 Construct a validation-only benchmark in which the same physical states are
 sampled as at least grid and irregular mesh representations, with particle
 representations where physically meaningful. Freeze physical-state identity,
@@ -124,7 +134,7 @@ the trunk.
 
 ## Immediate next move
 
-Qualify and freeze a canonical codec before another operator experiment. Then
-define the smallest paired grid/mesh physical-state benchmark for E2, including
-cross-decoding and remeshing invariance. Do not skip directly to routing or a
-new shared-operator run.
+Wire the canonical point-set encoder and one any-point decoder into a codec-only
+training path. Materialize the smallest frozen paired analytic grid/mesh
+benchmark, then run the preregistered cross-decoding, retrieval, rank, and
+remeshing gates. Do not skip directly to routing or a new shared-operator run.
