@@ -253,6 +253,16 @@ family routing is paused. See
 `docs/research/2026-07-17-universal-latent-encoder-audit-plan.md` and
 `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`.
 
+E1 now isolates a substantial codec-path contribution without invoking the
+operator. Joint-to-matched global reconstruction NRMSE ratios are `2.4922x`
+Advection, `1.2396x` Burgers, and `2.9357x` for the Darcy coefficient. The
+Darcy solution target is poorly reconstructed by both codecs (`0.9038` joint,
+`0.8336` matched global NRMSE) because standalone decoder training supervised
+the coefficient but not the solution. Joint/matched latent CKA is above
+`0.998` on every task, while cross-decoding fails, showing co-adapted latent
+bases rather than an interchangeable common space. The result is
+`docs/research/2026-07-17-universal-latent-encoder-e1-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -297,11 +307,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. Run E1 codec-only diagnostics on the exact locked `strat-v1` validation
-   shards and immutable D6 joint/matched checkpoints. The older local
-   `pdebench.oct2025_backup` shards are protocol-mismatched and are not a valid
-   substitute. Then preregister the smallest paired grid/mesh benchmark needed
-   to test whether the encoders create one physical latent space.
+4. E1 is complete and shows codec negative transfer. Qualify and freeze a
+   canonical codec with direct coefficient, solution, and temporal-state
+   reconstruction before another operator run. Then preregister the smallest
+   paired grid/mesh benchmark needed to test whether encoders create one
+   cross-decodable physical latent space.
 
 ## Reopen Triggers
 
@@ -323,6 +333,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`
 - `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`
 - `docs/research/2026-07-17-universal-latent-encoder-audit-plan.md`
+- `docs/research/2026-07-17-universal-latent-encoder-e1-result.md`
+- `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`

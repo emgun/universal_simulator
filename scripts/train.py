@@ -228,6 +228,24 @@ def _canonical_raw_supervision(
     return torch.cat([fields, targets], dim=1), True
 
 
+def _decoder_codec_supervision(
+    fields: torch.Tensor,
+    targets: torch.Tensor | None,
+    *,
+    task_name: str | None,
+    canonical_steady: bool,
+) -> torch.Tensor:
+    """Include both sides of a steady operator in standalone codec training."""
+
+    supervised, _ = _canonical_raw_supervision(
+        fields,
+        targets,
+        task_name=task_name,
+        enabled=canonical_steady,
+    )
+    return supervised
+
+
 def _source_sample_balanced_loss(
     prediction: torch.Tensor,
     target: torch.Tensor,
@@ -1097,6 +1115,7 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
         raise ValueError("Decoder training currently supports single-task PDEBench grid data only")
 
     checkpoint_dir = ensure_checkpoint_dir(cfg)
+    canonical_steady = bool(cfg.get("training", {}).get("canonical_steady_operator_mapping", False))
     encoder_path = checkpoint_dir / "encoder.pt"
     if not encoder_path.exists():
         raise FileNotFoundError(
@@ -1148,6 +1167,14 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 sample_losses = []
                 for sample in batch:
                     fields = sample["fields"].float().unsqueeze(0)
+                    task_name = sample.get("task_name")
+                    raw_targets = sample.get("targets")
+                    fields = _decoder_codec_supervision(
+                        fields,
+                        raw_targets.float().unsqueeze(0) if raw_targets is not None else None,
+                        task_name=task_name,
+                        canonical_steady=canonical_steady,
+                    )
                     params = sample.get("params")
                     bc = sample.get("bc")
                     grid_shape = infer_grid_shape(sample["fields"].float())
@@ -1182,6 +1209,14 @@ def train_decoder(cfg: dict, shared_run=None, global_step: int = 0) -> None:
                 continue
 
             fields = batch["fields"].float()
+            task_name = _task_name_from_batch(batch)
+            raw_targets = batch.get("targets")
+            fields = _decoder_codec_supervision(
+                fields,
+                raw_targets.float() if raw_targets is not None else None,
+                task_name=task_name,
+                canonical_steady=canonical_steady,
+            )
             params = batch.get("params")
             bc = batch.get("bc")
             grid_shape = infer_grid_shape(fields[0])
@@ -1583,6 +1618,19 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
     decoder.load_state_dict(torch.load(decoder_path, map_location="cpu", weights_only=False))
     decoder.to(device)
 
+    # Preserve the actual pre-joint states. The compatibility checkpoints are
+    # overwritten with the selected joint state at the end of this stage.
+    pre_joint_dir = checkpoint_dir / "pre_joint"
+    pre_joint_dir.mkdir(parents=True, exist_ok=True)
+    pre_joint_paths = {
+        "operator": pre_joint_dir / "operator.pt",
+        "encoder": pre_joint_dir / "encoder.pt",
+        "decoder": pre_joint_dir / "decoder.pt",
+    }
+    for name, module in (("operator", operator), ("encoder", encoder), ("decoder", decoder)):
+        if not pre_joint_paths[name].exists():
+            torch.save(module.state_dict(), pre_joint_paths[name])
+
     joint_model = nn.ModuleDict({"operator": operator, "encoder": encoder, "decoder": decoder})
     dataset, field_name = _raw_pdebench_dataset(cfg)
     is_multitask = isinstance(cfg.get("data", {}).get("task"), (list, tuple))
@@ -1935,6 +1983,8 @@ def train_joint_codec_operator(cfg: dict, shared_run=None, global_step: int = 0)
         wandb.save(str(joint_operator_path), base_path=str(checkpoint_dir.parent))
         wandb.save(str(joint_encoder_path), base_path=str(checkpoint_dir.parent))
         wandb.save(str(joint_decoder_path), base_path=str(checkpoint_dir.parent))
+        for pre_joint_path in pre_joint_paths.values():
+            wandb.save(str(pre_joint_path), base_path=str(checkpoint_dir.parent))
         wandb.save(str(operator_path), base_path=str(checkpoint_dir.parent))
         wandb.save(str(encoder_path), base_path=str(checkpoint_dir.parent))
         wandb.save(str(decoder_path), base_path=str(checkpoint_dir.parent))

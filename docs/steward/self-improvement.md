@@ -122,3 +122,10 @@ not claim evidence.
 - Refuse convenient local data when its protocol differs from the frozen run.
   For D6 codec recovery, the old `pdebench.oct2025_backup` validation files are
   not substitutes for the exact locked `strat-v1` validation objects.
+- For steady coefficient-to-solution systems, codec qualification must cover
+  both domains. Training a decoder only on coefficient `fields` leaves the
+  solution output codec entangled with operator training and invalidates an
+  operator-only failure interpretation.
+- Preserve pre-joint checkpoints under distinct immutable names before a joint
+  stage overwrites compatibility paths. File-name variants with identical
+  tensor values do not provide a before/after causal comparison.

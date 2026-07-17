@@ -98,6 +98,15 @@ The matched task ablations can outperform the joint arm because of codec,
 decoder, operator, or joint-optimization interference. Calling this an
 operator-only or universal-latent failure would exceed the evidence.
 
+The 2026-07-17 E1 checkpoint audit resolves part of that ambiguity. Without
+instantiating the operator, the joint codec is worse than the matched codec on
+all three inputs: global reconstruction ratios are `2.4922x` Advection,
+`1.2396x` Burgers, and `2.9357x` Darcy coefficient. Both codecs also fail to
+reconstruct Darcy solution targets well because the standalone decoder stage
+supervised coefficients but not solutions. Representation/decoding therefore
+contributes materially to D6; the result cannot justify hidden family routing.
+See `docs/research/2026-07-17-universal-latent-encoder-e1-result.md`.
+
 ## Forward path
 
 Preserve the universal-model objective. First measure codec-only quality and
