@@ -4,10 +4,12 @@ Date: 2026-07-16
 
 ## Decision
 
-D6 is negative on both preregistered universal-value gates. Stop broadening the
-shared-model branch at this scale. The next product architecture should expose
-one unified simulator interface over family-specific models rather than force
-one shared neural trunk across transport, conservation, and elliptic systems.
+D6 is negative on both preregistered universal-value gates. Stop broadening or
+rerunning this exact end-to-end candidate. A later source-bound audit shows
+that D6 does not isolate the latent operator and does not test the intended
+universal grid/mesh/particle representation. Family-specific routing is
+therefore not authorized by D6 alone; diagnose the codec and common latent
+space first.
 
 No extra seed, longer schedule, relaxed gate, replacement run, U3/U4 follow-up,
 or held-out measurement is authorized by this result.
@@ -77,10 +79,31 @@ The result artifact inside the archive is self-hashed as
 The stage-report artifact SHA-256 is
 `7e03c0326fb0f62300a8f16e31584dadebef0cc4f9e2b68309fb30730584fb27`.
 
+## Interpretation correction (2026-07-17)
+
+D6's result numbers and frozen gate decisions are unchanged. Its architectural
+interpretation is narrowed by
+`docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`:
+
+- all three tasks used the grid encoder; mesh and particle encoders were absent;
+- UPS exposes separate grid and mesh/particle encoders with no alignment
+  objective or paired-discretization evidence;
+- the 12-epoch operator stage did not optimize the encoder;
+- the 6-epoch decoder stage froze the encoder;
+- encoder, decoder, and operator were jointly optimized only for the final
+  four epochs;
+- no codec-only reconstruction or latent-geometry result was reported.
+
+The matched task ablations can outperform the joint arm because of codec,
+decoder, operator, or joint-optimization interference. Calling this an
+operator-only or universal-latent failure would exceed the evidence.
+
 ## Forward path
 
-Preserve the shared product contract at the interface layer: common task and
-parameter schemas, data locks, metrics, provenance, artifact handling, and
-routing. Move model selection beneath that interface, with family-specific
-transport, conservation, and elliptic implementations. The first next step is
-a no-provider interface-and-routing design, not another model training run.
+Preserve the universal-model objective. First measure codec-only quality and
+latent geometry on the exact locked D6 validation data, then test paired
+physical states represented as grids and meshes (and particles where
+meaningful). Only after a viable aligned codec is frozen should a factorial
+shared-versus-specialized dynamics test decide whether family-specific
+operators are necessary. The executable sequence and stop rules are in
+`docs/research/2026-07-17-universal-latent-encoder-audit-plan.md`.

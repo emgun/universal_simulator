@@ -109,3 +109,16 @@ not claim evidence.
 - Keep `docs/current-state.md` as a compact decision snapshot. Move completed
   chronology to the experiment ledger and evidence notes instead of allowing
   stale provider blockers to obscure the active protocol gate.
+
+## 2026-07-17
+
+- Do not infer that a shared latent operator failed when an end-to-end
+  joint-versus-specialist comparison leaves encoder, decoder, and operator
+  ownership entangled. Before routing by task or family, require codec-only
+  metrics and a freeze-based causal split.
+- Equal token counts and latent dimensions are an interface contract, not a
+  universal representation result. Grid/mesh/particle claims require paired
+  physical states, cross-decoding, and discretization-invariance evidence.
+- Refuse convenient local data when its protocol differs from the frozen run.
+  For D6 codec recovery, the old `pdebench.oct2025_backup` validation files are
+  not substitutes for the exact locked `strat-v1` validation objects.
