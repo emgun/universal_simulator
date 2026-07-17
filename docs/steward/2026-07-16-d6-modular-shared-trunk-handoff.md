@@ -2,6 +2,18 @@
 
 Date: 2026-07-16
 
+## Final outcome
+
+D6 v5 completed once and failed both U1 and U2. Joint macro rollout NRMSE was
+`0.809862` versus `0.662876` for the matched single-task ensemble. All three
+per-task negative-transfer checks failed; Darcy corrected spread was
+`2.173540`; shuffled-parameter degradation was `1.184208e-6`; held-out reads
+were zero. The immutable archive SHA-256 is
+`3e58f7fea593f46e05389c9260a13ac33f60eca44e157cdb06234a9c1eaf9bcc`,
+and Vast reports no active instances. Close the shared neural-trunk branch and
+move to a unified interface over family-specific models. The authoritative
+record is `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`.
+
 ## Post-handoff outcome
 
 PR #127 merged at `e3484810fe2ef4eba728acfc2a83b91fd70732b7` after

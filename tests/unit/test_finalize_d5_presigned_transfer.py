@@ -36,6 +36,21 @@ def _receipt(tmp_path: Path, status: str = "succeeded") -> Path:
     return path
 
 
+def _absent_receipt(tmp_path: Path) -> Path:
+    path = tmp_path / "absent-receipt.json"
+    path.write_text(
+        json.dumps(
+            {
+                "status": "instance_absent",
+                "destroyed": True,
+                "bootstrap_started": True,
+                "terminal_reason": "instance no longer exists",
+            }
+        )
+    )
+    return path
+
+
 def test_finalizer_hashes_ingress_and_immutable_before_cleanup(tmp_path: Path, monkeypatch) -> None:
     manifest_path = _manifest(tmp_path)
     manifest = json.loads(manifest_path.read_text())
@@ -69,6 +84,70 @@ def test_finalizer_refuses_failed_receipt_without_reading_objects(tmp_path: Path
             client=client,
             bucket="pdebench",
             receipt_path=_receipt(tmp_path, "remote_failed"),
+        )
+    assert client.deleted is None
+
+
+def test_finalizer_recovers_absent_instance_with_exact_ingress_digest(
+    tmp_path: Path, monkeypatch
+) -> None:
+    manifest_path = _manifest(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    artifact = b"verified recovery archive"
+    digest = hashlib.sha256(artifact).hexdigest()
+    client = FakeS3(manifest, artifact, digest)
+    monkeypatch.setattr("scripts.d5_presigned_io.time.time", lambda: 1500)
+
+    handle = finalizer.finalize(
+        manifest_path,
+        env_file=tmp_path / "absent.env",
+        client=client,
+        bucket="pdebench",
+        receipt_path=_absent_receipt(tmp_path),
+        expected_ingress_sha256=digest,
+        workflow_label="D6",
+    )
+
+    assert f"/immutable/sha256/{digest}/" in handle
+    assert client.deleted is not None
+
+
+def test_finalizer_refuses_absent_instance_without_recovery_digest(tmp_path: Path) -> None:
+    manifest_path = _manifest(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    artifact = b"verified recovery archive"
+    digest = hashlib.sha256(artifact).hexdigest()
+    client = FakeS3(manifest, artifact, digest)
+
+    with pytest.raises(ValueError, match="succeeded destroyed"):
+        finalizer.finalize(
+            manifest_path,
+            env_file=tmp_path / "absent.env",
+            client=client,
+            bucket="pdebench",
+            receipt_path=_absent_receipt(tmp_path),
+            workflow_label="D6",
+        )
+    assert client.deleted is None
+
+
+def test_finalizer_recovery_refuses_wrong_digest_before_copy(tmp_path: Path, monkeypatch) -> None:
+    manifest_path = _manifest(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    artifact = b"verified recovery archive"
+    digest = hashlib.sha256(artifact).hexdigest()
+    client = FakeS3(manifest, artifact, digest)
+    monkeypatch.setattr("scripts.d5_presigned_io.time.time", lambda: 1500)
+
+    with pytest.raises(ValueError, match="expected recovery digest"):
+        finalizer.finalize(
+            manifest_path,
+            env_file=tmp_path / "absent.env",
+            client=client,
+            bucket="pdebench",
+            receipt_path=_absent_receipt(tmp_path),
+            expected_ingress_sha256="0" * 64,
+            workflow_label="D6",
         )
     assert client.deleted is None
 
