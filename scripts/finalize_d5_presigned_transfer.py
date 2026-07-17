@@ -65,6 +65,7 @@ def finalize(
     receipt_path: Path | None = None,
     archive_stem: str = "strat_v1_shared_tier_b",
     workflow_label: str = "D5",
+    expected_ingress_sha256: str | None = None,
 ) -> str:
     if not _ARCHIVE_STEM.fullmatch(archive_stem):
         raise ValueError("archive stem must be a safe lowercase artifact name")
@@ -75,10 +76,20 @@ def finalize(
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError("managed Vast receipt is unavailable") from exc
-        if receipt.get("status") != "succeeded" or receipt.get("destroyed") is not True:
+        normal_teardown = receipt.get("status") == "succeeded" and receipt.get("destroyed") is True
+        recovered_teardown = (
+            expected_ingress_sha256 is not None
+            and receipt.get("status") == "instance_absent"
+            and receipt.get("destroyed") is True
+            and receipt.get("bootstrap_started") is True
+            and receipt.get("terminal_reason") == "instance no longer exists"
+        )
+        if not normal_teardown and not recovered_teardown:
             raise ValueError(
                 f"refusing {workflow_label} finalization without a succeeded destroyed Vast receipt"
             )
+    if expected_ingress_sha256 is not None and not _HEX_64.fullmatch(expected_ingress_sha256):
+        raise ValueError("expected ingress SHA-256 must be 64 lowercase hexadecimal characters")
     manifest = checked_manifest(manifest_path)
     if client is None:
         client, bucket = _client(env_file)
@@ -92,6 +103,10 @@ def finalize(
         digest = digest_body.decode("ascii").strip()
         if not _HEX_64.fullmatch(digest):
             raise ValueError(f"{workflow_label} ingress digest sidecar is malformed")
+        if expected_ingress_sha256 is not None and digest != expected_ingress_sha256:
+            raise ValueError(
+                f"{workflow_label} ingress digest differs from the expected recovery digest"
+            )
         source_digest, source_size = _stream_sha256(
             client.get_object(Bucket=bucket, Key=success_key)["Body"]
         )
@@ -152,10 +167,11 @@ def main() -> None:
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--archive-stem", default="strat_v1_shared_tier_b")
     parser.add_argument("--workflow-label", default="D5")
+    parser.add_argument("--expected-ingress-sha256")
     args = parser.parse_args()
     print(
         f"Published immutable {args.workflow_label} artifact: "
-        f"{finalize(args.manifest, env_file=args.env_file, receipt_path=args.receipt, archive_stem=args.archive_stem, workflow_label=args.workflow_label)}"
+        f"{finalize(args.manifest, env_file=args.env_file, receipt_path=args.receipt, archive_stem=args.archive_stem, workflow_label=args.workflow_label, expected_ingress_sha256=args.expected_ingress_sha256)}"
     )
 
 

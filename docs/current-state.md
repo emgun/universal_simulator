@@ -228,21 +228,20 @@ See `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`.
 
 ## Modular Shared-Trunk D6
 
-The D6 implementation and sealed v4 validation contract merged through PR
-`#127` at commit `e3484810fe2ef4eba728acfc2a83b91fd70732b7` after independent
-protocol review and green CI. The original v1-v3 plans are retired; only plan
-SHA-256 `88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487`
-is executable.
+D6 completed once under the hash-bound v5 recovery contract and failed both U1
+and U2. Joint macro rollout NRMSE was `0.809862` versus `0.662876` for the
+matched single-task ensemble and `0.689476` for the frozen D5 specialists.
+Joint-to-ablation ratios were `1.336892`, `1.465869`, and `1.010490` for
+Advection, Burgers, and Darcy. Darcy corrected spread failed at `2.173540`, and
+parameter shuffling changed macro NRMSE by only `1.184208e-6` relative.
 
-The v4 Vast launch did not reach bootstrap, staging, or model
-execution. Contract `45126713` remained in provider `loading` state for about
-15 minutes with zero CPU/GPU activity and a provider DNS failure, then was
-destroyed to stop billing. No D6 artifact exists, U1/U2 remain unmeasured,
-held-out reads remain zero, and the event must not be interpreted as a model
-result. The hash-bound v5 recovery keeps the exact scientific contract and
-authorizes one new provider allocation with a 15-minute tracked-bootstrap
-deadline. See `docs/research/2026-07-16-d6-vast-infrastructure-failure.md` and
-`docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`.
+Checkpoint and initialized-tensor consolidation passed, as did exact update
+parity, but these do not offset failed accuracy, negative-transfer, regime, and
+parameter-use gates. Held-out reads were exactly zero. The immutable archive
+SHA-256 is `3e58f7fea593f46e05389c9260a13ac33f60eca44e157cdb06234a9c1eaf9bcc`,
+and Vast reports zero active instances. Close the shared neural-trunk branch at
+this scale and move to a unified product interface over family-specific
+models. See `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`.
 
 ## Latest Model Evidence
 
@@ -285,11 +284,10 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 2. Close both the Darcy specialist search at D4 and the native monolithic
    `tier_b` branch at D5. Do not add seeds, extend epochs, relax gates, or open
    held-out access for either branch.
-3. D6 is implemented and its v5 infrastructure-recovery contract is frozen.
-   Execute its one authorized provider allocation. The scientific design is
-   unchanged; score U1/U2 only if tracked bootstrap, sealed staging, all four
-   arms, materialization, publication, and teardown complete. Do not rerun a
-   completed model attempt or a second pre-bootstrap provider failure.
+3. D6 failed U1 and U2. Do not add seeds, extend training, relax gates, run
+   U3/U4, or open held-out access. Design one unified simulator interface with
+   family-specific model routing beneath it; keep data, parameter, provenance,
+   metric, and artifact contracts shared.
 
 ## Reopen Triggers
 
@@ -309,6 +307,7 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-13-strat-v1-contract.md`
 - `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`
 - `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`
+- `docs/research/2026-07-16-strat-v1-modular-shared-trunk-d6-result.md`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`
 - `docs/research/2026-07-11-beta-head-heldout-result.md`
