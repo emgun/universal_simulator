@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-15
+Updated: 2026-07-16
 
 ## Project
 
@@ -226,6 +226,21 @@ conditioning gates. Close the native monolithic `tier_b` branch at this scale;
 do not run D5b, extra seeds, relaxed thresholds, U3/U4, or held-out measurement.
 See `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`.
 
+## Modular Shared-Trunk D6
+
+The D6 implementation and sealed v4 validation contract merged through PR
+`#127` at commit `e3484810fe2ef4eba728acfc2a83b91fd70732b7` after independent
+protocol review and green CI. The original v1-v3 plans are retired; only plan
+SHA-256 `88bcb9c70eefa1f7bda97577ff65dcd82e080022594cb9a3b5181b9418b06487`
+is executable.
+
+The single authorized Vast launch did not reach bootstrap, staging, or model
+execution. Contract `45126713` remained in provider `loading` state for about
+15 minutes with zero CPU/GPU activity and a provider DNS failure, then was
+destroyed to stop billing. No D6 artifact exists, U1/U2 remain unmeasured,
+held-out reads remain zero, and the event must not be interpreted as a model
+result. See `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -267,14 +282,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 2. Close both the Darcy specialist search at D4 and the native monolithic
    `tier_b` branch at D5. Do not add seeds, extend epochs, relax gates, or open
    held-out access for either branch.
-3. The D6 modular shared-trunk implementation and validation-only protocol are
-   locally complete. It adds paired bottleneck-16 task adapters around the
-   shared conditioned operator core, with the existing encoder/decoder still
-   shared. Four architecture-matched arms separate U1 from U2 and fail closed
-   on scheduled-exposure mismatch. Commit and hash-bind the implementation,
-   then execute its single seed-17 validation run. If it fails U1, narrow the
-   product to a unified interface over family-specific models rather than
-   broadening to more datasets.
+3. D6 is implemented, merged, and hash-bound, but its single provider launch
+   failed before bootstrap. U1 and U2 remain scientifically unresolved. Do not
+   launch a replacement under the frozen one-run contract or infer a model
+   outcome. A future measurement requires explicit new authorization and a
+   separately reviewed recovery contract with a bounded startup timeout.
 
 ## Reopen Triggers
 
@@ -293,6 +305,7 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-13-strat-v1-burgers-root.md`
 - `docs/research/2026-07-13-strat-v1-contract.md`
 - `docs/research/2026-07-15-strat-v1-shared-tier-b-d5-result.md`
+- `docs/research/2026-07-16-d6-vast-infrastructure-failure.md`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6.md`
 - `docs/research/2026-07-11-beta-head-heldout-result.md`
 - `docs/claim_evidence/universal_sota_roadmap.md`

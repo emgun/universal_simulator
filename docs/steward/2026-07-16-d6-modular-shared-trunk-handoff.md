@@ -2,6 +2,16 @@
 
 Date: 2026-07-16
 
+## Post-handoff outcome
+
+PR #127 merged at `e3484810fe2ef4eba728acfc2a83b91fd70732b7` after
+green CI. The single authorized D6 Vast launch then failed in provider
+`loading` before bootstrap, staging, or model execution and was destroyed to
+stop billing. U1/U2 remain unmeasured; no replacement launch is authorized.
+See `docs/research/2026-07-16-d6-vast-infrastructure-failure.md` for the exact
+receipt, timeline, cost, and data-boundary record. The remainder of this
+handoff preserves the pre-execution contract and historical resume state.
+
 ## Protocol-integrity update
 
 Independent pre-merge review stopped the original D6 plan before execution.
