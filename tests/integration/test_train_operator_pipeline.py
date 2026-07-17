@@ -187,14 +187,32 @@ def test_train_joint_codec_operator_runs_with_saved_codec(tmp_path):
 
     train_script.train_operator(cfg)
     train_script.train_decoder(cfg)
-    train_script.train_joint_codec_operator(cfg)
     checkpoint_dir = tmp_path / "ckpts_joint_codec"
+    before_joint = {
+        name: torch.load(checkpoint_dir / f"{name}.pt", map_location="cpu", weights_only=False)
+        for name in ("operator", "encoder", "decoder")
+    }
+    train_script.train_joint_codec_operator(cfg)
     assert (checkpoint_dir / "operator.pt").exists()
     assert (checkpoint_dir / "encoder.pt").exists()
     assert (checkpoint_dir / "decoder.pt").exists()
     assert (checkpoint_dir / "operator_joint.pt").exists()
     assert (checkpoint_dir / "encoder_joint.pt").exists()
     assert (checkpoint_dir / "decoder_joint.pt").exists()
+    assert (checkpoint_dir / "pre_joint" / "operator.pt").exists()
+    assert (checkpoint_dir / "pre_joint" / "encoder.pt").exists()
+    assert (checkpoint_dir / "pre_joint" / "decoder.pt").exists()
+    for name, expected in before_joint.items():
+        preserved = torch.load(
+            checkpoint_dir / "pre_joint" / f"{name}.pt",
+            map_location="cpu",
+            weights_only=False,
+        )
+        for key, value in expected.items():
+            if isinstance(value, torch.nn.parameter.UninitializedParameter):
+                assert isinstance(preserved[key], torch.nn.parameter.UninitializedParameter)
+                continue
+            torch.testing.assert_close(preserved[key], value)
 
 
 def test_train_joint_codec_operator_runs_with_multitask_variable_grid_batch(tmp_path):

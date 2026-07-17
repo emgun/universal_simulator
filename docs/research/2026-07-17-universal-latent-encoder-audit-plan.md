@@ -51,7 +51,7 @@ E0 classifies the universal-encoder and common-latent claims as `not_tested`,
 codec-versus-dynamics causality as `unresolved`, and family routing as not
 authorized. It accesses no provider and no held-out data.
 
-### E1 — codec-only grid diagnosis
+### E1 — codec-only grid diagnosis (complete)
 
 Using the immutable D6 joint and matched checkpoints plus the exact locked
 validation shards, measure `decode(encode(x))` separately for Advection,
@@ -65,9 +65,16 @@ This gate must use the exact `strat-v1` validation objects. The older local
 be substituted. If the locked validation shards are not locally staged, E1 is
 blocked rather than silently run on mismatched data.
 
-E1 decides whether D6 already contains measurable codec collapse or
-cross-task codec interference. It does not establish cross-modality
-universality.
+E1 finds codec-path negative transfer on all tasks before the operator is
+called. Joint-to-matched global reconstruction NRMSE ratios are `2.4922x` for
+Advection, `1.2396x` for Burgers, and `2.9357x` for the Darcy coefficient.
+Both codecs poorly reconstruct the Darcy solution target, which standalone
+decoder training did not supervise directly. See
+`docs/research/2026-07-17-universal-latent-encoder-e1-result.md`.
+
+E1 establishes that representation/decoding contributes to D6. It does not
+establish cross-modality universality or cleanly separate co-adapted encoder
+and decoder bases.
 
 ### E2 — paired discretization benchmark
 
@@ -117,8 +124,7 @@ the trunk.
 
 ## Immediate next move
 
-Stage or recover only the exact locked `strat-v1` validation shards needed for
-E1, then build the checkpoint-bound codec diagnostic. No new training or
-provider allocation is needed for that measurement. In parallel only after E1
-is specified, define the smallest paired grid/mesh physical-state benchmark
-for E2.
+Qualify and freeze a canonical codec before another operator experiment. Then
+define the smallest paired grid/mesh physical-state benchmark for E2, including
+cross-decoding and remeshing invariance. Do not skip directly to routing or a
+new shared-operator run.

@@ -1,0 +1,458 @@
+{
+  "boundary": {
+    "heldout_reads": 0,
+    "operator_called": false,
+    "operator_instantiated": false,
+    "post_hoc_diagnostic_not_preregistered": true,
+    "source_state_index": 0,
+    "training_or_parameter_updates": false
+  },
+  "checkpoint_bindings": {
+    "ablation-advection1d": {
+      "decoder_checkpoint_alias": {
+        "base_file_sha256": "8b92b0112dc8b21b0747e5da1c64d76d54a427ffb3e8612585d3a08b81b2211b",
+        "compared_elements": 126465,
+        "compared_tensors": 20,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "1548632a45d1768026e49d652883768749fbe04cdad7dd0b3d5d5131270bc6a4",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "encoder_checkpoint_alias": {
+        "base_file_sha256": "25d09683b31f597e39c7cd6190b3cc0e281d780e77492656c8e3ce24759f2174",
+        "compared_elements": 737,
+        "compared_tensors": 6,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "eb78620127a776a9bf7b8cc05bc0d92e4de321b3739ee89133cc69a5ba7843d9",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "path": "/tmp/d6-result-extract/reports/research/strat_v1_modular_shared_trunk/resolved_configs/ablation-advection1d.eval.yaml",
+      "sha256": "34898488c3bd6e3d049bd9a8761148dffc8cf0fd8a15e7e72f0f3d844e0453cb"
+    },
+    "ablation-burgers1d": {
+      "decoder_checkpoint_alias": {
+        "base_file_sha256": "8c4a81069801790d84f4357aaf0d5935a426faf154d8090be75af6a82225fa33",
+        "compared_elements": 126465,
+        "compared_tensors": 20,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "b0668424eb147b13748f8204d54cac9494b3328349dfe714a81cb1fb348aa9f6",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "encoder_checkpoint_alias": {
+        "base_file_sha256": "5700565d977c3cebfbaaf065f2b553d0d3440bcec1237e0ac552ee95ce4db2ce",
+        "compared_elements": 737,
+        "compared_tensors": 6,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "5379a5cceca363ef42bca70e7a8385853c335becaeec488d0d17357539af75ec",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "path": "/tmp/d6-result-extract/reports/research/strat_v1_modular_shared_trunk/resolved_configs/ablation-burgers1d.eval.yaml",
+      "sha256": "7f05ae8e0728f5ee43a9231c87c7ee25fd8ee054175350a70baf5faec85c81bf"
+    },
+    "ablation-darcy2d": {
+      "decoder_checkpoint_alias": {
+        "base_file_sha256": "759ccb66e4a6b5eb4bfa040cee810ef1b474bb2fcd21f056843c3fced9400e66",
+        "compared_elements": 126465,
+        "compared_tensors": 20,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "a6ef57a21ee9f04a92ad1d9e2ad122216e76a3ede34c324f4fe07761783becaa",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "encoder_checkpoint_alias": {
+        "base_file_sha256": "38e9ee8e1efe12d7d1ce9b9665884a21006ab51dba968058634715285eb1465d",
+        "compared_elements": 737,
+        "compared_tensors": 6,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "b868c9aab874543f592d1cd2d673c1e650885b4a70f9ee14a8dae99d4f6ff7d0",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "path": "/tmp/d6-result-extract/reports/research/strat_v1_modular_shared_trunk/resolved_configs/ablation-darcy2d.eval.yaml",
+      "sha256": "da8a62947f8d8401ad1b531437edde5ed639244ff10bbb8852cfe04a9daf15c7"
+    },
+    "joint-modular": {
+      "decoder_checkpoint_alias": {
+        "base_file_sha256": "40877244e28040b7530430cd6ec2dcfd773beadebc80bdb56864b1fcd8bcebd3",
+        "compared_elements": 126465,
+        "compared_tensors": 20,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "3d43ed57c93ba5ac96d11894f993954e0ffb42044a2741ae7748625bfc62092a",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "encoder_checkpoint_alias": {
+        "base_file_sha256": "42a0865883aa0673d1a34ddbc0f1af5d557c04d749400d6e324c8ef0d70c7bef",
+        "compared_elements": 737,
+        "compared_tensors": 6,
+        "interpretation": "train_joint_codec_operator overwrites the base checkpoint with the selected joint state; equal tensors mean the pre-joint state was not retained",
+        "joint_file_sha256": "05c4e06825df957c165f24757ecf769e358856627a75bce3f9e456d32bdf198e",
+        "pre_joint_state_recoverable_from_base_checkpoint": false,
+        "tensor_values_equal": true
+      },
+      "path": "/tmp/d6-result-extract/reports/research/strat_v1_modular_shared_trunk/resolved_configs/joint-modular.eval.yaml",
+      "sha256": "d8e3f3a14a83ff5d1c630ebd0fc9f566bd1336515c4d854d2bdbbe8013e0c9b1"
+    }
+  },
+  "comparison": {
+    "darcy_target_solution_joint_to_matched_codec_global_nrmse_ratio": 1.0841532371658318,
+    "darcy_target_solution_joint_to_matched_codec_sample_mean_nrmse_ratio": 3.544731207132199,
+    "joint_to_matched_codec_global_nrmse_ratio": {
+      "advection1d": 2.4922383752702606,
+      "burgers1d": 1.2396381086301786,
+      "darcy2d": 2.935741446214415
+    },
+    "joint_to_matched_codec_sample_mean_nrmse_ratio": {
+      "advection1d": 2.870814727646266,
+      "burgers1d": 1.4888529788098541,
+      "darcy2d": 2.928998350398939
+    },
+    "tasks_where_joint_codec_is_worse": [
+      "advection1d",
+      "burgers1d",
+      "darcy2d"
+    ]
+  },
+  "data": {
+    "lock_path": "/Users/emerygunselman/.codex/worktrees/e5a4/universal_simulator/docs/data/releases/strat-v1/universal/9d43d283f04f5b8d17cf6126ad189075c53307e715d7d4f61af440c2fed155c1/training.lock.json",
+    "lock_sha256": "5666fa8bb646b270d23077d1936c8ee80fa1cfeaf8f5870c55103fc58dd80afd",
+    "root": "/tmp/universal-latent-e1-valid",
+    "validation_objects": {
+      "advection1d_val.h5": {
+        "sha256": "0671198b32355842dbea16e41c3ab1ea59eb4065274b0a0ab477fb1dd383c726",
+        "size_bytes": 47288356
+      },
+      "burgers1d_val.h5": {
+        "sha256": "496a66bc4366d88d83fbbf9842ae14e2c93c2b726a27d9e6ac26ccd4ada68e73",
+        "size_bytes": 32289060
+      },
+      "darcy2d_val.h5": {
+        "sha256": "2b345a587f6f95a9ff4a12f6cce80ac4c8c83540a03c2a11f87ffdc91be1b595",
+        "size_bytes": 3918783
+      }
+    }
+  },
+  "implementation": {
+    "audit_script_sha256": "87052c7a6ad2fa223b64daa4e82ad2c956f318d13e54ef2928213556b057b548",
+    "training_runtime_path": "/Users/emerygunselman/.codex/worktrees/e5a4/universal_simulator/scripts/train.py",
+    "training_runtime_sha256": "c35b6bc720fb79f9003c7d34ad838479532340be4c2391e716030d811c0e6087"
+  },
+  "interpretation_boundary": {
+    "can_authorize_family_routing": false,
+    "can_establish_cross_modality_universality": false,
+    "can_localize_error_to_codec_path": true,
+    "can_separate_encoder_from_decoder_without_coadaptation_caveat": false
+  },
+  "joint_latent_task_probe": {
+    "accuracy": 0.56,
+    "balanced_accuracy": 0.5555555555555555,
+    "chance_accuracy": 0.3333333333333333,
+    "interpretation": "diagnostic task separability; neither a pass nor a failure gate",
+    "method": "deterministic_even_train_odd_test_standardized_cosine_nearest_centroid",
+    "per_task_accuracy": {
+      "advection1d": 0.0,
+      "burgers1d": 0.6666666666666666,
+      "darcy2d": 1.0
+    },
+    "test_count": 100,
+    "train_count": 101
+  },
+  "schema_version": "ups.universal-latent-codec-audit.v1",
+  "tasks": {
+    "advection1d": {
+      "codec_swap_matrix": {
+        "joint_encoder__joint_decoder": {
+          "global_nrmse": 0.2756261965519676,
+          "sample_count": 64,
+          "sample_mean_nrmse": 0.30381451567595674,
+          "sample_mean_spectral_nrmse": 0.27095932860006955,
+          "sample_median_nrmse": 0.27108175122460854,
+          "sample_p95_nrmse": 0.48240622808658773
+        },
+        "joint_encoder__matched_decoder": {
+          "global_nrmse": 0.3193148717626885,
+          "sample_count": 64,
+          "sample_mean_nrmse": 0.42259427051056575,
+          "sample_mean_spectral_nrmse": 0.43796424872044115,
+          "sample_median_nrmse": 0.4546686278691084,
+          "sample_p95_nrmse": 0.567704090337937
+        },
+        "matched_encoder__joint_decoder": {
+          "global_nrmse": 0.4584210295309203,
+          "sample_count": 64,
+          "sample_mean_nrmse": 0.6024244122970217,
+          "sample_mean_spectral_nrmse": 0.6158590198337093,
+          "sample_median_nrmse": 0.5694028852322833,
+          "sample_p95_nrmse": 0.8569331932935369
+        },
+        "matched_encoder__matched_decoder": {
+          "global_nrmse": 0.1105938337547982,
+          "sample_count": 64,
+          "sample_mean_nrmse": 0.10582867391273601,
+          "sample_mean_spectral_nrmse": 0.08139914953085062,
+          "sample_median_nrmse": 0.10649892447750378,
+          "sample_p95_nrmse": 0.14309133180341013
+        }
+      },
+      "joint_vs_matched_linear_cka": 0.9991663036262762,
+      "latent_geometry": {
+        "joint": {
+          "centered_condition_number": 16.1526620650597,
+          "effective_rank": 2.3102658622491803,
+          "flattened_dimension": 4096,
+          "fraction_dimensions_below_1e_6_max_variance": 0.002197265625,
+          "latent_rms": 0.459435281372695,
+          "mean_dimension_variance": 0.030377147426827372,
+          "mean_sample_l2_norm": 29.218304253037257,
+          "sample_count": 64,
+          "stable_rank": 1.2758131221602957
+        },
+        "matched": {
+          "centered_condition_number": 14.712058987710186,
+          "effective_rank": 2.4396035828479534,
+          "flattened_dimension": 4096,
+          "fraction_dimensions_below_1e_6_max_variance": 0.015625,
+          "latent_rms": 0.4570253738805703,
+          "mean_dimension_variance": 0.034075398282136064,
+          "mean_sample_l2_norm": 29.13370851885861,
+          "sample_count": 64,
+          "stable_rank": 1.3109583628993167
+        }
+      },
+      "source_state": "first physical input state; Darcy uses coefficient, not solution",
+      "source_state_geometry": {
+        "centered_condition_number": 14.354869340048788,
+        "effective_rank": 2.458437463414282,
+        "flattened_dimension": 1024,
+        "fraction_dimensions_below_1e_6_max_variance": 0.0,
+        "latent_rms": 0.7753391663858034,
+        "mean_dimension_variance": 0.5688896290498545,
+        "mean_sample_l2_norm": 22.429633219430624,
+        "sample_count": 64,
+        "stable_rank": 1.3156717160802702
+      }
+    },
+    "burgers1d": {
+      "codec_swap_matrix": {
+        "joint_encoder__joint_decoder": {
+          "global_nrmse": 0.28425549150177243,
+          "sample_count": 72,
+          "sample_mean_nrmse": 0.3018285593394745,
+          "sample_mean_spectral_nrmse": 0.25532368376933656,
+          "sample_median_nrmse": 0.29055564510277954,
+          "sample_p95_nrmse": 0.44046825701471376
+        },
+        "joint_encoder__matched_decoder": {
+          "global_nrmse": 0.386562639110447,
+          "sample_count": 72,
+          "sample_mean_nrmse": 0.4408706837755551,
+          "sample_mean_spectral_nrmse": 0.38241408457949966,
+          "sample_median_nrmse": 0.3849715702060801,
+          "sample_p95_nrmse": 0.7040739953501531
+        },
+        "matched_encoder__joint_decoder": {
+          "global_nrmse": 0.44964478801998103,
+          "sample_count": 72,
+          "sample_mean_nrmse": 0.5003231098659862,
+          "sample_mean_spectral_nrmse": 0.5201194045462046,
+          "sample_median_nrmse": 0.4614892711815489,
+          "sample_p95_nrmse": 0.7683722117419743
+        },
+        "matched_encoder__matched_decoder": {
+          "global_nrmse": 0.2293052218408158,
+          "sample_count": 72,
+          "sample_mean_nrmse": 0.20272556366226804,
+          "sample_mean_spectral_nrmse": 0.1772873870243138,
+          "sample_median_nrmse": 0.1846792943494204,
+          "sample_p95_nrmse": 0.30006780126244015
+        }
+      },
+      "joint_vs_matched_linear_cka": 0.998459681866959,
+      "latent_geometry": {
+        "joint": {
+          "centered_condition_number": 7.991848996247679,
+          "effective_rank": 2.1023016117566944,
+          "flattened_dimension": 4096,
+          "fraction_dimensions_below_1e_6_max_variance": 0.0,
+          "latent_rms": 0.4614852212155959,
+          "mean_dimension_variance": 0.03624543114895741,
+          "mean_sample_l2_norm": 29.375159262925322,
+          "sample_count": 72,
+          "stable_rank": 1.2686521301413893
+        },
+        "matched": {
+          "centered_condition_number": 7.544244999626462,
+          "effective_rank": 2.212346262482208,
+          "flattened_dimension": 4096,
+          "fraction_dimensions_below_1e_6_max_variance": 0.00048828125,
+          "latent_rms": 0.46501702680100676,
+          "mean_dimension_variance": 0.04214144557778361,
+          "mean_sample_l2_norm": 29.663211513124526,
+          "sample_count": 72,
+          "stable_rank": 1.3015015933359688
+        }
+      },
+      "source_state": "first physical input state; Darcy uses coefficient, not solution",
+      "source_state_geometry": {
+        "centered_condition_number": 7.499875927863041,
+        "effective_rank": 2.2261905663859087,
+        "flattened_dimension": 1024,
+        "fraction_dimensions_below_1e_6_max_variance": 0.0,
+        "latent_rms": 0.8879900058347907,
+        "mean_dimension_variance": 0.709011702877397,
+        "mean_sample_l2_norm": 26.893098190440394,
+        "sample_count": 72,
+        "stable_rank": 1.3058565786484695
+      }
+    },
+    "darcy2d": {
+      "codec_swap_matrix": {
+        "joint_encoder__joint_decoder": {
+          "global_nrmse": 1.4031962183673823,
+          "sample_count": 65,
+          "sample_mean_nrmse": 1.4449135503191253,
+          "sample_mean_spectral_nrmse": 1.4583358102047232,
+          "sample_median_nrmse": 1.4122350290096006,
+          "sample_p95_nrmse": 2.046000084932987
+        },
+        "joint_encoder__matched_decoder": {
+          "global_nrmse": 0.5718534778200256,
+          "sample_count": 65,
+          "sample_mean_nrmse": 0.5768056919768115,
+          "sample_mean_spectral_nrmse": 0.3605587659384107,
+          "sample_median_nrmse": 0.5898663892643984,
+          "sample_p95_nrmse": 0.7598452582006475
+        },
+        "matched_encoder__joint_decoder": {
+          "global_nrmse": 1.429776067353432,
+          "sample_count": 65,
+          "sample_mean_nrmse": 1.4771310632588788,
+          "sample_mean_spectral_nrmse": 1.4885808251901385,
+          "sample_median_nrmse": 1.4328256737988523,
+          "sample_p95_nrmse": 2.2131448097895023
+        },
+        "matched_encoder__matched_decoder": {
+          "global_nrmse": 0.4779699588929326,
+          "sample_count": 65,
+          "sample_mean_nrmse": 0.49331320044011745,
+          "sample_mean_spectral_nrmse": 0.3181102911417741,
+          "sample_median_nrmse": 0.4667893241209916,
+          "sample_p95_nrmse": 0.740680687136734
+        }
+      },
+      "joint_vs_matched_linear_cka": 0.9999975614515948,
+      "latent_geometry": {
+        "joint": {
+          "centered_condition_number": 49.41720827928599,
+          "effective_rank": 2.8058146630190373,
+          "flattened_dimension": 4096,
+          "fraction_dimensions_below_1e_6_max_variance": 0.0,
+          "latent_rms": 0.36897697419717795,
+          "mean_dimension_variance": 0.00211957459717477,
+          "mean_sample_l2_norm": 23.611834301061357,
+          "sample_count": 65,
+          "stable_rank": 1.4744935204807328
+        },
+        "matched": {
+          "centered_condition_number": 47.62331728596994,
+          "effective_rank": 2.8123099708192396,
+          "flattened_dimension": 4096,
+          "fraction_dimensions_below_1e_6_max_variance": 0.0,
+          "latent_rms": 0.35496893484141845,
+          "mean_dimension_variance": 0.0015548865733537908,
+          "mean_sample_l2_norm": 22.716510121318947,
+          "sample_count": 65,
+          "stable_rank": 1.4756476302606085
+        }
+      },
+      "source_state": "first physical input state; Darcy uses coefficient, not solution",
+      "source_state_geometry": {
+        "centered_condition_number": 4.433955623238022,
+        "effective_rank": 7.245129270258323,
+        "flattened_dimension": 16384,
+        "fraction_dimensions_below_1e_6_max_variance": 0.03033447265625,
+        "latent_rms": 0.736016092990066,
+        "mean_dimension_variance": 0.15193584685265357,
+        "mean_sample_l2_norm": 93.36466577276937,
+        "sample_count": 65,
+        "stable_rank": 3.1863493023704432
+      },
+      "target_solution": {
+        "codec_swap_matrix": {
+          "joint_encoder__joint_decoder": {
+            "global_nrmse": 0.9037934624456613,
+            "sample_count": 65,
+            "sample_mean_nrmse": 83.27637780283943,
+            "sample_mean_spectral_nrmse": 82.76964258063647,
+            "sample_median_nrmse": 5.890274788211824,
+            "sample_p95_nrmse": 492.8827172609277
+          },
+          "joint_encoder__matched_decoder": {
+            "global_nrmse": 0.833779987797958,
+            "sample_count": 65,
+            "sample_mean_nrmse": 21.205087483839012,
+            "sample_mean_spectral_nrmse": 21.715498544154176,
+            "sample_median_nrmse": 0.9025757282456003,
+            "sample_p95_nrmse": 126.09549673675302
+          },
+          "matched_encoder__joint_decoder": {
+            "global_nrmse": 0.9072926089632287,
+            "sample_count": 65,
+            "sample_mean_nrmse": 107.06821317564399,
+            "sample_mean_spectral_nrmse": 108.08185903328898,
+            "sample_median_nrmse": 6.814150784812262,
+            "sample_p95_nrmse": 636.5171298060701
+          },
+          "matched_encoder__matched_decoder": {
+            "global_nrmse": 0.8336399610892066,
+            "sample_count": 65,
+            "sample_mean_nrmse": 23.49300213096064,
+            "sample_mean_spectral_nrmse": 24.056931363064724,
+            "sample_median_nrmse": 0.9091816006678204,
+            "sample_p95_nrmse": 140.16515984551182
+          }
+        },
+        "joint_vs_matched_linear_cka": 0.9999635598485326,
+        "latent_geometry": {
+          "joint": {
+            "centered_condition_number": 375750539.06735206,
+            "effective_rank": 1.2040466857380372,
+            "flattened_dimension": 4096,
+            "fraction_dimensions_below_1e_6_max_variance": 0.001220703125,
+            "latent_rms": 1.1873223312909231,
+            "mean_dimension_variance": 1.009281011764667,
+            "mean_sample_l2_norm": 50.96049000371438,
+            "sample_count": 65,
+            "stable_rank": 1.0448283698977359
+          },
+          "matched": {
+            "centered_condition_number": 364038790.0163711,
+            "effective_rank": 1.2053880644197386,
+            "flattened_dimension": 4096,
+            "fraction_dimensions_below_1e_6_max_variance": 0.0,
+            "latent_rms": 1.1142694461094762,
+            "mean_dimension_variance": 0.8864001866716993,
+            "mean_sample_l2_norm": 48.234924870795645,
+            "sample_count": 65,
+            "stable_rank": 1.0452040707193135
+          }
+        },
+        "physical_state_geometry": {
+          "centered_condition_number": 4451216918.565149,
+          "effective_rank": 1.5906498631540014,
+          "flattened_dimension": 16384,
+          "fraction_dimensions_below_1e_6_max_variance": 0.0,
+          "latent_rms": 6.900267061586393,
+          "mean_dimension_variance": 37.56312204354363,
+          "mean_sample_l2_norm": 425.26738829499516,
+          "sample_count": 65,
+          "stable_rank": 1.1247996383523493
+        },
+        "training_contract_note": "train_decoder reconstructs fields only; Darcy targets enter decoder supervision only through the coupled operator rollout stages"
+      }
+    }
+  }
+}
