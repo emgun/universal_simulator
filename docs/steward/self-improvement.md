@@ -183,3 +183,8 @@ not claim evidence.
   deterministic coordinate- and quadrature-defined projection. This separates
   representation sufficiency from encoder optimization and gives a future
   operator a semantic state to evolve.
+- When the deterministic common space passes by orders of magnitude while
+  several learned tokenizers fail, treat the basis coefficients as supervised
+  semantic targets for the next encoder. Do not ask latent alignment losses to
+  invent coefficient meaning indirectly, and do not interpret the failed
+  tokenizers as evidence for family routing.
