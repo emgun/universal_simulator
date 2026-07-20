@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e6_compressed_locality",
+  "date": "2026-07-20",
+  "status": "compressed_locality_not_qualified",
+  "config_sha256": "1ff6844badd65a62509c5037d6f54d7608e309a91fe3e960a491d4fda273d5e2",
+  "raw_result_sha256": "cc7fd10af42eabc91148173f3c467416e0f5741fadd055e013a1ac6571066393",
+  "reproduction_raw_result_sha256": "cc7fd10af42eabc91148173f3c467416e0f5741fadd055e013a1ac6571066393",
+  "source_sha256": {
+    "scripts/run_canonical_latent_e6_compressed_locality.py": "1f2ce1404617c82b285833f132395273c479ae88cb7ec571144332e6796e5107",
+    "tests/unit/test_run_canonical_latent_e6_compressed_locality.py": "5cc9ed94da98ae60aefbeee3d548d737fa8655e3197a96814d115df16a8c063c",
+    "src/ups/io/enc_regional_interaction.py": "678bdcfa817dd0f195523b9ffa9bc0a4abef02d9d187b191126db327cce0bd4f",
+    "tests/unit/test_enc_regional_interaction.py": "0642706bbce906d54d73b0a7505523785005695d06c04cb04c2354da4a19435a",
+    "scripts/run_canonical_latent_e5_decoder_locality.py": "06fabd4a5c3329682f6ab50f294e3703141e55b0cfef8c61f066260331a69782",
+    "scripts/run_canonical_latent_e4_capacity_ladder.py": "4a19b5095e18ec0a0d440cc54ad25e3d23c3b0a9feb3deba3fdc05f1db81dbaf",
+    "scripts/run_canonical_latent_e2_benchmark.py": "393dc6cc742d6cc29906a134a3718623056ae3b667e8fe3f4e000cc9d7ba33e6"
+  },
+  "exposure_per_arm": {
+    "epochs": 120,
+    "optimizer_updates": 960,
+    "scheduled_source_examples": 30720,
+    "train_states": 128,
+    "validation_states": 24
+  },
+  "compression": {
+    "source_nodes": 196,
+    "latent_tokens": 8,
+    "ratio": 24.5,
+    "support_radius": 0.47,
+    "covering_radius": 0.4444444477558136,
+    "covering_margin": 1.0574999921262266,
+    "paired_grid_mesh_anchor_mean_distance": 0.011971230618655682,
+    "paired_grid_mesh_anchor_maximum_distance": 0.07536888867616653
+  },
+  "global_control": {
+    "initial_checkpoint_sha256": "1656fe58c8d7e826b69ac07f9a17451d8943f0b3732fcdd10895a70c54cc47c8",
+    "encoder_parameters": 27872,
+    "decoder_parameters": 9089,
+    "total_parameters": 36961,
+    "grid": {
+      "high_nrmse": 0.27820809708323924,
+      "unseen_resolution_nrmse": 0.44407481015486405,
+      "interpolation_nrmse": 0.09054320894203681,
+      "high_frequency_spectral_nrmse": 1.0086709260940552,
+      "checkpoint_sha256": "8ffe13f62cb5bacd5925dd0a62279183a3f4b6100af6225c6086e12dfe1e9041"
+    },
+    "mesh": {
+      "high_nrmse": 0.26373143381732445,
+      "unseen_resolution_nrmse": 0.6538212117942697,
+      "interpolation_nrmse": 0.09867062405735097,
+      "high_frequency_spectral_nrmse": 1.0211467742919922,
+      "checkpoint_sha256": "5bdd8d865d01ce774ebbfad6a9dd1b9a794df9df245e24a4d4b5714c37f359b6"
+    }
+  },
+  "local_integral": {
+    "initial_checkpoint_sha256": "b25811ee1ef973b3924da32f734f1c5eeae57594b8e2a64f3c79e5e3e9f4e027",
+    "encoder_parameters": 27872,
+    "decoder_parameters": 7010,
+    "total_parameters": 34882,
+    "grid": {
+      "high_nrmse": 0.30472022005513494,
+      "low_nrmse": 0.2964380352873385,
+      "unseen_resolution_nrmse": 0.5267288353083786,
+      "interpolation_nrmse": 0.09054320894203681,
+      "high_to_interpolation_ratio": 3.36546742285452,
+      "high_frequency_spectral_nrmse": 1.186041235923767,
+      "high_frequency_amplitude_ratio": 3.904721975326538,
+      "effective_latent_rank": 3.8785673419481106,
+      "source_order_max_abs_error": 2.384185791015625e-7,
+      "neighbor_count_minimum": 1,
+      "neighbor_count_mean": 2.8209877014160156,
+      "neighbor_count_maximum": 4,
+      "neighbor_truncation_fraction": 0,
+      "regional_measure_minimum": 0.05612245574593544,
+      "regional_measure_sum_max_abs_error": 0,
+      "checkpoint_sha256": "33c01320c13ea4fa55d16220aa93828f037bad7e6c84345dd59db95501df12eb",
+      "absolute_reconstruction_pass": false,
+      "validation_resolution_stability_pass": false
+    },
+    "mesh": {
+      "high_nrmse": 0.3236754254032082,
+      "low_nrmse": 0.31772829524766477,
+      "unseen_resolution_nrmse": 0.6374700562467631,
+      "interpolation_nrmse": 0.09867062405735097,
+      "high_to_interpolation_ratio": 3.280362605339115,
+      "high_frequency_spectral_nrmse": 1.2280728816986084,
+      "high_frequency_amplitude_ratio": 4.297345161437988,
+      "effective_latent_rank": 3.88612487613616,
+      "source_order_max_abs_error": 0,
+      "neighbor_count_minimum": 1,
+      "neighbor_count_mean": 2.830246925354004,
+      "neighbor_count_maximum": 4,
+      "neighbor_truncation_fraction": 0,
+      "regional_measure_minimum": 0.06904470920562744,
+      "regional_measure_sum_max_abs_error": 0,
+      "checkpoint_sha256": "6acf5e26356c1ca2d37ea413297b02b258c1ebc83609d58ffd4c8caf79c3df5e",
+      "absolute_reconstruction_pass": false,
+      "validation_resolution_stability_pass": false
+    }
+  },
+  "causal_decision": {
+    "classification": "compressed_locality_not_qualified",
+    "parameter_budget_pass": true,
+    "grid_high_nrmse_relative_improvement": -0.09529601492498374,
+    "mesh_high_nrmse_relative_improvement": -0.2272917972584354,
+    "grid_high_frequency_relative_improvement": -0.17584556592362088,
+    "mesh_high_frequency_relative_improvement": -0.2026409059070744,
+    "next_move": "close the compact regional codec and reconsider the representation contract"
+  },
+  "boundary": {
+    "operator_instantiated": false,
+    "heldout_reads": 0,
+    "original_source_features_available_to_decoder": false,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "routing_paths": 0,
+    "task_label_model_inputs": false
+  },
+  "reproduction": {
+    "raw_results_byte_identical": true,
+    "all_four_checkpoint_files_byte_identical": true,
+    "global_control_reproduces_e3_grid": true,
+    "global_control_reproduces_e3_mesh": true,
+    "checkpoint_file_sha256": {
+      "global_control_grid": "ee99a40ed2e1c62e37f1e3fc7eb4911290f4014054c1106eebfea5aa13065bef",
+      "global_control_mesh": "cd9ce2c181cc1401dce69cd99cce54d41f2b4231e91d3a7426a3e4d14e379204",
+      "local_integral_grid": "c184aeed5406642763e521a3679bfe20464393c95a6971a8818aee5922676bf6",
+      "local_integral_mesh": "64424f05c023ee396259ed06aa29dc0a214f7ab4477bca451c31f9ea4240d7bc"
+    }
+  }
+}

@@ -169,6 +169,53 @@ class RegionalInteractionEncoder(nn.Module):
         geom: Mapping[str, torch.Tensor] | None = None,
         meta: Mapping[str, object] | None = None,
     ) -> torch.Tensor:
+        latent, _, _, _ = self._encode_with_geometry_inputs(
+            fields,
+            coords,
+            connect=connect,
+            params=params,
+            bc=bc,
+            geom=geom,
+            meta=meta,
+        )
+        return latent
+
+    def forward_with_geometry(
+        self,
+        fields: Mapping[str, torch.Tensor],
+        coords: torch.Tensor,
+        *,
+        connect: torch.Tensor | None = None,
+        params: Mapping[str, torch.Tensor] | None = None,
+        bc: Mapping[str, torch.Tensor] | None = None,
+        geom: Mapping[str, torch.Tensor] | None = None,
+        meta: Mapping[str, object] | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return latent features with their coordinates and quadrature masses."""
+
+        latent, regional_coords, physical_coords, measure = self._encode_with_geometry_inputs(
+            fields,
+            coords,
+            connect=connect,
+            params=params,
+            bc=bc,
+            geom=geom,
+            meta=meta,
+        )
+        regional_measure = self._regional_measure(physical_coords, measure, regional_coords)
+        return latent, regional_coords, regional_measure
+
+    def _encode_with_geometry_inputs(
+        self,
+        fields: Mapping[str, torch.Tensor],
+        coords: torch.Tensor,
+        *,
+        connect: torch.Tensor | None,
+        params: Mapping[str, torch.Tensor] | None,
+        bc: Mapping[str, torch.Tensor] | None,
+        geom: Mapping[str, torch.Tensor] | None,
+        meta: Mapping[str, object] | None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         del connect, params, bc, meta
         coords = self._batched_coords(coords)
         values = self._ordered_fields(fields, batch=coords.shape[0], nodes=coords.shape[1])
@@ -194,7 +241,27 @@ class RegionalInteractionEncoder(nn.Module):
         )
         for block in self.processor:
             regional_nodes = block(regional_nodes, regional_coords)
-        return self.output_projection(self.output_norm(regional_nodes))
+        latent = self.output_projection(self.output_norm(regional_nodes))
+        return latent, regional_coords, coords, measure
+
+    @staticmethod
+    def _regional_measure(
+        physical_coords: torch.Tensor,
+        physical_measure: torch.Tensor,
+        regional_coords: torch.Tensor,
+    ) -> torch.Tensor:
+        assignments = torch.cdist(physical_coords, regional_coords).argmin(dim=-1)
+        regional_measure = torch.zeros(
+            physical_coords.shape[0],
+            regional_coords.shape[1],
+            1,
+            device=physical_measure.device,
+            dtype=physical_measure.dtype,
+        )
+        regional_measure.scatter_add_(1, assignments.unsqueeze(-1), physical_measure)
+        if torch.any(regional_measure <= 0) or not torch.isfinite(regional_measure).all():
+            raise ValueError("every regional token must have positive finite quadrature mass")
+        return regional_measure / regional_measure.sum(dim=1, keepdim=True)
 
     def _ordered_fields(
         self, fields: Mapping[str, torch.Tensor], *, batch: int, nodes: int
