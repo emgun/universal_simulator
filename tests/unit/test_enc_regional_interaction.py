@@ -131,6 +131,38 @@ def test_measure_affects_physical_to_regional_messages() -> None:
     assert not torch.allclose(uniform_latent, weighted_latent)
 
 
+def test_geometry_interface_preserves_latent_and_returns_positive_masses() -> None:
+    encoder = _encoder()
+    fields, coords, measure = _state()
+
+    expected = encoder(fields, coords, geom={"measure": measure})
+    latent, regional_coords, regional_measure = encoder.forward_with_geometry(
+        fields, coords, geom={"measure": measure}
+    )
+
+    torch.testing.assert_close(latent, expected, rtol=0.0, atol=0.0)
+    assert regional_coords.shape == (2, 6, 2)
+    assert regional_measure.shape == (2, 6, 1)
+    assert torch.all(regional_measure > 0)
+    torch.testing.assert_close(regional_measure.sum(dim=1), torch.ones(2, 1), rtol=0.0, atol=1e-6)
+
+
+def test_geometry_interface_is_invariant_to_physical_storage_order() -> None:
+    encoder = _encoder()
+    fields, coords, measure = _state()
+    permutation = torch.randperm(coords.shape[1], generator=torch.Generator().manual_seed(19))
+
+    original = encoder.forward_with_geometry(fields, coords, geom={"measure": measure})
+    permuted = encoder.forward_with_geometry(
+        {name: value[:, permutation] for name, value in fields.items()},
+        coords[:, permutation],
+        geom={"measure": measure[:, permutation]},
+    )
+
+    for left, right in zip(original, permuted):
+        torch.testing.assert_close(left, right, rtol=0.0, atol=1e-6)
+
+
 def test_challenger_contains_graph_messages_but_no_attention_or_latent_queries() -> None:
     encoder = _encoder()
     parameter_names = set(dict(encoder.named_parameters()))

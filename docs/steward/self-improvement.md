@@ -174,3 +174,12 @@ not claim evidence.
   exact control checkpoints, complete result JSON, and challenger checkpoints
   byte-for-byte before changing the roadmap. This makes an inductive-bias
   conclusion stronger than a raw architecture score comparison.
+- Spatial anchors and a local decoder do not guarantee an information-bearing
+  latent. When a no-bypass compressed codec fails while coverage, quadrature,
+  invariance, and implementation controls pass, close that tokenization rather
+  than hiding the loss with routing or a source skip.
+- Before asking a learned universal encoder to discover a common space, test
+  whether the proposed function space itself can preserve the field through a
+  deterministic coordinate- and quadrature-defined projection. This separates
+  representation sufficiency from encoder optimization and gives a future
+  operator a semantic state to evolve.

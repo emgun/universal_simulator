@@ -320,10 +320,20 @@ gates. High-frequency spectral NRMSE improves from about `1.0` to
 `0.3161`/`0.3591`. The local decoder uses fewer parameters, is source-order
 invariant, has no neighborhood truncation, and reproduces byte-identically.
 This qualifies local decoding on the no-compression ceiling, not the universal
-latent: the positive arm still reads every source token. Next test one
-fixed-count spatially anchored compressed specialist codec that decodes only
-from evolving latent tokens, with no original-source bypass. See
+latent: the positive arm still reads every source token. See
 `docs/research/2026-07-20-canonical-latent-e5-decoder-locality-result.md`.
+
+E6 now tests that locality mechanism across a strict eight-token regional
+bottleneck with no original-source bypass and is negative. The frozen E3 global
+controls reproduce exactly. Local decoding worsens grid NRMSE from `0.2782` to
+`0.3047` and mesh from `0.2637` to `0.3237`; high-frequency error worsens by
+`17.58%`/`20.26%`, and both absolute and unseen-resolution gates fail. Coverage,
+positive mass, order invariance, zero truncation, and parameter-budget checks
+pass, while effective latent rank is only about `3.9`. Close the compact
+regional-token codec. Preserve the common-latent objective, but define the next
+candidate as coefficients of one physical function space and establish its
+deterministic approximation sufficiency before training another encoder. See
+`docs/research/2026-07-20-canonical-latent-e6-compressed-locality-result.md`.
 
 ## Latest Model Evidence
 
@@ -369,13 +379,14 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1-E4 isolate the codec failure; E5 proves physical-space decoder locality
-   repairs the all-point ceiling for both grid and mesh. Freeze that mechanism.
-   Do not attach the original source tokens around a future operator as a hidden
-   bypass. Next run one E6 specialist comparison using fixed-count spatially
-   anchored latent tokens and matched global versus local decoding. Resume
-   shared codec work only if both compressed specialists pass; do not instantiate
-   an operator or router first.
+4. E1-E6 isolate the codec failure. E5 proves physical-space decoder locality
+   repairs the all-point ceiling, while E6 shows the compact eight-token
+   regional state does not preserve enough field information. Close that codec
+   and do not attach original source tokens around a future operator. Next
+   freeze one deterministic function-space latent sufficiency test: project
+   arbitrary coordinates into a shared multiresolution physical basis and
+   qualify reconstruction before training a universal encoder. Do not
+   instantiate an operator or router first.
 
 ## Reopen Triggers
 
@@ -407,6 +418,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/artifacts/canonical_latent_e4_capacity_identifiability_result.json`
 - `docs/research/2026-07-20-canonical-latent-e5-decoder-locality-result.md`
 - `docs/research/artifacts/canonical_latent_e5_decoder_locality_result.json`
+- `docs/research/2026-07-20-canonical-latent-e6-compressed-locality-result.md`
+- `docs/research/artifacts/canonical_latent_e6_compressed_locality_result.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
