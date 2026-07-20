@@ -8,7 +8,7 @@
   "reproduction_raw_result_sha256": "cc7fd10af42eabc91148173f3c467416e0f5741fadd055e013a1ac6571066393",
   "source_sha256": {
     "scripts/run_canonical_latent_e6_compressed_locality.py": "1f2ce1404617c82b285833f132395273c479ae88cb7ec571144332e6796e5107",
-    "tests/unit/test_run_canonical_latent_e6_compressed_locality.py": "5cc9ed94da98ae60aefbeee3d548d737fa8655e3197a96814d115df16a8c063c",
+    "tests/unit/test_run_canonical_latent_e6_compressed_locality.py": "ffe4b9069d7db902c1ffb748f09953d931e8f3ef414a02e2e2de153331594fa1",
     "src/ups/io/enc_regional_interaction.py": "678bdcfa817dd0f195523b9ffa9bc0a4abef02d9d187b191126db327cce0bd4f",
     "tests/unit/test_enc_regional_interaction.py": "0642706bbce906d54d73b0a7505523785005695d06c04cb04c2354da4a19435a",
     "scripts/run_canonical_latent_e5_decoder_locality.py": "06fabd4a5c3329682f6ab50f294e3703141e55b0cfef8c61f066260331a69782",

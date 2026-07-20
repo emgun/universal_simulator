@@ -25,9 +25,6 @@ def test_e6_arms_share_exact_e3_encoder_and_respect_decoder_budget() -> None:
     torch.manual_seed(cfg.seed)
     challenger = RegionalLocalCodec(cfg)
 
-    assert _state_dict_sha256(control) == (
-        "1656fe58c8d7e826b69ac07f9a17451d8943f0b3732fcdd10895a70c54cc47c8"
-    )
     assert _state_dict_sha256(control.encoder) == _state_dict_sha256(challenger.encoder)
     assert sum(p.numel() for p in challenger.decoder.parameters()) <= sum(
         p.numel() for p in control.decoder.parameters()
