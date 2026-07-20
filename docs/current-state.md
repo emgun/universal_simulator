@@ -296,6 +296,21 @@ no-compression/direct-query ceiling. Reopen shared-encoder work only if a
 bounded codec passes the absolute gate. See
 `docs/research/2026-07-20-canonical-latent-e3-regional-interaction-result.md`.
 
+The specialist E4 capacity-identifiability ladder closes latent-token count as
+the active blocker. Compound Perceiver scaling from `8/24` to `16/48` and
+`32/96` latent-token/supernode pairs does not improve reconstruction: grid/mesh
+NRMSE is `0.2824`/`0.2761`, `0.2900`/`0.3283`, and `0.2994`/`0.3091`. A learned
+no-compression ceiling that retains all `196` high-resolution source points
+improves to `0.2620`/`0.2430` and remains stable at an unseen resolution, but
+still fails the absolute `2x` interpolation gate at `2.894x`/`2.463x`.
+High-frequency spectral NRMSE remains about `1.0` despite preserved gross
+magnitude. Compression contributes, but neither token count nor another
+encoder is the identified next lever. Pause encoder, shared-latent, operator,
+and routing work; next isolate explicit relative-coordinate decoder locality
+against the unchanged global `AnyPointDecoder`, using the no-compression tokens
+and frozen gates. See
+`docs/research/2026-07-20-canonical-latent-e4-capacity-identifiability-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -342,10 +357,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    failure or add family routing from that result.
 4. E1 shows codec negative transfer; E2 rejects the learned-query Perceiver;
    E3 rejects the regional-interaction encoder despite restored refinement
-   consistency. Do not run another operator, encoder swap, or routing branch.
-   First isolate the repeated absolute codec failure with a specialist latent-
-   length ladder and no-compression/direct-query ceiling under the same data,
-   decoder family, exposure, and interpolation gate.
+   consistency; E4 shows that compound latent-capacity scaling does not help
+   and that even an all-point learned ceiling fails. Do not run another
+   operator, encoder swap, capacity rung, or routing branch. Run one E5 decoder-
+   locality ablation on the no-compression ceiling: global `AnyPointDecoder`
+   versus a measure-aware relative-coordinate local or regional-to-point
+   decoder under identical tokens, width, exposure, and gates.
 
 ## Reopen Triggers
 
@@ -372,6 +389,9 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-17-canonical-latent-codec-qualification-contract.md`
 - `docs/research/2026-07-20-canonical-latent-e2-measure-aware-result.md`
 - `docs/research/artifacts/canonical_latent_e2_measure_aware_result.json`
+- `docs/research/2026-07-20-canonical-latent-e3-regional-interaction-result.md`
+- `docs/research/2026-07-20-canonical-latent-e4-capacity-identifiability-result.md`
+- `docs/research/artifacts/canonical_latent_e4_capacity_identifiability_result.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
