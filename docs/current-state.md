@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-17
+Updated: 2026-07-20
 
 ## Project
 
@@ -280,9 +280,21 @@ CKA `0.9984`) and physical rank is preserved, but shared canonical-query NRMSE
 is `0.3024` from grids and `0.3069` from meshes versus `0.2824`/`0.2761`
 matched controls and `0.0905`/`0.0987` direct interpolation. Grid/mesh output
 mismatch worsens `2.633x` under refinement. The codec is common but lossy and
-non-convergent; it remains `not_qualified`. Next test one RIGNO-style regional
-interaction encoder under the identical E2 harness. See
+non-convergent; it remains `not_qualified`. See
 `docs/research/2026-07-20-canonical-latent-e2-measure-aware-result.md`.
+
+The compact RIGNO-style regional-interaction E3 is also complete and negative.
+After repairing deterministic regional-set ordering into fixed geometric slot
+semantics, paired retrieval is `1.0`, CKA is `0.9978`, order invariance is
+exact, and high-resolution grid/mesh mismatch is only `0.570x` the low-
+resolution mismatch. Information preservation is worse: shared grid/mesh
+NRMSE is `0.3856`/`0.3865` versus matched controls `0.2782`/`0.2637` and
+interpolation `0.0905`/`0.0987`. E2 and E3 controls both remain roughly `3x`
+worse than interpolation, so another encoder swap is not identified. Next run
+a specialist codec capacity-identifiability ladder over latent length plus a
+no-compression/direct-query ceiling. Reopen shared-encoder work only if a
+bounded codec passes the absolute gate. See
+`docs/research/2026-07-20-canonical-latent-e3-regional-interaction-result.md`.
 
 ## Latest Model Evidence
 
@@ -328,11 +340,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1 is complete and shows codec negative transfer. Measure-aware analytic E2
-   rejects the learned-query Perceiver codec despite strong paired alignment.
-   Test one RIGNO-style regional interaction encoder under the exact same
-   exposure and qualification harness. Do not run another operator or add
-   routing.
+4. E1 shows codec negative transfer; E2 rejects the learned-query Perceiver;
+   E3 rejects the regional-interaction encoder despite restored refinement
+   consistency. Do not run another operator, encoder swap, or routing branch.
+   First isolate the repeated absolute codec failure with a specialist latent-
+   length ladder and no-compression/direct-query ceiling under the same data,
+   decoder family, exposure, and interpolation gate.
 
 ## Reopen Triggers
 

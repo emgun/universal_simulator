@@ -145,3 +145,11 @@ not claim evidence.
   code. Always measure the same physical query set across a resolution ladder;
   treat worsening discretization mismatch as an encoder failure even when
   cross-decoding ratios look symmetric.
+- A deterministic regional-node set is not automatically a semantically
+  ordered latent sequence. Before tokenwise alignment, compare matched-slot
+  distance with set distance; if the set matches but order does not, assign
+  explicit geometry-bound slots and discard pre-repair metrics.
+- When materially different encoders and their specialist controls all miss
+  the same absolute interpolation gate, stop swapping encoders. Identify the
+  codec bottleneck with a latent-capacity ladder and no-compression ceiling
+  before attributing the failure to another representation architecture.

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e3_regional_interaction_analytic",
+  "date": "2026-07-20",
+  "status": "not_qualified",
+  "config_sha256": "9e5b434810a9a3f3fb77d5a3ff9e837b3a9df294ba45ab6191b2f1ed7ff87433",
+  "raw_result_sha256": "46bc50abe900973c5cacb74a44a7846b9ba8da3dd3273b7d36c3dc9580d1ad25",
+  "reproduction_raw_result_sha256": "46bc50abe900973c5cacb74a44a7846b9ba8da3dd3273b7d36c3dc9580d1ad25",
+  "source_sha256": {
+    "scripts/run_canonical_latent_e2_benchmark.py": "393dc6cc742d6cc29906a134a3718623056ae3b667e8fe3f4e000cc9d7ba33e6",
+    "src/ups/io/enc_regional_interaction.py": "26f1086dd75a97a26b8c83dff09fdfe8f9f8950b0dfe0e861bc07503f94fb76f",
+    "src/ups/eval/latent_qualification.py": "e2bb0fb86ac464aa6b96221d706f71aad4fd8fb48992613ead6d5b94e1943994"
+  },
+  "checkpoint_state_sha256": {
+    "initial": "1656fe58c8d7e826b69ac07f9a17451d8943f0b3732fcdd10895a70c54cc47c8",
+    "shared": "6e744382a7ed789a0b2e7d78d79d1ef55d12b4710831511c7e96c3ca16144c94",
+    "grid_control": "8ffe13f62cb5bacd5925dd0a62279183a3f4b6100af6225c6086e12dfe1e9041",
+    "mesh_control": "5bdd8d865d01ce774ebbfad6a9dd1b9a794df9df245e24a4d4b5714c37f359b6"
+  },
+  "architecture": {
+    "encoder_parameters": 27872,
+    "decoder_parameters": 9089,
+    "total_parameters": 36961,
+    "latent_length": 8,
+    "latent_dimension": 32,
+    "latent_sequence": "processed_regional_nodes"
+  },
+  "exposure": {
+    "epochs_per_arm": 120,
+    "optimizer_updates_per_arm": 960,
+    "scheduled_source_examples_per_arm": 30720,
+    "train_states": 128,
+    "validation_states": 24
+  },
+  "gates": {
+    "absolute_reconstruction": false,
+    "alignment_margin": true,
+    "boundary": true,
+    "canonical_queries": true,
+    "cross_codec": true,
+    "identity": true,
+    "paired_identity": true,
+    "rank": true,
+    "remeshing": true,
+    "resolution_convergence": true,
+    "within_codec": false
+  },
+  "canonical_query_nrmse": {
+    "shared_grid": 0.38564119508138633,
+    "shared_mesh": 0.3865193659135562,
+    "shared_remesh": 0.40799223532409246,
+    "grid_control": 0.27820809708323924,
+    "mesh_control": 0.26373143381732445,
+    "grid_inverse_distance_interpolation": 0.09054320894203681,
+    "mesh_inverse_distance_interpolation": 0.09867062405735097
+  },
+  "diagnostic_ratios": {
+    "shared_grid_to_grid_control": 1.3861609317790753,
+    "shared_mesh_to_mesh_control": 1.4655794355605016,
+    "shared_grid_to_interpolation": 4.259195135532063,
+    "shared_mesh_to_interpolation": 3.917268889359583,
+    "remesh_to_base_mesh": 1.0555544464370734,
+    "high_to_low_resolution_mismatch": 0.5700123193010439
+  },
+  "paired_latent": {
+    "standardized_pair_rmse": 0.07548227906227112,
+    "fixed_negative_pair_rmse": 0.6360334157943726,
+    "linear_cka": 0.9977611050368047,
+    "symmetric_top1_retrieval": 1.0,
+    "chance_top1": 0.041666666666666664,
+    "permutation_p_value": 0.005
+  },
+  "effective_rank": {
+    "physical_state": 3.3742226941660927,
+    "shared_grid": 5.089951948319617,
+    "shared_mesh": 5.3174362457968485,
+    "grid_control": 4.225462928972107,
+    "mesh_control": 4.352616096122278
+  },
+  "discretization_mismatch_nrmse": {
+    "low_grid_vs_mesh": 0.15343174652612268,
+    "high_grid_vs_mesh": 0.08745798569176508,
+    "worst_pairwise": 0.39087510571347567
+  },
+  "identity_permutation_max_abs": {
+    "latent": 0.0,
+    "decoded": 0.0
+  },
+  "boundary": {
+    "operator_instantiated": false,
+    "heldout_reads": 0,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "task_label_model_inputs": false
+  }
+}
