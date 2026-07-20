@@ -26,6 +26,7 @@ class CanonicalPointEncoderConfig:
     transformer_layers: int = 2
     num_heads: int = 4
     fourier_frequencies: tuple[float, ...] = (1.0, 2.0, 4.0)
+    require_measure: bool = True
 
     def __post_init__(self) -> None:
         if not self.field_channels:
@@ -105,18 +106,23 @@ class CanonicalPointEncoder(nn.Module):
         geom: Mapping[str, torch.Tensor] | None = None,
         meta: Mapping[str, object] | None = None,
     ) -> torch.Tensor:
-        del connect, params, bc, geom, meta
+        del connect, params, bc, meta
         coords = self._batched_coords(coords)
         values = self._ordered_fields(fields, batch=coords.shape[0], nodes=coords.shape[1])
+        measure = self._sample_measure(
+            geom, batch=coords.shape[0], nodes=coords.shape[1], reference=coords
+        )
         if values.device != coords.device:
             values = values.to(coords.device)
         node_tokens = self.input_projection(
             torch.cat([values, self._coordinate_features(coords)], dim=-1)
         )
 
-        supernode_indices = self._farthest_point_indices(coords)
+        supernode_indices = self._farthest_point_indices(coords, measure)
         supernode_coords = self._gather_nodes(coords, supernode_indices)
-        supernode_tokens = self._aggregate_supernodes(node_tokens, coords, supernode_coords)
+        supernode_tokens = self._aggregate_supernodes(
+            node_tokens, coords, supernode_coords, measure
+        )
         supernode_tokens = self.supernode_transformer(supernode_tokens)
 
         queries = self.latent_queries.unsqueeze(0).expand(coords.shape[0], -1, -1)
@@ -166,7 +172,38 @@ class CanonicalPointEncoder(nn.Module):
             features.extend((torch.sin(scaled), torch.cos(scaled)))
         return torch.cat(features, dim=-1)
 
-    def _farthest_point_indices(self, coords: torch.Tensor) -> torch.Tensor:
+    def _sample_measure(
+        self,
+        geom: Mapping[str, torch.Tensor] | None,
+        *,
+        batch: int,
+        nodes: int,
+        reference: torch.Tensor,
+    ) -> torch.Tensor:
+        measure = None if geom is None else geom.get("measure")
+        if measure is None:
+            if self.cfg.require_measure:
+                raise ValueError(
+                    "CanonicalPointEncoder requires geom['measure']; sampling measure "
+                    "is part of the discretization-invariant field contract"
+                )
+            measure = torch.ones(batch, nodes, 1, device=reference.device, dtype=reference.dtype)
+        else:
+            if measure.dim() == 1:
+                measure = measure.view(1, nodes, 1)
+            elif measure.dim() == 2:
+                measure = measure.unsqueeze(-1)
+            expected = (batch, nodes, 1)
+            if tuple(measure.shape) != expected:
+                raise ValueError(
+                    f"geom['measure'] expected shape {expected}, got {tuple(measure.shape)}"
+                )
+            measure = measure.to(device=reference.device, dtype=reference.dtype)
+        if not torch.isfinite(measure).all() or torch.any(measure <= 0):
+            raise ValueError("geom['measure'] must be finite and strictly positive")
+        return measure / measure.sum(dim=1, keepdim=True)
+
+    def _farthest_point_indices(self, coords: torch.Tensor, measure: torch.Tensor) -> torch.Tensor:
         """Deterministic, geometry-only farthest-point supernode selection."""
 
         batch, nodes, _ = coords.shape
@@ -174,7 +211,7 @@ class CanonicalPointEncoder(nn.Module):
         if count == nodes:
             return torch.arange(nodes, device=coords.device).expand(batch, -1)
 
-        centroid = coords.mean(dim=1, keepdim=True)
+        centroid = (coords * measure).sum(dim=1, keepdim=True)
         distances = (coords - centroid).square().sum(dim=-1)
         first = distances.argmax(dim=1)
         selected = [first]
@@ -196,6 +233,7 @@ class CanonicalPointEncoder(nn.Module):
         node_tokens: torch.Tensor,
         coords: torch.Tensor,
         supernode_coords: torch.Tensor,
+        measure: torch.Tensor,
     ) -> torch.Tensor:
         distances = torch.cdist(supernode_coords, coords)
         neighbors = min(self.cfg.supernode_neighbors, coords.shape[1])
@@ -206,10 +244,18 @@ class CanonicalPointEncoder(nn.Module):
         expanded_tokens = node_tokens.unsqueeze(1).expand(-1, supernodes, -1, -1)
         gather = neighbor_indices.unsqueeze(-1).expand(-1, -1, -1, node_tokens.shape[-1])
         local_tokens = torch.gather(expanded_tokens, dim=2, index=gather)
+        expanded_measure = measure.unsqueeze(1).expand(-1, supernodes, -1, -1)
+        local_measure = torch.gather(
+            expanded_measure, dim=2, index=neighbor_indices.unsqueeze(-1)
+        ).squeeze(-1)
         scale = (
             neighbor_distances.detach()
             .median(dim=-1, keepdim=True)
             .values.clamp_min(torch.finfo(coords.dtype).eps)
         )
-        weights = torch.softmax(-neighbor_distances / scale, dim=-1)
+        kernel = torch.exp(-neighbor_distances / scale)
+        weights = kernel * local_measure
+        weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(
+            torch.finfo(coords.dtype).eps
+        )
         return (local_tokens * weights.unsqueeze(-1)).sum(dim=2).reshape(batch, supernodes, -1)

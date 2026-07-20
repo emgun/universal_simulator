@@ -34,6 +34,10 @@ def _state(nodes: int = 24) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
     return fields, coords
 
 
+def _measure(coords: torch.Tensor) -> dict[str, torch.Tensor]:
+    return {"measure": torch.ones(*coords.shape[:2], 1)}
+
+
 def test_one_encoder_accepts_regular_grid_and_irregular_point_sets() -> None:
     encoder = _encoder()
     axis = torch.linspace(0.0, 1.0, 4)
@@ -45,9 +49,11 @@ def test_one_encoder_accepts_regular_grid_and_irregular_point_sets() -> None:
     }
     irregular_fields, irregular = _state(nodes=19)
 
-    grid_latent = encoder(grid_fields, grid)
+    grid_latent = encoder(grid_fields, grid, geom=_measure(grid))
     irregular_latent = encoder(
-        {name: value[:1] for name, value in irregular_fields.items()}, irregular[:1]
+        {name: value[:1] for name, value in irregular_fields.items()},
+        irregular[:1],
+        geom=_measure(irregular[:1]),
     )
 
     assert grid_latent.shape == (1, 6, 16)
@@ -59,10 +65,11 @@ def test_encoding_is_invariant_to_point_storage_order() -> None:
     fields, coords = _state()
     permutation = torch.randperm(coords.shape[1], generator=torch.Generator().manual_seed(3))
 
-    original = encoder(fields, coords)
+    original = encoder(fields, coords, geom=_measure(coords))
     permuted = encoder(
         {name: value[:, permutation] for name, value in fields.items()},
         coords[:, permutation],
+        geom={"measure": _measure(coords)["measure"][:, permutation]},
     )
 
     torch.testing.assert_close(original, permuted, rtol=2e-5, atol=2e-6)
@@ -73,10 +80,11 @@ def test_geometry_supernode_path_is_invariant_to_point_storage_order() -> None:
     fields, coords = _state()
     permutation = torch.randperm(coords.shape[1], generator=torch.Generator().manual_seed(5))
 
-    original = encoder(fields, coords)
+    original = encoder(fields, coords, geom=_measure(coords))
     permuted = encoder(
         {name: value[:, permutation] for name, value in fields.items()},
         coords[:, permutation],
+        geom={"measure": _measure(coords)["measure"][:, permutation]},
     )
 
     torch.testing.assert_close(original, permuted, rtol=3e-5, atol=3e-6)
@@ -88,4 +96,25 @@ def test_encoder_fails_closed_on_field_semantic_mismatch() -> None:
     fields["density"] = fields.pop("pressure")
 
     with pytest.raises(ValueError, match="field schema mismatch"):
+        encoder(fields, coords, geom=_measure(coords))
+
+
+def test_encoder_fails_closed_without_sampling_measure() -> None:
+    encoder = _encoder()
+    fields, coords = _state()
+
+    with pytest.raises(ValueError, match=r"requires geom\['measure'\]"):
         encoder(fields, coords)
+
+
+def test_measure_changes_density_biased_aggregation() -> None:
+    encoder = _encoder(supernodes=5)
+    fields, coords = _state()
+    uniform = _measure(coords)
+    weighted = {"measure": uniform["measure"].clone()}
+    weighted["measure"][:, : coords.shape[1] // 2] *= 8.0
+
+    uniform_latent = encoder(fields, coords, geom=uniform)
+    weighted_latent = encoder(fields, coords, geom=weighted)
+
+    assert not torch.allclose(uniform_latent, weighted_latent)

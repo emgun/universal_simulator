@@ -5,6 +5,7 @@ import torch
 
 from ups.eval.latent_qualification import (
     cross_discretization_codec_report,
+    discretization_mismatch_report,
     paired_latent_report,
 )
 
@@ -57,3 +58,14 @@ def test_codec_report_fails_closed_without_paired_discretizations() -> None:
     target = torch.ones(2, 3, 1)
     with pytest.raises(ValueError, match="at least two discretizations"):
         cross_discretization_codec_report({"grid": {"grid": target}}, {"grid": target})
+
+
+def test_discretization_mismatch_uses_one_physical_query_set() -> None:
+    target = torch.tensor([[[1.0], [2.0]], [[2.0], [4.0]]])
+    report = discretization_mismatch_report(
+        {"grid_8": target.clone(), "mesh_32": target * 0.9}, target
+    )
+
+    assert report["prediction_nrmse"]["grid_8"] == 0.0
+    assert math.isclose(report["prediction_nrmse"]["mesh_32"], 0.1, rel_tol=1e-6)
+    assert math.isclose(report["worst_pairwise_output_mismatch_nrmse"], 0.1, rel_tol=1e-6)

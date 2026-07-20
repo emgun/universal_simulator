@@ -274,6 +274,16 @@ run, so the canonical latent basis remains `not_qualified`. See
 `docs/research/2026-07-17-universal-latent-backbone-lineage.md` and
 `docs/research/2026-07-17-canonical-latent-codec-qualification-contract.md`.
 
+The 2026-07-20 measure-aware analytic E2 is now complete and negative for the
+learned-query Perceiver encoder. Paired identity is strong (`1.0` retrieval,
+CKA `0.9984`) and physical rank is preserved, but shared canonical-query NRMSE
+is `0.3024` from grids and `0.3069` from meshes versus `0.2824`/`0.2761`
+matched controls and `0.0905`/`0.0987` direct interpolation. Grid/mesh output
+mismatch worsens `2.633x` under refinement. The codec is common but lossy and
+non-convergent; it remains `not_qualified`. Next test one RIGNO-style regional
+interaction encoder under the identical E2 harness. See
+`docs/research/2026-07-20-canonical-latent-e2-measure-aware-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -318,11 +328,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1 is complete and shows codec negative transfer. E2 encoder and metric
-   mechanics are implemented but untrained. Wire the one point-set encoder and
-   decoder into codec-only training, materialize the frozen paired analytic
-   grid/mesh benchmark, and pass the preregistered qualification contract before
-   another operator run.
+4. E1 is complete and shows codec negative transfer. Measure-aware analytic E2
+   rejects the learned-query Perceiver codec despite strong paired alignment.
+   Test one RIGNO-style regional interaction encoder under the exact same
+   exposure and qualification harness. Do not run another operator or add
+   routing.
 
 ## Reopen Triggers
 
@@ -347,6 +357,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-17-universal-latent-encoder-e1-result.md`
 - `docs/research/2026-07-17-universal-latent-backbone-lineage.md`
 - `docs/research/2026-07-17-canonical-latent-codec-qualification-contract.md`
+- `docs/research/2026-07-20-canonical-latent-e2-measure-aware-result.md`
+- `docs/research/artifacts/canonical_latent_e2_measure_aware_result.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
