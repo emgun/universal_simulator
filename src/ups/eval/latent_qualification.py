@@ -127,6 +127,31 @@ def cross_discretization_codec_report(
     }
 
 
+def discretization_mismatch_report(
+    predictions: Mapping[str, torch.Tensor], target: torch.Tensor
+) -> dict[str, Any]:
+    """Compare several input discretizations on one physical query set."""
+
+    if len(predictions) < 2:
+        raise ValueError("discretization mismatch requires at least two predictions")
+    errors = {name: global_nrmse(value, target) for name, value in predictions.items()}
+    pairwise: dict[str, float] = {}
+    names = tuple(predictions)
+    for index, left in enumerate(names):
+        for right in names[index + 1 :]:
+            numerator = (predictions[left].double() - predictions[right].double()).square().sum()
+            denominator = target.double().square().sum()
+            if denominator <= 0:
+                raise ValueError("discretization mismatch target energy must be positive")
+            pairwise[f"{left}__vs__{right}"] = float(torch.sqrt(numerator / denominator).item())
+    return {
+        "prediction_nrmse": errors,
+        "pairwise_output_mismatch_nrmse": pairwise,
+        "worst_prediction_nrmse": max(errors.values()),
+        "worst_pairwise_output_mismatch_nrmse": max(pairwise.values()),
+    }
+
+
 def _paired_flatten(left: torch.Tensor, right: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     left_flat = _flatten_samples(left)
     right_flat = _flatten_samples(right)

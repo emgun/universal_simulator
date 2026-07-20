@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e2_measure_aware_analytic",
+  "date": "2026-07-20",
+  "status": "not_qualified",
+  "config_sha256": "a275b9c4214571f70025fb98cf32a83f57eeea9c58f8c57498712aacf89358e0",
+  "raw_result_sha256": "793169a871f661a02f514c970376043f403193d0841bd695aab0e1c7eea980a4",
+  "source_sha256": {
+    "scripts/run_canonical_latent_e2_benchmark.py": "7b7f8c67d53ce3852954893ff2bdeb736570f6437bb9af2400ce4eeaa2be0317",
+    "src/ups/io/enc_canonical_point.py": "787f69724e9861fc4284651a8c18940bf6619db635c51cdb1957e5adaa98f58f",
+    "src/ups/eval/latent_qualification.py": "e2bb0fb86ac464aa6b96221d706f71aad4fd8fb48992613ead6d5b94e1943994"
+  },
+  "checkpoint_state_sha256": {
+    "initial": "4d7e1726f1a5a293051c8447cc31fbba4e06d37c4e75cc1427657b1a45688bb8",
+    "shared": "48bc23baa6db3b421c20bc547d0632d270337301a1712dd87797e2778b4af1f5",
+    "grid_control": "e8424c54ebe05d6ce40fe4740a71a872da340e4c05631448ac92e45eb0215499",
+    "mesh_control": "fc18f2266789cfd62f7b7da5b219fd4fd0c7e1b787d9831585ddcfe52f9fc685"
+  },
+  "exposure": {
+    "epochs_per_arm": 120,
+    "optimizer_updates_per_arm": 960,
+    "scheduled_source_examples_per_arm": 30720,
+    "train_states": 128,
+    "validation_states": 24
+  },
+  "gates": {
+    "absolute_reconstruction": false,
+    "alignment_margin": true,
+    "boundary": true,
+    "canonical_queries": true,
+    "cross_codec": true,
+    "identity": true,
+    "paired_identity": true,
+    "rank": true,
+    "remeshing": true,
+    "resolution_convergence": false,
+    "within_codec": false
+  },
+  "canonical_query_nrmse": {
+    "shared_grid": 0.30241089813842625,
+    "shared_mesh": 0.30690954936193093,
+    "shared_remesh": 0.3166494534429608,
+    "grid_control": 0.2823909921851524,
+    "mesh_control": 0.276096320202385,
+    "grid_inverse_distance_interpolation": 0.09054320894203681,
+    "mesh_inverse_distance_interpolation": 0.09867062405735097
+  },
+  "diagnostic_ratios": {
+    "shared_grid_to_grid_control": 1.0708942795885912,
+    "shared_mesh_to_mesh_control": 1.111603186659493,
+    "shared_grid_to_interpolation": 3.339962230983233,
+    "shared_mesh_to_interpolation": 3.110445001174249,
+    "remesh_to_base_mesh": 1.0317354220527815,
+    "high_to_low_resolution_mismatch": 2.6326555647683776
+  },
+  "paired_latent": {
+    "standardized_pair_rmse": 0.051717329770326614,
+    "fixed_negative_pair_rmse": 0.6967242360115051,
+    "linear_cka": 0.9983988818276963,
+    "symmetric_top1_retrieval": 1.0,
+    "chance_top1": 0.041666666666666664,
+    "permutation_p_value": 0.005
+  },
+  "effective_rank": {
+    "physical_state": 3.3742226941660927,
+    "shared_grid": 3.685646940412797,
+    "shared_mesh": 3.596322455232629,
+    "grid_control": 3.8052586902096657,
+    "mesh_control": 3.307800463192689
+  },
+  "discretization_mismatch_nrmse": {
+    "low_grid_vs_mesh": 0.0663550865987506,
+    "high_grid_vs_mesh": 0.17469008798488836,
+    "worst_pairwise": 0.23831963882747284
+  },
+  "identity_permutation_max_abs": {
+    "latent": 7.152557373046875e-07,
+    "decoded": 1.0728836059570312e-06
+  },
+  "boundary": {
+    "operator_instantiated": false,
+    "heldout_reads": 0,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "task_label_model_inputs": false
+  }
+}

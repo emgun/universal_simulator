@@ -1,7 +1,7 @@
 # Canonical Latent Codec Qualification Contract
 
 Date: 2026-07-17
-Status: mechanics implemented; scientific measurement not run
+Status: measure-aware analytic E2 completed negative on 2026-07-20
 
 ## Claim under test
 
@@ -25,6 +25,8 @@ The first E2 benchmark is codec-only and validation-only. It must freeze:
   input;
 - train/validation group allocation before writing samples;
 - source, manifest, config, and checkpoint hashes;
+- positive quadrature/cell measures for every encoder sample, normalized per
+  physical domain rather than inferred from point count;
 - one `CanonicalPointEncoder` and one `AnyPointDecoder` checkpoint, with no
   modality/task selector or expert router.
 
@@ -75,6 +77,13 @@ seeing E2:
    than `1.10x` the base irregular-mesh result.
 9. **Boundary:** no latent operator is instantiated, no held-out object is
    opened, and no representation/task label enters the encoder or decoder.
+10. **Absolute reconstruction:** shared grid and mesh canonical-query NRMSE
+    are each at most `2.0x` deterministic four-neighbor inverse-distance
+    interpolation from the same input samples. This prevents equally weak
+    shared and matched codecs from passing a purely relative gate.
+11. **Resolution convergence:** grid-versus-mesh output mismatch at the unseen
+    highest resolution is no worse than `1.10x` mismatch at the lowest
+    training resolution.
 
 All gates must pass. A missing cell, identity, hash, control, or preserved
 checkpoint yields `not_qualified`, not an inferred pass.
@@ -88,3 +97,15 @@ checkpoint yields `not_qualified`, not an inferred pass.
   do not pass based on output averages.
 - Full pass: freeze the codec and proceed to E3 operator-only shared versus
   specialized dynamics.
+
+## 2026-07-20 protocol repair and result
+
+An initial mechanics shakedown exposed that the original relative-only gates
+could pass while every codec had about `0.70` absolute NRMSE. That shakedown is
+rejected as decision evidence. Gates 10 and 11 were added before the final
+default run using a deterministic nonlearned baseline and a refinement
+criterion rather than a threshold selected to the model result.
+
+The final 128-train/24-validation-state, 120-epoch run is `not_qualified`.
+Details are in
+`docs/research/2026-07-20-canonical-latent-e2-measure-aware-result.md`.

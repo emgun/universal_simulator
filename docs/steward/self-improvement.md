@@ -138,3 +138,10 @@ not claim evidence.
   adapters when the north star is a canonical physical latent basis. If
   modality adapters become necessary later, require paired cross-decoding and
   explicit alignment rather than assuming equal tensor shape is enough.
+- Relative shared-versus-control gates can produce a false pass when every
+  codec is weak. Canonical codec gates must include a deterministic direct
+  interpolation baseline and absolute information-preservation requirement.
+- High paired retrieval and CKA can coexist with a lossy, non-convergent common
+  code. Always measure the same physical query set across a resolution ladder;
+  treat worsening discretization mismatch as an encoder failure even when
+  cross-decoding ratios look symmetric.
