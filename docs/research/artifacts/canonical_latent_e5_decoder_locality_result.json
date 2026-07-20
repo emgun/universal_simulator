@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e5_decoder_locality",
+  "date": "2026-07-20",
+  "status": "decoder_locality_causal",
+  "config_sha256": "5f9823dbc3093ee7559a6e43db61622cc62728790a20e51820dfa0159b304425",
+  "raw_result_sha256": "eecdab66a7f74faea169ce95049c3ad72c3cf174df06873cb187e257b195b3a9",
+  "reproduction_raw_result_sha256": "eecdab66a7f74faea169ce95049c3ad72c3cf174df06873cb187e257b195b3a9",
+  "source_sha256": {
+    "scripts/run_canonical_latent_e5_decoder_locality.py": "06fabd4a5c3329682f6ab50f294e3703141e55b0cfef8c61f066260331a69782",
+    "tests/unit/test_run_canonical_latent_e5_decoder_locality.py": "19c3d5256b8dc51e4837b569d8ece3f3c6bc48bf164561577ad0b313f8c55fb2",
+    "scripts/run_canonical_latent_e4_capacity_ladder.py": "4a19b5095e18ec0a0d440cc54ad25e3d23c3b0a9feb3deba3fdc05f1db81dbaf",
+    "scripts/run_canonical_latent_e2_benchmark.py": "393dc6cc742d6cc29906a134a3718623056ae3b667e8fe3f4e000cc9d7ba33e6",
+    "src/ups/io/decoder_anypoint.py": "dd782e86c0da2b7ac60096fc35ab686c7aed4fa417b54869364808bc256ada2a"
+  },
+  "initial_encoder_sha256": "8c30d263d7151c5e9b306d3b1ca2b5fe2e482a2b3a3be703a98ae56db21cacf7",
+  "exposure_per_arm": {
+    "epochs": 120,
+    "optimizer_updates": 960,
+    "scheduled_source_examples": 30720,
+    "train_states": 128,
+    "validation_states": 24
+  },
+  "global_control": {
+    "initial_checkpoint_sha256": "6fbd77c1a1a6ae445cf9bc34ac8dccef94b3316ba60a42b42aa71e9ebe87d7bb",
+    "encoder_parameters": 1600,
+    "decoder_parameters": 9089,
+    "total_parameters": 10689,
+    "grid": {
+      "high_nrmse": 0.2620317513465944,
+      "unseen_resolution_nrmse": 0.26198094372319247,
+      "interpolation_nrmse": 0.09054320894203681,
+      "high_frequency_spectral_nrmse": 1.0121504068374634,
+      "checkpoint_sha256": "9c43c097a48884cb8d8fff4825836c04c975acb0eb865043b87758eddfe6c2de"
+    },
+    "mesh": {
+      "high_nrmse": 0.2430330438092998,
+      "unseen_resolution_nrmse": 0.24356457667929182,
+      "interpolation_nrmse": 0.09867062405735097,
+      "high_frequency_spectral_nrmse": 1.0059353113174438,
+      "checkpoint_sha256": "07224ce48fb55acb733286415f9568741c431b8cc16072c784ce15c746404801"
+    }
+  },
+  "local_integral": {
+    "initial_checkpoint_sha256": "1c8e50e0ce8a83208e32f205d90e64c1c67ffa83e5576cd42d56bd256ebc3e2f",
+    "encoder_parameters": 1600,
+    "decoder_parameters": 7010,
+    "total_parameters": 8610,
+    "support_radius": 0.2,
+    "maximum_neighbors": 32,
+    "grid": {
+      "high_nrmse": 0.065206146137556,
+      "low_nrmse": 0.10736106543400922,
+      "unseen_resolution_nrmse": 0.03729485235790353,
+      "interpolation_nrmse": 0.09054320894203681,
+      "high_to_interpolation_ratio": 0.7201660610383174,
+      "high_frequency_spectral_nrmse": 0.31610438227653503,
+      "high_frequency_amplitude_ratio": 1.6231025457382202,
+      "source_order_max_abs_error": 9.5367431640625e-07,
+      "neighbor_count_minimum": 8,
+      "neighbor_count_mean": 20.765432357788086,
+      "neighbor_count_maximum": 26,
+      "neighbor_truncation_fraction": 0,
+      "checkpoint_sha256": "db26fb5366e91fbd257fdca5605722f9e36350d8972d7c51f82c471a4f6e571a",
+      "absolute_reconstruction_pass": true,
+      "validation_resolution_stability_pass": true
+    },
+    "mesh": {
+      "high_nrmse": 0.07583864500637494,
+      "low_nrmse": 0.12216211375200438,
+      "unseen_resolution_nrmse": 0.05964548856123979,
+      "interpolation_nrmse": 0.09867062405735097,
+      "high_to_interpolation_ratio": 0.7686040879025428,
+      "high_frequency_spectral_nrmse": 0.35907623171806335,
+      "high_frequency_amplitude_ratio": 1.8843019008636475,
+      "source_order_max_abs_error": 0,
+      "neighbor_count_minimum": 8,
+      "neighbor_count_mean": 20.546297073364258,
+      "neighbor_count_maximum": 30,
+      "neighbor_truncation_fraction": 0,
+      "checkpoint_sha256": "cf24ea1d31df9b7597ba20059a2e4d9eb0732c530ddce0b417db627e5f454aa4",
+      "absolute_reconstruction_pass": true,
+      "validation_resolution_stability_pass": true
+    }
+  },
+  "causal_decision": {
+    "classification": "decoder_locality_causal",
+    "parameter_budget_pass": true,
+    "grid_high_nrmse_relative_improvement": 0.7511517371369755,
+    "mesh_high_nrmse_relative_improvement": 0.6879492441946162,
+    "grid_high_frequency_relative_improvement": 0.6876903075460634,
+    "mesh_high_frequency_relative_improvement": 0.6430424226307437,
+    "next_move": "freeze the coordinate-aware local decoder and test one spatially anchored compressed specialist codec"
+  },
+  "boundary": {
+    "operator_instantiated": false,
+    "heldout_reads": 0,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "task_label_model_inputs": false,
+    "routing_paths": 0
+  }
+}
