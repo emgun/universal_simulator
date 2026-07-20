@@ -335,6 +335,20 @@ candidate as coefficients of one physical function space and establish its
 deterministic approximation sufficiency before training another encoder. See
 `docs/research/2026-07-20-canonical-latent-e6-compressed-locality-result.md`.
 
+E7 now positively identifies such a common function space on the analytic
+benchmark. A deterministic 52-coefficient spectral-polynomial basis, projected
+from arbitrary coordinates with quadrature-weighted least squares, reaches
+grid/mesh high-resolution NRMSE `0.001921`/`0.001918` versus interpolation
+`0.090543`/`0.098671`. Unseen-resolution error is unchanged, high-frequency
+NRMSE is about `0.00942`, and paired grid/mesh coefficient mismatch is only
+`0.000372` with fixed physical coefficient semantics. All rank, conditioning,
+invariance, compression, reconstruction, spectral, refinement, and semantic
+gates pass in two byte-identical runs. Freeze this coefficient space as the
+target latent. Next train one coordinate/value/quadrature set encoder to infer
+it from mixed discretizations without a representation label; still no
+operator or router. See
+`docs/research/2026-07-20-canonical-latent-e7-function-space-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -379,14 +393,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1-E6 isolate the codec failure. E5 proves physical-space decoder locality
-   repairs the all-point ceiling, while E6 shows the compact eight-token
-   regional state does not preserve enough field information. Close that codec
-   and do not attach original source tokens around a future operator. Next
-   freeze one deterministic function-space latent sufficiency test: project
-   arbitrary coordinates into a shared multiresolution physical basis and
-   qualify reconstruction before training a universal encoder. Do not
-   instantiate an operator or router first.
+4. E1-E6 isolate the learned codec failure; E7 proves a compact common physical
+   coefficient space exists for the paired analytic grid/mesh states. Freeze
+   those 52 coefficient semantics. Next run one E8 universal set-encoder test
+   against the exact E7 projection teacher and matched family-only encoders.
+   Require coefficient, decoded, spectral, refinement, remeshing, invariance,
+   and positive-transfer gates before instantiating any operator. Do not route.
 
 ## Reopen Triggers
 
@@ -420,6 +432,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/artifacts/canonical_latent_e5_decoder_locality_result.json`
 - `docs/research/2026-07-20-canonical-latent-e6-compressed-locality-result.md`
 - `docs/research/artifacts/canonical_latent_e6_compressed_locality_result.json`
+- `docs/research/2026-07-20-canonical-latent-e7-function-space-result.md`
+- `docs/research/artifacts/canonical_latent_e7_function_space_result.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

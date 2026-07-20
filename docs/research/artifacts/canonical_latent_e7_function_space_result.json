@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e7_function_space",
+  "date": "2026-07-20",
+  "status": "function_space_latent_qualified",
+  "config_sha256": "c1637a4062d8778d8091ce204fcf4ae02111c6796064c35bd6070cf300a800ee",
+  "raw_result_sha256": "00f6c7fdfe3312b9a7b580e69239e2a159819a6b4dd3e4eac9a5a64e19311dfe",
+  "reproduction_raw_result_sha256": "00f6c7fdfe3312b9a7b580e69239e2a159819a6b4dd3e4eac9a5a64e19311dfe",
+  "source_sha256": {
+    "scripts/run_canonical_latent_e7_function_space.py": "cf81597b3909e9693508b62e595eb006a8598d186de062eaf4a8f241d4b07488",
+    "tests/unit/test_run_canonical_latent_e7_function_space.py": "98068863ad3b2743aa84f05bb8ab5d9ecfeabb9cc102ceb93e1d7302d99db788",
+    "scripts/run_canonical_latent_e2_benchmark.py": "393dc6cc742d6cc29906a134a3718623056ae3b667e8fe3f4e000cc9d7ba33e6",
+    "scripts/run_canonical_latent_e4_capacity_ladder.py": "4a19b5095e18ec0a0d440cc54ad25e3d23c3b0a9feb3deba3fdc05f1db81dbaf",
+    "src/ups/eval/latent_qualification.py": "e2bb0fb86ac464aa6b96221d706f71aad4fd8fb48992613ead6d5b94e1943994"
+  },
+  "basis": {
+    "coefficient_count": 52,
+    "fourier_cutoff": 3,
+    "tensor_product_fourier_modes": 49,
+    "trend_modes": [
+      "x",
+      "y",
+      "xy"
+    ],
+    "learned_parameters": 0,
+    "calibration_maximum_component_nrmse": 0.018851906128435764,
+    "calibration_gate": 0.02,
+    "design_condition_number_minimum": 4.947116997873664,
+    "design_condition_number_maximum": 6.660325173548632,
+    "all_design_ranks": 52
+  },
+  "grid": {
+    "low": {
+      "canonical_query_nrmse": 0.0019732049638295753,
+      "inverse_distance_interpolation_nrmse": 0.16181579864916748,
+      "high_frequency_spectral_nrmse": 0.009593780072564114,
+      "weighted_source_projection_nrmse": 0.001296088134424921,
+      "source_order_max_abs_error": 1.970645868709653e-14,
+      "compression_ratio": 1.9230769230769231
+    },
+    "high": {
+      "canonical_query_nrmse": 0.0019207582832690524,
+      "inverse_distance_interpolation_nrmse": 0.09054320894203681,
+      "to_interpolation_ratio": 0.021213720009621784,
+      "high_frequency_spectral_nrmse": 0.009428186659872469,
+      "high_frequency_amplitude_ratio": 0.9941455466439291,
+      "weighted_source_projection_nrmse": 0.0017233878497952776,
+      "source_order_max_abs_error": 1.3822276656583199e-14,
+      "compression_ratio": 3.769230769230769,
+      "effective_coefficient_rank": 3.3720796728822306
+    },
+    "unseen_resolution": {
+      "canonical_query_nrmse": 0.0019160003748063827,
+      "high_frequency_spectral_nrmse": 0.009413280612817734,
+      "compression_ratio": 6.230769230769231
+    },
+    "coefficient_mismatch_low_vs_high": 0.0005317955006507338,
+    "coefficient_mismatch_high_vs_unseen": 0.00023799204083629766
+  },
+  "mesh": {
+    "low": {
+      "canonical_query_nrmse": 0.0019464159105811504,
+      "inverse_distance_interpolation_nrmse": 0.15996087434812573,
+      "high_frequency_spectral_nrmse": 0.009531838662532708,
+      "weighted_source_projection_nrmse": 0.0015058844327374818,
+      "source_order_max_abs_error": 1.7763568394002505e-14,
+      "compression_ratio": 1.9230769230769231
+    },
+    "high": {
+      "canonical_query_nrmse": 0.0019177590467309728,
+      "inverse_distance_interpolation_nrmse": 0.09867062405735097,
+      "to_interpolation_ratio": 0.019435967544061555,
+      "high_frequency_spectral_nrmse": 0.009421913759693352,
+      "high_frequency_amplitude_ratio": 0.9951186825367593,
+      "weighted_source_projection_nrmse": 0.0018494426417212694,
+      "source_order_max_abs_error": 3.9968028886505635e-15,
+      "compression_ratio": 3.769230769230769,
+      "effective_coefficient_rank": 3.372155168574132
+    },
+    "unseen_resolution": {
+      "canonical_query_nrmse": 0.0019175536200245413,
+      "high_frequency_spectral_nrmse": 0.009420778241795906,
+      "compression_ratio": 6.230769230769231
+    },
+    "coefficient_mismatch_low_vs_high": 0.0005054145640254902,
+    "coefficient_mismatch_high_vs_unseen": 0.00013771966785801573
+  },
+  "paired_grid_mesh": {
+    "low": {
+      "coefficient_relative_mismatch": 0.0010378470521625214,
+      "decoded_mismatch_nrmse": 0.00035300995391775067,
+      "linear_cka": 0.9999996143765534,
+      "symmetric_retrieval_top1": 1.0
+    },
+    "high": {
+      "coefficient_relative_mismatch": 0.0003716252951157748,
+      "decoded_mismatch_nrmse": 0.00013618335895955463,
+      "linear_cka": 0.999999950094239,
+      "symmetric_retrieval_top1": 1.0
+    },
+    "unseen_resolution": {
+      "coefficient_relative_mismatch": 0.00020592642333285466,
+      "decoded_mismatch_nrmse": 0.00007716507896113225,
+      "linear_cka": 0.9999999848248942,
+      "symmetric_retrieval_top1": 1.0
+    },
+    "mesh_high_remesh": {
+      "coefficient_relative_mismatch": 0.0007377160390742954,
+      "decoded_mismatch_nrmse": 0.00028360704103000633
+    }
+  },
+  "causal_decision": {
+    "classification": "function_space_latent_qualified",
+    "all_family_gates_pass": true,
+    "all_semantic_gates_pass": true,
+    "next_move": "train one universal coordinate-quadrature encoder to infer the frozen coefficients"
+  },
+  "boundary": {
+    "learned_parameters": 0,
+    "optimizer_updates": 0,
+    "operator_instantiated": false,
+    "heldout_reads": 0,
+    "original_source_features_available_after_projection": false,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "routing_paths": 0,
+    "task_label_model_inputs": false,
+    "particles_scientifically_qualified": false
+  },
+  "reproduction": {
+    "raw_results_byte_identical": true
+  }
+}
