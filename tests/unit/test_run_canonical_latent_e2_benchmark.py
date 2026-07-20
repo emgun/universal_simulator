@@ -61,3 +61,44 @@ def test_tiny_benchmark_is_source_bound_and_never_calls_operator(tmp_path) -> No
     assert len(result["initial_checkpoint_sha256"]) == 64
     saved = json.loads((tmp_path / "result.json").read_text())
     assert saved["config_sha256"] == result["config_sha256"]
+
+
+def test_tiny_regional_challenger_reuses_frozen_gate_and_boundary(tmp_path) -> None:
+    result = run_benchmark(
+        BenchmarkConfig(
+            encoder_kind="regional_interaction",
+            train_states=4,
+            validation_states=4,
+            epochs=1,
+            batch_size=4,
+            latent_len=4,
+            latent_dim=16,
+            hidden_dim=16,
+            supernodes=6,
+            supernode_neighbors=4,
+            train_low_resolution=4,
+            train_high_resolution=5,
+            validation_resolution=6,
+            canonical_query_resolution=6,
+            permutation_trials=99,
+        ),
+        run_dir=tmp_path,
+    )
+
+    assert result["experiment"] == "canonical_latent_e3_regional_interaction_analytic"
+    assert result["architecture"]["encoder_kind"] == "regional_interaction"
+    assert result["architecture"]["latent_sequence"] == "processed_regional_nodes"
+    assert set(result["evaluation"]["gates"]) == {
+        "identity",
+        "within_codec",
+        "absolute_reconstruction",
+        "cross_codec",
+        "canonical_queries",
+        "paired_identity",
+        "alignment_margin",
+        "rank",
+        "remeshing",
+        "resolution_convergence",
+        "boundary",
+    }
+    assert result["evaluation"]["boundary"]["operator_instantiated"] is False

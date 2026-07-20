@@ -28,11 +28,14 @@ from ups.io import (
     AnyPointDecoderConfig,
     CanonicalPointEncoder,
     CanonicalPointEncoderConfig,
+    RegionalInteractionEncoder,
+    RegionalInteractionEncoderConfig,
 )
 
 
 @dataclass(frozen=True)
 class BenchmarkConfig:
+    encoder_kind: str = "perceiver"
     seed: int = 17
     train_states: int = 128
     validation_states: int = 24
@@ -54,6 +57,8 @@ class BenchmarkConfig:
     max_interpolation_baseline_ratio: float = 2.0
 
     def __post_init__(self) -> None:
+        if self.encoder_kind not in {"perceiver", "regional_interaction"}:
+            raise ValueError("encoder_kind must be either 'perceiver' or 'regional_interaction'")
         if self.train_states < self.batch_size or self.validation_states < 4:
             raise ValueError(
                 "benchmark requires at least one train batch and four validation states"
@@ -75,20 +80,34 @@ class Representation:
 class CanonicalCodec(nn.Module):
     def __init__(self, cfg: BenchmarkConfig):
         super().__init__()
-        self.encoder = CanonicalPointEncoder(
-            CanonicalPointEncoderConfig(
-                latent_len=cfg.latent_len,
-                latent_dim=cfg.latent_dim,
-                hidden_dim=cfg.hidden_dim,
-                coord_dim=2,
-                field_channels={"u": 1},
-                supernodes=cfg.supernodes,
-                supernode_neighbors=cfg.supernode_neighbors,
-                transformer_layers=cfg.transformer_layers,
-                num_heads=4,
-                require_measure=True,
+        if cfg.encoder_kind == "perceiver":
+            self.encoder = CanonicalPointEncoder(
+                CanonicalPointEncoderConfig(
+                    latent_len=cfg.latent_len,
+                    latent_dim=cfg.latent_dim,
+                    hidden_dim=cfg.hidden_dim,
+                    coord_dim=2,
+                    field_channels={"u": 1},
+                    supernodes=cfg.supernodes,
+                    supernode_neighbors=cfg.supernode_neighbors,
+                    transformer_layers=cfg.transformer_layers,
+                    num_heads=4,
+                    require_measure=True,
+                )
             )
-        )
+        else:
+            self.encoder = RegionalInteractionEncoder(
+                RegionalInteractionEncoderConfig(
+                    latent_len=cfg.latent_len,
+                    latent_dim=cfg.latent_dim,
+                    hidden_dim=cfg.hidden_dim,
+                    coord_dim=2,
+                    field_channels={"u": 1},
+                    physical_neighbors=cfg.supernode_neighbors,
+                    processor_neighbors=(2, 4, 7),
+                    require_measure=True,
+                )
+            )
         self.decoder = AnyPointDecoder(
             AnyPointDecoderConfig(
                 latent_dim=cfg.latent_dim,
@@ -530,10 +549,27 @@ def run_benchmark(cfg: BenchmarkConfig, *, run_dir: Path) -> dict[str, Any]:
     ).hexdigest()
     result = {
         "schema_version": 1,
-        "experiment": "canonical_latent_e2_measure_aware_analytic",
+        "experiment": (
+            "canonical_latent_e2_measure_aware_analytic"
+            if cfg.encoder_kind == "perceiver"
+            else "canonical_latent_e3_regional_interaction_analytic"
+        ),
         "config": config_payload,
         "config_sha256": config_sha,
         "initial_checkpoint_sha256": initial_sha,
+        "architecture": {
+            "encoder_kind": cfg.encoder_kind,
+            "encoder_parameters": sum(
+                parameter.numel() for parameter in initial.encoder.parameters()
+            ),
+            "decoder_parameters": sum(
+                parameter.numel() for parameter in initial.decoder.parameters()
+            ),
+            "total_parameters": sum(parameter.numel() for parameter in initial.parameters()),
+            "latent_sequence": (
+                "learned_queries" if cfg.encoder_kind == "perceiver" else "processed_regional_nodes"
+            ),
+        },
         "state_split": {
             "train_count": cfg.train_states,
             "validation_count": cfg.validation_states,
@@ -559,6 +595,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-states", type=int, default=BenchmarkConfig.train_states)
     parser.add_argument("--validation-states", type=int, default=BenchmarkConfig.validation_states)
     parser.add_argument("--batch-size", type=int, default=BenchmarkConfig.batch_size)
+    parser.add_argument(
+        "--encoder-kind",
+        choices=("perceiver", "regional_interaction"),
+        default=BenchmarkConfig.encoder_kind,
+    )
     parser.add_argument("--print-json", action="store_true")
     return parser.parse_args()
 
@@ -566,6 +607,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     cfg = BenchmarkConfig(
+        encoder_kind=args.encoder_kind,
         epochs=args.epochs,
         train_states=args.train_states,
         validation_states=args.validation_states,
