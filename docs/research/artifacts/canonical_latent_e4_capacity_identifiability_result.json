@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e4_capacity_identifiability",
+  "date": "2026-07-20",
+  "status": "decoder_objective_or_schedule_blocker",
+  "config_sha256": "947243fddf8a8149014a04662b52d409e8a047a5af7de1eb0a7f115d1427d4ca",
+  "raw_result_sha256": "c79befefadb6f6d5da72077d4df4aaa2bbaf0f9b0c4ff2936787bc930999467d",
+  "reproduction_raw_result_sha256": "c79befefadb6f6d5da72077d4df4aaa2bbaf0f9b0c4ff2936787bc930999467d",
+  "source_sha256": {
+    "scripts/run_canonical_latent_e4_capacity_ladder.py": "4a19b5095e18ec0a0d440cc54ad25e3d23c3b0a9feb3deba3fdc05f1db81dbaf",
+    "scripts/run_canonical_latent_e2_benchmark.py": "393dc6cc742d6cc29906a134a3718623056ae3b667e8fe3f4e000cc9d7ba33e6",
+    "src/ups/io/decoder_anypoint.py": "dd782e86c0da2b7ac60096fc35ab686c7aed4fa417b54869364808bc256ada2a",
+    "src/ups/eval/latent_qualification.py": "e2bb0fb86ac464aa6b96221d706f71aad4fd8fb48992613ead6d5b94e1943994"
+  },
+  "exposure_per_arm": {
+    "epochs": 120,
+    "optimizer_updates": 960,
+    "scheduled_source_examples": 30720,
+    "train_states": 128,
+    "validation_states": 24
+  },
+  "absolute_gate": {
+    "max_interpolation_ratio": 2.0,
+    "grid_nrmse_threshold": 0.18108641788407362,
+    "mesh_nrmse_threshold": 0.19734124811470194
+  },
+  "compressed_ladder": {
+    "C8": {
+      "latent_tokens": 8,
+      "supernodes": 24,
+      "total_parameters": 27905,
+      "grid_nrmse": 0.2823909921851524,
+      "mesh_nrmse": 0.276096320202385,
+      "grid_validation_resolution_nrmse": 0.3237229530382966,
+      "mesh_validation_resolution_nrmse": 0.36781898774466487,
+      "grid_interpolation_ratio": 3.118853368295474,
+      "mesh_interpolation_ratio": 2.7981612849829323,
+      "grid_high_frequency_spectral_nrmse": 1.0259008407592773,
+      "mesh_high_frequency_spectral_nrmse": 1.0299817323684692,
+      "grid_pass": false,
+      "mesh_pass": false,
+      "initial_checkpoint_sha256": "4d7e1726f1a5a293051c8447cc31fbba4e06d37c4e75cc1427657b1a45688bb8",
+      "grid_checkpoint_sha256": "e8424c54ebe05d6ce40fe4740a71a872da340e4c05631448ac92e45eb0215499",
+      "mesh_checkpoint_sha256": "fc18f2266789cfd62f7b7da5b219fd4fd0c7e1b787d9831585ddcfe52f9fc685"
+    },
+    "C16": {
+      "latent_tokens": 16,
+      "supernodes": 48,
+      "total_parameters": 28161,
+      "grid_nrmse": 0.28996113647601945,
+      "mesh_nrmse": 0.3282633592311371,
+      "grid_validation_resolution_nrmse": 0.3230253573024682,
+      "mesh_validation_resolution_nrmse": 0.35542473587208945,
+      "grid_interpolation_ratio": 3.2024614530908035,
+      "mesh_interpolation_ratio": 3.326860069723877,
+      "grid_high_frequency_spectral_nrmse": 1.0296316146850586,
+      "mesh_high_frequency_spectral_nrmse": 1.032239556312561,
+      "grid_pass": false,
+      "mesh_pass": false,
+      "initial_checkpoint_sha256": "4ec3890ada97a3f06f91518e82882d78d7420b4ee55b80403997f6acb94e827f",
+      "grid_checkpoint_sha256": "85bb7f7029c057e8b77ff6c2e0cf8dc80c8ece3e00efd123da90d9ad4ebbdbf9",
+      "mesh_checkpoint_sha256": "e4924606e884d351c7dcbbb636f634b659742480ce6a8418341e8d6f6f8beb0a"
+    },
+    "C32": {
+      "latent_tokens": 32,
+      "supernodes": 96,
+      "total_parameters": 28673,
+      "grid_nrmse": 0.29944349858038033,
+      "mesh_nrmse": 0.3091105617124256,
+      "grid_validation_resolution_nrmse": 0.3132148379673726,
+      "mesh_validation_resolution_nrmse": 0.3401827537880471,
+      "grid_interpolation_ratio": 3.307188933099064,
+      "mesh_interpolation_ratio": 3.1327516640896005,
+      "grid_high_frequency_spectral_nrmse": 1.0345064401626587,
+      "mesh_high_frequency_spectral_nrmse": 1.0189799070358276,
+      "grid_pass": false,
+      "mesh_pass": false,
+      "initial_checkpoint_sha256": "1ea8336cd2d772ff832b5efa8b5ea3c4cf637e70b680d9459cb9e456f1422d4e",
+      "grid_checkpoint_sha256": "64fe2252edaf7681f653dc3b92bbc18b242e98af5474fca3183ff2169f53779e",
+      "mesh_checkpoint_sha256": "ef05f0637b2126f05bcc181e4180b441bd0c56d3626b8f7965928ac779836c6b"
+    }
+  },
+  "direct_point_ceiling": {
+    "compression": "none",
+    "high_source_tokens": 196,
+    "total_parameters": 10689,
+    "grid_nrmse": 0.2620317513465944,
+    "mesh_nrmse": 0.2430330438092998,
+    "grid_validation_resolution_nrmse": 0.26198094372319247,
+    "mesh_validation_resolution_nrmse": 0.24356457667929182,
+    "grid_interpolation_ratio": 2.8939967382240637,
+    "mesh_interpolation_ratio": 2.4630739506424946,
+    "grid_high_frequency_spectral_nrmse": 1.0121504068374634,
+    "mesh_high_frequency_spectral_nrmse": 1.0059353113174438,
+    "grid_prediction_to_target_std_ratio": 0.9952560067176819,
+    "mesh_prediction_to_target_std_ratio": 0.9510655403137207,
+    "grid_high_vs_validation_mismatch_nrmse": 0.009706993928555693,
+    "mesh_high_vs_validation_mismatch_nrmse": 0.009495194371430078,
+    "grid_pass": false,
+    "mesh_pass": false,
+    "initial_checkpoint_sha256": "6fbd77c1a1a6ae445cf9bc34ac8dccef94b3316ba60a42b42aa71e9ebe87d7bb",
+    "grid_checkpoint_sha256": "9c43c097a48884cb8d8fff4825836c04c975acb0eb865043b87758eddfe6c2de",
+    "mesh_checkpoint_sha256": "07224ce48fb55acb733286415f9568741c431b8cc16072c784ce15c746404801"
+  },
+  "causal_decision": {
+    "classification": "decoder_objective_or_schedule_blocker",
+    "smallest_passing_rung": null,
+    "next_move": "pause encoders and isolate decoder locality, objective, and schedule"
+  },
+  "boundary": {
+    "operator_instantiated": false,
+    "heldout_reads": 0,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "task_label_model_inputs": false
+  }
+}

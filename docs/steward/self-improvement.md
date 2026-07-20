@@ -153,3 +153,11 @@ not claim evidence.
   the same absolute interpolation gate, stop swapping encoders. Identify the
   codec bottleneck with a latent-capacity ladder and no-compression ceiling
   before attributing the failure to another representation architecture.
+- Reproducing the frozen base rung's checkpoint hashes inside a new ladder is a
+  strong no-drift control: it distinguishes a real capacity result from an
+  accidental change in data order, initialization, exposure, or evaluation.
+- If removing fixed-token compression eliminates cross-resolution instability
+  but not absolute reconstruction error, do not keep enlarging the tokenizer.
+  Hold the all-point source representation fixed and test decoder locality;
+  stable gross magnitude with high-frequency spectral NRMSE near `1.0` is a
+  direct signal that the query path is failing to recover local detail.
