@@ -311,6 +311,20 @@ against the unchanged global `AnyPointDecoder`, using the no-compression tokens
 and frozen gates. See
 `docs/research/2026-07-20-canonical-latent-e4-capacity-identifiability-result.md`.
 
+E5 now isolates decoder locality as causal. With the identical all-point
+encoder, data, exposure, and gates, a fixed-radius relative-coordinate,
+quadrature-aware local integral decoder improves grid NRMSE from `0.2620` to
+`0.0652` (`75.12%`) and mesh from `0.2430` to `0.0758` (`68.79%`). Both beat
+their interpolation baselines and pass the absolute and unseen-resolution
+gates. High-frequency spectral NRMSE improves from about `1.0` to
+`0.3161`/`0.3591`. The local decoder uses fewer parameters, is source-order
+invariant, has no neighborhood truncation, and reproduces byte-identically.
+This qualifies local decoding on the no-compression ceiling, not the universal
+latent: the positive arm still reads every source token. Next test one
+fixed-count spatially anchored compressed specialist codec that decodes only
+from evolving latent tokens, with no original-source bypass. See
+`docs/research/2026-07-20-canonical-latent-e5-decoder-locality-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -355,14 +369,13 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1 shows codec negative transfer; E2 rejects the learned-query Perceiver;
-   E3 rejects the regional-interaction encoder despite restored refinement
-   consistency; E4 shows that compound latent-capacity scaling does not help
-   and that even an all-point learned ceiling fails. Do not run another
-   operator, encoder swap, capacity rung, or routing branch. Run one E5 decoder-
-   locality ablation on the no-compression ceiling: global `AnyPointDecoder`
-   versus a measure-aware relative-coordinate local or regional-to-point
-   decoder under identical tokens, width, exposure, and gates.
+4. E1-E4 isolate the codec failure; E5 proves physical-space decoder locality
+   repairs the all-point ceiling for both grid and mesh. Freeze that mechanism.
+   Do not attach the original source tokens around a future operator as a hidden
+   bypass. Next run one E6 specialist comparison using fixed-count spatially
+   anchored latent tokens and matched global versus local decoding. Resume
+   shared codec work only if both compressed specialists pass; do not instantiate
+   an operator or router first.
 
 ## Reopen Triggers
 
@@ -392,6 +405,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-20-canonical-latent-e3-regional-interaction-result.md`
 - `docs/research/2026-07-20-canonical-latent-e4-capacity-identifiability-result.md`
 - `docs/research/artifacts/canonical_latent_e4_capacity_identifiability_result.json`
+- `docs/research/2026-07-20-canonical-latent-e5-decoder-locality-result.md`
+- `docs/research/artifacts/canonical_latent_e5_decoder_locality_result.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

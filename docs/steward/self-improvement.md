@@ -161,3 +161,16 @@ not claim evidence.
   Hold the all-point source representation fixed and test decoder locality;
   stable gross magnitude with high-frequency spectral NRMSE near `1.0` is a
   direct signal that the query path is failing to recover local detail.
+- A positive no-compression decoder result can still violate the universal-
+  latent objective if the decoder reads original source tokens around the
+  latent operator. Treat the all-point arm as a causal ceiling only; the next
+  gate must compress into spatially anchored evolving tokens and prohibit a
+  source-feature bypass.
+- For mesh/grid decoder locality, freeze support in physical coordinates and
+  normalize learned aggregation with quadrature weights. Report physical
+  neighbor coverage and cap truncation explicitly; a nominally local k-nearest
+  implementation can otherwise change its receptive field under refinement.
+- When a challenger decisively passes with fewer parameters, reproduce the
+  exact control checkpoints, complete result JSON, and challenger checkpoints
+  byte-for-byte before changing the roadmap. This makes an inductive-bias
+  conclusion stronger than a raw architecture score comparison.
