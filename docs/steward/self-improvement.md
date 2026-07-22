@@ -188,3 +188,10 @@ not claim evidence.
   semantic targets for the next encoder. Do not ask latent alignment losses to
   invent coefficient meaning indirectly, and do not interpret the failed
   tokenizers as evidence for family routing.
+- A quadrature moment vector can support accurate amortized projection on a
+  narrow geometry set while failing on a new sampling measure. When the exact
+  basis projection remains full-rank and well-conditioned but the learned
+  encoder fails, expose geometry sufficient statistics such as the weighted
+  basis Gram matrix to the shared correction before changing the latent space.
+  Test positive transfer on held-out sampling geometries; two fixed families
+  may be too similar for mixed training to provide a measurable advantage.
