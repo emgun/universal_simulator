@@ -1,0 +1,469 @@
+{
+  "architecture": {
+    "basis_dimension": 52,
+    "frozen_basis": "E7 cutoff-three tensor Fourier plus x, y, xy trends",
+    "hidden_dimension": 64,
+    "kind": "quadrature_basis_moment_residual",
+    "learned_parameters": 6772,
+    "representation_blind": true
+  },
+  "boundary": {
+    "exact_e7_solve_used_at_inference": false,
+    "heldout_reads": 0,
+    "operator_instantiated": false,
+    "original_source_features_available_after_encoding": false,
+    "particles_scientifically_qualified": false,
+    "provider_calls": 0,
+    "representation_label_model_inputs": false,
+    "routing_paths": 0,
+    "task_label_model_inputs": false,
+    "temporal_transitions": 0
+  },
+  "causal_decision": {
+    "classification": "amortized_encoder_capable_without_positive_transfer",
+    "next_move": "establish a meaningful cross-representation advantage before dynamics",
+    "positive_transfer_gates": {
+      "cross_family_macro_advantage": false,
+      "matched_native_noninferiority": false
+    },
+    "semantic_gates": {
+      "absolute_reconstruction": true,
+      "boundary": true,
+      "coefficient_accuracy": true,
+      "high_frequency": true,
+      "paired_semantics": true,
+      "refinement": true,
+      "remeshing": true,
+      "source_order_invariance": true,
+      "unseen_resolution_stability": true
+    }
+  },
+  "config": {
+    "batch_size": 16,
+    "canonical_query_resolution": 18,
+    "coefficient_loss_weight": 0.5,
+    "decoded_loss_weight": 0.5,
+    "epochs": 120,
+    "hidden_dim": 64,
+    "high_frequency_radius": 3.0,
+    "invariance_atol": 1e-08,
+    "learning_rate": 0.002,
+    "max_coefficient_nrmse": 0.1,
+    "max_high_frequency_nrmse": 0.25,
+    "max_interpolation_baseline_ratio": 2.0,
+    "max_native_control_ratio": 1.1,
+    "max_paired_coefficient_mismatch": 0.1,
+    "max_paired_decoded_mismatch": 0.1,
+    "max_refinement_coefficient_mismatch": 0.15,
+    "max_remesh_coefficient_mismatch": 0.15,
+    "max_remesh_ratio": 1.1,
+    "max_shared_macro_control_ratio": 0.98,
+    "max_unseen_resolution_ratio": 1.1,
+    "particle_probe_points": 196,
+    "seed": 17,
+    "train_high_resolution": 14,
+    "train_low_resolution": 10,
+    "train_states": 128,
+    "validation_resolution": 18,
+    "validation_states": 24,
+    "weight_decay": 1e-06
+  },
+  "config_sha256": "43284bfabd6a38edc4324a50f74198c637832603b90e12e110851dd7615b4aed",
+  "evaluation": {
+    "arms": {
+      "grid_control": {
+        "grid_high": {
+          "canonical_query_nrmse": 0.0049699509263748075,
+          "coefficient_norm_mean": 0.9285527154764894,
+          "coefficient_nrmse_to_e7_teacher": 0.004732561795814689,
+          "effective_coefficient_rank": 3.372877356752487,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 0.9977758230841174,
+            "nrmse": 0.020516974223168966
+          },
+          "inverse_distance_interpolation_nrmse": 0.09054318228815254,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 2.220446049250313e-16,
+          "source_order_decoded_max_abs_error": 1.1102230246251565e-15,
+          "teacher_design": {
+            "condition_number": 5.232169536744144,
+            "maximum_singular_value": 1.3872976087797535,
+            "minimum_singular_value": 0.265147678995707,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.054890393741165416
+        },
+        "grid_unseen": {
+          "canonical_query_nrmse": 0.005158409517800686,
+          "coefficient_norm_mean": 0.9285424727928638,
+          "coefficient_nrmse_to_e7_teacher": 0.004969857131018094,
+          "effective_coefficient_rank": 3.3730600409017715,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 0.9983631447418663,
+            "nrmse": 0.020686209644749983
+          },
+          "inverse_distance_interpolation_nrmse": 0.0004613888943313482,
+          "source_node_count": 324,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 4.947116997873664,
+            "maximum_singular_value": 1.3851076647552,
+            "minimum_singular_value": 0.27998279914352897,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 11.180177028916857
+        },
+        "mesh_high": {
+          "canonical_query_nrmse": 0.005203075353962295,
+          "coefficient_norm_mean": 0.9285610874805915,
+          "coefficient_nrmse_to_e7_teacher": 0.005176087435779185,
+          "effective_coefficient_rank": 3.3728808160938257,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.0018490875840391,
+            "nrmse": 0.021359826174117438
+          },
+          "inverse_distance_interpolation_nrmse": 0.09867060376173677,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 5.551115123125783e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 5.285850600801664,
+            "maximum_singular_value": 1.3876065718460424,
+            "minimum_singular_value": 0.26251339219379277,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.05273176767547036
+        },
+        "mesh_unseen": {
+          "canonical_query_nrmse": 0.005265219723631401,
+          "coefficient_norm_mean": 0.9285470339039166,
+          "coefficient_nrmse_to_e7_teacher": 0.0051944397437003525,
+          "effective_coefficient_rank": 3.373060411890926,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.000703567933251,
+            "nrmse": 0.021098317834607735
+          },
+          "inverse_distance_interpolation_nrmse": 0.046454228608991066,
+          "source_node_count": 324,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.3322676295501878e-15,
+          "teacher_design": {
+            "condition_number": 4.966265358202492,
+            "maximum_singular_value": 1.3852479290749982,
+            "minimum_singular_value": 0.27893151677589373,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.11334209783030032
+        }
+      },
+      "mesh_control": {
+        "grid_high": {
+          "canonical_query_nrmse": 0.006710114760497796,
+          "coefficient_norm_mean": 0.9282780571514895,
+          "coefficient_nrmse_to_e7_teacher": 0.006644931598158378,
+          "effective_coefficient_rank": 3.370928277836862,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 0.9983368154817266,
+            "nrmse": 0.02604220687540605
+          },
+          "inverse_distance_interpolation_nrmse": 0.09054318228815254,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 3.3306690738754696e-16,
+          "source_order_decoded_max_abs_error": 1.3322676295501878e-15,
+          "teacher_design": {
+            "condition_number": 5.232169536744144,
+            "maximum_singular_value": 1.3872976087797535,
+            "minimum_singular_value": 0.265147678995707,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.07410955293290819
+        },
+        "grid_unseen": {
+          "canonical_query_nrmse": 0.006839229018379946,
+          "coefficient_norm_mean": 0.9282677726102806,
+          "coefficient_nrmse_to_e7_teacher": 0.006774315730697626,
+          "effective_coefficient_rank": 3.371109856358717,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 0.9986929271646533,
+            "nrmse": 0.02611253784303466
+          },
+          "inverse_distance_interpolation_nrmse": 0.0004613888943313482,
+          "source_node_count": 324,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 4.947116997873664,
+            "maximum_singular_value": 1.3851076647552,
+            "minimum_singular_value": 0.27998279914352897,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 14.823133158182015
+        },
+        "mesh_high": {
+          "canonical_query_nrmse": 0.006627771986259445,
+          "coefficient_norm_mean": 0.9282839740464267,
+          "coefficient_nrmse_to_e7_teacher": 0.0064997582824801855,
+          "effective_coefficient_rank": 3.3709214853217304,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.0020624842235362,
+            "nrmse": 0.025862181060004444
+          },
+          "inverse_distance_interpolation_nrmse": 0.09867060376173677,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 5.285850600801664,
+            "maximum_singular_value": 1.3876065718460424,
+            "minimum_singular_value": 0.26251339219379277,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.06717068441441536
+        },
+        "mesh_unseen": {
+          "canonical_query_nrmse": 0.006775616060942452,
+          "coefficient_norm_mean": 0.9282709115679285,
+          "coefficient_nrmse_to_e7_teacher": 0.006672089313482845,
+          "effective_coefficient_rank": 3.3711041069436423,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.0008796185342212,
+            "nrmse": 0.025954765604730007
+          },
+          "inverse_distance_interpolation_nrmse": 0.046454228608991066,
+          "source_node_count": 324,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.1102230246251565e-15,
+          "teacher_design": {
+            "condition_number": 4.966265358202492,
+            "maximum_singular_value": 1.3852479290749982,
+            "minimum_singular_value": 0.27893151677589373,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.14585574368209514
+        }
+      },
+      "shared": {
+        "grid_high": {
+          "canonical_query_nrmse": 0.007307142894794686,
+          "coefficient_norm_mean": 0.9282269233063025,
+          "coefficient_nrmse_to_e7_teacher": 0.0071439187019289325,
+          "effective_coefficient_rank": 3.3707672028896924,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.000760123837452,
+            "nrmse": 0.023019047364376873
+          },
+          "inverse_distance_interpolation_nrmse": 0.09054318228815254,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 2.220446049250313e-16,
+          "source_order_decoded_max_abs_error": 1.3322676295501878e-15,
+          "teacher_design": {
+            "condition_number": 5.232169536744144,
+            "maximum_singular_value": 1.3872976087797535,
+            "minimum_singular_value": 0.265147678995707,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.08070340262108079
+        },
+        "grid_low": {
+          "canonical_query_nrmse": 0.007727689430432457,
+          "coefficient_norm_mean": 0.9282569083513348,
+          "coefficient_nrmse_to_e7_teacher": 0.007540806715634355,
+          "effective_coefficient_rank": 3.370317054848527,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.004185433281038,
+            "nrmse": 0.024854162526648727
+          },
+          "inverse_distance_interpolation_nrmse": 0.16181576933382955,
+          "source_node_count": 100,
+          "source_order_coefficient_max_abs_error": 3.3306690738754696e-16,
+          "source_order_decoded_max_abs_error": 1.3322676295501878e-15,
+          "teacher_design": {
+            "condition_number": 6.2515826456219745,
+            "maximum_singular_value": 1.3929652492518814,
+            "minimum_singular_value": 0.22281801716680244,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.04775609609771753
+        },
+        "grid_unseen": {
+          "canonical_query_nrmse": 0.007430905148952599,
+          "coefficient_norm_mean": 0.9282161708099435,
+          "coefficient_nrmse_to_e7_teacher": 0.007279796009771388,
+          "effective_coefficient_rank": 3.37094666972933,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.0012668359134127,
+            "nrmse": 0.023175844029819134
+          },
+          "inverse_distance_interpolation_nrmse": 0.0004613888943313482,
+          "source_node_count": 324,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 4.947116997873664,
+            "maximum_singular_value": 1.3851076647552,
+            "minimum_singular_value": 0.27998279914352897,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 16.10551367891414
+        },
+        "mesh_high": {
+          "canonical_query_nrmse": 0.007401078926624221,
+          "coefficient_norm_mean": 0.9282342985277957,
+          "coefficient_nrmse_to_e7_teacher": 0.007271083188436933,
+          "effective_coefficient_rank": 3.370763347528961,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.004784321542343,
+            "nrmse": 0.023480339862021773
+          },
+          "inverse_distance_interpolation_nrmse": 0.09867060376173677,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 4.440892098500626e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 5.285850600801664,
+            "maximum_singular_value": 1.3876065718460424,
+            "minimum_singular_value": 0.26251339219379277,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.07500794202593364
+        },
+        "mesh_low": {
+          "canonical_query_nrmse": 0.008134300985837376,
+          "coefficient_norm_mean": 0.9286392136592587,
+          "coefficient_nrmse_to_e7_teacher": 0.00804846595003509,
+          "effective_coefficient_rank": 3.3742877994885103,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.019021308740552,
+            "nrmse": 0.027147944108371402
+          },
+          "inverse_distance_interpolation_nrmse": 0.15996084591576992,
+          "source_node_count": 100,
+          "source_order_coefficient_max_abs_error": 2.220446049250313e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 6.660325173548632,
+            "maximum_singular_value": 1.3943638627960115,
+            "minimum_singular_value": 0.20935372169720842,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.05085182526554423
+        },
+        "mesh_remesh": {
+          "canonical_query_nrmse": 0.0073308963128910125,
+          "coefficient_norm_mean": 0.9282231715071556,
+          "coefficient_nrmse_to_e7_teacher": 0.0072525717977123885,
+          "effective_coefficient_rank": 3.370737694931816,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 0.9976547055944025,
+            "nrmse": 0.02307697765358544
+          },
+          "inverse_distance_interpolation_nrmse": 0.0989907026868889,
+          "source_node_count": 196,
+          "source_order_coefficient_max_abs_error": 2.220446049250313e-16,
+          "source_order_decoded_max_abs_error": 1.3322676295501878e-15,
+          "teacher_design": {
+            "condition_number": 5.281700678333772,
+            "maximum_singular_value": 1.3875638658964211,
+            "minimum_singular_value": 0.2627115678077688,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.07405641251056573
+        },
+        "mesh_unseen": {
+          "canonical_query_nrmse": 0.007469450989509594,
+          "coefficient_norm_mean": 0.9282201634649728,
+          "coefficient_nrmse_to_e7_teacher": 0.007335187630872866,
+          "effective_coefficient_rank": 3.3709426521209664,
+          "high_frequency_spectral": {
+            "amplitude_ratio": 1.0035732006665286,
+            "nrmse": 0.023383721477768227
+          },
+          "inverse_distance_interpolation_nrmse": 0.046454228608991066,
+          "source_node_count": 324,
+          "source_order_coefficient_max_abs_error": 3.3306690738754696e-16,
+          "source_order_decoded_max_abs_error": 1.7763568394002505e-15,
+          "teacher_design": {
+            "condition_number": 4.966265358202492,
+            "maximum_singular_value": 1.3852479290749982,
+            "minimum_singular_value": 0.27893151677589373,
+            "rank": 52
+          },
+          "to_interpolation_ratio": 0.16079162679420547
+        }
+      }
+    },
+    "particle_mechanics_probe": {
+      "canonical_query_nrmse": 0.44352950525672824,
+      "coefficient_nrmse_to_e7_teacher": 0.4463421705556197,
+      "coordinate_seed": 2418,
+      "point_count": 196,
+      "sampling": "deterministic uniform Monte Carlo coordinates with equal masses",
+      "scientific_gate_attached": false,
+      "scientifically_qualified": false,
+      "teacher_design": {
+        "condition_number": 7.263969223580264,
+        "maximum_singular_value": 1.6542627530072984,
+        "minimum_singular_value": 0.22773537470908303,
+        "rank": 52
+      }
+    },
+    "positive_transfer": {
+      "macro_coefficient_nrmse": {
+        "grid_control": 0.00501823652657808,
+        "mesh_control": 0.006647773731204758,
+        "shared": 0.00725749638275253
+      },
+      "shared_to_grid_control_macro_ratio": 1.446224454410361,
+      "shared_to_matched_grid_control_ratio": 1.509524652852238,
+      "shared_to_matched_mesh_control_ratio": 1.1186697831572938,
+      "shared_to_mesh_control_macro_ratio": 1.0917183219828501
+    },
+    "shared_semantics": {
+      "grid_high_unseen_coefficient_mismatch": 0.001104438366663899,
+      "high_grid_mesh_coefficient_mismatch": 0.0013673928258346115,
+      "high_grid_mesh_decoded_mismatch": 0.0010218487022560032,
+      "mesh_high_remesh_coefficient_mismatch": 0.002425662700465126,
+      "mesh_high_unseen_coefficient_mismatch": 0.0012116211270784202
+    }
+  },
+  "experiment": "canonical_latent_e8_amortized_universal_encoder",
+  "initial_checkpoint_sha256": "954b3583aee7dfc3bcdd461300f29a438686e45c34b0a2ec113817a8e08894c9",
+  "schema_version": 1,
+  "state_split": {
+    "heldout_states_read": 0,
+    "train_count": 128,
+    "train_seed": 17,
+    "validation_count": 24,
+    "validation_seed": 10017
+  },
+  "training": {
+    "grid_control": {
+      "checkpoint_sha256": "93e636b18c632a130ca66a2c30f1e1edd0fbb1fa990135b02649072dceef237e",
+      "epochs": 120,
+      "final_loss": 1.6791805961093744e-05,
+      "initial_loss": 0.23669160840803485,
+      "minimum_loss": 9.710999806543019e-06,
+      "optimizer_updates": 960,
+      "scheduled_source_examples": 30720
+    },
+    "mesh_control": {
+      "checkpoint_sha256": "62c0b1d189774cc6a45028cd42b647972193a6060f0e1d50166887ed99d46534",
+      "epochs": 120,
+      "final_loss": 2.505555209844664e-05,
+      "initial_loss": 0.23686593421073676,
+      "minimum_loss": 1.4709207353471042e-05,
+      "optimizer_updates": 960,
+      "scheduled_source_examples": 30720
+    },
+    "shared": {
+      "checkpoint_sha256": "565ef15b6516dc510c38698dfb7318d8079caf04b8ad4eb0f593212a0173e42f",
+      "epochs": 120,
+      "final_loss": 4.5235768742568e-05,
+      "initial_loss": 0.23672979887258372,
+      "minimum_loss": 1.5192219629764069e-05,
+      "optimizer_updates": 960,
+      "scheduled_source_examples": 30720
+    }
+  }
+}

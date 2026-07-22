@@ -349,6 +349,18 @@ it from mixed discretizations without a representation label; still no
 operator or router. See
 `docs/research/2026-07-20-canonical-latent-e7-function-space-result.md`.
 
+E8 now shows that one 6,772-parameter quadrature-moment encoder can infer those
+fixed coefficients from both grids and warped meshes: high coefficient NRMSE
+is `0.007144`/`0.007271`, decoded NRMSE is `0.007307`/`0.007401`, and every
+semantic, spectral, refinement, remesh, invariance, and boundary gate passes.
+It does not establish positive shared transfer. Shared macro coefficient NRMSE
+`0.007257` loses to grid-only `0.005018` and mesh-only `0.006648` controls, and
+a non-gated random-point probe reaches `0.4463` coefficient NRMSE despite a
+well-conditioned exact E7 projection. Keep dynamics closed. Next condition one
+representation-blind learned projection on geometry sufficient statistics and
+test held-out sampling geometries; do not route. See
+`docs/research/2026-07-21-canonical-latent-e8-amortized-encoder-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -394,11 +406,11 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
 4. E1-E6 isolate the learned codec failure; E7 proves a compact common physical
-   coefficient space exists for the paired analytic grid/mesh states. Freeze
-   those 52 coefficient semantics. Next run one E8 universal set-encoder test
-   against the exact E7 projection teacher and matched family-only encoders.
-   Require coefficient, decoded, spectral, refinement, remeshing, invariance,
-   and positive-transfer gates before instantiating any operator. Do not route.
+   coefficient space exists; E8 learns that space accurately on fixed grids
+   and meshes but fails positive shared transfer and the non-gated point probe.
+   Freeze E9 around a geometry-conditioned, representation-blind projection
+   using basis Gram information and held-out sampling geometries. Require
+   positive transfer before instantiating any operator. Do not route.
 
 ## Reopen Triggers
 
@@ -434,6 +446,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/artifacts/canonical_latent_e6_compressed_locality_result.json`
 - `docs/research/2026-07-20-canonical-latent-e7-function-space-result.md`
 - `docs/research/artifacts/canonical_latent_e7_function_space_result.json`
+- `docs/research/2026-07-21-canonical-latent-e8-amortized-encoder-result.md`
+- `docs/research/artifacts/canonical_latent_e8_amortized_encoder_result.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
