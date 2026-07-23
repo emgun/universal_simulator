@@ -102,7 +102,9 @@ def run_e10(cfg: GeometryProjectionConfig, *, run_dir: Path) -> dict[str, Any]:
         result["causal_decision"]["next_move"] = "repair provenance before scientific promotion"
 
     result_path = run_dir / "result.json"
-    result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    artifact = dict(result)
+    artifact.pop("result_path", None)
+    result_path.write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     result["result_path"] = str(result_path)
     return result
 

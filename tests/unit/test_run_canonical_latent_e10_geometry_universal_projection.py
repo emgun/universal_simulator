@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from scripts.run_canonical_latent_e10_geometry_universal_projection import (
@@ -45,3 +46,4 @@ def test_tiny_e10_run_uses_every_realization_pair_and_binds_provenance(
     assert result["provenance"]["all_source_hashes_present"] is True
     assert result["provenance"]["git_head_present"] is True
     assert Path(result["result_path"]).is_file()
+    assert "result_path" not in json.loads(Path(result["result_path"]).read_text())
