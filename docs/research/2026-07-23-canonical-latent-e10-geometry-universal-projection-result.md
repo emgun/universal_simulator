@@ -85,9 +85,9 @@ the highest-signal mechanism here.
 Two complete runs in separate directories are byte-identical:
 
 - result SHA-256:
-  `dba1e6532bdca45ae9665e171ed2a2f9a014cedb5a9bc349edc5b00f65a323f2`;
+  `3cc40e8e659f3e7f28b97103d8a72aef29aaa126f593377c6365ccb844aaade5`;
 - execution Git HEAD:
-  `08c551f8d0fe35b34b213484cf264fbace409be8`;
+  `a624df3374b4d7c0a2033fc47c2e71d46aab5390`;
 - config SHA-256:
   `9bc299aa822afbfac68e3b8830986faf91b6f80bcf363fac3be74b4d665e3017`;
 - both contracts, the shared runner, and the E10 entrypoint are independently
@@ -95,9 +95,15 @@ Two complete runs in separate directories are byte-identical:
 - the worktree was clean before state access;
 - the executable rejected every configuration except the exact 24-state,
   128-calibration, eight-realization frozen contract;
-- all `1,200` path/family/budget/realization/state records retain coefficient,
-  decoded, spectral, design-rank, and source-order evidence. The worst exact
+- all `1,200` family/budget/realization/state records per path, `3,600` total,
+  retain coefficient, decoded, spectral, design-rank, and source-order
+  evidence. The worst exact
   per-state coefficient/decoded NRMSE is `0.0237070` / `0.0175801`.
+
+Maximum source-order coefficient/decoded errors are `1.12e-14` / `1.84e-14`
+for exact projection, `4.44e-16` / `2.66e-15` for moment-only, and `1.89e-15`
+/ `5.33e-15` for diagonal-Gram. Every path is independently permutation
+invariant under the frozen `1e-10` gate.
 
 Compact artifact:
 `docs/research/artifacts/canonical_latent_e10_geometry_universal_projection_result.json`.

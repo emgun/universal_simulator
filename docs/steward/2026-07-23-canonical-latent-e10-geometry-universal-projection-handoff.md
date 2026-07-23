@@ -25,10 +25,11 @@ coefficient space. Routing remains closed.
 - exact macro coefficient NRMSE `0.001098` versus `0.603488` moment-only and
   `0.608464` diagonal-Gram ablations;
 - every frozen scientific, provenance, and boundary gate passes;
-- two final artifacts are byte-identical at SHA-256 `dba1e653...`;
+- two final artifacts are byte-identical at SHA-256 `3cc40e8e...`;
 - the exact configuration is executable-enforced before state access, all
-  `1,200` per-state records are retained, all source files byte-match clean
-  execution HEAD `08c551f8...`;
+  `1,200` per-state records for each of three paths are retained with separate
+  permutation evidence, and all source files byte-match clean execution HEAD
+  `a624df33...`;
 - training and held-out reads, learned parameters, operators, and routes are
   all zero.
 

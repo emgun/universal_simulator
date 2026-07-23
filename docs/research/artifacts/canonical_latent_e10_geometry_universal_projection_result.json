@@ -3,13 +3,13 @@
   "experiment": "canonical_latent_e10_geometry_universal_projection",
   "classification": "geometry_universal_projection_qualified",
   "config_sha256": "9bc299aa822afbfac68e3b8830986faf91b6f80bcf363fac3be74b4d665e3017",
-  "result_sha256": "dba1e6532bdca45ae9665e171ed2a2f9a014cedb5a9bc349edc5b00f65a323f2",
+  "result_sha256": "3cc40e8e659f3e7f28b97103d8a72aef29aaa126f593377c6365ccb844aaade5",
   "byte_identical_reproductions": 2,
-  "git_head_at_execution": "08c551f8d0fe35b34b213484cf264fbace409be8",
+  "git_head_at_execution": "a624df3374b4d7c0a2033fc47c2e71d46aab5390",
   "source_sha256": {
     "e9_contract": "859dc175282c899ceecfdbadd680b2bf993798c61aa849fffefe782858944c25",
     "e10_contract": "58b1f8d0d6d2bc4f19e85f06142830ce03c444d4cd2acda6291f6a498cb50a71",
-    "shared_runner": "84469120edab7757d90e988b897554faa68223bda2049d84df21013b928fc932",
+    "shared_runner": "23c50b9ca52f2d3430bfc695880535667551ebdaa254f8b5293e857db784f3c4",
     "e10_entrypoint": "a06486e5f6e77667fa06c65ee5dbff8c57cad6b505789b94d4596cc31515e404"
   },
   "source_files_match_git_head": true,
@@ -69,10 +69,21 @@
     "maximum_pairs_evaluated_for_one_family_pair": 64
   },
   "per_state_evidence": {
-    "record_count": 1200,
+    "record_count_per_path": 1200,
+    "total_record_count": 3600,
     "worst_coefficient_nrmse": 0.023707017867203098,
     "worst_decoded_nrmse": 0.017580120894904246,
-    "includes_spectral_design_rank_and_source_order": true
+    "includes_spectral_design_rank_and_source_order_for_every_path": true,
+    "maximum_source_order_coefficient_error": {
+      "exact_gram_projection": 1.122235984696296e-14,
+      "moment_only": 4.440892098500626e-16,
+      "diagonal_gram": 1.887379141862766e-15
+    },
+    "maximum_source_order_decoded_error": {
+      "exact_gram_projection": 1.837419105754634e-14,
+      "moment_only": 2.6645352591003757e-15,
+      "diagonal_gram": 5.329070518200751e-15
+    }
   },
   "causal_ablation": {
     "exact_high_budget_macro_coefficient_nrmse": 0.0010979086509744606,
