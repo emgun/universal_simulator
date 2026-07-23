@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e9_geometry_universal_projection",
+  "classification": "geometry_universal_projection_not_qualified",
+  "reason": "frozen Gram condition-number gate failed before state access",
+  "config_sha256": "59bf5a3442176f19a68c7cc5ae33062837ce6cf43c4c623c174bab921fdef722",
+  "result_sha256": "02c862d3ee63ba2021147e805445e2508fae3b85fe7bd196b0e7cbdff8bd2bbe",
+  "geometry_preflight": {
+    "geometry_count": 50,
+    "basis_rank": 52,
+    "weighted_design_condition_min": 4.728984443083697,
+    "weighted_design_condition_max": 6.8990108671339625,
+    "gram_condition_min": 22.363293862927577,
+    "gram_condition_max": 47.59635094483262,
+    "frozen_gram_condition_limit": 10.0,
+    "passed": false
+  },
+  "state_reads": {
+    "training": 0,
+    "validation": 0,
+    "heldout": 0
+  },
+  "boundary": {
+    "learned_parameters": 0,
+    "optimizer_updates": 0,
+    "operator_instantiated": false,
+    "routing_paths": 0,
+    "particle_dynamics_qualified": false
+  },
+  "next_move": "run the separately preregistered E10 repair under the original E7 weighted-design invariant using fresh geometries and states"
+}

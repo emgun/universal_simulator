@@ -195,3 +195,16 @@ not claim evidence.
   basis Gram matrix to the shared correction before changing the latent space.
   Test positive transfer on held-out sampling geometries; two fixed families
   may be too similar for mixed training to provide a measurable advantage.
+- Condition-number notation is part of the frozen scientific contract. For
+  `G=A^T A`, `cond(G)=cond(A)^2`; never substitute a weighted-design threshold
+  for a Gram threshold without a separately preregistered repair. Compute and
+  record both, and stop before state reads when either frozen gate fails.
+- Cross-geometry semantics must be gated on every realization pair. Averaging
+  encodings before comparison can cancel sampling-dependent errors and create
+  a false invariance pass; report pair count, mean, maximum, and the worst
+  realization identities.
+- A tiny, stable exact geometry solve can be the universal encoder rather than
+  merely a teacher. Do not add an amortized inverse, routing layer, or learned
+  preconditioner when a cacheable 52-dimensional factorization is accurate,
+  deterministic, and cheaper scientifically. Reopen approximation only when
+  basis scale or conditioning is measured as the bottleneck.

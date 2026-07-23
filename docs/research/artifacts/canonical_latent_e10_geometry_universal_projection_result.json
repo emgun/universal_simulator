@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e10_geometry_universal_projection",
+  "classification": "geometry_universal_projection_qualified",
+  "config_sha256": "9bc299aa822afbfac68e3b8830986faf91b6f80bcf363fac3be74b4d665e3017",
+  "result_sha256": "3cc40e8e659f3e7f28b97103d8a72aef29aaa126f593377c6365ccb844aaade5",
+  "byte_identical_reproductions": 2,
+  "git_head_at_execution": "a624df3374b4d7c0a2033fc47c2e71d46aab5390",
+  "source_sha256": {
+    "e9_contract": "859dc175282c899ceecfdbadd680b2bf993798c61aa849fffefe782858944c25",
+    "e10_contract": "58b1f8d0d6d2bc4f19e85f06142830ce03c444d4cd2acda6291f6a498cb50a71",
+    "shared_runner": "23c50b9ca52f2d3430bfc695880535667551ebdaa254f8b5293e857db784f3c4",
+    "e10_entrypoint": "a06486e5f6e77667fa06c65ee5dbff8c57cad6b505789b94d4596cc31515e404"
+  },
+  "source_files_match_git_head": true,
+  "worktree_clean_at_execution": true,
+  "state_split": {
+    "validation_count": 24,
+    "validation_seed": 10023,
+    "training_reads": 0,
+    "heldout_reads": 0
+  },
+  "geometry_preflight": {
+    "geometry_count": 50,
+    "basis_rank": 52,
+    "weighted_design_condition_min": 4.947116393328502,
+    "weighted_design_condition_max": 9.668080635783218,
+    "weighted_design_condition_limit": 10.0,
+    "gram_condition_min": 24.473960609139233,
+    "gram_condition_max": 93.47178318000702,
+    "gram_condition_limit": 100.0,
+    "positive_finite_normalized_masses": true
+  },
+  "high_budget_metrics": {
+    "grid": {
+      "coefficient_nrmse": 0.0004315091694628855,
+      "decoded_nrmse": 0.0022984409244560483,
+      "high_frequency_nrmse": 0.012314189031976532,
+      "realization_dispersion": 0.0
+    },
+    "warped_mesh": {
+      "coefficient_nrmse": 0.00043333306204789,
+      "decoded_nrmse": 0.0022994835181985706,
+      "high_frequency_nrmse": 0.012319388970544477,
+      "realization_dispersion": 0.0001704415549862713
+    },
+    "uniform_particles": {
+      "coefficient_nrmse": 0.0017792312058031528,
+      "decoded_nrmse": 0.0025009710050166094,
+      "high_frequency_nrmse": 0.013062875646996886,
+      "realization_dispersion": 0.001692877742245239
+    },
+    "warped_particles": {
+      "coefficient_nrmse": 0.001747561166583914,
+      "decoded_nrmse": 0.0024962156271947536,
+      "high_frequency_nrmse": 0.01303674553512896,
+      "realization_dispersion": 0.0016694738626256474
+    }
+  },
+  "convergence_ratio_high_over_low": {
+    "grid": 0.3193443690207747,
+    "warped_mesh": 0.3022014366335653,
+    "uniform_particles": 0.6347009238121052,
+    "warped_particles": 0.6207218607092785
+  },
+  "worst_cross_family_realization_pair": {
+    "coefficient_relative_mismatch": 0.0044368636544672045,
+    "decoded_mismatch_nrmse": 0.0020284175715648976,
+    "maximum_pairs_evaluated_for_one_family_pair": 64
+  },
+  "per_state_evidence": {
+    "record_count_per_path": 1200,
+    "total_record_count": 3600,
+    "worst_coefficient_nrmse": 0.023707017867203098,
+    "worst_decoded_nrmse": 0.017580120894904246,
+    "includes_spectral_design_rank_and_source_order_for_every_path": true,
+    "maximum_source_order_coefficient_error": {
+      "exact_gram_projection": 1.122235984696296e-14,
+      "moment_only": 4.440892098500626e-16,
+      "diagonal_gram": 1.887379141862766e-15
+    },
+    "maximum_source_order_decoded_error": {
+      "exact_gram_projection": 1.837419105754634e-14,
+      "moment_only": 2.6645352591003757e-15,
+      "diagonal_gram": 5.329070518200751e-15
+    }
+  },
+  "causal_ablation": {
+    "exact_high_budget_macro_coefficient_nrmse": 0.0010979086509744606,
+    "moment_only_macro_coefficient_nrmse": 0.6034875103198385,
+    "diagonal_gram_macro_coefficient_nrmse": 0.6084642888571576,
+    "exact_to_moment_only_ratio": 0.0018192731948878064,
+    "exact_to_diagonal_gram_ratio": 0.001804392913570322
+  },
+  "gates": {
+    "design": true,
+    "coefficient_accuracy": true,
+    "decoded_accuracy": true,
+    "high_frequency": true,
+    "cross_family_semantics": true,
+    "convergence": true,
+    "realization_stability": true,
+    "source_order_invariance": true,
+    "full_gram_causal_advantage": true,
+    "provenance": true,
+    "boundary": true
+  },
+  "boundary": {
+    "learned_parameters": 0,
+    "optimizer_updates": 0,
+    "operator_instantiated": false,
+    "routing_paths": 0,
+    "particle_dynamics_qualified": false,
+    "arbitrary_particle_distributions_qualified": false,
+    "public_or_claim_grade": false
+  },
+  "next_move": "preregister the first coefficient-space latent operator gate"
+}
