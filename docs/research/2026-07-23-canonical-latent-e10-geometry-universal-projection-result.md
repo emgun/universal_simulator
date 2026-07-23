@@ -85,13 +85,19 @@ the highest-signal mechanism here.
 Two complete runs in separate directories are byte-identical:
 
 - result SHA-256:
-  `89c912bc60db87a4c191879dd4126068a5dd3b11d7d8ff2966688ff35628e040`;
+  `dba1e6532bdca45ae9665e171ed2a2f9a014cedb5a9bc349edc5b00f65a323f2`;
 - execution Git HEAD:
-  `72bb7de369c21e6d00d9968f276db8338137fa76`;
+  `08c551f8d0fe35b34b213484cf264fbace409be8`;
 - config SHA-256:
   `9bc299aa822afbfac68e3b8830986faf91b6f80bcf363fac3be74b4d665e3017`;
 - both contracts, the shared runner, and the E10 entrypoint are independently
-  hash-bound in the artifact.
+  hash-bound in the artifact and byte-match that Git HEAD;
+- the worktree was clean before state access;
+- the executable rejected every configuration except the exact 24-state,
+  128-calibration, eight-realization frozen contract;
+- all `1,200` path/family/budget/realization/state records retain coefficient,
+  decoded, spectral, design-rank, and source-order evidence. The worst exact
+  per-state coefficient/decoded NRMSE is `0.0237070` / `0.0175801`.
 
 Compact artifact:
 `docs/research/artifacts/canonical_latent_e10_geometry_universal_projection_result.json`.
