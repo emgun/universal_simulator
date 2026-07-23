@@ -315,7 +315,7 @@ def _source_order_error(
     canonical_query: torch.Tensor,
     *,
     seed: int,
-) -> tuple[float, float, list[float], list[float]]:
+) -> dict[str, dict[str, Any]]:
     values = evaluate_field(state_parameters, sample.coords).double()
     original, _ = encode_paths(space, values, sample)
     permutation = torch.randperm(
@@ -333,20 +333,26 @@ def _source_order_error(
     )
     permuted_values = values[:, permutation]
     permuted, _ = encode_paths(space, permuted_values, permuted_sample)
-    original_coefficients = original["exact_gram_projection"]
-    permuted_coefficients = permuted["exact_gram_projection"]
-    original_decoded = space.decode(original_coefficients, canonical_query)
-    permuted_decoded = space.decode(permuted_coefficients, canonical_query)
-    coefficient_errors = (
-        (original_coefficients - permuted_coefficients).abs().flatten(start_dim=1).amax(dim=1)
-    )
-    decoded_errors = (original_decoded - permuted_decoded).abs().flatten(start_dim=1).amax(dim=1)
-    return (
-        float(coefficient_errors.max().item()),
-        float(decoded_errors.max().item()),
-        [float(value) for value in coefficient_errors.tolist()],
-        [float(value) for value in decoded_errors.tolist()],
-    )
+    reports = {}
+    for name, original_coefficients in original.items():
+        permuted_coefficients = permuted[name]
+        original_decoded = space.decode(original_coefficients, canonical_query)
+        permuted_decoded = space.decode(permuted_coefficients, canonical_query)
+        coefficient_errors = (
+            (original_coefficients - permuted_coefficients).abs().flatten(start_dim=1).amax(dim=1)
+        )
+        decoded_errors = (
+            (original_decoded - permuted_decoded).abs().flatten(start_dim=1).amax(dim=1)
+        )
+        reports[name] = {
+            "coefficient_max_abs_error": float(coefficient_errors.max().item()),
+            "decoded_max_abs_error": float(decoded_errors.max().item()),
+            "state_coefficient_max_abs_errors": [
+                float(value) for value in coefficient_errors.tolist()
+            ],
+            "state_decoded_max_abs_errors": [float(value) for value in decoded_errors.tolist()],
+        }
+    return reports
 
 
 def _evaluate_budget(
@@ -365,8 +371,8 @@ def _evaluate_budget(
     }
     all_decoded: dict[str, list[torch.Tensor]] = {name: [] for name in all_coefficients}
     realization_records = []
-    maximum_coefficient_order_error = 0.0
-    maximum_decoded_order_error = 0.0
+    maximum_coefficient_order_error = {name: 0.0 for name in all_coefficients}
+    maximum_decoded_order_error = {name: 0.0 for name in all_coefficients}
     for index, sample in enumerate(samples):
         values = evaluate_field(state_parameters, sample.coords).double()
         encoded, design = encode_paths(space, values, sample)
@@ -411,33 +417,40 @@ def _evaluate_budget(
                     for state_index in range(state_parameters.shape[0])
                 ],
             }
-        (
-            coefficient_order_error,
-            decoded_order_error,
-            state_coefficient_order_errors,
-            state_decoded_order_errors,
-        ) = _source_order_error(
+        order_reports = _source_order_error(
             space,
             state_parameters,
             sample,
             canonical_query,
             seed=cfg.seed + 3100 + index,
         )
-        record["source_order_coefficient_max_abs_error"] = coefficient_order_error
-        record["source_order_decoded_max_abs_error"] = decoded_order_error
-        for state_index, state_record in enumerate(
-            record["paths"]["exact_gram_projection"]["states"]
-        ):
-            state_record["source_order_coefficient_max_abs_error"] = state_coefficient_order_errors[
-                state_index
+        for name, order_report in order_reports.items():
+            record["paths"][name]["source_order_coefficient_max_abs_error"] = order_report[
+                "coefficient_max_abs_error"
             ]
-            state_record["source_order_decoded_max_abs_error"] = state_decoded_order_errors[
-                state_index
+            record["paths"][name]["source_order_decoded_max_abs_error"] = order_report[
+                "decoded_max_abs_error"
             ]
-        maximum_coefficient_order_error = max(
-            maximum_coefficient_order_error, coefficient_order_error
-        )
-        maximum_decoded_order_error = max(maximum_decoded_order_error, decoded_order_error)
+            for state_index, state_record in enumerate(record["paths"][name]["states"]):
+                state_record["source_order_coefficient_max_abs_error"] = order_report[
+                    "state_coefficient_max_abs_errors"
+                ][state_index]
+                state_record["source_order_decoded_max_abs_error"] = order_report[
+                    "state_decoded_max_abs_errors"
+                ][state_index]
+            maximum_coefficient_order_error[name] = max(
+                maximum_coefficient_order_error[name],
+                order_report["coefficient_max_abs_error"],
+            )
+            maximum_decoded_order_error[name] = max(
+                maximum_decoded_order_error[name],
+                order_report["decoded_max_abs_error"],
+            )
+        exact_order_report = order_reports["exact_gram_projection"]
+        record["source_order_coefficient_max_abs_error"] = exact_order_report[
+            "coefficient_max_abs_error"
+        ]
+        record["source_order_decoded_max_abs_error"] = exact_order_report["decoded_max_abs_error"]
         realization_records.append(record)
 
     reports = {}
@@ -464,12 +477,11 @@ def _evaluate_budget(
                 stacked_coefficients[name], canonical_coefficients
             ),
         }
-    reports["exact_gram_projection"][
-        "source_order_coefficient_max_abs_error"
-    ] = maximum_coefficient_order_error
-    reports["exact_gram_projection"][
-        "source_order_decoded_max_abs_error"
-    ] = maximum_decoded_order_error
+    for name in reports:
+        reports[name]["source_order_coefficient_max_abs_error"] = maximum_coefficient_order_error[
+            name
+        ]
+        reports[name]["source_order_decoded_max_abs_error"] = maximum_decoded_order_error[name]
     reports["exact_gram_projection"]["realizations"] = realization_records
     return reports, stacked_coefficients, stacked_decoded
 
@@ -483,6 +495,11 @@ def _decision(result: dict[str, Any], cfg: GeometryProjectionConfig) -> dict[str
         for realization in budget["realizations"]
     ]
     family_high = {family: budgets["high"] for family, budgets in candidate.items()}
+    every_path_high = [
+        budgets["high"]
+        for path in result["evaluation"]["paths"].values()
+        for budgets in path["families"].values()
+    ]
     semantics = result["evaluation"]["exact_semantics"]
     convergence = result["evaluation"]["exact_convergence"]
     causal = result["evaluation"]["causal_ablation"]
@@ -525,7 +542,7 @@ def _decision(result: dict[str, Any], cfg: GeometryProjectionConfig) -> dict[str
         "source_order_invariance": all(
             report["source_order_coefficient_max_abs_error"] <= cfg.invariance_atol
             and report["source_order_decoded_max_abs_error"] <= cfg.invariance_atol
-            for report in family_high.values()
+            for report in every_path_high
         ),
         "full_gram_causal_advantage": (
             causal["exact_to_moment_only_ratio"] <= cfg.max_ablation_ratio

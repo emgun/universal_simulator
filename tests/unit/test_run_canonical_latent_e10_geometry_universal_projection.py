@@ -44,19 +44,22 @@ def test_e10_run_uses_every_realization_pair_and_binds_provenance(
     )
     exact_families = result["evaluation"]["paths"]["exact_gram_projection"]["families"]
     assert all(
-        len(realization["paths"]["exact_gram_projection"]["states"]) == 24
-        and all(
-            {
-                "state_index",
-                "coefficient_nrmse_to_canonical",
-                "canonical_query_nrmse",
-                "high_frequency_spectral",
-                "design_rank",
-                "source_order_coefficient_max_abs_error",
-                "source_order_decoded_max_abs_error",
-            }
-            <= state.keys()
-            for state in realization["paths"]["exact_gram_projection"]["states"]
+        all(
+            len(realization["paths"][path_name]["states"]) == 24
+            and all(
+                {
+                    "state_index",
+                    "coefficient_nrmse_to_canonical",
+                    "canonical_query_nrmse",
+                    "high_frequency_spectral",
+                    "design_rank",
+                    "source_order_coefficient_max_abs_error",
+                    "source_order_decoded_max_abs_error",
+                }
+                <= state.keys()
+                for state in realization["paths"][path_name]["states"]
+            )
+            for path_name in result["evaluation"]["paths"]
         )
         for budgets in exact_families.values()
         for budget in budgets.values()
