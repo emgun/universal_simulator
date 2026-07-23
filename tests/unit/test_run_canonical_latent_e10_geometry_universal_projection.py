@@ -1,5 +1,8 @@
 import json
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 from scripts.run_canonical_latent_e10_geometry_universal_projection import (
     frozen_e10_config,
@@ -18,14 +21,10 @@ def test_e10_config_freezes_fresh_states_geometries_and_e7_conditioning() -> Non
     assert cfg.max_condition_number == 100.0
 
 
-def test_tiny_e10_run_uses_every_realization_pair_and_binds_provenance(
+def test_e10_run_uses_every_realization_pair_and_binds_provenance(
     tmp_path: Path,
 ) -> None:
-    cfg = frozen_e10_config(
-        validation_states=4,
-        calibration_resolution=32,
-        geometry_realizations=2,
-    )
+    cfg = frozen_e10_config()
 
     result = run_e10(cfg, run_dir=tmp_path)
 
@@ -43,7 +42,38 @@ def test_tiny_e10_run_uses_every_realization_pair_and_binds_provenance(
         == realization_counts[name.split("__vs__")[0]] * realization_counts[name.split("__vs__")[1]]
         for name, pair in result["evaluation"]["exact_semantics"].items()
     )
-    assert result["provenance"]["all_source_hashes_present"] is True
+    exact_families = result["evaluation"]["paths"]["exact_gram_projection"]["families"]
+    assert all(
+        len(realization["paths"]["exact_gram_projection"]["states"]) == 24
+        and all(
+            {
+                "state_index",
+                "coefficient_nrmse_to_canonical",
+                "canonical_query_nrmse",
+                "high_frequency_spectral",
+                "design_rank",
+                "source_order_coefficient_max_abs_error",
+                "source_order_decoded_max_abs_error",
+            }
+            <= state.keys()
+            for state in realization["paths"]["exact_gram_projection"]["states"]
+        )
+        for budgets in exact_families.values()
+        for budget in budgets.values()
+        for realization in budget["realizations"]
+    )
+    assert result["provenance"]["source_files_match_git_head"] is True
+    assert result["provenance"]["worktree_clean"] is True
     assert result["provenance"]["git_head_present"] is True
     assert Path(result["result_path"]).is_file()
     assert "result_path" not in json.loads(Path(result["result_path"]).read_text())
+
+
+def test_e10_rejects_every_off_contract_configuration_before_state_access(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="exact frozen configuration"):
+        run_e10(
+            replace(frozen_e10_config(), validation_states=4),
+            run_dir=tmp_path,
+        )

@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e10_geometry_universal_projection",
+  "classification": "geometry_universal_projection_qualified",
+  "config_sha256": "9bc299aa822afbfac68e3b8830986faf91b6f80bcf363fac3be74b4d665e3017",
+  "result_sha256": "89c912bc60db87a4c191879dd4126068a5dd3b11d7d8ff2966688ff35628e040",
+  "byte_identical_reproductions": 2,
+  "git_head_at_execution": "72bb7de369c21e6d00d9968f276db8338137fa76",
+  "source_sha256": {
+    "e9_contract": "859dc175282c899ceecfdbadd680b2bf993798c61aa849fffefe782858944c25",
+    "e10_contract": "30ccf4bd28109a8317370aae3cea969137514d54af2464683dc122a87e1db76c",
+    "shared_runner": "998a8023239999f626d374c21d9ca5badbf177238a6897b057ef566590b4ff21",
+    "e10_entrypoint": "6623230bf5ed207d0bde4b9f7f65ba1d69b2c1fd22063839e677b830e0cc8225"
+  },
+  "state_split": {
+    "validation_count": 24,
+    "validation_seed": 10023,
+    "training_reads": 0,
+    "heldout_reads": 0
+  },
+  "geometry_preflight": {
+    "geometry_count": 50,
+    "basis_rank": 52,
+    "weighted_design_condition_min": 4.947116393328502,
+    "weighted_design_condition_max": 9.668080635783218,
+    "weighted_design_condition_limit": 10.0,
+    "gram_condition_min": 24.473960609139233,
+    "gram_condition_max": 93.47178318000702,
+    "gram_condition_limit": 100.0,
+    "positive_finite_normalized_masses": true
+  },
+  "high_budget_metrics": {
+    "grid": {
+      "coefficient_nrmse": 0.0004315091694628855,
+      "decoded_nrmse": 0.0022984409244560483,
+      "high_frequency_nrmse": 0.012314189031976532,
+      "realization_dispersion": 0.0
+    },
+    "warped_mesh": {
+      "coefficient_nrmse": 0.00043333306204789,
+      "decoded_nrmse": 0.0022994835181985706,
+      "high_frequency_nrmse": 0.012319388970544477,
+      "realization_dispersion": 0.0001704415549862713
+    },
+    "uniform_particles": {
+      "coefficient_nrmse": 0.0017792312058031528,
+      "decoded_nrmse": 0.0025009710050166094,
+      "high_frequency_nrmse": 0.013062875646996886,
+      "realization_dispersion": 0.001692877742245239
+    },
+    "warped_particles": {
+      "coefficient_nrmse": 0.001747561166583914,
+      "decoded_nrmse": 0.0024962156271947536,
+      "high_frequency_nrmse": 0.01303674553512896,
+      "realization_dispersion": 0.0016694738626256474
+    }
+  },
+  "convergence_ratio_high_over_low": {
+    "grid": 0.3193443690207747,
+    "warped_mesh": 0.3022014366335653,
+    "uniform_particles": 0.6347009238121052,
+    "warped_particles": 0.6207218607092785
+  },
+  "worst_cross_family_realization_pair": {
+    "coefficient_relative_mismatch": 0.0044368636544672045,
+    "decoded_mismatch_nrmse": 0.0020284175715648976,
+    "maximum_pairs_evaluated_for_one_family_pair": 64
+  },
+  "causal_ablation": {
+    "exact_high_budget_macro_coefficient_nrmse": 0.0010979086509744606,
+    "moment_only_macro_coefficient_nrmse": 0.6034875103198385,
+    "diagonal_gram_macro_coefficient_nrmse": 0.6084642888571576,
+    "exact_to_moment_only_ratio": 0.0018192731948878064,
+    "exact_to_diagonal_gram_ratio": 0.001804392913570322
+  },
+  "gates": {
+    "design": true,
+    "coefficient_accuracy": true,
+    "decoded_accuracy": true,
+    "high_frequency": true,
+    "cross_family_semantics": true,
+    "convergence": true,
+    "realization_stability": true,
+    "source_order_invariance": true,
+    "full_gram_causal_advantage": true,
+    "provenance": true,
+    "boundary": true
+  },
+  "boundary": {
+    "learned_parameters": 0,
+    "optimizer_updates": 0,
+    "operator_instantiated": false,
+    "routing_paths": 0,
+    "particle_dynamics_qualified": false,
+    "arbitrary_particle_distributions_qualified": false,
+    "public_or_claim_grade": false
+  },
+  "next_move": "preregister the first coefficient-space latent operator gate"
+}

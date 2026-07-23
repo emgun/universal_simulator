@@ -145,6 +145,26 @@ fails. Keep dynamics closed.
 No seed, geometry, basis, budget, threshold, ablation, provenance rule, or
 classification may change after E10 state-level results are visible.
 
+## Promotion-blocking implementation clarification
+
+Independent review after the first locked numerical run found that the CLI
+still accepted reduced state, calibration, and realization counts, and that
+the provenance gate checked only digest length. No promotion occurred.
+
+Before a final locked rerun, the executable must:
+
+- accept only the exact complete frozen configuration above and reject every
+  override before geometry or state access;
+- prove that both contracts and both runner files byte-match the recorded Git
+  HEAD;
+- require a clean worktree before state access;
+- retain the already-required per-state coefficient, decoded, spectral,
+  design-rank, and source-order records.
+
+The repaired implementation must be committed first. Only a subsequent
+byte-identical rerun from that clean revision can support promotion. This
+clarification changes no state, geometry, metric, or scientific threshold.
+
 ## Boundary
 
 - synthetic validation states only; no training or reserved held-out reads;

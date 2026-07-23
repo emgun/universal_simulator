@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-20
+Updated: 2026-07-23
 
 ## Project
 
@@ -361,6 +361,25 @@ representation-blind learned projection on geometry sufficient statistics and
 test held-out sampling geometries; do not route. See
 `docs/research/2026-07-21-canonical-latent-e8-amortized-encoder-result.md`.
 
+E9 and E10 now resolve the missing geometry fact. Independent review caught
+that E9's exploratory harness had checked the weighted-design condition rather
+than its literal frozen Gram condition. The repaired E9 stops before every
+state read because its Gram conditions `22.363-47.596` exceed `10`; its
+uncommitted exploratory state metrics are discarded.
+
+E10 separately restored E7's original invariant on fresh states and
+geometries: weighted-design condition `<=10`, equivalently Gram condition
+`<=100`. Exact quadrature projection reaches high coefficient NRMSE
+`0.000432-0.001779` and decoded NRMSE `0.002298-0.002501` across grids, warped
+meshes, uniform particles, and warped particles. The worst of every
+cross-family realization pair is `0.004437` coefficient mismatch and
+`0.002028` decoded NRMSE. Both moment-only and diagonal-Gram ablations are near
+`0.60` macro coefficient error versus `0.001098` exact. All gates pass in two
+byte-identical runs. Freeze exact projection as the canonical encoder for these
+observation processes; keep routing closed and open only a preregistered
+coefficient-space operator gate. See
+`docs/research/2026-07-23-canonical-latent-e10-geometry-universal-projection-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -406,11 +425,13 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
 4. E1-E6 isolate the learned codec failure; E7 proves a compact common physical
-   coefficient space exists; E8 learns that space accurately on fixed grids
-   and meshes but fails positive shared transfer and the non-gated point probe.
-   Freeze E9 around a geometry-conditioned, representation-blind projection
-   using basis Gram information and held-out sampling geometries. Require
-   positive transfer before instantiating any operator. Do not route.
+   coefficient space exists; E8 exposes missing sampling geometry; corrected
+   E9 fails closed; E10 qualifies the exact E7 projection across the frozen
+   grid, mesh, and particle observation processes. Freeze that encoder. Next
+   preregister one coefficient-to-coefficient E11 operator with explicit
+   physical/time conditioning, representation-blind inputs, matched controls,
+   rollout/conservation gates, and a positive-transfer or data-efficiency
+   requirement. Do not route.
 
 ## Reopen Triggers
 
@@ -448,6 +469,11 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/artifacts/canonical_latent_e7_function_space_result.json`
 - `docs/research/2026-07-21-canonical-latent-e8-amortized-encoder-result.md`
 - `docs/research/artifacts/canonical_latent_e8_amortized_encoder_result.json`
+- `docs/research/2026-07-23-canonical-latent-e9-protocol-correction-result.md`
+- `docs/research/artifacts/canonical_latent_e9_geometry_universal_projection_result.json`
+- `docs/research/2026-07-23-canonical-latent-e10-geometry-universal-projection-result.md`
+- `docs/research/artifacts/canonical_latent_e10_geometry_universal_projection_result.json`
+- `docs/steward/2026-07-23-canonical-latent-e10-geometry-universal-projection-handoff.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

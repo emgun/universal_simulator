@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -33,17 +34,9 @@ SHARED_RUNNER = REPO_ROOT / "scripts/run_canonical_latent_e9_geometry_universal_
 E10_ENTRYPOINT = Path(__file__).resolve()
 
 
-def frozen_e10_config(
-    *,
-    validation_states: int = GeometryProjectionConfig.validation_states,
-    calibration_resolution: int = GeometryProjectionConfig.calibration_resolution,
-    geometry_realizations: int = GeometryProjectionConfig.geometry_realizations,
-) -> GeometryProjectionConfig:
+def frozen_e10_config() -> GeometryProjectionConfig:
     return GeometryProjectionConfig(
         seed=23,
-        validation_states=validation_states,
-        calibration_resolution=calibration_resolution,
-        geometry_realizations=geometry_realizations,
         geometry_seed_start=30_000,
         max_condition_number=100.0,
         max_weighted_design_condition_number=10.0,
@@ -64,42 +57,71 @@ def _git_head() -> str:
     ).stdout.strip()
 
 
+def _committed_sha256(path: Path) -> str | None:
+    relative_path = path.relative_to(REPO_ROOT).as_posix()
+    completed = subprocess.run(
+        ["git", "show", f"HEAD:{relative_path}"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
+def _worktree_clean() -> bool:
+    return not subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
 def _provenance() -> dict[str, Any]:
-    source_hashes = {
-        "e9_contract_sha256": _sha256(E9_CONTRACT),
-        "e10_contract_sha256": _sha256(E10_CONTRACT),
-        "shared_runner_sha256": _sha256(SHARED_RUNNER),
-        "e10_entrypoint_sha256": _sha256(E10_ENTRYPOINT),
+    source_files = {
+        "e9_contract": E9_CONTRACT,
+        "e10_contract": E10_CONTRACT,
+        "shared_runner": SHARED_RUNNER,
+        "e10_entrypoint": E10_ENTRYPOINT,
     }
+    source_hashes = {name: _sha256(path) for name, path in source_files.items()}
+    committed_hashes = {name: _committed_sha256(path) for name, path in source_files.items()}
+    source_files_match_git_head = all(
+        committed_hashes[name] == source_hash for name, source_hash in source_hashes.items()
+    )
     git_head = _git_head()
     return {
-        **source_hashes,
+        "source_sha256": source_hashes,
+        "committed_source_sha256": committed_hashes,
         "git_head": git_head,
-        "all_source_hashes_present": all(len(value) == 64 for value in source_hashes.values()),
+        "source_files_match_git_head": source_files_match_git_head,
+        "worktree_clean": _worktree_clean(),
         "git_head_present": len(git_head) == 40,
     }
 
 
 def run_e10(cfg: GeometryProjectionConfig, *, run_dir: Path) -> dict[str, Any]:
-    if (
-        cfg.seed != 23
-        or cfg.geometry_seed_start != 30_000
-        or cfg.max_condition_number != 100.0
-        or cfg.max_weighted_design_condition_number != 10.0
-    ):
-        raise ValueError("E10 seed and conditioning invariants are frozen")
+    if asdict(cfg) != asdict(frozen_e10_config()):
+        raise ValueError("E10 requires the exact frozen configuration")
+
+    provenance = _provenance()
+    provenance_gate = bool(
+        provenance["source_files_match_git_head"]
+        and provenance["worktree_clean"]
+        and provenance["git_head_present"]
+    )
+    if not provenance_gate:
+        raise RuntimeError(
+            "E10 provenance must match a clean committed Git HEAD before state access"
+        )
 
     result = run_geometry_projection(cfg, run_dir=run_dir)
     result["experiment"] = "canonical_latent_e10_geometry_universal_projection"
-    result["provenance"] = _provenance()
-    provenance_gate = bool(
-        result["provenance"]["all_source_hashes_present"]
-        and result["provenance"]["git_head_present"]
-    )
+    result["provenance"] = provenance
     result["causal_decision"]["gates"]["provenance"] = provenance_gate
-    if not provenance_gate:
-        result["causal_decision"]["classification"] = "geometry_universal_projection_not_qualified"
-        result["causal_decision"]["next_move"] = "repair provenance before scientific promotion"
 
     result_path = run_dir / "result.json"
     artifact = dict(result)
@@ -114,24 +136,13 @@ def parse_args() -> argparse.Namespace:
         description="Run the frozen E10 geometry-universal projection repair"
     )
     parser.add_argument("--run-dir", type=Path, required=True)
-    parser.add_argument(
-        "--validation-states", type=int, default=GeometryProjectionConfig.validation_states
-    )
-    parser.add_argument(
-        "--geometry-realizations",
-        type=int,
-        default=GeometryProjectionConfig.geometry_realizations,
-    )
     parser.add_argument("--print-json", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    cfg = frozen_e10_config(
-        validation_states=args.validation_states,
-        geometry_realizations=args.geometry_realizations,
-    )
+    cfg = frozen_e10_config()
     result = run_e10(cfg, run_dir=args.run_dir)
     summary = {
         "causal_decision": result["causal_decision"],

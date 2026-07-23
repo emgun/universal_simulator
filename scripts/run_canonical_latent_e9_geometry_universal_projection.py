@@ -315,7 +315,7 @@ def _source_order_error(
     canonical_query: torch.Tensor,
     *,
     seed: int,
-) -> tuple[float, float]:
+) -> tuple[float, float, list[float], list[float]]:
     values = evaluate_field(state_parameters, sample.coords).double()
     original, _ = encode_paths(space, values, sample)
     permutation = torch.randperm(
@@ -337,9 +337,15 @@ def _source_order_error(
     permuted_coefficients = permuted["exact_gram_projection"]
     original_decoded = space.decode(original_coefficients, canonical_query)
     permuted_decoded = space.decode(permuted_coefficients, canonical_query)
+    coefficient_errors = (
+        (original_coefficients - permuted_coefficients).abs().flatten(start_dim=1).amax(dim=1)
+    )
+    decoded_errors = (original_decoded - permuted_decoded).abs().flatten(start_dim=1).amax(dim=1)
     return (
-        float((original_coefficients - permuted_coefficients).abs().max().item()),
-        float((original_decoded - permuted_decoded).abs().max().item()),
+        float(coefficient_errors.max().item()),
+        float(decoded_errors.max().item()),
+        [float(value) for value in coefficient_errors.tolist()],
+        [float(value) for value in decoded_errors.tolist()],
     )
 
 
@@ -383,8 +389,34 @@ def _evaluate_budget(
                     coefficients, canonical_coefficients
                 ),
                 "canonical_query_nrmse": global_nrmse(decoded, canonical_target),
+                "states": [
+                    {
+                        "state_index": state_index,
+                        "coefficient_nrmse_to_canonical": _tensor_nrmse(
+                            coefficients[state_index : state_index + 1],
+                            canonical_coefficients[state_index : state_index + 1],
+                        ),
+                        "canonical_query_nrmse": global_nrmse(
+                            decoded[state_index : state_index + 1],
+                            canonical_target[state_index : state_index + 1],
+                        ),
+                        "high_frequency_spectral": high_frequency_spectral_report(
+                            decoded[state_index : state_index + 1],
+                            canonical_target[state_index : state_index + 1],
+                            resolution=cfg.canonical_query_resolution,
+                            minimum_radius=cfg.high_frequency_radius,
+                        ),
+                        "design_rank": design["rank"],
+                    }
+                    for state_index in range(state_parameters.shape[0])
+                ],
             }
-        coefficient_order_error, decoded_order_error = _source_order_error(
+        (
+            coefficient_order_error,
+            decoded_order_error,
+            state_coefficient_order_errors,
+            state_decoded_order_errors,
+        ) = _source_order_error(
             space,
             state_parameters,
             sample,
@@ -393,6 +425,15 @@ def _evaluate_budget(
         )
         record["source_order_coefficient_max_abs_error"] = coefficient_order_error
         record["source_order_decoded_max_abs_error"] = decoded_order_error
+        for state_index, state_record in enumerate(
+            record["paths"]["exact_gram_projection"]["states"]
+        ):
+            state_record["source_order_coefficient_max_abs_error"] = state_coefficient_order_errors[
+                state_index
+            ]
+            state_record["source_order_decoded_max_abs_error"] = state_decoded_order_errors[
+                state_index
+            ]
         maximum_coefficient_order_error = max(
             maximum_coefficient_order_error, coefficient_order_error
         )
