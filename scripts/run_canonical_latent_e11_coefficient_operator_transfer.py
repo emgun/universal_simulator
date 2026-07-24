@@ -53,6 +53,14 @@ CONTRACT_PATH = (
 )
 RUNNER_PATH = Path(__file__).resolve()
 REGIMES = ("x_advection", "y_advection", "diffusion")
+EVALUATION_ARMS = (
+    "elementary_pretrained_zero_shot",
+    "pretrained_fewshot",
+    "scratch_fewshot",
+    "full_composite_control",
+    "persistence",
+    "exact_projected_truth",
+)
 
 
 @dataclass(frozen=True)
@@ -342,6 +350,8 @@ def closure_preflight(
     maximum_projection_error = 0.0
     maximum_composition_error = 0.0
     minimum_rank = 52
+    all_projected_coefficients_finite = True
+    all_errors_finite = True
     for name, velocity_x, velocity_y, diffusivity in parameter_cases:
         parameters = torch.tensor(
             [[velocity_x, velocity_y, diffusivity, 0.04]],
@@ -374,6 +384,21 @@ def closure_preflight(
         )
         direct_coefficients, _ = project_values(space, direct_values, coords, measure)
         composition_error = _relative_mismatch(repeated_coefficients, direct_coefficients)
+        coefficients_finite = bool(
+            torch.isfinite(one_step_coefficients).all()
+            and torch.isfinite(repeated_coefficients).all()
+            and torch.isfinite(direct_coefficients).all()
+        )
+        errors_finite = all(
+            math.isfinite(value)
+            for value in (
+                one_step_error,
+                repeated_projection_error,
+                composition_error,
+            )
+        )
+        all_projected_coefficients_finite &= coefficients_finite
+        all_errors_finite &= errors_finite
         maximum_projection_error = max(
             maximum_projection_error, one_step_error, repeated_projection_error
         )
@@ -385,11 +410,15 @@ def closure_preflight(
                 "one_step_decoded_nrmse": one_step_error,
                 "eight_step_decoded_nrmse": repeated_projection_error,
                 "semigroup_composition_error": composition_error,
+                "projected_coefficients_finite": coefficients_finite,
+                "errors_finite": errors_finite,
                 "design": design,
             }
         )
     passed = (
-        minimum_rank == 52
+        all_projected_coefficients_finite
+        and all_errors_finite
+        and minimum_rank == 52
         and maximum_projection_error <= cfg.closure_max_decoded_nrmse
         and maximum_composition_error <= cfg.closure_max_composition_error
     )
@@ -398,6 +427,8 @@ def closure_preflight(
         "inactive_trend_vectors": 3,
         "parameter_cases": len(parameter_cases),
         "minimum_projection_rank": minimum_rank,
+        "all_projected_coefficients_finite": all_projected_coefficients_finite,
+        "all_errors_finite": all_errors_finite,
         "maximum_truth_to_projection_decoded_nrmse": maximum_projection_error,
         "maximum_semigroup_composition_error": maximum_composition_error,
         "records": records,
@@ -592,16 +623,20 @@ def rollout(
     space: PhysicalFunctionSpace,
     canonical_coords: torch.Tensor,
     cfg: E11Config,
+    exact_truth: bool = False,
 ) -> tuple[dict[str, Any], torch.Tensor]:
-    prediction = dataset.coefficients[:, 0]
-    predictions = [prediction]
-    for _ in range(cfg.rollout_steps):
-        if model is None:
-            prediction = prediction
-        else:
-            prediction = model(prediction, dataset.parameters)
-        predictions.append(prediction)
-    predicted_sequence = torch.stack(predictions, dim=1)
+    if exact_truth:
+        predicted_sequence = dataset.coefficients.clone()
+    else:
+        prediction = dataset.coefficients[:, 0]
+        predictions = [prediction]
+        for _ in range(cfg.rollout_steps):
+            if model is None:
+                prediction = prediction
+            else:
+                prediction = model(prediction, dataset.parameters)
+            predictions.append(prediction)
+        predicted_sequence = torch.stack(predictions, dim=1)
     coefficient_by_step = []
     decoded_by_step = []
     for step in range(1, cfg.rollout_steps + 1):
@@ -653,7 +688,7 @@ def rollout(
 
 
 def semigroup_consistency(
-    model: ResidualCoefficientOperator,
+    model: ResidualCoefficientOperator | None,
     coefficients: torch.Tensor,
     parameters: torch.Tensor,
     *,
@@ -664,13 +699,57 @@ def semigroup_consistency(
     one_parameters[:, 3] = 0.04
     half_parameters = parameters.clone()
     half_parameters[:, 3] = 0.02
-    one_step = model(coefficients, one_parameters)
-    two_steps = model(model(coefficients, half_parameters), half_parameters)
+    if model is None:
+        one_step = coefficients
+        two_steps = coefficients
+    else:
+        one_step = model(coefficients, one_parameters)
+        two_steps = model(model(coefficients, half_parameters), half_parameters)
     one_decoded = space.decode(one_step, canonical_coords)
     two_decoded = space.decode(two_steps, canonical_coords)
     return {
         "coefficient_nrmse": global_nrmse(two_steps, one_step),
         "decoded_nrmse": global_nrmse(two_decoded, one_decoded),
+    }
+
+
+def exact_semigroup_consistency(
+    coefficients: torch.Tensor,
+    parameters: torch.Tensor,
+    *,
+    space: PhysicalFunctionSpace,
+    canonical_coords: torch.Tensor,
+    cfg: E11Config,
+) -> dict[str, float]:
+    coords, measure, basis = truth_grid(space, cfg.truth_resolution)
+    initial_values = basis.expand(coefficients.shape[0], -1, -1) @ coefficients
+    one_parameters = parameters.clone()
+    one_parameters[:, 3] = 0.04
+    half_parameters = parameters.clone()
+    half_parameters[:, 3] = 0.02
+    one_values = evolve_periodic(
+        initial_values,
+        one_parameters,
+        resolution=cfg.truth_resolution,
+    )
+    half_values = evolve_periodic(
+        initial_values,
+        half_parameters,
+        resolution=cfg.truth_resolution,
+    )
+    two_values = evolve_periodic(
+        half_values,
+        half_parameters,
+        resolution=cfg.truth_resolution,
+    )
+    one_coefficients, _ = project_values(space, one_values, coords, measure)
+    two_coefficients, _ = project_values(space, two_values, coords, measure)
+    return {
+        "coefficient_nrmse": global_nrmse(two_coefficients, one_coefficients),
+        "decoded_nrmse": global_nrmse(
+            space.decode(two_coefficients, canonical_coords),
+            space.decode(one_coefficients, canonical_coords),
+        ),
     }
 
 
@@ -697,6 +776,56 @@ def physics_report(
         "advection_mean_mode_relative_error": advection_mean_error,
         "maximum_advection_l2_norm_drift": advection_l2_drift,
         "diffusion_nonincreasing_energy_fraction": float(monotonic.double().mean().item()),
+    }
+
+
+def validate_evaluation_coverage(evaluation: dict[str, Any]) -> dict[str, Any]:
+    required_arms = set(EVALUATION_ARMS)
+    required_regimes = {"composite", *REGIMES}
+    missing = []
+    for section in (
+        "composite",
+        "elementary_by_arm",
+        "temporal_extrapolation_by_arm",
+        "semigroup_consistency_by_arm_and_regime",
+        "physics_by_arm",
+    ):
+        present = set(evaluation.get(section, {}))
+        if present != required_arms:
+            missing.append(
+                {
+                    "section": section,
+                    "missing_arms": sorted(required_arms - present),
+                    "unexpected_arms": sorted(present - required_arms),
+                }
+            )
+    for arm in EVALUATION_ARMS:
+        elementary = set(evaluation.get("elementary_by_arm", {}).get(arm, {}))
+        if elementary != set(REGIMES):
+            missing.append(
+                {
+                    "section": f"elementary_by_arm.{arm}",
+                    "missing_regimes": sorted(set(REGIMES) - elementary),
+                    "unexpected_regimes": sorted(elementary - set(REGIMES)),
+                }
+            )
+        semigroup = set(evaluation.get("semigroup_consistency_by_arm_and_regime", {}).get(arm, {}))
+        if semigroup != required_regimes:
+            missing.append(
+                {
+                    "section": f"semigroup_consistency_by_arm_and_regime.{arm}",
+                    "missing_regimes": sorted(required_regimes - semigroup),
+                    "unexpected_regimes": sorted(semigroup - required_regimes),
+                }
+            )
+    if missing:
+        raise RuntimeError(f"E11 evaluation coverage is incomplete: {missing}")
+    return {
+        "arms": list(EVALUATION_ARMS),
+        "elementary_regimes": list(REGIMES),
+        "semigroup_regimes": ["composite", *REGIMES],
+        "exact_projected_truth_present": True,
+        "passed": True,
     }
 
 
@@ -1123,45 +1252,50 @@ def _run_e11_once(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
     )
 
     canonical_coords, _ = canonical_grid(space, cfg.canonical_query_resolution)
-    evaluation: dict[str, Any] = {"composite": {}}
-    composite_models = {
-        "elementary_pretrained_zero_shot": pretrained,
-        "pretrained_fewshot": pretrained_fewshot,
-        "scratch_fewshot": scratch_fewshot,
-        "full_composite_control": full_model,
-        "persistence": None,
+    evaluation: dict[str, Any] = {
+        "composite": {},
+        "elementary_by_arm": {},
+        "temporal_extrapolation_by_arm": {},
+        "semigroup_consistency_by_arm_and_regime": {},
+        "physics_by_arm": {},
     }
-    for name, model in composite_models.items():
+    arm_models: dict[str, tuple[ResidualCoefficientOperator | None, bool]] = {
+        "elementary_pretrained_zero_shot": (pretrained, False),
+        "pretrained_fewshot": (pretrained_fewshot, False),
+        "scratch_fewshot": (scratch_fewshot, False),
+        "full_composite_control": (full_model, False),
+        "persistence": (None, False),
+        "exact_projected_truth": (None, True),
+    }
+    for name, (model, exact_truth) in arm_models.items():
         report, _ = rollout(
             model,
             validation,
             space=space,
             canonical_coords=canonical_coords,
             cfg=cfg,
+            exact_truth=exact_truth,
         )
         evaluation["composite"][name] = report
 
-    pre_retention = {}
-    post_retention = {}
-    post_predictions = {}
-    for regime, dataset in elementary_validation.items():
-        pre_report, _ = rollout(
-            pretrained,
-            dataset,
-            space=space,
-            canonical_coords=canonical_coords,
-            cfg=cfg,
-        )
-        post_report, prediction = rollout(
-            pretrained_fewshot,
-            dataset,
-            space=space,
-            canonical_coords=canonical_coords,
-            cfg=cfg,
-        )
-        pre_retention[regime] = pre_report
-        post_retention[regime] = post_report
-        post_predictions[regime] = prediction
+    elementary_predictions_by_arm: dict[str, dict[str, torch.Tensor]] = {}
+    for name, (model, exact_truth) in arm_models.items():
+        evaluation["elementary_by_arm"][name] = {}
+        elementary_predictions_by_arm[name] = {}
+        for regime, dataset in elementary_validation.items():
+            report, prediction = rollout(
+                model,
+                dataset,
+                space=space,
+                canonical_coords=canonical_coords,
+                cfg=cfg,
+                exact_truth=exact_truth,
+            )
+            evaluation["elementary_by_arm"][name][regime] = report
+            elementary_predictions_by_arm[name][regime] = prediction
+
+    pre_retention = evaluation["elementary_by_arm"]["elementary_pretrained_zero_shot"]
+    post_retention = evaluation["elementary_by_arm"]["pretrained_fewshot"]
     pre_macro = sum(report["rollout_decoded_nrmse"] for report in pre_retention.values()) / len(
         REGIMES
     )
@@ -1175,20 +1309,43 @@ def _run_e11_once(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
         "post_finetune_macro_decoded_nrmse": post_macro,
         "post_to_pre_ratio": post_macro / max(pre_macro, 1e-24),
     }
-    evaluation["temporal_extrapolation"], _ = rollout(
-        pretrained_fewshot,
-        extrapolation,
-        space=space,
-        canonical_coords=canonical_coords,
-        cfg=cfg,
-    )
-    evaluation["semigroup_consistency"] = semigroup_consistency(
-        pretrained_fewshot,
-        validation.coefficients[:, 0],
-        validation.parameters,
-        space=space,
-        canonical_coords=canonical_coords,
-    )
+    for name, (model, exact_truth) in arm_models.items():
+        evaluation["temporal_extrapolation_by_arm"][name], _ = rollout(
+            model,
+            extrapolation,
+            space=space,
+            canonical_coords=canonical_coords,
+            cfg=cfg,
+            exact_truth=exact_truth,
+        )
+    evaluation["temporal_extrapolation"] = evaluation["temporal_extrapolation_by_arm"][
+        "pretrained_fewshot"
+    ]
+
+    semigroup_datasets = {"composite": validation, **elementary_validation}
+    for name, (model, exact_truth) in arm_models.items():
+        evaluation["semigroup_consistency_by_arm_and_regime"][name] = {}
+        for regime, dataset in semigroup_datasets.items():
+            if exact_truth:
+                report = exact_semigroup_consistency(
+                    dataset.coefficients[:, 0],
+                    dataset.parameters,
+                    space=space,
+                    canonical_coords=canonical_coords,
+                    cfg=cfg,
+                )
+            else:
+                report = semigroup_consistency(
+                    model,
+                    dataset.coefficients[:, 0],
+                    dataset.parameters,
+                    space=space,
+                    canonical_coords=canonical_coords,
+                )
+            evaluation["semigroup_consistency_by_arm_and_regime"][name][regime] = report
+    evaluation["semigroup_consistency"] = evaluation["semigroup_consistency_by_arm_and_regime"][
+        "pretrained_fewshot"
+    ]["composite"]
     evaluation["cross_observation"] = cross_observation_report(
         pretrained_fewshot,
         validation,
@@ -1196,13 +1353,16 @@ def _run_e11_once(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
         canonical_coords=canonical_coords,
         cfg=cfg,
     )
-    evaluation["physics"] = physics_report(
-        post_predictions["x_advection"],
-        post_predictions["y_advection"],
-        post_predictions["diffusion"],
-        elementary_validation["x_advection"],
-        elementary_validation["y_advection"],
-    )
+    for name, predictions in elementary_predictions_by_arm.items():
+        evaluation["physics_by_arm"][name] = physics_report(
+            predictions["x_advection"],
+            predictions["y_advection"],
+            predictions["diffusion"],
+            elementary_validation["x_advection"],
+            elementary_validation["y_advection"],
+        )
+    evaluation["physics"] = evaluation["physics_by_arm"]["pretrained_fewshot"]
+    evaluation["contract_coverage"] = validate_evaluation_coverage(evaluation)
 
     parameter_count = sum(parameter.numel() for parameter in initial_model.parameters())
     result = {
@@ -1284,29 +1444,65 @@ def run_e11(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
     second_path = Path(second["result_path"])
     first_bytes = first_path.read_bytes()
     second_bytes = second_path.read_bytes()
-    byte_identical = first_bytes == second_bytes
+    raw_byte_identical = first_bytes == second_bytes
+    first_sha256 = hashlib.sha256(first_bytes).hexdigest()
+    second_sha256 = hashlib.sha256(second_bytes).hexdigest()
 
-    result = json.loads(first_bytes)
-    result["reproducibility"] = {
-        "deterministic_algorithms": True,
-        "replicate_a_sha256": hashlib.sha256(first_bytes).hexdigest(),
-        "replicate_b_sha256": hashlib.sha256(second_bytes).hexdigest(),
-        "byte_identical_complete_runs": byte_identical,
-    }
-    if result["closure_preflight"]["passed"]:
-        result["causal_decision"] = decision(result, cfg)
-    else:
-        result["causal_decision"] = {
-            "classification": "coefficient_dynamics_not_qualified",
-            "gates": {
-                "closure": False,
-                "provenance": byte_identical,
-            },
-            "next_move": "repair or expand the coefficient basis before learned dynamics",
+    complete_results = []
+    for raw_bytes in (first_bytes, second_bytes):
+        complete_result = json.loads(raw_bytes)
+        complete_result["reproducibility"] = {
+            "deterministic_algorithms": True,
+            "replicate_a_raw_sha256": first_sha256,
+            "replicate_b_raw_sha256": second_sha256,
+            "raw_runs_byte_identical": raw_byte_identical,
+            "byte_identical_complete_runs": raw_byte_identical,
         }
+        if complete_result["closure_preflight"]["passed"]:
+            complete_result["causal_decision"] = decision(complete_result, cfg)
+        else:
+            complete_result["causal_decision"] = {
+                "classification": "coefficient_dynamics_not_qualified",
+                "gates": {
+                    "closure": False,
+                    "provenance": raw_byte_identical,
+                },
+                "next_move": "repair or expand the coefficient basis before learned dynamics",
+            }
+        complete_results.append(
+            (json.dumps(complete_result, indent=2, sort_keys=True) + "\n").encode()
+        )
+
+    first_complete_path = run_dir / "replicate_a" / "complete_result.json"
+    second_complete_path = run_dir / "replicate_b" / "complete_result.json"
+    first_complete_path.write_bytes(complete_results[0])
+    second_complete_path.write_bytes(complete_results[1])
+    complete_byte_identical = first_complete_path.read_bytes() == second_complete_path.read_bytes()
+    if complete_byte_identical != raw_byte_identical:
+        raise RuntimeError("E11 raw and complete replication identities disagree")
+
     result_path = run_dir / "result.json"
-    result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    result_path.write_bytes(complete_results[0])
+    result_sha256 = hashlib.sha256(complete_results[0]).hexdigest()
+    manifest = {
+        "schema_version": 1,
+        "experiment": "canonical_latent_e11_coefficient_operator_transfer",
+        "result_sha256": result_sha256,
+        "replicate_a_complete_sha256": hashlib.sha256(first_complete_path.read_bytes()).hexdigest(),
+        "replicate_b_complete_sha256": hashlib.sha256(
+            second_complete_path.read_bytes()
+        ).hexdigest(),
+        "byte_identical_complete_runs": complete_byte_identical,
+        "git_head": json.loads(complete_results[0])["provenance"]["git_head"],
+    }
+    manifest_path = run_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    result = json.loads(complete_results[0])
     result["result_path"] = str(result_path)
+    result["manifest_path"] = str(manifest_path)
     return result
 
 
