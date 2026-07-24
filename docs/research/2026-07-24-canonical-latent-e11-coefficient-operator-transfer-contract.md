@@ -81,6 +81,11 @@ marginals:
   `53101`;
 - 64 validation trajectories at state seed `61001`, parameter seed `61101`.
 
+Elementary-retention validation reuses those 64 initial states without reading
+the composite targets. Generate fresh elementary parameters at seeds `61102`,
+`61103`, and `61104` for x-advection, y-advection, and diffusion,
+respectively, with the same marginals and `dt` interval.
+
 The validation split is read only after the architecture, schedules, metrics,
 and gates below are frozen. Training and validation data are synthetic.
 Reserved held-out reads remain zero.
@@ -90,9 +95,12 @@ parameters at `dt=0.075`, which is outside the training interval.
 
 ## Frozen closure preflight
 
-Before optimization, evaluate all 52 basis vectors at the extrema and midpoint
-of each elementary parameter range plus three fixed composite parameter
-tuples. For one and eight steps require:
+Before optimization, evaluate all 49 active periodic basis vectors at
+`|v|={0.20,0.60,1.00}` with both signs, `nu={0.01,0.045,0.08}`, and the fixed
+composite tuples `(-1.0,0.2,0.01)`, `(0.6,-0.6,0.045)`, and
+`(1.0,1.0,0.08)`. The three inactive nonperiodic trend vectors are outside the
+frozen E11 initial-condition distribution and are recorded but not evolved.
+For one and eight steps require:
 
 - projected coefficient finite;
 - projection rank `52`;
