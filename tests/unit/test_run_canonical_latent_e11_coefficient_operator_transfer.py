@@ -160,11 +160,15 @@ def test_e11_evaluation_coverage_requires_every_arm_and_baseline() -> None:
     evaluation = {
         "composite": {arm: {} for arm in EVALUATION_ARMS},
         "elementary_by_arm": {arm: {regime: {} for regime in REGIMES} for arm in EVALUATION_ARMS},
-        "temporal_extrapolation_by_arm": {arm: {} for arm in EVALUATION_ARMS},
+        "temporal_extrapolation_by_arm_and_regime": {
+            arm: {regime: {} for regime in ("composite", *REGIMES)} for arm in EVALUATION_ARMS
+        },
         "semigroup_consistency_by_arm_and_regime": {
             arm: {regime: {} for regime in ("composite", *REGIMES)} for arm in EVALUATION_ARMS
         },
-        "physics_by_arm": {arm: {} for arm in EVALUATION_ARMS},
+        "physics_by_arm": {
+            arm: {"by_regime": {regime: {} for regime in REGIMES}} for arm in EVALUATION_ARMS
+        },
     }
 
     assert validate_evaluation_coverage(evaluation)["passed"] is True

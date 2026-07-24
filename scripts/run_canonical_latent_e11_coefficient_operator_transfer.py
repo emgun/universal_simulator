@@ -759,23 +759,40 @@ def physics_report(
     diffusion_prediction: torch.Tensor,
     x_dataset: TrajectorySet,
     y_dataset: TrajectorySet,
-) -> dict[str, float]:
-    advection_mean_error = max(
-        global_nrmse(x_prediction[:, -1, 0], x_dataset.coefficients[:, -1, 0]),
-        global_nrmse(y_prediction[:, -1, 0], y_dataset.coefficients[:, -1, 0]),
-    )
-    advection_l2_drift = 0.0
-    for prediction in (x_prediction, y_prediction):
+) -> dict[str, Any]:
+    mean_errors = {
+        "x_advection": global_nrmse(x_prediction[:, -1, 0], x_dataset.coefficients[:, -1, 0]),
+        "y_advection": global_nrmse(y_prediction[:, -1, 0], y_dataset.coefficients[:, -1, 0]),
+    }
+    l2_drifts = {}
+    for name, prediction in (
+        ("x_advection", x_prediction),
+        ("y_advection", y_prediction),
+    ):
         initial_norm = prediction[:, 0, :49].square().sum(dim=(1, 2)).sqrt()
         final_norm = prediction[:, -1, :49].square().sum(dim=(1, 2)).sqrt()
         drift = ((final_norm - initial_norm).abs() / initial_norm.clamp_min(1e-12)).max()
-        advection_l2_drift = max(advection_l2_drift, float(drift.item()))
+        l2_drifts[name] = float(drift.item())
     diffusion_energy = diffusion_prediction[:, :, :49].square().sum(dim=(2, 3))
     monotonic = diffusion_energy[:, 1:] <= diffusion_energy[:, :-1] + 1e-12
+    diffusion_fraction = float(monotonic.double().mean().item())
     return {
-        "advection_mean_mode_relative_error": advection_mean_error,
-        "maximum_advection_l2_norm_drift": advection_l2_drift,
-        "diffusion_nonincreasing_energy_fraction": float(monotonic.double().mean().item()),
+        "advection_mean_mode_relative_error": max(mean_errors.values()),
+        "maximum_advection_l2_norm_drift": max(l2_drifts.values()),
+        "diffusion_nonincreasing_energy_fraction": diffusion_fraction,
+        "by_regime": {
+            "x_advection": {
+                "mean_mode_relative_error": mean_errors["x_advection"],
+                "l2_norm_drift": l2_drifts["x_advection"],
+            },
+            "y_advection": {
+                "mean_mode_relative_error": mean_errors["y_advection"],
+                "l2_norm_drift": l2_drifts["y_advection"],
+            },
+            "diffusion": {
+                "nonincreasing_energy_fraction": diffusion_fraction,
+            },
+        },
     }
 
 
@@ -786,7 +803,7 @@ def validate_evaluation_coverage(evaluation: dict[str, Any]) -> dict[str, Any]:
     for section in (
         "composite",
         "elementary_by_arm",
-        "temporal_extrapolation_by_arm",
+        "temporal_extrapolation_by_arm_and_regime",
         "semigroup_consistency_by_arm_and_regime",
         "physics_by_arm",
     ):
@@ -809,6 +826,15 @@ def validate_evaluation_coverage(evaluation: dict[str, Any]) -> dict[str, Any]:
                     "unexpected_regimes": sorted(elementary - set(REGIMES)),
                 }
             )
+        temporal = set(evaluation.get("temporal_extrapolation_by_arm_and_regime", {}).get(arm, {}))
+        if temporal != required_regimes:
+            missing.append(
+                {
+                    "section": f"temporal_extrapolation_by_arm_and_regime.{arm}",
+                    "missing_regimes": sorted(required_regimes - temporal),
+                    "unexpected_regimes": sorted(temporal - required_regimes),
+                }
+            )
         semigroup = set(evaluation.get("semigroup_consistency_by_arm_and_regime", {}).get(arm, {}))
         if semigroup != required_regimes:
             missing.append(
@@ -818,11 +844,21 @@ def validate_evaluation_coverage(evaluation: dict[str, Any]) -> dict[str, Any]:
                     "unexpected_regimes": sorted(semigroup - required_regimes),
                 }
             )
+        physics = set(evaluation.get("physics_by_arm", {}).get(arm, {}).get("by_regime", {}))
+        if physics != set(REGIMES):
+            missing.append(
+                {
+                    "section": f"physics_by_arm.{arm}.by_regime",
+                    "missing_regimes": sorted(set(REGIMES) - physics),
+                    "unexpected_regimes": sorted(physics - set(REGIMES)),
+                }
+            )
     if missing:
         raise RuntimeError(f"E11 evaluation coverage is incomplete: {missing}")
     return {
         "arms": list(EVALUATION_ARMS),
         "elementary_regimes": list(REGIMES),
+        "temporal_extrapolation_regimes": ["composite", *REGIMES],
         "semigroup_regimes": ["composite", *REGIMES],
         "exact_projected_truth_present": True,
         "passed": True,
@@ -1189,6 +1225,19 @@ def _run_e11_once(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
         )
         for regime, parameter_seed in elementary_validation_seeds.items()
     }
+    elementary_extrapolation = {
+        regime: build_trajectories(
+            f"{regime}_temporal_extrapolation",
+            count=cfg.validation_trajectories,
+            state_seed=cfg.validation_state_seed,
+            parameter_seed=parameter_seed,
+            regime=regime,
+            cfg=cfg,
+            space=space,
+            dt_override=cfg.extrapolation_dt,
+        )
+        for regime, parameter_seed in elementary_validation_seeds.items()
+    }
 
     pretrain_schedules = {
         regime: schedule(
@@ -1255,7 +1304,7 @@ def _run_e11_once(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
     evaluation: dict[str, Any] = {
         "composite": {},
         "elementary_by_arm": {},
-        "temporal_extrapolation_by_arm": {},
+        "temporal_extrapolation_by_arm_and_regime": {},
         "semigroup_consistency_by_arm_and_regime": {},
         "physics_by_arm": {},
     }
@@ -1309,18 +1358,22 @@ def _run_e11_once(cfg: E11Config, *, run_dir: Path) -> dict[str, Any]:
         "post_finetune_macro_decoded_nrmse": post_macro,
         "post_to_pre_ratio": post_macro / max(pre_macro, 1e-24),
     }
+    extrapolation_datasets = {"composite": extrapolation, **elementary_extrapolation}
     for name, (model, exact_truth) in arm_models.items():
-        evaluation["temporal_extrapolation_by_arm"][name], _ = rollout(
-            model,
-            extrapolation,
-            space=space,
-            canonical_coords=canonical_coords,
-            cfg=cfg,
-            exact_truth=exact_truth,
-        )
-    evaluation["temporal_extrapolation"] = evaluation["temporal_extrapolation_by_arm"][
+        evaluation["temporal_extrapolation_by_arm_and_regime"][name] = {}
+        for regime, dataset in extrapolation_datasets.items():
+            report, _ = rollout(
+                model,
+                dataset,
+                space=space,
+                canonical_coords=canonical_coords,
+                cfg=cfg,
+                exact_truth=exact_truth,
+            )
+            evaluation["temporal_extrapolation_by_arm_and_regime"][name][regime] = report
+    evaluation["temporal_extrapolation"] = evaluation["temporal_extrapolation_by_arm_and_regime"][
         "pretrained_fewshot"
-    ]
+    ]["composite"]
 
     semigroup_datasets = {"composite": validation, **elementary_validation}
     for name, (model, exact_truth) in arm_models.items():
