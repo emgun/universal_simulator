@@ -542,7 +542,7 @@ def parameter_quartile_reports(
     parameters: torch.Tensor,
     target_decoded: torch.Tensor,
     prediction_decoded: torch.Tensor,
-) -> dict[str, list[dict[str, float | int]]]:
+) -> dict[str, list[dict[str, float | int | bool]]]:
     reports = {}
     for name, values in (
         ("abs_vx", parameters[:, 0].abs()),
@@ -550,6 +550,18 @@ def parameter_quartile_reports(
         ("nu", parameters[:, 2]),
         ("dt", parameters[:, 3]),
     ):
+        if torch.equal(values.min(), values.max()):
+            reports[name] = [
+                {
+                    "count": int(values.numel()),
+                    "lower": float(values[0].item()),
+                    "upper": float(values[0].item()),
+                    "constant": True,
+                    "coefficient_nrmse": global_nrmse(prediction, target),
+                    "decoded_nrmse": global_nrmse(prediction_decoded, target_decoded),
+                }
+            ]
+            continue
         boundaries = torch.quantile(
             values, torch.tensor([0.0, 0.25, 0.5, 0.75, 1.0], dtype=torch.float64)
         )
@@ -564,6 +576,7 @@ def parameter_quartile_reports(
                     "count": int(mask.sum().item()),
                     "lower": float(boundaries[index].item()),
                     "upper": float(boundaries[index + 1].item()),
+                    "constant": False,
                     "coefficient_nrmse": global_nrmse(prediction[mask], target[mask]),
                     "decoded_nrmse": global_nrmse(prediction_decoded[mask], target_decoded[mask]),
                 }

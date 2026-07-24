@@ -14,6 +14,7 @@ from scripts.run_canonical_latent_e11_coefficient_operator_transfer import (
     evolve_periodic,
     frozen_e11_config,
     modal_scales,
+    parameter_quartile_reports,
     run_e11,
     sample_coefficients,
     sample_parameters,
@@ -93,6 +94,28 @@ def test_e11_schedule_is_deterministic_and_bounded() -> None:
     assert first.shape == (12, 7)
     assert int(first.min()) >= 0
     assert int(first.max()) < 31
+
+
+def test_parameter_quartiles_record_constant_physical_axes() -> None:
+    target = sample_coefficients(8, seed=19)
+    prediction = target * 0.9
+    parameters = torch.zeros(8, 4, dtype=torch.float64)
+    parameters[:, 3] = torch.linspace(0.02, 0.06, 8)
+
+    reports = parameter_quartile_reports(
+        prediction,
+        target,
+        parameters,
+        target,
+        prediction,
+    )
+
+    for name in ("abs_vx", "abs_vy", "nu"):
+        assert reports[name][0]["constant"] is True
+        assert reports[name][0]["count"] == 8
+        assert len(reports[name]) == 1
+    assert len(reports["dt"]) == 4
+    assert all(report["constant"] is False for report in reports["dt"])
 
 
 def test_e11_active_periodic_basis_passes_closure_preflight() -> None:
