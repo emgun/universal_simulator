@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-23
+Updated: 2026-07-24
 
 ## Project
 
@@ -380,6 +380,17 @@ observation processes; keep routing closed and open only a preregistered
 coefficient-space operator gate. See
 `docs/research/2026-07-23-canonical-latent-e10-geometry-universal-projection-result.md`.
 
+E11 isolates the first dynamics hypothesis in that coefficient space. Closure,
+exact truth, and cross-observation invariance pass near numerical precision,
+but the dense residual MLP fails: pretrained eight-shot decoded rollout NRMSE
+is `2.4542` versus `1.5126` scratch, `0.9381` full-data, and `1.5584`
+persistence. Temporal, semigroup, retention, high-frequency, and physics gates
+also fail. Both complete results are byte-identical and every arm/regime,
+provenance, finiteness, and boundary requirement is retained. Preserve the
+encoder, close dense-map tuning, and preregister an additive continuous-time
+generator/Strang-splitting challenger. Do not route. See
+`docs/research/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -424,14 +435,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
 3. D6 failed U1 and U2 end to end. Do not add seeds, extend training, relax
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
-4. E1-E6 isolate the learned codec failure; E7 proves a compact common physical
-   coefficient space exists; E8 exposes missing sampling geometry; corrected
-   E9 fails closed; E10 qualifies the exact E7 projection across the frozen
-   grid, mesh, and particle observation processes. Freeze that encoder. Next
-   preregister one coefficient-to-coefficient E11 operator with explicit
-   physical/time conditioning, representation-blind inputs, matched controls,
-   rollout/conservation gates, and a positive-transfer or data-efficiency
-   requirement. Do not route.
+4. E1-E10 qualify the exact representation for the frozen observation
+   processes. E11 preserves it but closes the generic dense coefficient MLP
+   after absolute and transfer failures. Next preregister E12 as an additive
+   continuous-time generator/Strang-splitting coefficient operator with an
+   exact oracle ceiling and the E11 dense control. Keep the encoder frozen and
+   do not route.
 
 ## Reopen Triggers
 
@@ -474,6 +483,10 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-23-canonical-latent-e10-geometry-universal-projection-result.md`
 - `docs/research/artifacts/canonical_latent_e10_geometry_universal_projection_result.json`
 - `docs/steward/2026-07-23-canonical-latent-e10-geometry-universal-projection-handoff.md`
+- `docs/research/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-contract.md`
+- `docs/research/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-result.md`
+- `docs/research/artifacts/canonical_latent_e11_coefficient_operator_transfer_result.json`
+- `docs/steward/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-handoff.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

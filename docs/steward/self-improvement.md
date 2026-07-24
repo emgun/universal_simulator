@@ -208,3 +208,14 @@ not claim evidence.
   preconditioner when a cacheable 52-dimensional factorization is accurate,
   deterministic, and cheaper scientifically. Reopen approximation only when
   basis scale or conditioning is measured as the bottleneck.
+- Parameter-quartile reporting must treat a frozen physical axis as one
+  explicit full-population stratum; generic quantiles create empty bins.
+- “Every arm and regime” is a Cartesian evidence contract. Enforce the full
+  shape in the executable for temporal, semigroup, and applicable physics
+  records rather than relying on one candidate aggregate.
+- A reproducibility flag is not replication evidence. Serialize the complete
+  decision into each replicate, compare those bytes, and bind their hash in a
+  detached manifest.
+- When closure, oracle, and invariance pass but both few-shot and full-data
+  dense controls fail, preserve the representation and change operator
+  inductive bias before width, updates, seeds, or routing.
