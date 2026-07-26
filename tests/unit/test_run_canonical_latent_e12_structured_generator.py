@@ -8,6 +8,10 @@ from scripts.run_canonical_latent_e7_function_space import (
     FunctionSpaceConfig,
     PhysicalFunctionSpace,
 )
+from scripts.run_canonical_latent_e9_geometry_universal_projection import (
+    GeometryProjectionConfig,
+    geometry_samples,
+)
 from scripts.run_canonical_latent_e11_coefficient_operator_transfer import (
     canonical_grid,
     sample_coefficients,
@@ -19,6 +23,7 @@ from scripts.run_canonical_latent_e12_structured_generator import (
     EVALUATION_ARMS,
     EXPECTED_SCHEDULES,
     GEOMETRY_FAMILIES,
+    GEOMETRY_REALIZATIONS_BY_FAMILY,
     LEARNED_CHECKPOINTS,
     FixedGenerator,
     RuleAdapter,
@@ -182,9 +187,29 @@ def test_e12_schedule_hashes_are_literal_e11_schedules() -> None:
     assert set(report["records"]) == set(EXPECTED_SCHEDULES)
 
 
+def test_e12_cross_observation_realization_counts_match_e10_geometry() -> None:
+    samples = geometry_samples(
+        GeometryProjectionConfig(
+            seed=23,
+            validation_states=64,
+            geometry_realizations=4,
+            geometry_seed_start=40_000,
+            max_condition_number=100.0,
+            max_weighted_design_condition_number=10.0,
+        )
+    )
+
+    assert {
+        family: len(budgets["high"]) for family, budgets in samples.items()
+    } == GEOMETRY_REALIZATIONS_BY_FAMILY
+
+
 def _coverage_fixture() -> dict[str, object]:
     family_pairs = {
-        f"{left}__vs__{right}": {"realization_pairs": 16}
+        f"{left}__vs__{right}": {
+            "realization_pairs": GEOMETRY_REALIZATIONS_BY_FAMILY[left]
+            * GEOMETRY_REALIZATIONS_BY_FAMILY[right]
+        }
         for left_index, left in enumerate(GEOMETRY_FAMILIES)
         for right in GEOMETRY_FAMILIES[left_index + 1 :]
     }

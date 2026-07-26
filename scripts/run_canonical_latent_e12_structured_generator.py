@@ -103,6 +103,12 @@ GEOMETRY_FAMILIES = (
     "uniform_particles",
     "warped_particles",
 )
+GEOMETRY_REALIZATIONS_BY_FAMILY = {
+    "grid": 1,
+    "warped_mesh": 4,
+    "uniform_particles": 4,
+    "warped_particles": 4,
+}
 
 
 @dataclass(frozen=True)
@@ -720,18 +726,27 @@ def validate_evaluation_coverage(evaluation: dict[str, Any]) -> dict[str, Any]:
     }
     for rule in RULES:
         cross = evaluation.get("cross_observation", {}).get(rule, {})
+        observed_pairs = cross.get("pairs", {})
+        expected_realization_pairs = {
+            f"{left}__vs__{right}": GEOMETRY_REALIZATIONS_BY_FAMILY[left]
+            * GEOMETRY_REALIZATIONS_BY_FAMILY[right]
+            for left_index, left in enumerate(GEOMETRY_FAMILIES)
+            for right in GEOMETRY_FAMILIES[left_index + 1 :]
+        }
         if (
             cross.get("geometry_realizations") != 4
-            or set(cross.get("pairs", {})) != expected_family_pairs
+            or set(observed_pairs) != expected_family_pairs
             or any(
-                record.get("realization_pairs") != 16 for record in cross.get("pairs", {}).values()
+                observed_pairs[name].get("realization_pairs") != expected_count
+                for name, expected_count in expected_realization_pairs.items()
+                if name in observed_pairs
             )
         ):
             failures.append(
                 {
                     "section": f"cross_observation.{rule}",
                     "expected_family_pairs": sorted(expected_family_pairs),
-                    "expected_realization_pairs_per_family_pair": 16,
+                    "expected_realization_pairs": expected_realization_pairs,
                 }
             )
     expected_gap = set(LEARNED_CHECKPOINTS)
