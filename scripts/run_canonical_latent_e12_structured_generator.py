@@ -319,7 +319,7 @@ def _matrix_hashes(
     generator: StructuredGenerator | FixedGenerator,
 ) -> dict[str, str]:
     return {
-        name: tensor_hash(tensor)
+        name: tensor_hash(tensor.detach())
         for name, tensor in zip(("A_x", "A_y", "D"), generator.matrices(), strict=True)
     }
 

@@ -53,6 +53,7 @@ def _space() -> PhysicalFunctionSpace:
 def test_e12_structured_generator_has_exact_parameterization() -> None:
     model = StructuredGenerator()
     report = structure_report(model)
+    matrix_hashes = e12._matrix_hashes(model)
 
     assert sum(parameter.numel() for parameter in model.parameters()) == 2304
     assert report["parameter_count"] == 2304
@@ -62,6 +63,8 @@ def test_e12_structured_generator_has_exact_parameterization() -> None:
     assert report["ay_constant_residual"] == 0.0
     assert report["diffusion_off_diagonal_residual"] == 0.0
     assert report["diffusion_maximum_eigenvalue"] <= 0.0
+    assert set(matrix_hashes) == {"A_x", "A_y", "D"}
+    assert all(len(value) == 64 for value in matrix_hashes.values())
 
 
 def test_e12_initial_generator_preserves_advection_and_dissipates_diffusion() -> None:
