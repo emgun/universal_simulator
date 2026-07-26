@@ -1,0 +1,173 @@
+{
+  "boundary": {
+    "heldout_reads": 0,
+    "nonlinear_dynamics_qualified": false,
+    "optimizer_updates": 0,
+    "particle_dynamics_qualified": false,
+    "provider_calls": 0,
+    "public_or_claim_grade": false,
+    "routing_paths": 0,
+    "seal_does_not_modify_e13": true,
+    "state_reads": 0,
+    "synthetic_periodic_scalar_linear_only": true
+  },
+  "classification": "e13_scientific_result_sealed",
+  "e13_original_evidence_status": "scientifically_recomputed_but_original_seal_nonconforming",
+  "experiment": "canonical_latent_e14_evidence_seal",
+  "inputs": {
+    "canonical_payload_sha256": {
+      "combined_payload_sha256": "022f8867fab4f9b28f84da501245928ee3ef3f074dc6d1a84ed04c56bad7abbb",
+      "replicate_payload_sha256": "d04d71e7b528d2332ca9de98bb64d6f065dff4614d82a2416ec5330ce3a41f19"
+    },
+    "raw_files": {
+      "complete_result.json": {
+        "bytes": 6648535,
+        "path": "/private/tmp/canonical_latent_e13_identifiability_audit_fe47b93/complete_result.json",
+        "raw_sha256": "f65cdc9b6b965b5e77715ae5b00d1ecc21dd683b7ffe09c8ce19235d3283159a"
+      },
+      "replicate_a_result.json": {
+        "bytes": 6648184,
+        "path": "/private/tmp/canonical_latent_e13_identifiability_audit_fe47b93/replicate_a/result.json",
+        "raw_sha256": "e0bc7b0575a8c6982ecc9fbff3899be0792643a57575a2349468a0244e7e6d9c"
+      },
+      "replicate_b_result.json": {
+        "bytes": 6648184,
+        "path": "/private/tmp/canonical_latent_e13_identifiability_audit_fe47b93/replicate_b/result.json",
+        "raw_sha256": "e0bc7b0575a8c6982ecc9fbff3899be0792643a57575a2349468a0244e7e6d9c"
+      }
+    },
+    "run_directory": "/private/tmp/canonical_latent_e13_identifiability_audit_fe47b93"
+  },
+  "manifest_self_hash_declared": false,
+  "outputs": {
+    "compact_result": {
+      "bytes": 29796,
+      "filename": "canonical_latent_e14_evidence_seal_result.json",
+      "raw_sha256": "a26b4948a0db7fd7aa1a0c067bf29eaacd3007e4c93e1bb309a5c610cad04413"
+    },
+    "evidence_bundle": {
+      "bytes": 1350509,
+      "filename": "canonical_latent_e14_evidence_bundle.tar.gz",
+      "members": [
+        {
+          "bytes": 6648184,
+          "name": "replicate_a_result.json",
+          "raw_sha256": "e0bc7b0575a8c6982ecc9fbff3899be0792643a57575a2349468a0244e7e6d9c"
+        },
+        {
+          "bytes": 6648184,
+          "name": "replicate_b_result.json",
+          "raw_sha256": "e0bc7b0575a8c6982ecc9fbff3899be0792643a57575a2349468a0244e7e6d9c"
+        },
+        {
+          "bytes": 6648535,
+          "name": "complete_result.json",
+          "raw_sha256": "f65cdc9b6b965b5e77715ae5b00d1ecc21dd683b7ffe09c8ce19235d3283159a"
+        }
+      ],
+      "raw_sha256": "a4886e3b3a8c678abe7b8f44907b8655af4b0ac68fb47ca9353ae2bfca677b5c"
+    }
+  },
+  "schema_version": 1,
+  "seal_does_not_modify_e13": true,
+  "sealed_raw_input_hashes": {
+    "complete_result.json": "f65cdc9b6b965b5e77715ae5b00d1ecc21dd683b7ffe09c8ce19235d3283159a",
+    "replicate_a_result.json": "e0bc7b0575a8c6982ecc9fbff3899be0792643a57575a2349468a0244e7e6d9c",
+    "replicate_b_result.json": "e0bc7b0575a8c6982ecc9fbff3899be0792643a57575a2349468a0244e7e6d9c"
+  },
+  "source_provenance": {
+    "checks": {
+      "complete_e13_source_snapshot": true,
+      "current_sources_match_git_head": true,
+      "e13_execution_commit_present": true,
+      "e13_source_snapshot_matches": true,
+      "git_head_present": true,
+      "worktree_clean": true
+    },
+    "current_sources": {
+      "contract": {
+        "committed_sha256": "8b9b31d16b5413a3ae85a571d65974a70b0063d8e1f103546394b07c523ff686",
+        "matches_git_head": true,
+        "path": "docs/research/2026-07-26-canonical-latent-e14-evidence-seal-contract.md",
+        "working_sha256": "8b9b31d16b5413a3ae85a571d65974a70b0063d8e1f103546394b07c523ff686"
+      },
+      "e13_contract": {
+        "committed_sha256": "3b130629bfc431f6862ac66ee85930be3b64d4704b75369d967f9c68786b38de",
+        "matches_git_head": true,
+        "path": "docs/research/2026-07-26-canonical-latent-e13-identifiability-audit-contract.md",
+        "working_sha256": "3b130629bfc431f6862ac66ee85930be3b64d4704b75369d967f9c68786b38de"
+      },
+      "e13_runner": {
+        "committed_sha256": "f95b1e50f409fc939c62120d06f2eafa89a864de148f9309fb38d481c01310c2",
+        "matches_git_head": true,
+        "path": "scripts/run_canonical_latent_e13_identifiability_audit.py",
+        "working_sha256": "f95b1e50f409fc939c62120d06f2eafa89a864de148f9309fb38d481c01310c2"
+      },
+      "runner": {
+        "committed_sha256": "c7f4c0370cbd3c47789fd79c20fabf59d08d8d053208420dc1679ae2abf01d8f",
+        "matches_git_head": true,
+        "path": "scripts/seal_canonical_latent_e14_evidence.py",
+        "working_sha256": "c7f4c0370cbd3c47789fd79c20fabf59d08d8d053208420dc1679ae2abf01d8f"
+      },
+      "tests": {
+        "committed_sha256": "943715fe4cc6d1d49e6751206f53099fb8ee55f52b0b088d8881dc2cabd40b6e",
+        "matches_git_head": true,
+        "path": "tests/unit/test_seal_canonical_latent_e14_evidence.py",
+        "working_sha256": "943715fe4cc6d1d49e6751206f53099fb8ee55f52b0b088d8881dc2cabd40b6e"
+      }
+    },
+    "e13_source_snapshot": {
+      "contract": {
+        "expected_sha256": "3b130629bfc431f6862ac66ee85930be3b64d4704b75369d967f9c68786b38de",
+        "frozen_commit_sha256": "3b130629bfc431f6862ac66ee85930be3b64d4704b75369d967f9c68786b38de",
+        "matches_frozen_commit": true,
+        "path": "docs/research/2026-07-26-canonical-latent-e13-identifiability-audit-contract.md"
+      },
+      "e11_runner": {
+        "expected_sha256": "720e2ad33b92faee49fcfbdee84c66c023b40bf1f50427f874f231ab555483eb",
+        "frozen_commit_sha256": "720e2ad33b92faee49fcfbdee84c66c023b40bf1f50427f874f231ab555483eb",
+        "matches_frozen_commit": true,
+        "path": "scripts/run_canonical_latent_e11_coefficient_operator_transfer.py"
+      },
+      "e12_artifact": {
+        "expected_sha256": "d4760ec3d69b4397cc14ffc3bb08edd3f073edcaf1f6d4dd70db070a96cab3b2",
+        "frozen_commit_sha256": "d4760ec3d69b4397cc14ffc3bb08edd3f073edcaf1f6d4dd70db070a96cab3b2",
+        "matches_frozen_commit": true,
+        "path": "docs/research/artifacts/canonical_latent_e12_structured_generator_result.json"
+      },
+      "e12_lock": {
+        "expected_sha256": "0bf8f032daf95415bee401b5a90f4e6ca1598f12748151dd7310b2a6d02f8dfd",
+        "frozen_commit_sha256": "0bf8f032daf95415bee401b5a90f4e6ca1598f12748151dd7310b2a6d02f8dfd",
+        "matches_frozen_commit": true,
+        "path": "docs/research/artifacts/canonical_latent_e12_replay_lock.json"
+      },
+      "e12_runner": {
+        "expected_sha256": "8edb67652d53e101a63730b9ec4803a69067572a8bab6eee0fb98627785a926a",
+        "frozen_commit_sha256": "8edb67652d53e101a63730b9ec4803a69067572a8bab6eee0fb98627785a926a",
+        "matches_frozen_commit": true,
+        "path": "scripts/run_canonical_latent_e12_structured_generator.py"
+      },
+      "e7_runner": {
+        "expected_sha256": "cf81597b3909e9693508b62e595eb006a8598d186de062eaf4a8f241d4b07488",
+        "frozen_commit_sha256": "cf81597b3909e9693508b62e595eb006a8598d186de062eaf4a8f241d4b07488",
+        "matches_frozen_commit": true,
+        "path": "scripts/run_canonical_latent_e7_function_space.py"
+      },
+      "latent_evaluation": {
+        "expected_sha256": "e2bb0fb86ac464aa6b96221d706f71aad4fd8fb48992613ead6d5b94e1943994",
+        "frozen_commit_sha256": "e2bb0fb86ac464aa6b96221d706f71aad4fd8fb48992613ead6d5b94e1943994",
+        "matches_frozen_commit": true,
+        "path": "src/ups/eval/latent_qualification.py"
+      },
+      "runner": {
+        "expected_sha256": "f95b1e50f409fc939c62120d06f2eafa89a864de148f9309fb38d481c01310c2",
+        "frozen_commit_sha256": "f95b1e50f409fc939c62120d06f2eafa89a864de148f9309fb38d481c01310c2",
+        "matches_frozen_commit": true,
+        "path": "scripts/run_canonical_latent_e13_identifiability_audit.py"
+      }
+    },
+    "git_head": "63e23d50f2eef3ca2644100674c10c4e2aa3a5ba",
+    "passed": true
+  },
+  "underlying_e13_classification": "full_parameterization_deterministic_recovery_succeeds"
+}
