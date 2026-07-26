@@ -219,3 +219,30 @@ not claim evidence.
 - When closure, oracle, and invariance pass but both few-shot and full-data
   dense controls fail, preserve the representation and change operator
   inductive bias before width, updates, seeds, or routing.
+
+## 2026-07-25
+
+- Architectural conservation and semigroup properties are not learned-physics
+  evidence when the parameterization guarantees them. Gate the identified
+  generator against the analytic action, including a literal worst
+  basis-vector/parameter case, rather than relying on aggregate rollout.
+- Small matrix-level errors can hide behind excellent global NRMSE. In E12,
+  roughly `6%` generator Frobenius error and small off-support leakage coexist
+  with `0.0057` rollout NRMSE but about `0.10` worst basis-action error and
+  `0.295` high-frequency NRMSE. Preserve mode-resolved and spectral gates.
+- A checkpoint-identical splitting rule is a useful diagnostic, not an
+  alternate qualification path. When combined and splitting both miss the same
+  spectral gate and differ by only `4.3e-05` decoded, audit generator
+  identification before numerical integration.
+- Cartesian coverage must reflect the frozen source construction exactly.
+  E10 has one deterministic grid realization and four stochastic realizations
+  for each other family, so grid-family pair counts are four while
+  stochastic-family pair counts are sixteen.
+- Hash derived parameter tensors only after detaching them from autograd. A
+  provenance serializer must not change values or gradients, but it must be
+  exercised on trained, gradient-tracked modules before launching replicated
+  measurement.
+- When an experiment is an aggregate success but a strict mode-resolved
+  negative, do not weaken the gate or reopen the representation. First compare
+  the learned optimizer with a direct or oracle-support-sparse recovery ceiling
+  under the identical data and thresholds.
