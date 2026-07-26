@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e11_coefficient_operator_transfer",
+  "classification": "coefficient_dynamics_not_qualified",
+  "config_sha256": "224d433fbc8389141cb078ec64aebc2096962274ad331b7621289aa917247209",
+  "complete_result_sha256": "0cbb025eef9be73a0a6015ba6d247be929bcd4a2b7fb9e9c27439077dc85929e",
+  "detached_manifest_sha256": "623aaae76067bc4866709a9b6f58bb598c056484b5106a99a4defd5f9849e483",
+  "byte_identical_complete_runs": true,
+  "git_head_at_execution": "52318903d77fd763c10927c71f56300f69e1f1dc",
+  "source_sha256": {
+    "contract": "c48e580357e2baddf35311cad243ceb921b5754fc9beb85bbaf44f732f360328",
+    "runner": "720e2ad33b92faee49fcfbdee84c66c023b40bf1f50427f874f231ab555483eb"
+  },
+  "source_files_match_git_head": true,
+  "worktree_clean_at_execution": true,
+  "architecture": {
+    "kind": "residual_coefficient_mlp",
+    "basis_dimension": 52,
+    "active_periodic_modes": 49,
+    "hidden_width": 96,
+    "parameter_count": 19828,
+    "physical_inputs": ["v_x", "v_y", "nu", "dt"],
+    "representation_label_inputs": false,
+    "task_label_inputs": false,
+    "routing_paths": 0
+  },
+  "state_splits": {
+    "elementary_pretrain_trajectories": 768,
+    "composite_fewshot_trajectories": 8,
+    "composite_full_control_trajectories": 256,
+    "validation_trajectories": 64,
+    "heldout_reads": 0
+  },
+  "evaluation_coverage": {
+    "arm_count": 6,
+    "arms": [
+      "elementary_pretrained_zero_shot",
+      "pretrained_fewshot",
+      "scratch_fewshot",
+      "full_composite_control",
+      "persistence",
+      "exact_projected_truth"
+    ],
+    "elementary_regimes_per_arm": 3,
+    "temporal_extrapolation_regimes_per_arm": 4,
+    "semigroup_regimes_per_arm": 4,
+    "physics_regimes_per_arm": 3,
+    "passed": true
+  },
+  "closure_preflight": {
+    "parameter_cases": 18,
+    "minimum_projection_rank": 52,
+    "all_projected_coefficients_finite": true,
+    "all_errors_finite": true,
+    "maximum_truth_to_projection_decoded_nrmse": 1.2421950256212794e-14,
+    "maximum_semigroup_composition_error": 4.0973787615924464e-15,
+    "passed": true
+  },
+  "composite_validation": {
+    "elementary_pretrained_zero_shot": {
+      "one_step_decoded_nrmse": 0.2905023966102201,
+      "rollout_decoded_nrmse": 2.456423109290437,
+      "final_high_frequency_nrmse": 31.652535352450833
+    },
+    "pretrained_fewshot": {
+      "one_step_coefficient_nrmse": 0.2884480884850992,
+      "one_step_decoded_nrmse": 0.28894163949925117,
+      "rollout_coefficient_nrmse": 2.456285253802689,
+      "rollout_decoded_nrmse": 2.4541693117065217,
+      "final_high_frequency_nrmse": 16.011259633714914
+    },
+    "scratch_fewshot": {
+      "one_step_decoded_nrmse": 0.26572370067989076,
+      "rollout_decoded_nrmse": 1.5126324830652857,
+      "final_high_frequency_nrmse": 10.928377960113293
+    },
+    "full_composite_control": {
+      "one_step_decoded_nrmse": 0.2818224088402888,
+      "rollout_decoded_nrmse": 0.9381449992978823,
+      "final_high_frequency_nrmse": 2.23205649044618
+    },
+    "persistence": {
+      "one_step_decoded_nrmse": 0.2473516496665404,
+      "rollout_decoded_nrmse": 1.5584481380508215,
+      "final_high_frequency_nrmse": 12.256121974563435
+    },
+    "exact_projected_truth": {
+      "one_step_decoded_nrmse": 0.0,
+      "rollout_decoded_nrmse": 0.0,
+      "final_high_frequency_nrmse": 0.0
+    }
+  },
+  "transfer_ratios": {
+    "pretrained_to_scratch_rollout_decoded": 1.6224491667224092,
+    "pretrained_to_full_rollout_decoded": 2.6159808063180514,
+    "zero_shot_to_persistence_rollout_decoded": 1.576198173885163
+  },
+  "candidate_stability_and_physics": {
+    "pre_finetune_elementary_macro_decoded_nrmse": 0.8225239534669141,
+    "post_finetune_elementary_macro_decoded_nrmse": 1.0821643124578033,
+    "post_to_pre_retention_ratio": 1.315662976010015,
+    "composite_temporal_extrapolation_decoded_nrmse": 3.6403009503907504,
+    "composite_semigroup_decoded_nrmse": 0.1797884708550058,
+    "x_advection_mean_mode_relative_error": 0.0020123468109455363,
+    "y_advection_mean_mode_relative_error": 0.0025845146560057896,
+    "x_advection_l2_norm_drift": 1.0103153556045947,
+    "y_advection_l2_norm_drift": 0.8053050329557546,
+    "diffusion_nonincreasing_energy_fraction": 0.376953125
+  },
+  "oracle_controls": {
+    "rollout_nrmse": 0.0,
+    "all_regime_temporal_extrapolation_nrmse": 0.0,
+    "maximum_semigroup_nrmse": 8.420347952882466e-16,
+    "maximum_advection_l2_norm_drift": 4.158561382650577e-14,
+    "diffusion_nonincreasing_energy_fraction": 1.0
+  },
+  "cross_observation": {
+    "geometry_seed_start": 40000,
+    "geometry_realizations": 4,
+    "maximum_coefficient_mismatch": 1.5049191807224243e-14,
+    "maximum_decoded_mismatch": 7.021808965136139e-15,
+    "passed": true
+  },
+  "gates": {
+    "closure": true,
+    "one_step_accuracy": false,
+    "rollout_accuracy": false,
+    "high_frequency": false,
+    "fewshot_transfer": false,
+    "full_data_parity": false,
+    "zero_shot_composition": false,
+    "elementary_retention": false,
+    "temporal_extrapolation": false,
+    "semigroup_consistency": false,
+    "cross_observation": true,
+    "physics": false,
+    "provenance": true,
+    "boundary": true
+  },
+  "boundary": {
+    "synthetic_periodic_scalar_only": true,
+    "linear_advection_diffusion_only": true,
+    "nonlinear_dynamics_qualified": false,
+    "particle_dynamics_qualified": false,
+    "heldout_reads": 0,
+    "provider_calls": 0,
+    "routing_paths": 0,
+    "representation_label_inputs": false,
+    "task_label_inputs": false,
+    "original_observations_after_projection": false,
+    "public_or_claim_grade": false
+  },
+  "superseded_execution_heads": [
+    "ed655b74f8239f7233a00db65140419c4257967f",
+    "f5204417c9f23564231e42544837a0c1cb347970"
+  ],
+  "next_move": "preregister an additive continuous-time coefficient generator with a Strang-splitting control"
+}
