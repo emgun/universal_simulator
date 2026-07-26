@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-24
+Updated: 2026-07-25
 
 ## Project
 
@@ -391,6 +391,20 @@ encoder, close dense-map tuning, and preregister an additive continuous-time
 generator/Strang-splitting challenger. Do not route. See
 `docs/research/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-result.md`.
 
+E12 changes the operator inductive bias without changing the encoder, data, or
+routing boundary. The additive continuous-time generator reaches pretrained
+eight-shot decoded rollout NRMSE `0.005735`, decisively beats scratch
+(`0.004689x`), full-data (`0.459731x`), persistence, and the accepted E11 dense
+control (`0.002337x`), and passes temporal, semigroup, invariance, physics, and
+composition gates. It remains `structured_generator_not_qualified`: composite
+high-frequency NRMSE is `0.295429` versus `<=0.15`, and elementary/pretrained
+worst decoded basis-action errors are `0.099922` / `0.108405` versus `<=0.05`.
+All other generator-identification subgates pass; splitting does not repair the
+spectral failure. Preserve E10 and the structured-operator evidence, but audit
+mode-resolved identifiability and optimization before nonlinear expansion. Do
+not relax thresholds or route. See
+`docs/research/2026-07-25-canonical-latent-e12-structured-generator-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -436,11 +450,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
 4. E1-E10 qualify the exact representation for the frozen observation
-   processes. E11 preserves it but closes the generic dense coefficient MLP
-   after absolute and transfer failures. Next preregister E12 as an additive
-   continuous-time generator/Strang-splitting coefficient operator with an
-   exact oracle ceiling and the E11 dense control. Keep the encoder frozen and
-   do not route.
+   processes. E11 closes the generic dense coefficient MLP. E12 establishes
+   strong structured-operator accuracy and positive transfer but fails
+   worst-mode action and high-frequency fidelity. Next preregister a
+   mode-resolved identifiability/optimization audit with direct or
+   oracle-support-sparse recovery controls. Keep the encoder and thresholds
+   frozen; do not route or expand to nonlinear physics yet.
 
 ## Reopen Triggers
 
@@ -487,6 +502,10 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-result.md`
 - `docs/research/artifacts/canonical_latent_e11_coefficient_operator_transfer_result.json`
 - `docs/steward/2026-07-24-canonical-latent-e11-coefficient-operator-transfer-handoff.md`
+- `docs/research/2026-07-25-canonical-latent-e12-structured-generator-contract.md`
+- `docs/research/2026-07-25-canonical-latent-e12-structured-generator-result.md`
+- `docs/research/artifacts/canonical_latent_e12_structured_generator_result.json`
+- `docs/steward/2026-07-25-canonical-latent-e12-structured-generator-handoff.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

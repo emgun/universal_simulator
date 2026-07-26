@@ -1,0 +1,154 @@
+{
+  "architecture": {
+    "active_periodic_modes": 49,
+    "basis_dimension": 52,
+    "kind": "additive_continuous_time_coefficient_generator",
+    "parameter_count": 2304,
+    "representation_label_inputs": false,
+    "routing_paths": 0,
+    "splitting_role": "checkpoint_identical_evaluation_only",
+    "task_label_inputs": false,
+    "training_rule": "combined"
+  },
+  "boundary": {
+    "heldout_reads": 0,
+    "linear_advection_diffusion_only": true,
+    "nonlinear_dynamics_qualified": false,
+    "original_observations_after_projection": false,
+    "particle_dynamics_qualified": false,
+    "provider_calls": 0,
+    "public_or_claim_grade": false,
+    "representation_label_inputs": false,
+    "routing_paths": 0,
+    "synthetic_periodic_scalar_only": true,
+    "task_label_inputs": false
+  },
+  "byte_identical_complete_runs": true,
+  "candidate_combined_metrics": {
+    "advection_mean_mode_relative_error": 3.4139054635585124e-15,
+    "candidate_to_e11_dense_ratio": 0.0023366462648312827,
+    "cross_observation_coefficient_mismatch": 1.538624753741902e-14,
+    "cross_observation_decoded_mismatch": 6.247740302741706e-15,
+    "diffusion_nonincreasing_energy_fraction": 1.0,
+    "final_high_frequency_nrmse": 0.29542875793358375,
+    "maximum_advection_l2_norm_drift": 4.2004203026798114e-15,
+    "one_step_coefficient_nrmse": 0.0031666955075196897,
+    "one_step_decoded_nrmse": 0.003166695507520073,
+    "post_finetune_elementary_macro_decoded_nrmse": 0.01887639660944568,
+    "post_to_pre_retention_ratio": 0.9383765418620342,
+    "pretrained_to_full_ratio": 0.459730705297197,
+    "pretrained_to_scratch_ratio": 0.00468874902302398,
+    "rollout_coefficient_nrmse": 0.0057345255554638284,
+    "rollout_decoded_nrmse": 0.005734525555462604,
+    "worst_combined_splitting_decoded_mismatch": 4.273214244312192e-05,
+    "worst_semigroup_nrmse": 1.0105109483650175e-15,
+    "worst_temporal_nrmse": 0.050052790796559055,
+    "zero_shot_rollout_decoded_nrmse": 0.00536402045663299,
+    "zero_shot_to_e11_dense_ratio": 0.002183671223554985,
+    "zero_shot_to_persistence_ratio": 0.0034418985949329467
+  },
+  "classification": "structured_generator_not_qualified",
+  "combined_gates": {
+    "combined_splitting_mismatch": true,
+    "cross_observation_invariance": true,
+    "e11_improvement": true,
+    "elementary_retention": true,
+    "fewshot_transfer": true,
+    "full_data_parity": true,
+    "high_frequency": false,
+    "one_step_accuracy": true,
+    "physics": true,
+    "rollout_accuracy": true,
+    "semigroup_measurement": true,
+    "temporal_extrapolation": true,
+    "zero_shot_composition": true
+  },
+  "complete_result_sha256": "7b214639d6287ede84352bbcfe7a31a1c9e891f4080fc9c623aee5df5e9c5ccc",
+  "config_sha256": "cd428d490ad9d5505f88ead66b41fdb25e25830f45d0eb21f451c5dbea261934",
+  "evaluation_coverage": {
+    "base_cells": 48,
+    "composition_gap_cells": 16,
+    "cross_observation_rules": 2,
+    "physics_cells": 36,
+    "semigroup_cells": 48,
+    "temporal_extrapolation_cells": 48
+  },
+  "experiment": "canonical_latent_e12_structured_generator",
+  "generator_identification": {
+    "elementary_pretrained": {
+      "maximum_basis_action_decoded_nrmse": 0.09992145782297766,
+      "maximum_diffusion_rate_relative_error": 1.6720381453391261e-13,
+      "maximum_normalized_commutator": 0.0055937402719329005,
+      "maximum_off_support_leakage": 0.017186688560007303,
+      "maximum_relative_frobenius_error": 0.06676992278866947,
+      "maximum_supported_entry_relative_error": 0.08535886393306587,
+      "passed": false
+    },
+    "oracle": {
+      "maximum_basis_action_decoded_nrmse": 0.0,
+      "maximum_identification_error": 0.0,
+      "passed": true
+    },
+    "pretrained_fewshot": {
+      "maximum_basis_action_decoded_nrmse": 0.10840542881736938,
+      "maximum_diffusion_rate_relative_error": 0.022631978838675144,
+      "maximum_normalized_commutator": 0.007884810088080675,
+      "maximum_off_support_leakage": 0.027508211681918412,
+      "maximum_relative_frobenius_error": 0.06241813797891341,
+      "maximum_supported_entry_relative_error": 0.0781323630856095,
+      "passed": false
+    }
+  },
+  "git_head_at_execution": "9b9ac597ee013c23c4f0af1971e2714fb7901bd2",
+  "historical_e11_control": {
+    "artifact_sha256": "d9142f94c87d5ffb0b44ff67d665b46b50e529a6d50acee703d15d20e8445f15",
+    "elementary_pretrained_zero_shot_rollout_decoded_nrmse": 2.456423109290437,
+    "pretrained_fewshot_rollout_decoded_nrmse": 2.4541693117065217
+  },
+  "next_move": "audit generator identifiability and high-frequency phase error before broader physics",
+  "preflight": {
+    "maximum_combined_semigroup_coefficient_nrmse": 1.2376477977864292e-15,
+    "maximum_combined_splitting_decoded_nrmse": 6.265606062334423e-15,
+    "maximum_eight_step_decoded_nrmse": 5.236351314942913e-15,
+    "maximum_one_step_decoded_nrmse": 9.870126315243019e-16,
+    "minimum_projection_rank": 52,
+    "oracle_parameter_cases": 18,
+    "passed": true
+  },
+  "raw_result_sha256": "66390e7385fe3193ceb87bb7792e7ffd6926114cd271daf104ffeb045d7bfdfd",
+  "schedule_hashes_match_e11": true,
+  "schema_version": 1,
+  "shared_gates": {
+    "boundary": true,
+    "cartesian_coverage": true,
+    "closure": true,
+    "complete_result_replication": true,
+    "generator_identification": false,
+    "oracle_correctness": true,
+    "parameter_structure_and_count": true,
+    "source_data_schedule_provenance": true
+  },
+  "source_files_match_git_head": true,
+  "source_sha256": {
+    "contract": "46e2fa7f68f31ccbdd88332e65d0d14d3aa39952d8e5b242d92d2b0b95985b8d",
+    "runner": "8edb67652d53e101a63730b9ec4803a69067572a8bab6eee0fb98627785a926a"
+  },
+  "splitting_diagnostic": {
+    "final_high_frequency_nrmse": 0.2944896372183407,
+    "improves_failed_combined_gate": false,
+    "rollout_decoded_nrmse": 0.005720322863571446,
+    "worst_semigroup_nrmse": 5.119713294300974e-05
+  },
+  "state_splits": {
+    "composite_fewshot_trajectories": 8,
+    "composite_full_control_trajectories": 256,
+    "elementary_pretrain_trajectories": 768,
+    "heldout_reads": 0,
+    "validation_trajectories": 64
+  },
+  "superseded_execution_heads": [
+    "33efde71e82be09ae089abd1840ad967c4d301be",
+    "b198f5a7a3c85c4f0e2aa1da488a3d27e0ef2831"
+  ],
+  "worktree_clean_at_execution": true
+}
