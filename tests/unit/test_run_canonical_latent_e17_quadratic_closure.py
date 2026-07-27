@@ -19,8 +19,8 @@ def test_config_freezes_budget_and_resolution() -> None:
     assert cfg.training_trajectories == 192
     assert cfg.validation_trajectories == 64
     assert cfg.validation_pairs == 32
-    assert cfg.truth_resolution == 144
-    assert cfg.reference_resolution == 216
+    assert cfg.truth_resolution == 216
+    assert cfg.reference_resolution == 324
 
 
 def test_mode_order_matches_e7_x_major_y_minor() -> None:
@@ -42,7 +42,7 @@ def test_mode_order_matches_e7_x_major_y_minor() -> None:
 
 @pytest.mark.parametrize(
     ("resolution", "lower", "upper", "count"),
-    ((144, -47, 47, 95), (216, -71, 71, 143)),
+    ((216, -71, 71, 143), (324, -107, 107, 215)),
 )
 def test_strict_two_thirds_mask_is_literal(
     resolution: int, lower: int, upper: int, count: int

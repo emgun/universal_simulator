@@ -100,15 +100,15 @@ oracle ceiling. It is not substituted into the learned candidate.
 ## Truth solver and independent convergence gate
 
 The primary truth is deterministic float64 CPU Fourier pseudospectral
-integration on a `144 x 144` grid:
+integration on a `216 x 216` grid:
 
 - centered unit-torus nodes;
 - `torch.fft.fftfreq(N, d=1/N)` frequency ordering and PyTorch's default
   forward/inverse FFT normalization;
 - Fourier derivatives and Laplacian using signed integer wavenumbers;
 - a rectangular strict two-thirds mask retaining
-  `abs(k_x) < N/3 and abs(k_y) < N/3`: exactly `-47:47` on each primary axis
-  and `-71:71` on each reference axis;
+  `abs(k_x) < N/3 and abs(k_y) < N/3`: exactly `-71:71` on each primary axis
+  and `-107:107` on each reference axis;
 - the mask applied to the state before differentiation/product formation and
   to the transformed nonlinear product before the vector field is returned;
 - classical RK4 with internal step `0.001`;
@@ -130,10 +130,10 @@ literal analytic calibration cases:
 | mixed | `c_1=0.20,c_7=-0.25,c_8=0.30,c_16=-0.20` | `(0.15,-0.10,0.006,0.75,-0.65)` |
 | stress | `c_0=0.05,c_1=-0.30,c_2=0.20,c_7=0.35,c_8=0.25,c_14=0.25,c_16=-0.15` | `(0.30,-0.30,0.004,1.20,-1.20)` |
 
-Compare the primary solver against a `216 x 216`, RK4 step `0.0005` reference
+Compare the primary solver against a `324 x 324`, RK4 step `0.0005` reference
 at every observation time. Compare active coefficients by exact Fourier-mode
 extraction in the E7 ordering and compare decoded fields on one fixed centered
-`288 x 288` grid. All must pass:
+`432 x 432` grid. All must pass:
 
 - decoded trajectory NRMSE `<= 2e-4`;
 - active-coefficient trajectory NRMSE `<= 2e-4`;
@@ -220,7 +220,7 @@ Each tail:
 - is normalized to tail RMS `0.04`; and
 - has cutoff-three projection norm `<=1e-12`.
 
-Construct a tail in complex128 Fourier storage on the 144 grid. The independent
+Construct a tail in complex128 Fourier storage on the 216 grid. The independent
 half-plane is
 `H={(k_x,k_y): k_x>0 or (k_x=0 and k_y>0)}` intersected with the registered
 tail shell, ordered lexicographically by `(k_x,k_y)`. For each index in that
@@ -333,7 +333,7 @@ zero and each axis's cubic energy-constraint residual is `<= 1e-10`.
 
 Evaluate exactly these arms:
 
-1. `projected_truth`: the projected 144-grid truth trajectory;
+1. `projected_truth`: the projected 216-grid truth trajectory;
 2. `zero_tail_galerkin_control`: exact Fourier linear and quadratic coefficient
    actions integrated in the 49 active coordinates;
 3. `frozen_linear_only`: the sealed learned E15 linear trunk with `Q=0`; and
@@ -378,7 +378,7 @@ and the initial derivative only. Horizon metrics pool trajectories, spatial
 points or active coefficients, and the named horizon only. Regime and stress
 metrics use the same equation on their literal subsets; no macro average can
 replace a pooled gate. Decode every coefficient state on the fixed centered
-`288 x 288` grid.
+`432 x 432` grid.
 
 For decoded spectra, use the default-normalized two-dimensional FFT on that
 grid and define high frequency by integer radial wavenumber
@@ -387,7 +387,7 @@ same pooled equation. The constant-mode error is the maximum absolute
 coefficient-0 difference from the arm's own initial value.
 
 Define field energy `E(u)=0.5*mean(u^2)` and dissipation
-`R(u)=nu*mean(u_x^2+u_y^2)` on the 288 grid. Over each model interval,
+`R(u)=nu*mean(u_x^2+u_y^2)` on the 432 grid. Over each model interval,
 accumulate `R` on every internal RK4 state with the classical RK4 quadrature
 weights. The relative energy-balance defect at time `t` is
 `abs(E(t)-E(0)+integral_0^t R ds) / max(E(0),1e-24)`. The nonlinear
@@ -402,7 +402,7 @@ coefficient NRMSE between those results.
 For every registered E10 observation realization, compare its candidate
 trajectory to the candidate trajectory initialized from the exact periodic
 coefficient vector. Coefficient mismatch uses pooled NRMSE at each registered
-horizon. Decoded mismatch uses the same equation on the 288 grid. The
+horizon. Decoded mismatch uses the same equation on the 432 grid. The
 cross-observation gates use the maximum over observation family, realization,
 and horizon `{1,4,8,16}`.
 
@@ -523,7 +523,28 @@ State reads were training `0`, validation `0`, and held-out `0`. This is
 negative evidence about primary-grid resolution for the registered smooth
 stress trajectory, not evidence about the latent or operator. No threshold,
 state distribution, equation, horizon, time step, mask rule, or classification
-changed. The only correction is the preregistered one-level spatial refinement
-to `144/216/288`, with strict retained sets `-47:47` and `-71:71`. The
-corrected calibration must receive independent pre-run GO and pass once before
-any population constructor is implemented or called.
+changed. The first correction was the preregistered one-level spatial
+refinement to `144/216/288`, with strict retained sets `-47:47` and `-71:71`.
+
+That single corrected run executed from clean reviewed HEAD `ab5393e` with
+one intra-op and inter-op thread, exact source-to-HEAD bindings, and all
+predecessor preflights passing. Again five cases passed. The stress case
+improved but still failed only the full-field threshold:
+
+- full-field trajectory NRMSE `0.00048558835223006647` versus `<=2e-4`;
+- active-coefficient trajectory NRMSE `2.2602555095839615e-8`;
+- relative energy-trajectory mismatch `4.644614918895542e-7`;
+- maximum constant-mode drift `4.7531423241764514e-15`; and
+- nonlinear energy-rate residual `3.0113762588923703e-16`.
+
+State reads again were training `0`, validation `0`, and held-out `0`. The
+observed full-field error ratio between the two 3/2 refinement rungs is
+`3.9523796713362294`, corresponding to order `3.389484861880524` and a
+same-ratio next-rung estimate of `0.0001228597433975511`.
+
+One final spatial-only correction is therefore frozen at `216/324/432`, with
+strict retained sets `-71:71` and `-107:107`. No threshold, PDE, time step,
+case, population, metric, or classification changes. This final calibration
+must receive independent pre-run GO and may execute once. If it fails, E17 is
+`preflight_failed`; no further spatial rung, threshold change, or population
+construction is allowed under this contract.

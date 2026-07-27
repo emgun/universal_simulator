@@ -95,9 +95,9 @@ E17_SOURCE_PATHS = (
 
 @dataclass(frozen=True)
 class E17Config:
-    truth_resolution: int = 144
-    reference_resolution: int = 216
-    comparison_resolution: int = 288
+    truth_resolution: int = 216
+    reference_resolution: int = 324
+    comparison_resolution: int = 432
     truth_step: float = 0.001
     reference_step: float = 0.0005
     observation_step: float = 0.01
@@ -122,10 +122,10 @@ class E17Config:
     maximum_nonlinear_energy_rate_residual: float = 1e-10
 
     def __post_init__(self) -> None:
-        if self.truth_resolution != 144 or self.reference_resolution != 216:
-            raise ValueError("E17 freezes 144/216 truth convergence resolutions")
-        if self.comparison_resolution != 288:
-            raise ValueError("E17 freezes the 288-square comparison grid")
+        if self.truth_resolution != 216 or self.reference_resolution != 324:
+            raise ValueError("E17 freezes 216/324 truth convergence resolutions")
+        if self.comparison_resolution != 432:
+            raise ValueError("E17 freezes the 432-square comparison grid")
         if self.training_trajectories != 192 or self.validation_trajectories != 64:
             raise ValueError("E17 freezes 192 training and 64 validation trajectories")
         if self.validation_pairs * 2 != self.validation_trajectories:
@@ -495,9 +495,9 @@ def convergence_calibration(cfg: E17Config) -> dict[str, Any]:
         "all_cases": all(report["passed"] for report in case_reports),
         "nonlinear_energy_rate": nonlinear_residual <= cfg.maximum_nonlinear_energy_rate_residual,
         "truth_retained_set": sorted(retained_wavenumbers(cfg.truth_resolution))
-        == list(range(-47, 48)),
-        "reference_retained_set": sorted(retained_wavenumbers(cfg.reference_resolution))
         == list(range(-71, 72)),
+        "reference_retained_set": sorted(retained_wavenumbers(cfg.reference_resolution))
+        == list(range(-107, 108)),
         "finite": all(
             torch.isfinite(value).all()
             for value in (
@@ -716,9 +716,9 @@ def prestate_report(repo_root: Path, cfg: E17Config) -> dict[str, Any]:
         "sealed_e15": e15["passed"],
         "triads": triads["passed"],
         "truth_mask": sorted(masks[str(cfg.truth_resolution)]["retained_wavenumbers"])
-        == list(range(-47, 48)),
-        "reference_mask": sorted(masks[str(cfg.reference_resolution)]["retained_wavenumbers"])
         == list(range(-71, 72)),
+        "reference_mask": sorted(masks[str(cfg.reference_resolution)]["retained_wavenumbers"])
+        == list(range(-107, 108)),
     }
     return {
         "schema_version": 1,
