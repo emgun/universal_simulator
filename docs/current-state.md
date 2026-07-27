@@ -452,11 +452,15 @@ decided only by registered same-latent/different-tail derivative pairs; the
 zero-tail Galerkin arm is a diagnostic control, not a false closure ceiling.
 The source-only shell verifies exact E15 seals, strict FFT masks, the 1,329
 triad entries per axis, energy identities, serialization, and classification
-precedence. Independent review returns GO and focused tests pass `11/11`, with
-zero E17 training, validation, or held-out reads. Next complete and review the
-truth/population/fit/evaluation runner before the single clean committed
-scientific execution. See
-`docs/research/2026-07-27-canonical-latent-e17-quadratic-closure-contract.md`.
+precedence. Independent review returns GO and focused tests pass `16/16`.
+The analytic de-aliased truth gate is now qualified at the final
+`216/324/432` spatial rung: worst full-field NRMSE is `6.974e-5` versus
+`<=2e-4`, while active-coefficient NRMSE is `6.726e-10`, energy mismatch
+`1.212e-8`, and nonlinear energy-rate residual `3.262e-16`. Two lower rungs
+failed only full-field convergence and are preserved. Training, validation,
+and held-out reads remain zero. Next implement and independently review the
+population/fit/evaluation runner before the single scientific execution. See
+`docs/research/2026-07-27-canonical-latent-e17-truth-calibration-result.md`.
 
 ## Latest Model Evidence
 
@@ -507,9 +511,10 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    negative is repaired by E13-E15 without changing the representation, and
    E16 shows both practical recovery packages are stable across the sealed
    realization plus two fresh realizations. Stop optimizer archaeology. E17's
-   representation-first nonlinear contract and source-only shell are reviewed
-   GO. Keep the encoder and routing frozen; complete the registered
-   truth/population/constrained-fit/evaluation implementation, obtain a fresh
+   representation-first nonlinear contract, source-only shell, and de-aliased
+   truth calibration are reviewed and passing. Keep the encoder and routing
+   frozen; complete the registered population/constrained-fit/evaluation
+   implementation, obtain a fresh
    pre-state GO on the full runner, then execute once from clean committed
    source.
 
@@ -571,6 +576,8 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-27-canonical-latent-e16-multi-realization-robustness-result.md`
 - `docs/steward/2026-07-27-canonical-latent-e16-multi-realization-robustness-handoff.md`
 - `docs/research/2026-07-27-canonical-latent-e17-quadratic-closure-contract.md`
+- `docs/research/2026-07-27-canonical-latent-e17-truth-calibration-result.md`
+- `docs/steward/2026-07-27-canonical-latent-e17-truth-calibration-handoff.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

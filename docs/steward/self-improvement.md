@@ -285,3 +285,9 @@ not claim evidence.
   three, strict `abs(k)<N/3` avoids the ambiguous endpoint whose self-sums can
   alias. Record FFT ordering, normalization, comparison grid, and literal
   retained sets before state construction.
+- Low-mode and conservation convergence can pass while the full nonlinear
+  truth field is under-resolved. E17's first two spatial rungs had
+  coefficient error below `4e-7` and energy mismatch below `6e-6` but failed
+  the full-field gate. Preserve a full-field reference check, use a
+  preregistered refinement/hard-stop rule, and never reinterpret a
+  truth-discretization failure as latent or operator evidence.

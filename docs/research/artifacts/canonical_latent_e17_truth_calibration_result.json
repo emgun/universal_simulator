@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "experiment": "canonical_latent_e17_quadratic_closure",
+  "phase": "analytic_convergence_calibration",
+  "classification": "truth_calibration_qualified",
+  "execution_head": "0e281dd4aa3951c7213c4cacbe402a487d98b3c6",
+  "runtime": {
+    "intraop_threads": 1,
+    "interop_threads": 1,
+    "passed": true
+  },
+  "source_files": {
+    "docs/research/2026-07-27-canonical-latent-e17-quadratic-closure-contract.md": "124366d9e7bcfbcfdcb9fa1514f7e74ac54aaa8a13b4823c105b57ba98788411",
+    "scripts/run_canonical_latent_e17_quadratic_closure.py": "4810320fb0644e29d8461e582bff5e3d77cf84a1544d537dc6d71955444a81eb",
+    "tests/unit/test_run_canonical_latent_e17_quadratic_closure.py": "35fd649894ca034a21b7293eeef7be7149228a3ebf47789ab65d8c0cbbe02e63"
+  },
+  "preflight_checks": {
+    "clean_head": true,
+    "sources_match_head": true,
+    "runtime": true,
+    "prestate": true
+  },
+  "config": {
+    "truth_resolution": 216,
+    "reference_resolution": 324,
+    "comparison_resolution": 432,
+    "truth_step": 0.001,
+    "reference_step": 0.0005,
+    "observation_step": 0.01,
+    "observation_transitions": 16,
+    "maximum_convergence_nrmse": 0.0002,
+    "maximum_constant_drift": 1e-11,
+    "maximum_energy_trajectory_mismatch": 0.0005,
+    "maximum_nonlinear_energy_rate_residual": 1e-10
+  },
+  "checks": {
+    "all_cases": true,
+    "finite": true,
+    "nonlinear_energy_rate": true,
+    "truth_retained_set": true,
+    "reference_retained_set": true
+  },
+  "maximum_nonlinear_energy_rate_residual": 3.262324280461972e-16,
+  "cases": [
+    {
+      "name": "single_x",
+      "passed": true,
+      "finite": true,
+      "active_coefficient_trajectory_nrmse": 1.8147437777440152e-13,
+      "decoded_field_trajectory_nrmse": 2.6762102594409056e-15,
+      "relative_energy_trajectory_mismatch": 4.789973071790516e-15,
+      "maximum_constant_mode_drift": 2.036683917420248e-14
+    },
+    {
+      "name": "single_y",
+      "passed": true,
+      "finite": true,
+      "active_coefficient_trajectory_nrmse": 1.161249536161349e-13,
+      "decoded_field_trajectory_nrmse": 2.6199358182329714e-15,
+      "relative_energy_trajectory_mismatch": 4.7619379570932414e-15,
+      "maximum_constant_mode_drift": 6.584096551001684e-17
+    },
+    {
+      "name": "two_mode_x",
+      "passed": true,
+      "finite": true,
+      "active_coefficient_trajectory_nrmse": 2.0779267669823863e-12,
+      "decoded_field_trajectory_nrmse": 3.645118477471575e-12,
+      "relative_energy_trajectory_mismatch": 4.06039154304047e-13,
+      "maximum_constant_mode_drift": 7.710146831981077e-14
+    },
+    {
+      "name": "two_mode_y",
+      "passed": true,
+      "finite": true,
+      "active_coefficient_trajectory_nrmse": 2.0693683915055627e-12,
+      "decoded_field_trajectory_nrmse": 3.645086288446745e-12,
+      "relative_energy_trajectory_mismatch": 4.060266094636849e-13,
+      "maximum_constant_mode_drift": 1.7543366123047999e-16
+    },
+    {
+      "name": "mixed",
+      "passed": true,
+      "finite": true,
+      "active_coefficient_trajectory_nrmse": 7.186937923036184e-12,
+      "decoded_field_trajectory_nrmse": 1.0575382339545388e-11,
+      "relative_energy_trajectory_mismatch": 5.279518888001212e-13,
+      "maximum_constant_mode_drift": 2.763025433735413e-15
+    },
+    {
+      "name": "stress",
+      "passed": true,
+      "finite": true,
+      "active_coefficient_trajectory_nrmse": 6.725572681261868e-10,
+      "decoded_field_trajectory_nrmse": 6.974382125671559e-05,
+      "relative_energy_trajectory_mismatch": 1.2118442639518074e-08,
+      "maximum_constant_mode_drift": 6.5503158452884236e-15
+    }
+  ],
+  "prior_spatial_calibrations": [
+    {
+      "primary_reference_comparison": [96, 144, 192],
+      "stress_full_field_nrmse": 0.0019192295319917713,
+      "passed": false,
+      "state_reads": {
+        "training": 0,
+        "validation": 0,
+        "heldout": 0
+      }
+    },
+    {
+      "execution_head": "ab5393e3a9c7392daefec7f5d2d80409114284a5",
+      "primary_reference_comparison": [144, 216, 288],
+      "stress_full_field_nrmse": 0.00048558835223006647,
+      "passed": false,
+      "state_reads": {
+        "training": 0,
+        "validation": 0,
+        "heldout": 0
+      }
+    }
+  ],
+  "raw_calibration_output_sha256": "242b4872db77b5ff0e66a766d3fa14d9e85e69eeec11e237a5e16184a712361c",
+  "state_reads": {
+    "training": 0,
+    "validation": 0,
+    "heldout": 0
+  }
+}
