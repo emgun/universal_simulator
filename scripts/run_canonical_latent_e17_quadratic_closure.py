@@ -86,13 +86,18 @@ E15_RECOVERY_GATES = (
     "zero_shot_to_persistence",
     "finite",
 )
+E17_SOURCE_PATHS = (
+    "docs/research/2026-07-27-canonical-latent-e17-quadratic-closure-contract.md",
+    "scripts/run_canonical_latent_e17_quadratic_closure.py",
+    "tests/unit/test_run_canonical_latent_e17_quadratic_closure.py",
+)
 
 
 @dataclass(frozen=True)
 class E17Config:
-    truth_resolution: int = 96
-    reference_resolution: int = 144
-    comparison_resolution: int = 192
+    truth_resolution: int = 144
+    reference_resolution: int = 216
+    comparison_resolution: int = 288
     truth_step: float = 0.001
     reference_step: float = 0.0005
     observation_step: float = 0.01
@@ -111,12 +116,16 @@ class E17Config:
     expected_axis_support: int = 1329
     maximum_design_condition: float = 1e8
     maximum_gram_condition: float = 1e16
+    maximum_convergence_nrmse: float = 2e-4
+    maximum_constant_drift: float = 1e-11
+    maximum_energy_trajectory_mismatch: float = 5e-4
+    maximum_nonlinear_energy_rate_residual: float = 1e-10
 
     def __post_init__(self) -> None:
-        if self.truth_resolution != 96 or self.reference_resolution != 144:
-            raise ValueError("E17 freezes 96/144 truth convergence resolutions")
-        if self.comparison_resolution != 192:
-            raise ValueError("E17 freezes the 192-square comparison grid")
+        if self.truth_resolution != 144 or self.reference_resolution != 216:
+            raise ValueError("E17 freezes 144/216 truth convergence resolutions")
+        if self.comparison_resolution != 288:
+            raise ValueError("E17 freezes the 288-square comparison grid")
         if self.training_trajectories != 192 or self.validation_trajectories != 64:
             raise ValueError("E17 freezes 192 training and 64 validation trajectories")
         if self.validation_pairs * 2 != self.validation_trajectories:
@@ -242,6 +251,272 @@ def decode_periodic(coefficients: torch.Tensor, *, resolution: int) -> torch.Ten
     return torch.einsum("...i,xyi->...xy", active, basis)
 
 
+def truth_vector_field(values: torch.Tensor, parameters: torch.Tensor) -> torch.Tensor:
+    if values.ndim != 3 or values.shape[-2] != values.shape[-1]:
+        raise ValueError("truth states must have shape [batch, resolution, resolution]")
+    if parameters.shape != (values.shape[0], 5):
+        raise ValueError("parameters must have shape [batch, 5]")
+    resolution = values.shape[-1]
+    wavenumbers = fft_wavenumbers(resolution).to(torch.float64)
+    kx = wavenumbers[:, None]
+    ky = wavenumbers[None, :]
+    omega_x = 2.0 * math.pi * kx
+    omega_y = 2.0 * math.pi * ky
+    mask = dealias_mask(resolution)
+    spectrum = torch.fft.fft2(values.double()) * mask
+    filtered = torch.fft.ifft2(spectrum).real
+    derivative_x = torch.fft.ifft2(1j * omega_x * spectrum).real
+    derivative_y = torch.fft.ifft2(1j * omega_y * spectrum).real
+    laplacian = torch.fft.ifft2(-(omega_x.square() + omega_y.square()) * spectrum).real
+    vx, vy, nu, gamma_x, gamma_y = (parameters[:, index, None, None] for index in range(5))
+    nonlinear_unfiltered = gamma_x * filtered * derivative_x + gamma_y * filtered * derivative_y
+    nonlinear = torch.fft.ifft2(torch.fft.fft2(nonlinear_unfiltered) * mask).real
+    return -vx * derivative_x - vy * derivative_y - nonlinear + nu * laplacian
+
+
+def rk4_step(
+    values: torch.Tensor,
+    parameters: torch.Tensor,
+    *,
+    step: float,
+) -> torch.Tensor:
+    k1 = truth_vector_field(values, parameters)
+    k2 = truth_vector_field(values + 0.5 * step * k1, parameters)
+    k3 = truth_vector_field(values + 0.5 * step * k2, parameters)
+    k4 = truth_vector_field(values + step * k3, parameters)
+    return values + (step / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+
+def integrate_truth(
+    initial_values: torch.Tensor,
+    parameters: torch.Tensor,
+    *,
+    internal_step: float,
+    observation_step: float,
+    transitions: int,
+) -> torch.Tensor:
+    internal_steps = round(observation_step / internal_step)
+    if not math.isclose(
+        internal_steps * internal_step,
+        observation_step,
+        rel_tol=0.0,
+        abs_tol=1e-15,
+    ):
+        raise ValueError("observation step must be an integer multiple of the internal step")
+    values = initial_values.double()
+    trajectory = [values]
+    for _ in range(transitions):
+        for _ in range(internal_steps):
+            values = rk4_step(values, parameters, step=internal_step)
+        trajectory.append(values)
+    return torch.stack(trajectory, dim=1)
+
+
+def spectral_resample(values: torch.Tensor, *, target_resolution: int) -> torch.Tensor:
+    if values.shape[-2] != values.shape[-1]:
+        raise ValueError("spectral resampling requires square fields")
+    source_resolution = values.shape[-1]
+    if target_resolution < source_resolution:
+        raise ValueError("E17 convergence resampling only supports refinement")
+    source_frequencies = fft_wavenumbers(source_resolution)
+    target_frequencies = fft_wavenumbers(target_resolution)
+    target_lookup = {
+        int(frequency): index for index, frequency in enumerate(target_frequencies.tolist())
+    }
+    source_spectrum = torch.fft.fft2(values.double())
+    target_shape = (*values.shape[:-2], target_resolution, target_resolution)
+    target_spectrum = torch.zeros(target_shape, dtype=torch.complex128)
+    scale = (target_resolution / source_resolution) ** 2
+    for source_x, frequency_x in enumerate(source_frequencies.tolist()):
+        target_x = target_lookup[int(frequency_x)]
+        for source_y, frequency_y in enumerate(source_frequencies.tolist()):
+            target_y = target_lookup[int(frequency_y)]
+            phase = (
+                math.pi
+                * (frequency_x + frequency_y)
+                * (1.0 / target_resolution - 1.0 / source_resolution)
+            )
+            target_spectrum[..., target_x, target_y] = (
+                source_spectrum[..., source_x, source_y]
+                * scale
+                * complex(math.cos(phase), math.sin(phase))
+            )
+    return torch.fft.ifft2(target_spectrum).real
+
+
+def pooled_nrmse(prediction: torch.Tensor, target: torch.Tensor) -> float:
+    numerator = (prediction.double() - target.double()).square().sum()
+    denominator = target.double().square().sum().clamp_min(1e-24)
+    return float(torch.sqrt(numerator / denominator).item())
+
+
+def field_energy(values: torch.Tensor) -> torch.Tensor:
+    return 0.5 * values.double().square().mean(dim=(-2, -1))
+
+
+def calibration_cases() -> tuple[torch.Tensor, torch.Tensor, tuple[str, ...]]:
+    coefficients = torch.zeros(6, LATENT_DIM, dtype=torch.float64)
+    parameters = torch.tensor(
+        [
+            [0.20, 0.0, 0.008, 0.0, 0.0],
+            [0.0, -0.20, 0.008, 0.0, 0.0],
+            [0.10, 0.0, 0.006, 0.80, 0.0],
+            [0.0, -0.10, 0.006, 0.0, -0.80],
+            [0.15, -0.10, 0.006, 0.75, -0.65],
+            [0.30, -0.30, 0.004, 1.20, -1.20],
+        ],
+        dtype=torch.float64,
+    )
+    coefficients[0, 14] = 0.4
+    coefficients[1, 2] = 0.4
+    coefficients[2, 7] = 0.35
+    coefficients[2, 14] = -0.25
+    coefficients[3, 1] = 0.35
+    coefficients[3, 2] = -0.25
+    coefficients[4, 1] = 0.20
+    coefficients[4, 7] = -0.25
+    coefficients[4, 8] = 0.30
+    coefficients[4, 16] = -0.20
+    coefficients[5, 0] = 0.05
+    coefficients[5, 1] = -0.30
+    coefficients[5, 2] = 0.20
+    coefficients[5, 7] = 0.35
+    coefficients[5, 8] = 0.25
+    coefficients[5, 14] = 0.25
+    coefficients[5, 16] = -0.15
+    return (
+        coefficients,
+        parameters,
+        ("single_x", "single_y", "two_mode_x", "two_mode_y", "mixed", "stress"),
+    )
+
+
+def nonlinear_energy_rate_residual(
+    trajectory: torch.Tensor,
+    parameters: torch.Tensor,
+) -> float:
+    flattened = trajectory.reshape(-1, trajectory.shape[-2], trajectory.shape[-1])
+    repeated = parameters[:, None, :].expand(-1, trajectory.shape[1], -1).reshape(-1, 5).clone()
+    repeated[:, :3] = 0.0
+    nonlinear = truth_vector_field(flattened, repeated)
+    numerator = (flattened * nonlinear).mean(dim=(-2, -1)).abs()
+    denominator = flattened.square().mean(dim=(-2, -1)).clamp_min(1e-24)
+    return float((numerator / denominator).max().item())
+
+
+def convergence_calibration(cfg: E17Config) -> dict[str, Any]:
+    coefficients, parameters, names = calibration_cases()
+    primary_initial = decode_periodic(coefficients, resolution=cfg.truth_resolution)
+    reference_initial = decode_periodic(coefficients, resolution=cfg.reference_resolution)
+    primary = integrate_truth(
+        primary_initial,
+        parameters,
+        internal_step=cfg.truth_step,
+        observation_step=cfg.observation_step,
+        transitions=cfg.observation_transitions,
+    )
+    reference = integrate_truth(
+        reference_initial,
+        parameters,
+        internal_step=cfg.reference_step,
+        observation_step=cfg.observation_step,
+        transitions=cfg.observation_transitions,
+    )
+    primary_coefficients = project_periodic(primary)
+    reference_coefficients = project_periodic(reference)
+    primary_comparison = spectral_resample(
+        primary,
+        target_resolution=cfg.comparison_resolution,
+    )
+    reference_comparison = spectral_resample(
+        reference,
+        target_resolution=cfg.comparison_resolution,
+    )
+    primary_energy = field_energy(primary_comparison)
+    reference_energy = field_energy(reference_comparison)
+    case_reports = []
+    for index, name in enumerate(names):
+        coefficient_nrmse = pooled_nrmse(
+            primary_coefficients[index, :, :ACTIVE_DIM],
+            reference_coefficients[index, :, :ACTIVE_DIM],
+        )
+        field_nrmse = pooled_nrmse(
+            primary_comparison[index],
+            reference_comparison[index],
+        )
+        energy_mismatch = pooled_nrmse(
+            primary_energy[index],
+            reference_energy[index],
+        )
+        constant_drift = max(
+            float(
+                (primary_coefficients[index, :, 0] - primary_coefficients[index, 0, 0])
+                .abs()
+                .max()
+                .item()
+            ),
+            float(
+                (reference_coefficients[index, :, 0] - reference_coefficients[index, 0, 0])
+                .abs()
+                .max()
+                .item()
+            ),
+        )
+        finite = all(
+            torch.isfinite(value).all()
+            for value in (
+                primary[index],
+                reference[index],
+                primary_coefficients[index],
+                reference_coefficients[index],
+            )
+        )
+        report = {
+            "name": name,
+            "active_coefficient_trajectory_nrmse": coefficient_nrmse,
+            "decoded_field_trajectory_nrmse": field_nrmse,
+            "relative_energy_trajectory_mismatch": energy_mismatch,
+            "maximum_constant_mode_drift": constant_drift,
+            "finite": finite,
+        }
+        report["passed"] = (
+            coefficient_nrmse <= cfg.maximum_convergence_nrmse
+            and field_nrmse <= cfg.maximum_convergence_nrmse
+            and energy_mismatch <= cfg.maximum_energy_trajectory_mismatch
+            and constant_drift <= cfg.maximum_constant_drift
+            and finite
+        )
+        case_reports.append(report)
+    nonlinear_residual = max(
+        nonlinear_energy_rate_residual(primary, parameters),
+        nonlinear_energy_rate_residual(reference, parameters),
+    )
+    checks = {
+        "all_cases": all(report["passed"] for report in case_reports),
+        "nonlinear_energy_rate": nonlinear_residual <= cfg.maximum_nonlinear_energy_rate_residual,
+        "truth_retained_set": sorted(retained_wavenumbers(cfg.truth_resolution))
+        == list(range(-47, 48)),
+        "reference_retained_set": sorted(retained_wavenumbers(cfg.reference_resolution))
+        == list(range(-71, 72)),
+        "finite": all(
+            torch.isfinite(value).all()
+            for value in (
+                primary,
+                reference,
+                primary_comparison,
+                reference_comparison,
+            )
+        ),
+    }
+    return {
+        "cases": case_reports,
+        "maximum_nonlinear_energy_rate_residual": nonlinear_residual,
+        "checks": checks,
+        "passed": all(checks.values()),
+        "state_reads": {"training": 0, "validation": 0, "heldout": 0},
+    }
+
+
 def triad_coefficients(
     axis: Literal["x", "y"],
     *,
@@ -352,6 +627,20 @@ def sealed_e15_report(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def configure_runtime() -> dict[str, Any]:
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    record = {
+        "intraop_threads": torch.get_num_threads(),
+        "interop_threads": torch.get_num_interop_threads(),
+    }
+    record["passed"] = record == {
+        "intraop_threads": 1,
+        "interop_threads": 1,
+    }
+    return record
+
+
 def source_state(repo_root: Path) -> dict[str, Any]:
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -367,7 +656,26 @@ def source_state(repo_root: Path) -> dict[str, Any]:
         capture_output=True,
         text=True,
     ).stdout
-    return {"head": head, "clean": not bool(status.strip())}
+    records = {}
+    for relative in E17_SOURCE_PATHS:
+        working = (repo_root / relative).read_bytes()
+        committed = subprocess.run(
+            ["git", "show", f"{head}:{relative}"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+        ).stdout
+        records[relative] = {
+            "working_sha256": sha256_bytes(working),
+            "head_sha256": sha256_bytes(committed),
+            "matches_head": working == committed,
+        }
+    return {
+        "head": head,
+        "clean": not bool(status.strip()),
+        "sources": records,
+        "sources_match_head": all(record["matches_head"] for record in records.values()),
+    }
 
 
 def classify(
@@ -408,9 +716,9 @@ def prestate_report(repo_root: Path, cfg: E17Config) -> dict[str, Any]:
         "sealed_e15": e15["passed"],
         "triads": triads["passed"],
         "truth_mask": sorted(masks[str(cfg.truth_resolution)]["retained_wavenumbers"])
-        == list(range(-31, 32)),
-        "reference_mask": sorted(masks[str(cfg.reference_resolution)]["retained_wavenumbers"])
         == list(range(-47, 48)),
+        "reference_mask": sorted(masks[str(cfg.reference_resolution)]["retained_wavenumbers"])
+        == list(range(-71, 72)),
     }
     return {
         "schema_version": 1,
@@ -427,6 +735,41 @@ def prestate_report(repo_root: Path, cfg: E17Config) -> dict[str, Any]:
     }
 
 
+def calibration_run_report(
+    repo_root: Path,
+    cfg: E17Config,
+    *,
+    runtime: dict[str, Any],
+) -> dict[str, Any]:
+    sources = source_state(repo_root)
+    prestate = prestate_report(repo_root, cfg)
+    preflight_checks = {
+        "runtime": runtime.get("passed") is True,
+        "clean_head": sources["clean"],
+        "sources_match_head": sources["sources_match_head"],
+        "prestate": prestate["passed"],
+    }
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "experiment": EXPERIMENT,
+        "phase": "analytic_convergence_calibration",
+        "config": asdict(cfg),
+        "runtime": runtime,
+        "source_state": sources,
+        "prestate": prestate,
+        "preflight_checks": preflight_checks,
+        "state_reads": {"training": 0, "validation": 0, "heldout": 0},
+    }
+    if not all(preflight_checks.values()):
+        report["calibration"] = None
+        report["passed"] = False
+        return report
+    calibration = convergence_calibration(cfg)
+    report["calibration"] = calibration
+    report["passed"] = calibration["passed"]
+    return report
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the E17 quadratic closure protocol")
     parser.add_argument(
@@ -434,14 +777,29 @@ def main() -> None:
         action="store_true",
         help="run only zero-scientific-state source and structure preflights",
     )
+    parser.add_argument(
+        "--calibration-only",
+        action="store_true",
+        help="run the literal analytic truth-convergence calibration only",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    if not args.prestate_only:
+    if args.prestate_only == args.calibration_only:
         raise SystemExit(
-            "E17 scientific execution is not implemented; only --prestate-only is available"
+            "select exactly one of --prestate-only or --calibration-only; "
+            "E17 scientific execution is not implemented"
         )
+    runtime = configure_runtime()
     repo_root = Path(__file__).resolve().parents[1]
-    report = prestate_report(repo_root, E17Config())
+    cfg = E17Config()
+    report = (
+        {
+            **prestate_report(repo_root, cfg),
+            "runtime": runtime,
+        }
+        if args.prestate_only
+        else calibration_run_report(repo_root, cfg, runtime=runtime)
+    )
     serialized = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if args.output is not None:
         args.output.write_text(serialized, encoding="utf-8")
