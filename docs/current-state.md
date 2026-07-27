@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-26
+Updated: 2026-07-27
 
 ## Project
 
@@ -444,6 +444,20 @@ E10 and routing closure, and preregister E17 as a constrained quadratic
 nonlinear closure test in the same coefficient latent. See
 `docs/research/2026-07-27-canonical-latent-e16-multi-realization-robustness-result.md`.
 
+E17 is now preregistered but has not read scientific state. Its first
+nonlinear test keeps the same 52 coefficients and frozen E15 linear trunk,
+adds one energy-constrained quadratic convection map, and uses a strictly
+de-aliased smooth 2-D periodic scalar Burgers truth. Representation failure is
+decided only by registered same-latent/different-tail derivative pairs; the
+zero-tail Galerkin arm is a diagnostic control, not a false closure ceiling.
+The source-only shell verifies exact E15 seals, strict FFT masks, the 1,329
+triad entries per axis, energy identities, serialization, and classification
+precedence. Independent review returns GO and focused tests pass `11/11`, with
+zero E17 training, validation, or held-out reads. Next complete and review the
+truth/population/fit/evaluation runner before the single clean committed
+scientific execution. See
+`docs/research/2026-07-27-canonical-latent-e17-quadratic-closure-contract.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -492,10 +506,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    processes. E11 closes the generic dense coefficient MLP. E12's strict
    negative is repaired by E13-E15 without changing the representation, and
    E16 shows both practical recovery packages are stable across the sealed
-   realization plus two fresh realizations. Stop optimizer archaeology. Keep
-   the encoder and thresholds frozen, do not route, and preregister E17 as a
-   de-aliased 2-D periodic scalar viscous Burgers closure test with the frozen
-   linear model nested inside a constrained quadratic convection term.
+   realization plus two fresh realizations. Stop optimizer archaeology. E17's
+   representation-first nonlinear contract and source-only shell are reviewed
+   GO. Keep the encoder and routing frozen; complete the registered
+   truth/population/constrained-fit/evaluation implementation, obtain a fresh
+   pre-state GO on the full runner, then execute once from clean committed
+   source.
 
 ## Reopen Triggers
 
@@ -552,6 +568,9 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-26-canonical-latent-e15-training-package-contract.md`
 - `docs/research/2026-07-26-canonical-latent-e15-training-package-result.md`
 - `docs/steward/2026-07-26-canonical-latent-e15-training-package-handoff.md`
+- `docs/research/2026-07-27-canonical-latent-e16-multi-realization-robustness-result.md`
+- `docs/steward/2026-07-27-canonical-latent-e16-multi-realization-robustness-handoff.md`
+- `docs/research/2026-07-27-canonical-latent-e17-quadratic-closure-contract.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`

@@ -268,3 +268,20 @@ not claim evidence.
   recovery. Do not attribute E12 to stochastic noise or weighting alone.
   Initialization basin and the componentwise second-order package remain
   coupled; resolve robustness once, then stop optimizer archaeology.
+
+## 2026-07-27
+
+- A zero-tail Galerkin truncation is a mechanistic control, not an upper bound
+  on every deterministic closure: a learned quadratic map may compensate
+  predictable resolved effects of discarded modes. Attribute representation
+  failure only with registered same-latent/different-tail states or another
+  genuine conditional-ambiguity bound.
+- For periodic closure experiments, define truth targets with the periodic
+  orthogonal projection and append inactive trends as zeros. Do not silently
+  use a joint periodic-plus-nonperiodic least-squares projection on fields with
+  unresolved Fourier tails; reserve that full projection for the qualified
+  observation-ingestion control.
+- Freeze de-aliasing at the signed-index level. At resolutions divisible by
+  three, strict `abs(k)<N/3` avoids the ambiguous endpoint whose self-sums can
+  alias. Record FFT ordering, normalization, comparison grid, and literal
+  retained sets before state construction.
