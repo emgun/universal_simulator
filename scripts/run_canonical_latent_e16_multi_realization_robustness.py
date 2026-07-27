@@ -63,9 +63,7 @@ CONTRACT_PATH = (
     REPO_ROOT
     / "docs/research/2026-07-27-canonical-latent-e16-multi-realization-robustness-contract.md"
 )
-TEST_PATH = (
-    REPO_ROOT / "tests/unit/test_run_canonical_latent_e16_multi_realization_robustness.py"
-)
+TEST_PATH = REPO_ROOT / "tests/unit/test_run_canonical_latent_e16_multi_realization_robustness.py"
 E15_RUNNER_PATH = REPO_ROOT / "scripts/run_canonical_latent_e15_training_package.py"
 E15_TEST_PATH = REPO_ROOT / "tests/unit/test_run_canonical_latent_e15_training_package.py"
 E15_CONTRACT_PATH = (
@@ -74,12 +72,8 @@ E15_CONTRACT_PATH = (
 E15_RESULT_RECORD_PATH = (
     REPO_ROOT / "docs/research/2026-07-26-canonical-latent-e15-training-package-result.md"
 )
-E15_ARTIFACT_DIR = (
-    REPO_ROOT / "docs/research/artifacts/canonical_latent_e15_training_package"
-)
-E15_BUNDLE_PATH = (
-    E15_ARTIFACT_DIR / "canonical_latent_e15_training_package_evidence_bundle.tar.gz"
-)
+E15_ARTIFACT_DIR = REPO_ROOT / "docs/research/artifacts/canonical_latent_e15_training_package"
+E15_BUNDLE_PATH = E15_ARTIFACT_DIR / "canonical_latent_e15_training_package_evidence_bundle.tar.gz"
 E15_RESULT_PATH = E15_ARTIFACT_DIR / "canonical_latent_e15_training_package_result.json"
 E15_MANIFEST_PATH = E15_ARTIFACT_DIR / "canonical_latent_e15_training_package_manifest.json"
 E13_RUNNER_PATH = REPO_ROOT / "scripts/run_canonical_latent_e13_identifiability_audit.py"
@@ -209,8 +203,7 @@ def sealed_e15_report() -> dict[str, Any]:
     result = json.loads(E15_RESULT_PATH.read_text())
     manifest = json.loads(E15_MANIFEST_PATH.read_text())
     source_hashes = {
-        name: result["source_files"][name]["working_sha256"]
-        for name in EXPECTED_E15_SOURCE_HASHES
+        name: result["source_files"][name]["working_sha256"] for name in EXPECTED_E15_SOURCE_HASHES
     }
     recovery = {
         package: bool(result["evaluations"][control]["recovery_pass"])
@@ -249,14 +242,11 @@ def sealed_e15_report() -> dict[str, Any]:
         "bundle_members": observed_members == list(EXPECTED_E15_MEMBERS),
         "raw_replicates_identical": (
             replication["raw_replicates_byte_identical"]
-            and replication["replicate_a_raw_sha256"]
-            == EXPECTED_E15_MEMBERS[0]["raw_sha256"]
-            and replication["replicate_b_raw_sha256"]
-            == EXPECTED_E15_MEMBERS[1]["raw_sha256"]
+            and replication["replicate_a_raw_sha256"] == EXPECTED_E15_MEMBERS[0]["raw_sha256"]
+            and replication["replicate_b_raw_sha256"] == EXPECTED_E15_MEMBERS[1]["raw_sha256"]
         ),
         "canonical_replicates_identical": (
-            replication["replicate_a_canonical_sha256"]
-            == EXPECTED_E15_CANONICAL_REPLICATE_SHA256
+            replication["replicate_a_canonical_sha256"] == EXPECTED_E15_CANONICAL_REPLICATE_SHA256
             and replication["replicate_b_canonical_sha256"]
             == EXPECTED_E15_CANONICAL_REPLICATE_SHA256
             and replication["complete_canonical_without_replication_sha256"]
@@ -329,8 +319,7 @@ def provenance(environment: dict[str, Any]) -> dict[str, Any]:
             record["matches_git_head"] for record in records.values()
         ),
         "sealed_inherited_sources_match": all(
-            records[name]["matches_sealed_source"]
-            for name in EXPECTED_LIVE_INHERITED_HASHES
+            records[name]["matches_sealed_source"] for name in EXPECTED_LIVE_INHERITED_HASHES
         ),
         "sealed_e15": seal,
         "environment": environment,
@@ -446,16 +435,11 @@ def canonical_tensor_record(tensor: torch.Tensor, *, kind: str) -> dict[str, Any
 
 def canonical_dataset_record(dataset: TrajectorySet) -> dict[str, Any]:
     return {
-        "complete_trajectory": canonical_tensor_record(
-            dataset.coefficients, kind="float64"
-        ),
-        "initial_coefficients": canonical_tensor_record(
-            dataset.coefficients[:, 0], kind="float64"
-        ),
+        "complete_trajectory": canonical_tensor_record(dataset.coefficients, kind="float64"),
+        "initial_coefficients": canonical_tensor_record(dataset.coefficients[:, 0], kind="float64"),
         "parameters": canonical_tensor_record(dataset.parameters, kind="float64"),
         "all_finite": bool(
-            torch.isfinite(dataset.coefficients).all()
-            and torch.isfinite(dataset.parameters).all()
+            torch.isfinite(dataset.coefficients).all() and torch.isfinite(dataset.parameters).all()
         ),
     }
 
@@ -479,9 +463,7 @@ def occurrence_count_report(
     counts: dict[str, torch.Tensor] = {}
     records = {}
     for regime in REGIMES:
-        value = torch.bincount(
-            schedule_tensors[regime].reshape(-1), minlength=2048
-        ).to(torch.int64)
+        value = torch.bincount(schedule_tensors[regime].reshape(-1), minlength=2048).to(torch.int64)
         probability = value.to(torch.float64) / float(value.sum())
         uniform = torch.full_like(probability, 1.0 / value.numel())
         record = {
@@ -519,9 +501,7 @@ def _parameter_ranges_pass(dataset: TrajectorySet, regime: str, cfg: E15Config) 
     if not torch.isfinite(parameters).all():
         return False
     vx, vy, nu, dt = parameters.unbind(dim=1)
-    common = bool(
-        ((dt >= cfg.minimum_dt) & (dt <= cfg.maximum_dt)).all()
-    )
+    common = bool(((dt >= cfg.minimum_dt) & (dt <= cfg.maximum_dt)).all())
     if regime == "x_advection":
         active = vx.abs()
         return common and bool(
@@ -554,17 +534,12 @@ def realization_preflight(
     schedule_tensors: dict[str, torch.Tensor],
 ) -> tuple[dict[str, torch.Tensor], dict[str, Any]]:
     counts, count_report = occurrence_count_report(schedule_tensors)
-    schedule_records = {
-        regime: schedule_record(schedule_tensors[regime]) for regime in REGIMES
-    }
+    schedule_records = {regime: schedule_record(schedule_tensors[regime]) for regime in REGIMES}
     literal_schedule_seeds = descriptor["literal_schedule_seeds"]
     expected_literal_schedule_seeds = {
-        regime: descriptor["schedule_seed"] + index
-        for index, regime in enumerate(REGIMES)
+        regime: descriptor["schedule_seed"] + index for index, regime in enumerate(REGIMES)
     }
-    schedule_seed_binding_passed = (
-        literal_schedule_seeds == expected_literal_schedule_seeds
-    )
+    schedule_seed_binding_passed = literal_schedule_seeds == expected_literal_schedule_seeds
     dataset_records = {
         regime: canonical_dataset_record(dataset) for regime, dataset in training.items()
     }
@@ -576,16 +551,13 @@ def realization_preflight(
         for dataset in training.values()
     )
     parameter_ranges = {
-        regime: _parameter_ranges_pass(dataset, regime, cfg)
-        for regime, dataset in training.items()
+        regime: _parameter_ranges_pass(dataset, regime, cfg) for regime, dataset in training.items()
     }
     excitation = excitation_report(training)
     excitation_passed = bool(
         excitation["required_plane_grams_full_rank"]
         and excitation["mode_tied_jacobian_full_rank"]
-        and all(
-            record["full_rank"] for record in excitation["input_covariance"].values()
-        )
+        and all(record["full_rank"] for record in excitation["input_covariance"].values())
     )
     report = {
         "name": name,
@@ -687,16 +659,11 @@ def stability_from_recovery(
     vector = {
         package: {
             "r0_sealed_e15": bool(sealed[package]),
-            **{
-                realization: bool(bits[package])
-                for realization, bits in fresh.items()
-            },
+            **{realization: bool(bits[package]) for realization, bits in fresh.items()},
         }
         for package in PACKAGES
     }
-    return vector, {
-        package: all(bits.values()) for package, bits in vector.items()
-    }
+    return vector, {package: all(bits.values()) for package, bits in vector.items()}
 
 
 def _boundary() -> dict[str, Any]:
@@ -753,8 +720,7 @@ def prepare_realization(
         regime: canonical_dataset_record(dataset) for regime, dataset in validation.items()
     }
     preflight["passed"] = (
-        preflight["passed"]
-        and validation_seed_binding == expected_validation_seed_binding
+        preflight["passed"] and validation_seed_binding == expected_validation_seed_binding
     )
     return {
         "name": name,
@@ -896,9 +862,7 @@ def run_realization(
         canonical_coords=canonical_coords,
     )
     coverage = coverage_report(evaluations, mode_records, mode_argmax, training_reports)
-    recovery = {
-        package: bool(evaluations[package]["recovery_pass"]) for package in PACKAGES
-    }
+    recovery = {package: bool(evaluations[package]["recovery_pass"]) for package in PACKAGES}
     execution_complete = coverage["passed"] and _all_finite(
         {
             "training": training_reports,
@@ -988,9 +952,7 @@ def run_replicate(
         )
         for name, descriptor in REALIZATIONS.items()
     }
-    sampled_preflight_passed = all(
-        value["preflight"]["passed"] for value in prepared.values()
-    )
+    sampled_preflight_passed = all(value["preflight"]["passed"] for value in prepared.values())
     if sampled_preflight_passed:
         checkpoint_prepared = {
             name: prepare_checkpoint(

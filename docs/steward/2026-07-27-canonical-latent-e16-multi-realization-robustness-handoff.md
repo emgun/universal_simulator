@@ -56,6 +56,11 @@ returned GO with no P0/P1 blocker.
 - independent pre-state review: GO;
 - independent post-result review: GO.
 
+Black `26.5.1` subsequently reformatted only the E16 runner and its unit test
+for CI. Their Python ASTs are identical to the execution-HEAD versions. The
+sealed evidence remains bound to the exact `139c1c0` bytes retained in Git; no
+scientific rerun was performed.
+
 ## Boundary
 
 E16 uses 1,536 unique training trajectories, 256 frozen validation

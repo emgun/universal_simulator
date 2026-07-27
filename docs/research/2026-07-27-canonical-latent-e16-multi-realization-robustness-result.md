@@ -84,6 +84,12 @@ The scientific run executed from clean HEAD
 `2.7.0`, deterministic float64 CPU execution, and one intra-op and inter-op
 thread.
 
+After the evidence was sealed, Black `26.5.1` reformatted only the E16 runner
+and its unit test to satisfy repository CI. Python AST comparison against the
+two files at execution HEAD `139c1c0` was identical. The scientific artifacts
+remain bound to the exact execution bytes preserved at that commit; no result
+was regenerated or reinterpreted.
+
 The canonical artifact directory contains exactly:
 
 | Output | Bytes | Raw SHA-256 |

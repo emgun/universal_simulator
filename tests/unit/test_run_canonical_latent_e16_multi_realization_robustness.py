@@ -133,12 +133,10 @@ def test_e16_all_fresh_recovery_vectors_have_one_complete_classification(bits: i
         fresh,
     )
 
-    adam = fresh["r1"]["deterministic_adamw_restart"] and fresh["r2"][
-        "deterministic_adamw_restart"
-    ]
-    lbfgs = fresh["r1"]["componentwise_lbfgs_neutral"] and fresh["r2"][
-        "componentwise_lbfgs_neutral"
-    ]
+    adam = fresh["r1"]["deterministic_adamw_restart"] and fresh["r2"]["deterministic_adamw_restart"]
+    lbfgs = (
+        fresh["r1"]["componentwise_lbfgs_neutral"] and fresh["r2"]["componentwise_lbfgs_neutral"]
+    )
     if adam and lbfgs:
         expected = "both_practical_recovery_packages_stable"
     elif lbfgs:
@@ -149,11 +147,14 @@ def test_e16_all_fresh_recovery_vectors_have_one_complete_classification(bits: i
         expected = "no_practical_recovery_package_stable"
 
     assert all(vector[package]["r0_sealed_e15"] for package in PACKAGES)
-    assert classify(
-        preflight_passed=True,
-        execution_complete=True,
-        stability=stability,
-    ) == expected
+    assert (
+        classify(
+            preflight_passed=True,
+            execution_complete=True,
+            stability=stability,
+        )
+        == expected
+    )
 
 
 @pytest.mark.parametrize(
@@ -191,7 +192,9 @@ def test_e16_sealed_e15_object_and_gate_mapping_is_exact() -> None:
     assert report["passed"] is True
     assert report["classification"] == EXPECTED_E15_CLASSIFICATION
     assert all(report["recovery"].values())
-    assert all(len(gates) == 8 and all(gates.values()) for gates in report["recovery_gates"].values())
+    assert all(
+        len(gates) == 8 and all(gates.values()) for gates in report["recovery_gates"].values()
+    )
 
 
 def test_e16_live_inherited_sources_equal_sealed_e15_hashes() -> None:
