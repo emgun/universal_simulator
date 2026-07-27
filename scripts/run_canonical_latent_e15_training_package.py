@@ -501,6 +501,16 @@ def source_probe() -> StructuredGenerator:
     return model
 
 
+def literal_outputs(
+    model: StructuredGenerator | FixedGenerator,
+    inputs: torch.Tensor,
+    parameters: torch.Tensor,
+) -> torch.Tensor:
+    if isinstance(model, FixedGenerator):
+        return model.step(inputs, parameters, rule="combined")
+    return model(inputs, parameters)
+
+
 def equivalence_probe(
     model: StructuredGenerator | FixedGenerator,
     datasets: dict[str, TrajectorySet],
@@ -515,7 +525,7 @@ def equivalence_probe(
         dataset = datasets[regime]
         literal_inputs, targets, parameters = dataset.transitions
         grouped = grouped_outputs(model, dataset, chunk_trajectories=chunk_trajectories)
-        literal = model(literal_inputs, parameters)
+        literal = literal_outputs(model, literal_inputs, parameters)
         ones = torch.ones(2048, dtype=torch.float64)
         weighted_grouped = loss_from_outputs(grouped, targets, counts[regime])
         weighted_literal = loss_from_outputs(literal, targets, counts[regime])

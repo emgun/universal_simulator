@@ -567,6 +567,25 @@ raw hash or byte count. Any external publication receipt may report the
 manifest's raw hash and byte count, but neither may be inserted into the
 manifest bytes.
 
+## Pre-execution implementation erratum
+
+The first sealed invocation from execution HEAD
+`4d14a07117f5c6b32a2e5ff3262b888b97d39e49` terminated as
+`e15_execution_incomplete` with `durable_evidence_published=false` and
+`scientific_conclusion_recorded=false`. A traceback-only replay of one replica
+located the failure in the oracle objective-integrity probe: it invoked
+`FixedGenerator` through `nn.Module.__call__`, but that frozen E12 oracle exposes
+`step(..., rule="combined")` and has no `forward` method.
+
+Before any scientific result exists, the registered implementation may repair
+only that literal oracle dispatch by calling the frozen combined-step API.
+The repair must add a direct oracle regression test, pass the focused and full
+unit suites, receive independent implementation review, and execute from a new
+clean committed HEAD. It does not change an arm, initialization, schedule,
+objective, optimizer, stopping rule, metric, threshold, classification, or
+evidence protocol. No other post-registration implementation change is
+authorized by this erratum.
+
 Build all output bytes in memory, stage in a sibling directory under an
 exclusive publication lock, reopen and independently verify every declaration,
 then atomically rename. Any failure must leave no durable partial evidence.

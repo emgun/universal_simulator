@@ -11,7 +11,11 @@ from scripts.run_canonical_latent_e11_coefficient_operator_transfer import (
     TrajectorySet,
     normalized_loss,
 )
-from scripts.run_canonical_latent_e12_structured_generator import StructuredGenerator
+from scripts.run_canonical_latent_e12_structured_generator import (
+    FixedGenerator,
+    StructuredGenerator,
+    oracle_generators,
+)
 from scripts.run_canonical_latent_e13_identifiability_audit import schedules
 from scripts.run_canonical_latent_e15_training_package import (
     CANONICAL_OUTPUT_DIR,
@@ -35,6 +39,7 @@ from scripts.run_canonical_latent_e15_training_package import (
     grouped_loss,
     grouped_outputs,
     incomplete_status,
+    literal_outputs,
     loss_from_outputs,
     occurrence_counts,
     pretty_bytes,
@@ -121,6 +126,17 @@ def test_e15_source_probe_uses_literal_structured_coordinates() -> None:
     assert torch.count_nonzero(model.ax_upper) == 1
     assert torch.count_nonzero(model.ay_upper) == 1
     assert torch.count_nonzero(model.diffusion_log_rate) == 1
+
+
+def test_e15_literal_outputs_supports_fixed_oracle_without_forward() -> None:
+    dataset = _tiny_dataset()
+    inputs, _, parameters = dataset.transitions
+    oracle = FixedGenerator(*oracle_generators())
+
+    actual = literal_outputs(oracle, inputs, parameters)
+    expected = oracle.step(inputs, parameters, rule="combined")
+
+    torch.testing.assert_close(actual, expected, rtol=0.0, atol=0.0)
 
 
 def _recovery(bits: int) -> dict[str, bool]:
