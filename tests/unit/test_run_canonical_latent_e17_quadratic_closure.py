@@ -40,6 +40,89 @@ def test_mode_order_matches_e7_x_major_y_minor() -> None:
     assert names[-1] == "cos3*cos3"
 
 
+def test_periodic_mode_frequencies_and_shell_weights() -> None:
+    frequencies = e17.periodic_mode_frequencies()
+    assert frequencies[0] == (0, 0)
+    assert frequencies[1] == (0, 1)
+    assert frequencies[7] == (1, 0)
+    assert frequencies[48] == (3, 3)
+    weights = e17.coefficient_shell_weights()
+    assert weights.shape == (48,)
+    assert weights[0].item() == 0.5
+    assert weights[-1].item() == pytest.approx(1.0 / 19.0)
+
+
+def test_stratified_uniform_draws_one_value_per_stratum() -> None:
+    generator = torch.Generator().manual_seed(101)
+    values = e17.stratified_uniform(8, -2.0, 2.0, generator=generator)
+    stratum = torch.floor((values + 2.0) / 0.5).to(torch.int64)
+    assert sorted(stratum.tolist()) == list(range(8))
+    assert torch.all(values >= -2.0)
+    assert torch.all(values < 2.0)
+
+
+def test_small_nonregistered_closure_tail_is_real_normalized_and_unresolved() -> None:
+    values, report = e17.closure_tail(seed=7, resolution=24)
+    assert values.shape == (24, 24)
+    assert report["passed"]
+    assert report["half_plane_entries"] > 0
+    assert report["rms"] == pytest.approx(0.04, abs=1e-14)
+    assert abs(report["mean"]) <= 1e-14
+    assert report["active_projection_norm"] <= 1e-12
+
+
+def _dummy_population_specs() -> tuple[e17.PopulationSpec, e17.ValidationPopulationSpec]:
+    training_coefficients = torch.arange(192 * 52, dtype=torch.float64).reshape(192, 52)
+    training_parameters = torch.arange(192 * 5, dtype=torch.float64).reshape(192, 5) + 20_000
+    training_schedule = torch.arange(192, dtype=torch.int64)
+    training = e17.PopulationSpec(
+        coefficients=training_coefficients,
+        parameters=training_parameters,
+        regime_indices=torch.arange(192, dtype=torch.int64) % 4,
+        identity_indices=torch.arange(192, dtype=torch.int64),
+        identity_keys=tuple(f"training:{index:03d}" for index in range(192)),
+        records=(),
+        hashes=e17._population_hashes(schedule=training_schedule),
+    )
+    validation_coefficients = (
+        torch.arange(32 * 52, dtype=torch.float64).reshape(32, 52) + 40_000
+    ).repeat_interleave(2, dim=0)
+    validation_parameters = (
+        torch.arange(32 * 5, dtype=torch.float64).reshape(32, 5) + 60_000
+    ).repeat_interleave(2, dim=0)
+    initial_fields = torch.arange(64 * 4, dtype=torch.float64).reshape(64, 2, 2) + 80_000
+    pair_keys = tuple(f"validation_pair:{index:02d}" for index in range(32))
+    member_keys = tuple(f"{key}:member:{member}" for key in pair_keys for member in (0, 1))
+    validation = e17.ValidationPopulationSpec(
+        coefficients=validation_coefficients,
+        parameters=validation_parameters,
+        initial_fields=initial_fields,
+        regime_indices=(torch.arange(32, dtype=torch.int64) % 4).repeat_interleave(2),
+        pair_indices=torch.arange(32, dtype=torch.int64).repeat_interleave(2),
+        member_indices=torch.tensor((0, 1), dtype=torch.int64).repeat(32),
+        pair_identity_keys=pair_keys,
+        member_identity_keys=member_keys,
+        stress=torch.zeros(64, dtype=torch.bool),
+        records=(),
+        hashes=e17._population_hashes(pair_schedule=torch.arange(31, -1, -1)),
+    )
+    return training, validation
+
+
+def test_population_overlap_report_is_split_qualified_and_fail_closed() -> None:
+    training, validation = _dummy_population_specs()
+    report = e17.population_overlap_report(training, validation)
+    assert report["passed"]
+    assert not report["detail"]["identity_overlap"]
+    assert not report["detail"]["initial_coefficient_overlap"]
+    assert not report["detail"]["parameter_tuple_overlap"]
+    validation.coefficients[0] = training.coefficients[0]
+    validation.coefficients[1] = training.coefficients[0]
+    failed = e17.population_overlap_report(training, validation)
+    assert not failed["passed"]
+    assert not failed["checks"]["initial_coefficient_disjoint"]
+
+
 @pytest.mark.parametrize(
     ("resolution", "lower", "upper", "count"),
     ((216, -71, 71, 143), (324, -107, 107, 215)),

@@ -16,6 +16,7 @@ EXPERIMENT = "canonical_latent_e17_quadratic_closure"
 ACTIVE_DIM = 49
 LATENT_DIM = 52
 FEATURE_NAMES = ("one", "sin1", "cos1", "sin2", "cos2", "sin3", "cos3")
+FEATURE_FREQUENCIES = (0, 1, 1, 2, 2, 3, 3)
 REGIMES = ("x_only", "y_only", "mixed_same_sign", "mixed_opposite_sign")
 CLASSIFICATIONS = (
     "preflight_failed",
@@ -61,6 +62,9 @@ PREDECESSOR_HASHES = {
     ),
     "scripts/run_canonical_latent_e7_function_space.py": (
         "cf81597b3909e9693508b62e595eb006a8598d186de062eaf4a8f241d4b07488"
+    ),
+    "docs/research/artifacts/canonical_latent_e17_truth_calibration_result.json": (
+        "cbabbf03d2220963523f8a9ada743dd35589ab47811dc5c3b253b8e11cb7bea2"
     ),
 }
 
@@ -132,6 +136,32 @@ class E17Config:
             raise ValueError("E17 validation must contain exactly two members per closure pair")
         if self.expected_axis_support != 1329:
             raise ValueError("E17 freezes 1,329 symmetric triad entries per axis")
+
+
+@dataclass(frozen=True)
+class PopulationSpec:
+    coefficients: torch.Tensor
+    parameters: torch.Tensor
+    regime_indices: torch.Tensor
+    identity_indices: torch.Tensor
+    identity_keys: tuple[str, ...]
+    records: tuple[dict[str, Any], ...]
+    hashes: dict[str, dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class ValidationPopulationSpec:
+    coefficients: torch.Tensor
+    parameters: torch.Tensor
+    initial_fields: torch.Tensor
+    regime_indices: torch.Tensor
+    pair_indices: torch.Tensor
+    member_indices: torch.Tensor
+    pair_identity_keys: tuple[str, ...]
+    member_identity_keys: tuple[str, ...]
+    stress: torch.Tensor
+    records: tuple[dict[str, Any], ...]
+    hashes: dict[str, dict[str, Any]]
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -228,6 +258,22 @@ def periodic_basis(
 
 def mode_names() -> tuple[str, ...]:
     return tuple(f"{x_name}*{y_name}" for x_name in FEATURE_NAMES for y_name in FEATURE_NAMES)
+
+
+def periodic_mode_frequencies() -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (FEATURE_FREQUENCIES[x_index], FEATURE_FREQUENCIES[y_index])
+        for x_index in range(7)
+        for y_index in range(7)
+    )
+
+
+def coefficient_shell_weights() -> torch.Tensor:
+    frequencies = periodic_mode_frequencies()
+    return torch.tensor(
+        [1.0 / (1.0 + fx * fx + fy * fy) for fx, fy in frequencies[1:]],
+        dtype=torch.float64,
+    )
 
 
 def project_periodic(values: torch.Tensor) -> torch.Tensor:
@@ -389,6 +435,533 @@ def calibration_cases() -> tuple[torch.Tensor, torch.Tensor, tuple[str, ...]]:
         parameters,
         ("single_x", "single_y", "two_mode_x", "two_mode_y", "mixed", "stress"),
     )
+
+
+def stratified_uniform(
+    count: int,
+    lower: float,
+    upper: float,
+    *,
+    generator: torch.Generator,
+) -> torch.Tensor:
+    if count < 1 or not lower < upper:
+        raise ValueError("stratified uniform requires a positive count and increasing interval")
+    draws = torch.rand(count, generator=generator, dtype=torch.float64)
+    strata = torch.arange(count, dtype=torch.float64)
+    values = lower + (strata + draws) * ((upper - lower) / count)
+    permutation = torch.randperm(count, generator=generator)
+    return values[permutation]
+
+
+def _signed_parameters(
+    regime_index: int,
+    sign: torch.Tensor,
+    gamma_x_magnitude: torch.Tensor,
+    gamma_y_magnitude: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if regime_index == 0:
+        return sign * gamma_x_magnitude, torch.zeros_like(gamma_y_magnitude)
+    if regime_index == 1:
+        return torch.zeros_like(gamma_x_magnitude), sign * gamma_y_magnitude
+    if regime_index == 2:
+        return sign * gamma_x_magnitude, sign * gamma_y_magnitude
+    if regime_index == 3:
+        return sign * gamma_x_magnitude, -sign * gamma_y_magnitude
+    raise ValueError("unknown E17 regime index")
+
+
+def _normalized_nonconstant_coefficients(
+    raw: torch.Tensor,
+    target_rms: torch.Tensor,
+) -> torch.Tensor:
+    weighted = raw.double() * coefficient_shell_weights()
+    norms = torch.linalg.vector_norm(weighted, dim=1)
+    if torch.any(norms <= 0) or not torch.isfinite(norms).all():
+        raise RuntimeError("nonconstant coefficient normalization is undefined")
+    return weighted * (target_rms / norms)[:, None]
+
+
+def _population_hashes(**tensors: torch.Tensor) -> dict[str, dict[str, Any]]:
+    return {name: canonical_tensor_record(tensor) for name, tensor in tensors.items()}
+
+
+def canonical_row_hashes(tensor: torch.Tensor) -> tuple[str, ...]:
+    if tensor.ndim < 1:
+        raise ValueError("row hashing requires at least one dimension")
+    return tuple(canonical_tensor_record(row)["sha256"] for row in tensor)
+
+
+def canonical_string_sequence_record(values: tuple[str, ...]) -> dict[str, Any]:
+    payload = canonical_json_bytes(list(values))
+    return {
+        "count": len(values),
+        "unique": len(set(values)),
+        "sha256": sha256_bytes(payload),
+    }
+
+
+def build_training_population(cfg: E17Config) -> PopulationSpec:
+    state_generator = torch.Generator().manual_seed(cfg.training_state_seed)
+    parameter_generator = torch.Generator().manual_seed(cfg.training_parameter_seed)
+    schedule_generator = torch.Generator().manual_seed(cfg.training_schedule_seed)
+    coefficient_blocks = []
+    parameter_blocks = []
+    regime_blocks = []
+    identity_blocks = []
+    records = []
+    count = cfg.training_trajectories // len(REGIMES)
+    if count != 48:
+        raise ValueError("E17 requires exactly 48 training trajectories per regime")
+    for regime_index, regime in enumerate(REGIMES):
+        raw = torch.randn(count, ACTIVE_DIM - 1, generator=state_generator, dtype=torch.float64)
+        mean = stratified_uniform(
+            count,
+            -0.10,
+            0.10,
+            generator=parameter_generator,
+        )
+        target_rms = stratified_uniform(
+            count,
+            0.20,
+            0.50,
+            generator=parameter_generator,
+        )
+        vx = stratified_uniform(
+            count,
+            -0.30,
+            0.30,
+            generator=parameter_generator,
+        )
+        vy = stratified_uniform(
+            count,
+            -0.30,
+            0.30,
+            generator=parameter_generator,
+        )
+        nu = stratified_uniform(
+            count,
+            0.004,
+            0.012,
+            generator=parameter_generator,
+        )
+        gamma_x_magnitude = stratified_uniform(
+            count,
+            0.40,
+            1.00,
+            generator=parameter_generator,
+        )
+        gamma_y_magnitude = stratified_uniform(
+            count,
+            0.40,
+            1.00,
+            generator=parameter_generator,
+        )
+        sign = torch.cat(
+            (
+                torch.ones(count // 2, dtype=torch.float64),
+                -torch.ones(count // 2, dtype=torch.float64),
+            )
+        )
+        gamma_x, gamma_y = _signed_parameters(
+            regime_index,
+            sign,
+            gamma_x_magnitude,
+            gamma_y_magnitude,
+        )
+        coefficients = torch.zeros(count, LATENT_DIM, dtype=torch.float64)
+        coefficients[:, 0] = mean
+        coefficients[:, 1:ACTIVE_DIM] = _normalized_nonconstant_coefficients(raw, target_rms)
+        parameters = torch.stack((vx, vy, nu, gamma_x, gamma_y), dim=1)
+        identities = torch.arange(
+            regime_index * count,
+            (regime_index + 1) * count,
+            dtype=torch.int64,
+        )
+        coefficient_blocks.append(coefficients)
+        parameter_blocks.append(parameters)
+        regime_blocks.append(torch.full((count,), regime_index, dtype=torch.int64))
+        identity_blocks.append(identities)
+        records.extend(
+            {
+                "identity_index": int(identity),
+                "regime": regime,
+                "within_regime_index": within,
+                "sign": int(sign[within].item()),
+            }
+            for within, identity in enumerate(identities.tolist())
+        )
+    coefficients = torch.cat(coefficient_blocks)
+    parameters = torch.cat(parameter_blocks)
+    regime_indices = torch.cat(regime_blocks)
+    identity_indices = torch.cat(identity_blocks)
+    permutation = torch.randperm(cfg.training_trajectories, generator=schedule_generator)
+    records_by_identity = {record["identity_index"]: record for record in records}
+    coefficients = coefficients[permutation]
+    parameters = parameters[permutation]
+    regime_indices = regime_indices[permutation]
+    identity_indices = identity_indices[permutation]
+    identity_keys = tuple(f"training:{int(identity):03d}" for identity in identity_indices.tolist())
+    records = [
+        {
+            **records_by_identity[int(identity)],
+            "identity_key": identity_key,
+        }
+        for identity, identity_key in zip(
+            identity_indices.tolist(),
+            identity_keys,
+            strict=True,
+        )
+    ]
+    full_record_hashes = canonical_row_hashes(torch.cat((coefficients, parameters), dim=1))
+    if len(set(identity_keys)) != cfg.training_trajectories:
+        raise RuntimeError("training split-qualified identities are not unique")
+    if len(set(full_record_hashes)) != cfg.training_trajectories:
+        raise RuntimeError("training coefficient/parameter records are not unique")
+    hashes = _population_hashes(
+        coefficients=coefficients,
+        parameters=parameters,
+        regime_indices=regime_indices,
+        identity_indices=identity_indices,
+        schedule=permutation,
+    )
+    hashes["identity_keys"] = canonical_string_sequence_record(identity_keys)
+    hashes["full_records"] = {
+        "count": len(full_record_hashes),
+        "unique": len(set(full_record_hashes)),
+        "sha256": sha256_bytes(canonical_json_bytes(full_record_hashes)),
+    }
+    return PopulationSpec(
+        coefficients=coefficients,
+        parameters=parameters,
+        regime_indices=regime_indices,
+        identity_indices=identity_indices,
+        identity_keys=identity_keys,
+        records=tuple(records),
+        hashes=hashes,
+    )
+
+
+def closure_tail(
+    *,
+    seed: int,
+    resolution: int,
+    target_rms: float = 0.04,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+    generator = torch.Generator().manual_seed(seed)
+    frequencies = fft_wavenumbers(resolution)
+    lookup = {int(frequency): index for index, frequency in enumerate(frequencies.tolist())}
+    half_plane = sorted(
+        (kx, ky)
+        for kx in range(-6, 7)
+        for ky in range(-6, 7)
+        if 4 <= max(abs(kx), abs(ky)) <= 6 and (kx > 0 or (kx == 0 and ky > 0))
+    )
+    draws = torch.randn(len(half_plane), 2, generator=generator, dtype=torch.float64)
+    spectrum = torch.zeros(resolution, resolution, dtype=torch.complex128)
+    for index, (kx, ky) in enumerate(half_plane):
+        weight = 1.0 / (1.0 + kx * kx + ky * ky)
+        value = complex(float(draws[index, 0].item()), float(draws[index, 1].item())) * weight
+        spectrum[lookup[kx], lookup[ky]] = value
+        spectrum[lookup[-kx], lookup[-ky]] = value.conjugate()
+    values = torch.fft.ifft2(spectrum).real
+    values = values - values.mean()
+    rms_before = torch.sqrt(values.square().mean())
+    if float(rms_before.item()) <= 0 or not torch.isfinite(rms_before):
+        raise RuntimeError("closure tail has invalid pre-normalization RMS")
+    values = values * (target_rms / rms_before)
+    projected = project_periodic(values)
+    report = {
+        "seed": seed,
+        "resolution": resolution,
+        "half_plane": [list(pair) for pair in half_plane],
+        "half_plane_entries": len(half_plane),
+        "raw_draws": canonical_tensor_record(draws),
+        "tail": canonical_tensor_record(values),
+        "rms": float(torch.sqrt(values.square().mean()).item()),
+        "mean": float(values.mean().item()),
+        "active_projection_norm": float(torch.linalg.vector_norm(projected[:ACTIVE_DIM]).item()),
+        "inactive_trends_zero": bool(torch.equal(projected[ACTIVE_DIM:], torch.zeros(3))),
+        "finite": bool(torch.isfinite(values).all()),
+    }
+    report["passed"] = (
+        math.isclose(report["rms"], target_rms, rel_tol=0.0, abs_tol=1e-14)
+        and abs(report["mean"]) <= 1e-14
+        and report["active_projection_norm"] <= 1e-12
+        and report["inactive_trends_zero"]
+        and report["finite"]
+    )
+    return values, report
+
+
+def _validation_strata(
+    ordinary_interval: tuple[float, float],
+    stress_interval: tuple[float, float] | None,
+    *,
+    generator: torch.Generator,
+) -> torch.Tensor:
+    ordinary = stratified_uniform(
+        6,
+        ordinary_interval[0],
+        ordinary_interval[1],
+        generator=generator,
+    )
+    stress_range = stress_interval if stress_interval is not None else ordinary_interval
+    stress = stratified_uniform(
+        2,
+        stress_range[0],
+        stress_range[1],
+        generator=generator,
+    )
+    return torch.cat((ordinary, stress))
+
+
+def build_validation_population(cfg: E17Config) -> ValidationPopulationSpec:
+    state_generator = torch.Generator().manual_seed(cfg.validation_state_seed)
+    parameter_generator = torch.Generator().manual_seed(cfg.validation_parameter_seed)
+    schedule_generator = torch.Generator().manual_seed(cfg.validation_schedule_seed)
+    pair_coefficients = []
+    pair_parameters = []
+    pair_regimes = []
+    pair_stress = []
+    pair_records = []
+    pairs_per_regime = cfg.validation_pairs // len(REGIMES)
+    if pairs_per_regime != 8:
+        raise ValueError("E17 requires exactly eight validation pairs per regime")
+    for regime_index, regime in enumerate(REGIMES):
+        raw = torch.randn(
+            pairs_per_regime,
+            ACTIVE_DIM - 1,
+            generator=state_generator,
+            dtype=torch.float64,
+        )
+        mean = _validation_strata(
+            (-0.10, 0.10),
+            None,
+            generator=parameter_generator,
+        )
+        target_rms = _validation_strata(
+            (0.20, 0.50),
+            (0.50, 0.65),
+            generator=parameter_generator,
+        )
+        vx = _validation_strata(
+            (-0.30, 0.30),
+            None,
+            generator=parameter_generator,
+        )
+        vy = _validation_strata(
+            (-0.30, 0.30),
+            None,
+            generator=parameter_generator,
+        )
+        nu = _validation_strata(
+            (0.004, 0.012),
+            None,
+            generator=parameter_generator,
+        )
+        gamma_x_magnitude = _validation_strata(
+            (0.40, 1.00),
+            (1.00, 1.20),
+            generator=parameter_generator,
+        )
+        gamma_y_magnitude = _validation_strata(
+            (0.40, 1.00),
+            (1.00, 1.20),
+            generator=parameter_generator,
+        )
+        sign = torch.tensor((1, 1, 1, -1, -1, -1, 1, -1), dtype=torch.float64)
+        gamma_x, gamma_y = _signed_parameters(
+            regime_index,
+            sign,
+            gamma_x_magnitude,
+            gamma_y_magnitude,
+        )
+        coefficients = torch.zeros(pairs_per_regime, LATENT_DIM, dtype=torch.float64)
+        coefficients[:, 0] = mean
+        coefficients[:, 1:ACTIVE_DIM] = _normalized_nonconstant_coefficients(raw, target_rms)
+        parameters = torch.stack((vx, vy, nu, gamma_x, gamma_y), dim=1)
+        stress = torch.tensor((False,) * 6 + (True,) * 2, dtype=torch.bool)
+        pair_coefficients.append(coefficients)
+        pair_parameters.append(parameters)
+        pair_regimes.append(torch.full((pairs_per_regime,), regime_index, dtype=torch.int64))
+        pair_stress.append(stress)
+        for within in range(pairs_per_regime):
+            pair_index = regime_index * pairs_per_regime + within
+            pair_records.append(
+                {
+                    "pair_index": pair_index,
+                    "regime": regime,
+                    "within_regime_index": within,
+                    "stress": bool(stress[within].item()),
+                    "sign": int(sign[within].item()),
+                }
+            )
+    coefficients_by_pair = torch.cat(pair_coefficients)
+    parameters_by_pair = torch.cat(pair_parameters)
+    regimes_by_pair = torch.cat(pair_regimes)
+    stress_by_pair = torch.cat(pair_stress)
+    pair_permutation = torch.randperm(cfg.validation_pairs, generator=schedule_generator)
+    coefficients_by_pair = coefficients_by_pair[pair_permutation]
+    parameters_by_pair = parameters_by_pair[pair_permutation]
+    regimes_by_pair = regimes_by_pair[pair_permutation]
+    stress_by_pair = stress_by_pair[pair_permutation]
+    original_pair_indices = pair_permutation.to(torch.int64)
+    record_lookup = {record["pair_index"]: record for record in pair_records}
+    coefficients = coefficients_by_pair.repeat_interleave(2, dim=0)
+    parameters = parameters_by_pair.repeat_interleave(2, dim=0)
+    regime_indices = regimes_by_pair.repeat_interleave(2)
+    stress = stress_by_pair.repeat_interleave(2)
+    pair_indices = original_pair_indices.repeat_interleave(2)
+    member_indices = torch.tensor((0, 1), dtype=torch.int64).repeat(cfg.validation_pairs)
+    pair_identity_keys = tuple(
+        f"validation_pair:{int(pair_index):02d}" for pair_index in original_pair_indices.tolist()
+    )
+    member_identity_keys = tuple(
+        f"{pair_key}:member:{member}" for pair_key in pair_identity_keys for member in (0, 1)
+    )
+    low_fields = decode_periodic(coefficients_by_pair, resolution=cfg.truth_resolution)
+    initial_fields = []
+    records = []
+    tail_reports = []
+    for ordered_pair in range(cfg.validation_pairs):
+        original_pair = int(original_pair_indices[ordered_pair].item())
+        base_record = record_lookup[original_pair]
+        for member in (0, 1):
+            seed = 917100 + 2 * original_pair + member
+            tail, tail_report = closure_tail(seed=seed, resolution=cfg.truth_resolution)
+            initial_fields.append(low_fields[ordered_pair] + tail)
+            tail_reports.append(tail_report)
+            records.append(
+                {
+                    **base_record,
+                    "pair_identity_key": pair_identity_keys[ordered_pair],
+                    "member_identity_key": member_identity_keys[2 * ordered_pair + member],
+                    "member_index": member,
+                    "tail_seed": seed,
+                }
+            )
+    initial_fields_tensor = torch.stack(initial_fields)
+    projected = project_periodic(initial_fields_tensor)
+    maximum_pair_projection_mismatch = float(
+        torch.linalg.vector_norm(projected - coefficients, dim=1).max().item()
+    )
+    distinct_tail_pairs = all(
+        tail_reports[2 * index]["tail"]["sha256"] != tail_reports[2 * index + 1]["tail"]["sha256"]
+        for index in range(cfg.validation_pairs)
+    )
+    if maximum_pair_projection_mismatch > 1e-12:
+        raise RuntimeError("validation closure-pair latent mismatch exceeds contract")
+    if not distinct_tail_pairs or not all(report["passed"] for report in tail_reports):
+        raise RuntimeError("validation closure-tail construction failed")
+    full_state_hashes = canonical_row_hashes(initial_fields_tensor)
+    if len(set(pair_identity_keys)) != cfg.validation_pairs:
+        raise RuntimeError("validation pair identities are not unique")
+    if len(set(member_identity_keys)) != cfg.validation_trajectories:
+        raise RuntimeError("validation member identities are not unique")
+    if len(set(full_state_hashes)) != cfg.validation_trajectories:
+        raise RuntimeError("validation full initial states are not unique")
+    hashes = _population_hashes(
+        coefficients=coefficients,
+        parameters=parameters,
+        initial_fields=initial_fields_tensor,
+        regime_indices=regime_indices,
+        pair_indices=pair_indices,
+        member_indices=member_indices,
+        stress=stress.to(torch.int64),
+        pair_schedule=pair_permutation,
+    )
+    hashes["pair_identity_keys"] = canonical_string_sequence_record(pair_identity_keys)
+    hashes["member_identity_keys"] = canonical_string_sequence_record(member_identity_keys)
+    hashes["full_initial_states"] = {
+        "count": len(full_state_hashes),
+        "unique": len(set(full_state_hashes)),
+        "sha256": sha256_bytes(canonical_json_bytes(full_state_hashes)),
+    }
+    hashes["closure_pair_checks"] = {
+        "maximum_projection_mismatch": maximum_pair_projection_mismatch,
+        "distinct_tail_pairs": distinct_tail_pairs,
+        "all_tail_reports_passed": all(report["passed"] for report in tail_reports),
+        "tail_report_sha256": sha256_bytes(canonical_json_bytes(tail_reports)),
+    }
+    return ValidationPopulationSpec(
+        coefficients=coefficients,
+        parameters=parameters,
+        initial_fields=initial_fields_tensor,
+        regime_indices=regime_indices,
+        pair_indices=pair_indices,
+        member_indices=member_indices,
+        pair_identity_keys=pair_identity_keys,
+        member_identity_keys=member_identity_keys,
+        stress=stress,
+        records=tuple(records),
+        hashes=hashes,
+    )
+
+
+def population_overlap_report(
+    training: PopulationSpec,
+    validation: ValidationPopulationSpec,
+) -> dict[str, Any]:
+    training_coefficient_hashes = canonical_row_hashes(training.coefficients)
+    validation_low_coefficient_hashes = canonical_row_hashes(validation.coefficients[::2])
+    training_parameter_hashes = canonical_row_hashes(training.parameters)
+    validation_parameter_hashes = canonical_row_hashes(validation.parameters[::2])
+    validation_full_state_hashes = canonical_row_hashes(validation.initial_fields)
+    training_full_record_hashes = canonical_row_hashes(
+        torch.cat((training.coefficients, training.parameters), dim=1)
+    )
+    identity_overlap = sorted(set(training.identity_keys) & set(validation.member_identity_keys))
+    coefficient_overlap = sorted(
+        set(training_coefficient_hashes) & set(validation_low_coefficient_hashes)
+    )
+    parameter_overlap = sorted(set(training_parameter_hashes) & set(validation_parameter_hashes))
+    training_schedule_sha256 = training.hashes["schedule"]["sha256"]
+    validation_schedule_sha256 = validation.hashes["pair_schedule"]["sha256"]
+    checks = {
+        "training_identity_count": len(training.identity_keys) == 192,
+        "training_identity_unique": len(set(training.identity_keys)) == 192,
+        "training_full_record_unique": len(set(training_full_record_hashes)) == 192,
+        "validation_pair_identity_count": len(validation.pair_identity_keys) == 32,
+        "validation_pair_identity_unique": len(set(validation.pair_identity_keys)) == 32,
+        "validation_member_identity_count": len(validation.member_identity_keys) == 64,
+        "validation_member_identity_unique": len(set(validation.member_identity_keys)) == 64,
+        "validation_full_state_unique": len(set(validation_full_state_hashes)) == 64,
+        "split_identity_disjoint": not identity_overlap,
+        "initial_coefficient_disjoint": not coefficient_overlap,
+        "parameter_tuple_disjoint": not parameter_overlap,
+        "schedule_hash_disjoint": training_schedule_sha256 != validation_schedule_sha256,
+    }
+    detail = {
+        "identity_overlap": identity_overlap,
+        "initial_coefficient_overlap": coefficient_overlap,
+        "parameter_tuple_overlap": parameter_overlap,
+        "training_schedule_sha256": training_schedule_sha256,
+        "validation_schedule_sha256": validation_schedule_sha256,
+        "training_full_record_hashes_sha256": sha256_bytes(
+            canonical_json_bytes(training_full_record_hashes)
+        ),
+        "validation_full_state_hashes_sha256": sha256_bytes(
+            canonical_json_bytes(validation_full_state_hashes)
+        ),
+    }
+    report = {
+        "checks": checks,
+        "detail": detail,
+        "passed": all(checks.values()),
+    }
+    report["canonical_sha256"] = sha256_bytes(canonical_json_bytes(report))
+    return report
+
+
+def build_registered_populations(
+    cfg: E17Config,
+) -> tuple[PopulationSpec, ValidationPopulationSpec, dict[str, Any]]:
+    training = build_training_population(cfg)
+    validation = build_validation_population(cfg)
+    overlap = population_overlap_report(training, validation)
+    if not overlap["passed"]:
+        raise RuntimeError("E17 population identity/overlap preflight failed")
+    return training, validation, overlap
 
 
 def nonlinear_energy_rate_residual(
