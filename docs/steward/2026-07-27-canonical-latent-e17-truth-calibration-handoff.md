@@ -32,15 +32,20 @@ classification was changed.
 
 ## Next implementation slice
 
-Complete source and tests for:
+Completed in reviewed source without calling the registered builders:
 
 1. exact stratified training-population construction;
-2. exact 32-pair validation tail construction;
-3. sealed E15 neutral componentwise L-BFGS reconstruction;
-4. equality-constrained triad-supported least squares;
-5. closure-pair, rollout, energy, semigroup, stress, and cross-observation
+2. exact 32-pair validation tail construction; and
+3. split-qualified identity, uniqueness, canonical-hash, and cross-split
+   overlap gates.
+
+Complete source and tests for:
+
+1. sealed E15 neutral componentwise L-BFGS reconstruction;
+2. equality-constrained triad-supported least squares;
+3. closure-pair, rollout, energy, semigroup, stress, and cross-observation
    evaluation; and
-6. deterministic replicated evidence publication.
+4. deterministic replicated evidence publication.
 
 Stop before calling a population constructor until the complete runner is
 committed clean and a fresh independent pre-state review returns GO.

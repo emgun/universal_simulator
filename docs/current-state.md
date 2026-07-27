@@ -452,14 +452,20 @@ decided only by registered same-latent/different-tail derivative pairs; the
 zero-tail Galerkin arm is a diagnostic control, not a false closure ceiling.
 The source-only shell verifies exact E15 seals, strict FFT masks, the 1,329
 triad entries per axis, energy identities, serialization, and classification
-precedence. Independent review returns GO and focused tests pass `16/16`.
+precedence. Independent review returns GO.
 The analytic de-aliased truth gate is now qualified at the final
 `216/324/432` spatial rung: worst full-field NRMSE is `6.974e-5` versus
 `<=2e-4`, while active-coefficient NRMSE is `6.726e-10`, energy mismatch
 `1.212e-8`, and nonlinear energy-rate residual `3.262e-16`. Two lower rungs
 failed only full-field convergence and are preserved. Training, validation,
-and held-out reads remain zero. Next implement and independently review the
-population/fit/evaluation runner before the single scientific execution. See
+and held-out reads remain zero. The registered training and validation
+population specifications are now
+implemented and independently reviewed in source: exact stratified draws,
+split-qualified pair/member identities, closure-tail construction, canonical
+row hashes, and cross-split overlap checks fail closed. The registered
+builders have not been called; focused source tests now pass `20/20`. Next
+reconstruct and hash-match the frozen E15 linear trunk, then implement the
+constrained fit and evaluation. See
 `docs/research/2026-07-27-canonical-latent-e17-truth-calibration-result.md`.
 
 ## Latest Model Evidence
@@ -512,9 +518,10 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    E16 shows both practical recovery packages are stable across the sealed
    realization plus two fresh realizations. Stop optimizer archaeology. E17's
    representation-first nonlinear contract, source-only shell, and de-aliased
-   truth calibration are reviewed and passing. Keep the encoder and routing
-   frozen; complete the registered population/constrained-fit/evaluation
-   implementation, obtain a fresh
+   truth calibration are reviewed and passing. Population specifications and
+   overlap gates are implemented/reviewed without state construction. Keep the
+   encoder and routing frozen; complete frozen-linear reconstruction plus the
+   constrained-fit/evaluation implementation, obtain a fresh
    pre-state GO on the full runner, then execute once from clean committed
    source.
 

@@ -291,3 +291,8 @@ not claim evidence.
   the full-field gate. Preserve a full-field reference check, use a
   preregistered refinement/hard-stop rule, and never reinterpret a
   truth-discretization failure as latent or operator evidence.
+- Synthetic splits still need split-qualified identities. Numeric indices
+  reused from zero in each split are not provenance identities. Hash the
+  complete record at its semantic grain, retain intentional within-pair
+  coefficient/parameter sharing explicitly, and fail closed on cross-split
+  identity, low-state, parameter, or schedule overlap before integration.
