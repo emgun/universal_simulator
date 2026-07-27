@@ -107,6 +107,9 @@ recomputed every recovery bit, both stability conjunctions, the classification,
 and nonlinear authorization and returned GO with no P0/P1 blocker.
 
 Focused E16 tests pass `36/36`; the related E12-E16 suite passes `104/104`.
+The complete clean post-result unit suite also passes outside the managed
+sandbox; the sandboxed attempt's loopback/shared-memory denials were
+environmental rather than product failures.
 
 ## Boundary
 
