@@ -430,6 +430,20 @@ archaeology and open nonlinear dynamics only if a practical recovery rule is
 stable. See
 `docs/research/2026-07-26-canonical-latent-e15-training-package-result.md`.
 
+E16 closes that robustness gate positively. Across the sealed E15 realization
+and two preregistered fresh training/schedule realizations, deterministic
+fresh-moment AdamW repairs every realization's ordered-AdamW checkpoint and
+neutral componentwise strong-Wolfe L-BFGS recovers every realization. All six
+recovery bits pass. Fresh AdamW-restart basis-action/high-frequency NRMSE are
+`0.000655` / `0.005247` on `r1` and `0.003264` / `0.004439` on `r2`; neutral
+L-BFGS reaches `1.392e-5` / `1.892e-5` and `1.902e-5` / `4.386e-5`. Both fresh
+E12 checkpoints repeat the original generator-identification/high-frequency
+failure before repair. The registered classification is
+`both_practical_recovery_packages_stable`. Stop linear optimizer work. Preserve
+E10 and routing closure, and preregister E17 as a constrained quadratic
+nonlinear closure test in the same coefficient latent. See
+`docs/research/2026-07-27-canonical-latent-e16-multi-realization-robustness-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -476,12 +490,12 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    failure or add family routing from that result.
 4. E1-E10 qualify the exact representation for the frozen observation
    processes. E11 closes the generic dense coefficient MLP. E12's strict
-   negative is repaired by E13-E15 without changing the representation:
-   deterministic AdamW succeeds only from the E12 checkpoint, while the
-   componentwise L-BFGS package succeeds from neutral and restart. Preregister
-   one compact multi-realization E16 robustness gate over the two viable
-   packages. Keep the encoder and thresholds frozen, do not route, and open
-   nonlinear physics only after a practical recovery rule is stable.
+   negative is repaired by E13-E15 without changing the representation, and
+   E16 shows both practical recovery packages are stable across the sealed
+   realization plus two fresh realizations. Stop optimizer archaeology. Keep
+   the encoder and thresholds frozen, do not route, and preregister E17 as a
+   de-aliased 2-D periodic scalar viscous Burgers closure test with the frozen
+   linear model nested inside a constrained quadratic convection term.
 
 ## Reopen Triggers
 
