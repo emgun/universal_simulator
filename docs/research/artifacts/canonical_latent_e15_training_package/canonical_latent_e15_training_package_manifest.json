@@ -1,0 +1,50 @@
+{
+  "boundary": {
+    "encoder_updates": 0,
+    "heldout_reads": 0,
+    "nonlinear_dynamics_qualified": false,
+    "particle_dynamics_qualified": false,
+    "provider_calls": 0,
+    "public_or_claim_grade": false,
+    "representation_label_inputs": false,
+    "routing_paths": 0,
+    "source_bypasses": 0,
+    "synthetic_periodic_scalar_linear_only": true,
+    "task_label_inputs": false
+  },
+  "classification": "deterministic_objective_adamw_restart_repairs_e12_checkpoint_only",
+  "compact_result_self_hash_declared": false,
+  "execution_head": "b94062980e70965d951d0051f9db6d50772305c7",
+  "experiment": "canonical_latent_e15_training_package",
+  "manifest_self_hash_declared": false,
+  "outputs": {
+    "compact_result": {
+      "bytes": 593358,
+      "filename": "canonical_latent_e15_training_package_result.json",
+      "raw_sha256": "e3b91ecc792085f45e6b80bd970cb6da15fb869a7a49e8fec4feb782b919768d"
+    },
+    "evidence_bundle": {
+      "bytes": 1589176,
+      "filename": "canonical_latent_e15_training_package_evidence_bundle.tar.gz",
+      "members": [
+        {
+          "bytes": 7037400,
+          "name": "replicate_a/result.json",
+          "raw_sha256": "f2cc65ecea260f67adce89413cf148b8cae9ee51899e5adba0661c980d30ceed"
+        },
+        {
+          "bytes": 7037400,
+          "name": "replicate_b/result.json",
+          "raw_sha256": "f2cc65ecea260f67adce89413cf148b8cae9ee51899e5adba0661c980d30ceed"
+        },
+        {
+          "bytes": 7038050,
+          "name": "complete_result.json",
+          "raw_sha256": "ba2294304bdb8f97add96e4a6d39869f044a90067df41c4d682608a5d3820429"
+        }
+      ],
+      "raw_sha256": "3347ec66843ed51e30a36996335915221407c979b64afa13b96f9ee0d76b618a"
+    }
+  },
+  "schema_version": 1
+}

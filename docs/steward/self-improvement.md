@@ -246,3 +246,25 @@ not claim evidence.
   negative, do not weaken the gate or reopen the representation. First compare
   the learned optimizer with a direct or oracle-support-sparse recovery ceiling
   under the identical data and thresholds.
+
+## 2026-07-26
+
+- Exercise every frozen model API used by a preflight, including non-trainable
+  oracle adapters, before the clean execution commit. `nn.Module` inheritance
+  does not imply that an older frozen helper implements `forward`; a direct
+  literal-oracle regression would have caught E15's zero-evidence launch
+  failure.
+- When a sealed invocation fails before publication, preserve the scientific
+  boundary: emit an incomplete result, reproduce only enough to expose the
+  engineering traceback, record a narrow pre-execution erratum, obtain fresh
+  review, and rerun from a new clean HEAD. Do not silently patch the registered
+  implementation or reinterpret an incomplete run.
+- A precedence classification is a decision label, not the complete causal
+  result. E15 names the AdamW restart because it is the first passing arm, while
+  both componentwise L-BFGS arms also pass. Always record the full recovery
+  vector before choosing the next gate.
+- Deterministic population weighting did not rescue AdamW from neutral, and
+  nearly uniform versus schedule-occurrence weights both permit L-BFGS neutral
+  recovery. Do not attribute E12 to stochastic noise or weighting alone.
+  Initialization basin and the componentwise second-order package remain
+  coupled; resolve robustness once, then stop optimizer archaeology.

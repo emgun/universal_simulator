@@ -1,6 +1,6 @@
 # Current State
 
-Updated: 2026-07-25
+Updated: 2026-07-26
 
 ## Project
 
@@ -405,6 +405,31 @@ mode-resolved identifiability and optimization before nonlinear expansion. Do
 not relax thresholds or route. See
 `docs/research/2026-07-25-canonical-latent-e12-structured-generator-result.md`.
 
+E13 and its independent E14 seal show that E12's strict negative is not a
+representation, excitation-rank, or full-generator expressivity failure.
+Full-skew deterministic recovery from neutral and from the E12 checkpoint both
+pass all frozen gates. E14 binds the immutable E13 bytes and independently
+recomputes the result as
+`full_parameterization_deterministic_recovery_succeeds`. Preserve the
+near-extinguished basis-41 relative-error diagnostic, but do not use it to
+weaken a gate. See
+`docs/research/2026-07-26-canonical-latent-e14-evidence-seal-result.md`.
+
+E15 now isolates the practical training package. Deterministic
+schedule-weighted AdamW still fails from neutral at basis-action NRMSE
+`0.0760865` and high-frequency NRMSE `0.205808`, but fresh-moment AdamW from the
+E12 checkpoint passes at `0.00104862` and `0.00676557`. Componentwise
+strong-Wolfe L-BFGS passes from both neutral and restart, with neutral errors
+`1.60220e-5` basis action and `3.83964e-5` high frequency. The registered
+classification is
+`deterministic_objective_adamw_restart_repairs_e12_checkpoint_only`; retain the
+full recovery vector because precedence does not make the L-BFGS passes
+disappear. The E10 encoder remains frozen, and routing remains closed. Next run
+one preregistered multi-realization robustness gate, then stop optimizer
+archaeology and open nonlinear dynamics only if a practical recovery rule is
+stable. See
+`docs/research/2026-07-26-canonical-latent-e15-training-package-result.md`.
+
 ## Latest Model Evidence
 
 The pre-registered model-side beta-parameter transport-head measurement
@@ -450,12 +475,13 @@ rerun. See `docs/research/2026-07-11-beta-head-heldout-result.md`.
    gates, run U3/U4, or open held-out access. Do not infer an operator-only
    failure or add family routing from that result.
 4. E1-E10 qualify the exact representation for the frozen observation
-   processes. E11 closes the generic dense coefficient MLP. E12 establishes
-   strong structured-operator accuracy and positive transfer but fails
-   worst-mode action and high-frequency fidelity. Next preregister a
-   mode-resolved identifiability/optimization audit with direct or
-   oracle-support-sparse recovery controls. Keep the encoder and thresholds
-   frozen; do not route or expand to nonlinear physics yet.
+   processes. E11 closes the generic dense coefficient MLP. E12's strict
+   negative is repaired by E13-E15 without changing the representation:
+   deterministic AdamW succeeds only from the E12 checkpoint, while the
+   componentwise L-BFGS package succeeds from neutral and restart. Preregister
+   one compact multi-realization E16 robustness gate over the two viable
+   packages. Keep the encoder and thresholds frozen, do not route, and open
+   nonlinear physics only after a practical recovery rule is stable.
 
 ## Reopen Triggers
 
@@ -506,6 +532,12 @@ broaden held-out access, public claims, experiment budget, or task-family scope.
 - `docs/research/2026-07-25-canonical-latent-e12-structured-generator-result.md`
 - `docs/research/artifacts/canonical_latent_e12_structured_generator_result.json`
 - `docs/steward/2026-07-25-canonical-latent-e12-structured-generator-handoff.md`
+- `docs/research/2026-07-26-canonical-latent-e13-identifiability-audit-contract.md`
+- `docs/research/2026-07-26-canonical-latent-e14-evidence-seal-result.md`
+- `docs/steward/2026-07-26-canonical-latent-e14-evidence-seal-handoff.md`
+- `docs/research/2026-07-26-canonical-latent-e15-training-package-contract.md`
+- `docs/research/2026-07-26-canonical-latent-e15-training-package-result.md`
+- `docs/steward/2026-07-26-canonical-latent-e15-training-package-handoff.md`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_codec_audit.json`
 - `docs/research/artifacts/strat_v1_d6_universal_latent_contract_audit.json`
 - `docs/superpowers/plans/2026-07-16-modular-shared-trunk-d6-v5.md`
